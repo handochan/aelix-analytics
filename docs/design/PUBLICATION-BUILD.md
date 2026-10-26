@@ -2,7 +2,8 @@
 
 - 상태: **설계 채택·단계별 구현 중.** PR1은 내부 `PublicationProjection`·공유 모델·공통 닫힘·snapshot의 순수 경계를 구현했다.
   PR2–PR3은 `analytics build`·preview·private saved build·`publication.json` 쓰기/결박·패키지 검사·ZIP을 구현했다.
-  Report/collection 범위는 PR4, 독자 수용은 PR5, publish/receipt는 #21의 후속 범위다.
+  PR4는 Report·묶음 범위(`--report`·`--scope`·`--collection`·`--allow-withdrawn`, ReportRenderer 주입, `scope.reports`)를 구현했다.
+  독자 수용은 PR5, publish/receipt는 #21의 후속 범위다.
   현재 공개 동작은 [현재 계약](../CONTRACTS.md)이 설명한다. Workspace와 별도로 독립 공유 패키지를 생성한다.
 - 작업: [#20](https://github.com/handochan/aelix-analytics/issues/20) `[B4-s/P0]`.
   [2026-10-17 순서 완화](https://github.com/handochan/aelix-analytics/issues/20#issuecomment-6232441606)로 PR-0~PR-3은
@@ -1270,3 +1271,16 @@ PR3의 실제 I/O 경로에는 ZIP primitive와 명시적 --zip/--zip-of가 함�
 PR5의 OS 도구·브라우저/누락·CSP·M규모·Report 결합 검증은 미실행으로 유지한다. ZIP 성공을 독자 수용으로 쓰지 않는다.
 읽기 전용 `publishing/state.py`는 공통 ReadModel과 completion helper를 받아 기록/폴더를 대조한다.
 core/status는 이 낮은 경계만 소비하고 build/renderer에 의존하지 않는다. Workspace publication 관찰 조립은 #100 공유 UI 인계와 조율한다.
+
+## PR4 구현 구체화
+
+- 소유자 결정(2026-10-26): Report의 선택 metadata 가운데 summary·purpose·change_reason·content_status만 두 프로필에 담는다(OD1). scope·generation·
+  알 수 없는 필드는 담지 않는다. 묶음은 구성원의 member_key·status·reason을 보이고 구성원별 scope는 담지 않는다(OD2). 5.3의 Report 행에 이 칸을 더한 것으로 읽는다.
+- 인용된 다른 Report 버전은 고르지 않았으면 `not_included`(`out_of_scope`)다. 보고서 → 보고서를 따라가면 버전 단위 검사(OQ9)가 고르지 않은 버전에
+  걸리기 때문이다. 묶음의 구성원은 고른 것으로 친다.
+- 사본의 기준 CONTEXT 버전 이름(6.4)은 보고서 범위에서도 띠·manifest·완료 이벤트에 남는다(ADR-0014 결정 2·4). 본문은 Report가 인용할 때만 들어간다.
+  누출 검사는 이 이름을 기준 값으로 허용한다.
+- ReportRenderer는 진입점(kit CLI)이 Workspace의 기본 renderer를 주입한다. `publishing`은 renderer 구현을 import하지 않고, 주입이 없는데 Report가
+  있으면 `renderer_unavailable`이다. renderer의 문서는 역할 `report_view`로 사용자 문서처럼 검사한다.
+- 링크 검사(`resolve_link`)는 URL을 나눈 뒤 경로를 디코딩한다. Report 파일 이름의 `#`·`%`가 fragment·이스케이프로 읽히지 않게 하기 위해서다.
+- 12.4의 사례는 `tests/test_publication_reports.py`가 덮는다. 브라우저 E2E·다른 독자·OS ZIP 도구·M 규모는 PR5다.

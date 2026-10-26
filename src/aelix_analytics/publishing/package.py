@@ -17,7 +17,7 @@ from urllib.parse import unquote, urlsplit
 
 from .. import _platform, relations
 from . import checks
-from .checks import check_names
+from .checks import check_names, resolve_link
 from .extract import parquet_strings
 from .inspections import detect_format, inspect_bytes
 from .model import FileNotice, Omission, PublicationError
@@ -124,15 +124,22 @@ def _user_links(inspection):
             raise PublicationError("figure_not_shareable", "remote_resources")
 
 
+def _report_refusal(entry, reason, **details):
+    report_id, _, revision_id = entry.item.identity.partition("/")
+    return PublicationError("report_not_shareable", "the selected Report version cannot be shared as it is",
+                            details={"reason": reason, "report": f"{report_id}@{revision_id}",
+                                     "file": entry.package_path.split("/content/", 1)[-1], **details})
+
+
 def prepare_files(project, projection):
     """Read only approved sources, compare all digests, inspect, deduplicate and derive payloads."""
     files, roles, pinned, derived, rejected, slots = {}, {}, {}, {}, {}, {}
-    points = {}
+    points, report_links = {}, []
     counts = Counter()
     for entry in projection.copy_plan:
         try:
             data = source_bytes(project, entry)
-            if detect_format(data, role=entry.role, path=entry.package_path) == "plotly":
+            if entry.role != "report_file" and detect_format(data, role=entry.role, path=entry.package_path) == "plotly":
                 try:
                     from plotly.graph_objects import Figure
 
@@ -152,6 +159,9 @@ def prepare_files(project, projection):
             if inspection and inspection.format in ("html", "svg", "plotly"):
                 _user_links(inspection)
         except PublicationError as exc:
+            if exc.code == "figure_not_shareable" and entry.role == "report_file":
+                # A Report goes whole or not at all (OQ8, OQ9): a new version without it is the way out.
+                raise _report_refusal(entry, exc.message) from exc
             if exc.code != "figure_not_shareable" or entry.role != "figure":
                 raise PublicationError(
                     exc.code,
@@ -171,6 +181,8 @@ def prepare_files(project, projection):
             rejected[entry.item, entry.package_path] = FileNotice(entry.role, exc.message)
             counts["file", exc.message] += 1
             continue
+        if inspection is None and entry.role == "report_file":
+            raise _report_refusal(entry, "format")
         if inspection is None:
             rejected[entry.item, entry.package_path] = FileNotice(entry.role, "format")
             counts["file", "format"] += 1
@@ -199,6 +211,19 @@ def prepare_files(project, projection):
         files[path] = data
         roles[path] = "generated" if format_ == "payload" else entry.role
         slots[entry.item, entry.package_path] = (path, format_)
+        if entry.role == "report_file":
+            report_links.append((entry, inspection))
+    # A Report's own relative links must name one of that version's files in this copy (7.5).
+    version_files = {}
+    for entry in projection.copy_plan:
+        if entry.role == "report_file":
+            version_files.setdefault(entry.item, set()).add(entry.package_path)
+    for entry, inspection in report_links:
+        for link in inspection.links:
+            try:
+                resolve_link(entry.package_path, link, dict.fromkeys(version_files[entry.item], b""))
+            except PublicationError as exc:
+                raise _report_refusal(entry, "link", target=exc.details.get("target")) from exc
     items = []
     for item in projection.model.items:
         notices = list(item.file_notices)

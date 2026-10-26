@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import hashlib
 import html
 import json
 import posixpath
+from urllib.parse import quote
 
-from .model import Object, PublicationError, PublicationIdentity, Text
+from .model import Object, PublicationError, PublicationIdentity, Text, page_key
 
 PAGE_SIZE = 200
 LABELS = {
@@ -27,6 +27,7 @@ LABELS = {
     "dataset": "Dataset",
     "code": "Code",
     "data_observation": "Data observation",
+    "report_revision": "Report version",
 }
 FIELD_LABELS = {
     "id": "Record",
@@ -70,8 +71,7 @@ def esc(value):
     return html.escape(str(value), quote=True).replace("\r", "&#13;")
 
 
-def key_name(key):
-    return hashlib.sha256(f"{key.category}:{key.identity}".encode()).hexdigest()[:16]
+key_name = page_key
 
 
 def _plain(value):
@@ -101,7 +101,10 @@ def render(
     context_status="recorded",
     file_sizes=(),
     identity=None,
+    scope="project",
 ):
+    if scope not in ("project", "reports", "collection"):
+        raise PublicationError("package_check_failed", "unknown publication scope")
     if context_status not in ("pending", "recorded", "not_recorded"):
         raise PublicationError("package_check_failed", "unknown context status")
     if type(rules_version) is not int or rules_version < 1:
@@ -130,6 +133,8 @@ def render(
             targets[item.key] = f"pages/timeline/{(len(events) - 1) // PAGE_SIZE + 1}.html#i{token}"
         elif item.key.category == "project":
             targets[item.key] = "index.html"
+        elif item.key.category == "report":
+            targets[item.key] = f"reports/{token}/index.html"
         else:
             folder = {
                 "run": "runs",
@@ -145,6 +150,10 @@ def render(
         file, sep, fragment = target.partition("#")
         value = posixpath.relpath(file, posixpath.dirname(path) or ".")
         return value + ("#" + fragment if sep else "")
+
+    def href(path, target):
+        # A Report file keeps its authored name, which may hold "#", "%" or spaces (7.1).
+        return quote(posixpath.relpath(target, posixpath.dirname(path) or "."), safe="/")
 
     def link(path, target, label):
         return f'<a href="{esc(relative(path, target))}">{label}</a>'
@@ -163,6 +172,23 @@ def render(
             esc(LABELS.get(item.kind, "Included item")),
         )
 
+    def fields(item):
+        return {f.name: f.value for f in item.fields}
+
+    def withdrawn(item):
+        state = fields(item).get("state")
+        return isinstance(state, Text) and state.value == "withdrawn"
+
+    report_items = [i for i in model.items if i.key.category == "report"]
+    # A collection copy names its collection in the band; a Report copy names each selected version.
+    headline_reports = (
+        []
+        if scope == "project"
+        else [r for r in report_items if "collection.members" in fields(r)] or report_items
+        if scope == "collection"
+        else report_items
+    )
+
     def band(path):
         basis = model.basis
         recorded = (
@@ -174,12 +200,20 @@ def render(
             "Context: pending preview — not recorded"
             if context_status == "pending"
             else "Context version: " + esc(basis.context_version)
+            + ("" if any(i.key.category == "context" and i.key.identity == basis.context_version
+                         for i in model.items) else " (not included in this publication)")
             if basis.context_version
             else "Context: not recorded at this point"
         )
+        reports = "".join(
+            f"<p>Report {title(r)} · Version {esc(fields(r).get('number'))} · saved "
+            f"{user(fields(r)['created_at']) if 'created_at' in fields(r) else 'at an unknown time'}"
+            + (f" · based on records up to e{esc(fields(r)['based_on.as_of_seq'])}" if "based_on.as_of_seq" in fields(r) else "")
+            + (" · Withdrawn" if withdrawn(r) else "") + "</p>"
+            for r in headline_reports)
         return (
             f'<div class="band"><p>Shared snapshot — a fixed copy that does not update</p><p>{user(model.title)}</p>'
-            f"<p>{recorded}</p><p>{context}</p><p>Analysis: {'complete' if model.analysis_state == 'complete' else 'in progress'} (declared when built)</p>"
+            f"<p>{recorded}</p><p>{context}</p>{reports}<p>Analysis: {'complete' if model.analysis_state == 'complete' else 'in progress'} (declared when built)</p>"
             f"<p>Scope: {esc(profile)} profile · {sum(o.count for o in model.not_included)} items not included · "
             f"{link(path, 'index.html#scope', 'Scope and limits')}</p></div>"
         )
@@ -229,8 +263,14 @@ def render(
             )
             language = "en" if isinstance(field.value, Text) and field.value.origin == "kit" else ""
             body += f'<dt>{esc(name)}</dt><dd><pre lang="{language}">{esc(_shown(field.value))}</pre></dd>'
-        body += "</dl>"
+        body += "</dl>" + references(item, path)
+        return body + files_html(item, path) + "</article>"
+
+    def references(item, path, *, skip=()):
+        body = ""
         for ref in item.references:
+            if ref.relation in skip:
+                continue
             target = (
                 link(
                     path,
@@ -266,6 +306,10 @@ def render(
                 )
             if ref.omitted_candidates:
                 body += f"<p>{ref.omitted_candidates} other candidates are not included.</p>"
+        return body
+
+    def files_html(item, path):
+        body = ""
         for file in item.files:
             target = relative(path, file.package_path)
             url = esc(target)
@@ -300,11 +344,91 @@ def render(
                 + esc(REASONS.get(notice.reason, notice.reason.replace("_", " ")))
                 + "</p>"
             )
-        return body + "</article>"
+        return body
+
+    views = {key: (view, shown, reasons) for key, view, shown, reasons in model.facts.report_views}
+
+    def report_page(item, path):
+        """A Report version (7.3, 7.5): its basis apart from this copy's, its body only as a separate
+        document (an iframe without scripts) and its original files to download."""
+        token, values = key_name(item.key), fields(item)
+        body = f'<article class="card report" id="i{token}"><h1>{title(item)}</h1>'
+        number, total = values.get("number"), values.get("total")
+        body += f"<p>Version {esc(number)} of {esc(total)}</p>"
+        report_id = _plain(values.get("report_id"))
+        if (type(number) is int and type(total) is int and number < total
+                and not any(_plain(fields(o).get("report_id")) == report_id and type(fields(o).get("number")) is int
+                            and fields(o)["number"] > number for o in report_items)):
+            body += "<p>A later version existed when this copy was built — not included.</p>"
+        if withdrawn(item):
+            body += "<p><strong>Withdrawn</strong> — this version was withdrawn when this copy was built.</p>"
+        body += "<dl>"
+        for name, label in (("created_at", "Created"), ("actor_role", "Author role"), ("state", "State at this point"),
+                            ("report_id", "Report"), ("revision_id", "Version identity"), ("entry", "Entry file"),
+                            ("summary", "Summary"), ("purpose", "Purpose"), ("change_reason", "Reason for this version"),
+                            ("content_status", "Content status (as the author declared)")):
+            if name in values:
+                body += f"<dt>{label}</dt><dd>{user(values[name])}</dd>"
+        if "based_on.as_of_seq" in values:
+            body += f"<dt>Based on</dt><dd>Records up to e{esc(values['based_on.as_of_seq'])}</dd>"
+        if "based_on.context_version" in values:
+            version = values["based_on.context_version"]
+            key = next((i.key for i in model.items if i.key.category == "context"
+                        and i.key.identity == _plain(version)), None)
+            shown = (link(path, targets[key], user(version)) if key
+                     else user(version) + " (not included in this publication)")
+            body += f"<dt>Based on CONTEXT version</dt><dd>{shown}</dd>"
+        body += "</dl><p>A saved Report is not a review of its conclusions.</p>"
+        members = values.get("collection.members")
+        if members is not None:
+            rows = [_plain(m) for m in members]
+            counts = {s: sum(r.get("status") == s for r in rows) for s in ("complete", "failed", "not_generated")}
+            body += (f"<h2>Collection</h2><p>{counts['complete']} of {len(rows)} complete · {counts['failed']} failed · "
+                     f"{counts['not_generated']} not generated</p><table><thead><tr><th>Member</th><th>Status</th>"
+                     "<th>Reason</th><th>Version</th></tr></thead><tbody>")
+            for row, member in zip(rows, members, strict=True):
+                target = next((o for o in report_items
+                               if _plain(fields(o).get("report_id")) == row.get("report_id")
+                               and _plain(fields(o).get("revision_id")) == row.get("revision_id")), None)
+                cell = (link(path, targets[target.key], "Open member version") if target and "report_id" in row
+                        else "Not included in this publication")
+                entries = {k.value: v for k, v in member.entries}
+                body += ("<tr>" + "".join(f"<td>{user(entries[k]) if k in entries else ''}</td>"
+                                          for k in ("member_key", "status", "reason")) + f"<td>{cell}</td></tr>")
+            body += "</tbody></table><p>Membership is the collection's structure, not evidence for its text.</p>"
+        refs = references(item, path, skip=("includes",) if members is not None else ())
+        body += "<h2>Evidence</h2>" + (refs or "<p>This version does not point to any evidence (no links).</p>")
+        entry = _plain(values.get("entry"))
+        folder = f"reports/{token}/content/"
+        entry_slot = next((f for f in item.files if f.package_path == folder + str(entry)), None)
+        view, shown, reasons = views.get(token, ("", False, ()))
+        body += "<h2>Report body</h2>"
+        if entry_slot is not None and entry_slot.format == "html":
+            body += (f'<iframe src="{esc(href(path, entry_slot.package_path))}" sandbox title="Report body"></iframe>'
+                     "<p>If this frame is empty, its file is missing from this copy.</p>")
+        elif entry_slot is not None and entry_slot.format in ("svg", "png", "jpeg", "gif", "webp"):
+            body += f'<img src="{esc(href(path, entry_slot.package_path))}" alt="Report body" loading="lazy">'
+        elif view:
+            body += (f'<iframe src="{esc(relative(path, view))}" sandbox title="Report body"></iframe>'
+                     f'<p>{link(path, view, "Open the report body on its own page")}</p>')
+            if not shown:
+                body += ("<p>Parts of this body are offered as downloads only: "
+                         + esc(", ".join(r.replace("_", " ") for r in reasons)) + ".</p>")
+        else:
+            body += "<p>This body is not displayed in this copy. Download its files below.</p>"
+        body += "<h2>Files</h2><ul>"
+        for slot in item.files:
+            name = slot.package_path[len(folder):]
+            body += (f'<li><a href="{esc(href(path, slot.package_path))}" download><span lang="">{esc(name)}</span></a>'
+                     f" ({sizes.get(slot.package_path, 0)} bytes)</li>")
+        return body + "</ul><p>Compared with the hashes the Report recorded.</p></article>"
 
     # A page for each included exact target; only included keys have page names.
     for item in model.items:
-        if item.key.category not in ("event", "project"):
+        if item.key.category == "report":
+            path = targets[item.key]
+            page(path, _plain(fields(item).get("title")) or "Report version", report_page(item, path))
+        elif item.key.category not in ("event", "project"):
             path = targets[item.key]
             page(path, LABELS.get(item.kind, "Included item"), card(item, path))
     for n in range(0, len(events), PAGE_SIZE):
@@ -332,16 +456,19 @@ def render(
         "finding": 4,
         "decision": 5,
         "todo": 6,
-        "visualization": 7,
+        # A Report copy shows its selection first; a project copy lists them after the analysis (7.3).
+        "report_revision": -1 if scope != "project" else 7,
+        "visualization": 8,
     }
     for item in sorted(
-        (i for i in model.items if i.key.category != "project"), key=lambda i: order.get(i.kind, 8)
+        (i for i in model.items if i.key.category != "project"), key=lambda i: order.get(i.kind, 9)
     ):
         body += (
             "<p>"
             + esc(LABELS.get(item.kind, "Included item"))
             + ": "
             + link(path, targets[item.key], title(item))
+            + (" · Withdrawn" if item.key.category == "report" and withdrawn(item) else "")
             + "</p>"
         )
     body += (

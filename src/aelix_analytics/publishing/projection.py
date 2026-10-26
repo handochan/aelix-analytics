@@ -27,6 +27,7 @@ from .model import (
     ShareModel,
     SnapshotBasis,
     Text,
+    page_key,
 )
 from .scope import COPY_ROLES, PROFILES, exclusion_reason, scope_closure, validate_scope
 
@@ -209,6 +210,19 @@ def _safe_value(item, name, included):
         return value if cited(ItemKey("event", value)) else MISSING
     if name == "details.run_id":
         return value if cited(ItemKey("run", value)) else MISSING
+    if name == "collection.members":
+        if not isinstance(value, tuple):
+            return MISSING
+        members = []
+        for member in value:
+            if not isinstance(member, FrozenMap):
+                continue
+            kept = [(k, v) for k, v in member.entries if k in ("member_key", "status", "reason") and isinstance(v, str)]
+            target = ItemKey("report", f"{member.get('report_id')}/{member.get('revision_id')}")
+            if target in included:
+                kept += [(k, member.get(k)) for k in ("report_id", "revision_id")]
+            members.append(FrozenMap(tuple(sorted(kept))))
+        return tuple(members)
     if name == "details.metric_id" and item.kind == "metric_observation":
         definition = _at(item.values, "details.definition_event_id")
         return value if cited(ItemKey("event", definition)) else MISSING
@@ -226,11 +240,12 @@ def _safe_value(item, name, included):
         return tuple(v for v in (value if isinstance(value, tuple) else ()) if isinstance(v, str) and ItemKey("event", v) in included)
     if name in ("actor_role", "state", "status", "recording_status", "observation", "role"):
         return value
-    if name in ("bytes", "rows", "line", "error.line", "warning_count", "finalize_error_count", "data_rows"):
+    if name in ("bytes", "rows", "line", "error.line", "warning_count", "finalize_error_count", "data_rows",
+                "number", "total", "based_on.as_of_seq"):
         return value if value is None or type(value) is int and value >= 0 else MISSING
     if name == "sha256":
         return value if value is None or relations._reference_digest({"sha256": value}) else MISSING
-    if name in ("recorded_at", "started_at", "ended_at"):
+    if name in ("recorded_at", "started_at", "ended_at", "created_at"):
         return _time(value)
     return value if value is None or isinstance(value, str) else MISSING
 
@@ -257,6 +272,16 @@ def _file(item, file, profile):
         return None, "no_digest"
     if file.recorded_sha256 and file.current_sha256 != file.recorded_sha256:
         return None, "content_changed"
+    if file.role == "report_file":
+        # Whole versions only (OQ9): the scope check already refused one whose files differ.
+        directory = item.values.get("_directory")
+        prefix = f"{directory}/content/"
+        if not isinstance(directory, str) or not file.source.startswith(prefix) or not file.recorded_sha256:
+            return None, "unsupported"
+        package_path = f"reports/{page_key(item.key)}/content/{file.source[len(prefix):]}"
+        entry = CopyEntry(item.key, file.source, package_path, file.role, file.recorded_sha256,
+                          file.current_sha256, file.bytes)
+        return (FileSlot(package_path, file.role, "recorded_hash", file.format), entry), None
     formats = {"figure": {"png", "jpeg", "gif", "webp", "svg", "html", "plotly"},
                "attached_data": {"parquet", "csv", "json"}, "code_snapshot": {"python"}}
     if file.format not in formats.get(file.role, set()):
@@ -349,7 +374,9 @@ def validate_projection(snapshot, request, profile, projection):
     if projection.model.analysis_state != request.analysis_state:
         raise PublicationError("leak_found", "declared analysis state changed")
     included = frozenset(projection.ledger.included)
-    required = {i.key for i in snapshot.items if i.key.category == "project" or i.kind == "context" and i.root}
+    # A Report-centred copy holds the basis CONTEXT only when a selected version cites it (5.1).
+    required = {i.key for i in snapshot.items if i.key.category == "project"
+                or request.scope == "project" and i.kind == "context" and i.root}
     if not required <= included:
         raise PublicationError("leak_found", "projection omitted the project or basis CONTEXT")
     source = {i.key: i for i in snapshot.items}

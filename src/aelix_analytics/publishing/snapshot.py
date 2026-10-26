@@ -80,7 +80,7 @@ def _file(project, sha, source, role, recorded=None):
         size = real.stat().st_size
         if recorded is not None and digest != recorded:
             return SnapshotFile(source, role, "", recorded, digest, size)
-        if role not in ("figure", "attached_data", "code_snapshot"):
+        if role not in ("figure", "attached_data", "code_snapshot", "report_file"):
             # Input/output/context observations need the frozen digest, not a copy candidate's
             # full format payload. The context loader below separately compares its text bytes.
             return SnapshotFile(source, role, "", recorded, digest, size)
@@ -98,6 +98,60 @@ def _file(project, sha, source, role, recorded=None):
     suffix = {"png": ".png", "jpeg": ".jpg", "gif": ".gif", "webp": ".webp", "svg": ".svg",
               "html": ".html", "plotly": ".json", "parquet": ".parquet", "python": ".py"}.get(format_, "")
     return SnapshotFile(source, role, suffix, recorded, digest, size, format_)
+
+
+REPORT_TEXT_FIELDS = ("summary", "purpose", "change_reason", "content_status")  # owner 2026-10-26 (OD1)
+MEMBER_FIELDS = ("member_key", "status", "reason", "report_id", "revision_id")  # owner 2026-10-26 (OD2)
+
+
+def _report_items(project, sha, model, by_source):
+    """Saved Report versions in completion order. A version is a root only when selected; the scope
+    check, not this adapter, decides whether a selected one may be shared (PUBLICATION-BUILD 6.2)."""
+    out = []
+    for report_id, history in sorted(model.report_histories().items()):
+        total = len(history["versions"])
+        for version in history["versions"]:
+            manifest, rev = version["manifest"], version["revision_id"]
+            basis = manifest.get("based_on") if isinstance(manifest.get("based_on"), dict) else {}
+            metadata = version["metadata"]
+            values = {
+                "report_id": report_id, "revision_id": rev, "title": manifest.get("title"),
+                "created_at": manifest.get("created_at"), "entry": manifest.get("entry"),
+                "actor_role": manifest.get("actor") if manifest.get("actor") in ("human", "agent", "system") else "unknown",
+                "state": version["state"], "number": version["number"], "total": total,
+                "based_on": {k: basis[k] for k in ("as_of_seq", "context_version") if k in basis},
+                **{k: metadata[k] for k in REPORT_TEXT_FIELDS if isinstance(metadata.get(k), str)},
+                # Private judgments for the scope check and the manifest, never projected fields.
+                "_problem": version["problem"], "_content": version["content"], "_directory": version["directory"],
+            }
+            collection = metadata.get("collection")
+            if isinstance(collection, dict) and isinstance(collection.get("members"), list):
+                values["collection"] = {"members": [
+                    {k: member[k] for k in MEMBER_FIELDS if isinstance(member.get(k), str)}
+                    for member in collection["members"] if isinstance(member, dict)]}
+            files = []
+            if version["directory"] and not version["problem"]:
+                try:
+                    values["_manifest_sha256"] = sha(project.root / version["directory"] / "manifest.json")
+                except OSError:
+                    values["_problem"] = "manifest_unavailable"
+                for entry in manifest.get("files") or ():
+                    if not isinstance(entry, dict) or entry.get("path") == relations.REPORT_METADATA_FILE:
+                        continue  # the kit's sidecar holds the metadata fields, not authored content
+                    path = entry.get("path")
+                    source = f"{version['directory']}/content/{path}" if relations.report_path(path) else None
+                    files.append(_file(project, sha, source, "report_file", entry.get("sha256")))
+            key = relations.report_key(report_id, rev)
+            out.append(SnapshotItem(ItemKey("report", f"{report_id}/{rev}"), "report_revision", freeze(values),
+                                    version["seq"] or 0,
+                                    references=_refs(by_source.get(key, ()), journal=model.journal, before=version["seq"]),
+                                    files=tuple(files)))
+        for attempt in history["attempts"]:
+            # Saving attempts are not versions (ADR-0006 7): never shared, but a selection names them.
+            out.append(SnapshotItem(ItemKey("report", f"{report_id}/{attempt['revision_id']}"), "report_attempt",
+                                    freeze({"report_id": report_id, "revision_id": attempt["revision_id"]}),
+                                    complete=False))
+    return out
 
 
 def capture_snapshot(project, *, reader=core.read_model, validate_reference=relations.reference_problem):
@@ -258,6 +312,7 @@ def capture_snapshot(project, *, reader=core.read_model, validate_reference=rela
             values["observation"] = "missing" if exc.code == "context_missing" else "changed" if exc.code == "context_changed" else "unknown"
         items.append(SnapshotItem(ItemKey("context", version), "context" if current else "context_history",
                                   freeze(values), seq=seq, root=True))
+    items.extend(_report_items(project, sha, model, by_source))
     counts = Counter()
     nonnormal = len(delivery - delivery_lines)
     if nonnormal:

@@ -79,6 +79,9 @@ def resolve_exclusions(snapshot, values):
             if i.key.identity == value
             or i.key.category == "dataset"
             and i.values.get("name") == value
+            # <report_id>@<revision_id>, the form the screens and the output use (OQ5).
+            or i.key.category == "report"
+            and i.key.identity == value.replace("@", "/", 1)
         }
         if "::" in value:
             script, visualization_id = value.rsplit("::", 1)
@@ -98,6 +101,82 @@ def resolve_exclusions(snapshot, values):
             )
         keys.update(matches)
     return frozenset(keys)
+
+
+def resolve_reports(snapshot, request):
+    """Exact selected Report versions: a report_id alone is its head (the output names the version
+    it chose, 8.1); a collection version adds its complete members' exact versions (5.1)."""
+    if not request.reports:
+        return request
+    versions, attempts = {}, set()
+    for item in snapshot.items:
+        if item.key.category == "report":
+            report_id, _, revision_id = item.key.identity.partition("/")
+            if item.kind == "report_revision":
+                versions.setdefault(report_id, []).append((item.values.get("number") or 0, revision_id, item))
+            else:
+                attempts.add(report_id)
+    chosen = []
+    for report_id, revision_id in request.reports:
+        if not revision_id:
+            if report_id not in versions:
+                if report_id in attempts:
+                    raise PublicationError("report_not_shareable", "the selected Report has no saved version",
+                                           details={"reason": "not_saved", "report": report_id})
+                raise PublicationError("scope_invalid", "unknown Report", details={"report": report_id})
+            revision_id = max(versions[report_id])[1]
+        chosen.append((report_id, revision_id))
+    if request.scope == "collection":
+        if len(request.reports) != 1 or not request.reports[0][1]:
+            raise PublicationError("scope_invalid", "--collection takes one exact report_id@revision_id")
+        items = {item.key: item for item in snapshot.items}
+        item = items.get(ItemKey("report", "/".join(chosen[0])))
+        collection = item.values.get("collection") if item is not None else None
+        if item is None or item.kind != "report_revision" or collection is None:
+            raise PublicationError("scope_invalid", "the selected version is not a Report collection",
+                                   details={"report": "@".join(chosen[0])})
+        for member in collection.get("members") or ():
+            pair = (member.get("report_id"), member.get("revision_id"))
+            if member.get("status") == "complete" and pair not in chosen:
+                if not all(isinstance(v, str) for v in pair):
+                    raise PublicationError("report_not_shareable", "a complete member names no Report version",
+                                           details={"reason": "member_missing", "report": "@".join(chosen[0])})
+                chosen.append(pair)
+    return replace(request, reports=tuple(chosen))
+
+
+def _report_views(model, files, renderer):
+    """Each included Report version's body document from the injected ReportRenderer (7.5): only its
+    bytes and {manifest path: package path}, never the project. Its output is checked like a
+    user document (role report_view), not trusted as a kit page."""
+    views, facts = {}, []
+    for item in model.items:
+        if item.key.category != "report":
+            continue
+        if renderer is None:
+            raise PublicationError("renderer_unavailable", "no ReportRenderer was given for a selected Report")
+        folder = f"reports/{key_name(item.key)}/"
+        data = {slot.package_path[len(folder) + len("content/"):]: files[slot.package_path] for slot in item.files}
+        entry = next((f.value.value for f in item.fields if f.name == "entry"), None)
+        shown = next((s.format for s in item.files if s.package_path == f"{folder}content/{entry}"), None)
+        if shown in ("html", "svg", "png", "jpeg", "gif", "webp"):
+            continue  # the checked original itself is the body (7.5); no derived document is needed
+        try:
+            view = renderer.render(data, entry=entry, paths={name: f"content/{name}" for name in data})
+        except ValueError:
+            facts.append((key_name(item.key), "", False, ("renderer_refused",)))
+            continue
+        documents = dict(view.files)
+        if (not all(isinstance(name, str) and isinstance(body, bytes) for name, body in documents.items())
+                or any(name.startswith("content/") or name in ("index.html",) or name.startswith("/")
+                       or ".." in name.split("/") for name in documents)):
+            raise PublicationError("package_check_failed", "the ReportRenderer returned an unusable view path")
+        for name, body in documents.items():
+            views[folder + name] = body
+        page = next((name for name in documents if name.endswith(".html")), "")
+        facts.append((key_name(item.key), folder + page if page else "", bool(view.supported and page),
+                      tuple(str(r) for r in view.reasons)))
+    return views, tuple(sorted(facts))
 
 
 def _environment(project, snapshot):
@@ -188,6 +267,7 @@ def _assemble(
     snapshot=None,
     pending=True,
     identity=None,
+    report_renderer=None,
 ):
     """Full in-memory byte path, injectable strategy, no project writes, locks or context sync."""
     if profile not in PROFILES:
@@ -211,12 +291,19 @@ def _assemble(
         context_status = "recorded" if snapshot.basis.content.context_version else "not_recorded"
     if exclude:
         request = replace(request, exclude=request.exclude | resolve_exclusions(snapshot, exclude))
+    request = resolve_reports(snapshot, request)
     result = project_projection(snapshot, request, profile=profile, implementation=projection)
     policy = leak_policy(
         snapshot, request, PROFILES[profile], result, environment=_environment(project, snapshot)
     )
     model_warnings = checks.check_model(result.model, policy)
     prepared, files, roles, pinned, details = prepare_files(project, result)
+    views, view_facts = _report_views(prepared.model, files, report_renderer)
+    if set(views) & set(files):
+        raise PublicationError("package_check_failed", "a Report view tried to replace a copied file")
+    files.update(views)
+    roles.update({p: "report_view" for p in views})
+    prepared = replace(prepared, model=replace(prepared.model, facts=RenderFacts(report_views=view_facts)))
     pages = render(
         prepared.model,
         profile=strategy_id,
@@ -224,6 +311,7 @@ def _assemble(
         context_status=context_status,
         identity=identity,
         file_sizes=tuple((p, len(b)) for p, b in files.items()),
+        scope=request.scope,
     )
     if set(pages) & set(files):
         raise PublicationError(
@@ -259,6 +347,7 @@ def _assemble(
         tuple(sorted(notices, key=lambda n: (n.path, n.code, n.metadata_kind))),
         no_hash,
         tuple(sorted(details["points"].items())),
+        view_facts,
     )
     pages = render(
         replace(prepared.model, facts=facts),
@@ -267,6 +356,7 @@ def _assemble(
         context_status=context_status,
         identity=identity,
         file_sizes=tuple((p, len(b)) for p, b in files.items()),
+        scope=request.scope,
     )
     if frozenset(pages) != generated_paths:
         raise PublicationError(
@@ -291,6 +381,8 @@ def _assemble(
             "context_status": context_status,
         },
         "analysis_state": {"value": request.analysis_state, "basis": "declared"},
+        # The exact versions chosen, so a head selection never silently means "the latest" (8.1).
+        "scope": {"kind": request.scope, "reports": [f"{r}@{v}" for r, v in request.reports]},
         "included": dict(sorted(counts.items())),
         "not_included": [asdict(o) for o in prepared.model.not_included],
         "files": len(files),
@@ -326,11 +418,13 @@ def _assemble(
 
 
 def preview_package(
-    project, request=None, *, profile="read", projection=None, exclude=(), snapshot=None
+    project, request=None, *, profile="read", projection=None, exclude=(), snapshot=None,
+    report_renderer=None,
 ):
     """Full byte preview, preserving its public two-tuple and its no-write/no-lock boundary."""
     summary, files, _private = _assemble(
-        project, request, profile=profile, projection=projection, exclude=exclude, snapshot=snapshot
+        project, request, profile=profile, projection=projection, exclude=exclude, snapshot=snapshot,
+        report_renderer=report_renderer,
     )
     return summary, files
 
@@ -512,7 +606,8 @@ def _manifest(summary, files, assembled, identity):
         "analysis_state": summary["analysis_state"],
         "ui_locale": "en",
         "profile": summary["profile"],
-        "scope": {"kind": assembled["request"].scope, "reports": []},
+        "scope": {"kind": "project" if assembled["request"].scope == "project" else "reports",
+                  "reports": _scope_reports(assembled)},
         "included": [package_key(k) for k in sorted(projection.ledger.included)],
         "not_included": summary["not_included"],
         "reader_features": [
@@ -534,6 +629,33 @@ def _manifest(summary, files, assembled, identity):
         "content_sha256": checks.content_hash(files),
         "files": rows,
     }
+
+
+def _scope_reports(assembled):
+    """ADR-0014 decision 4: each selected exact version, its Version n and state at this basis, its
+    manifest bytes' SHA-256 and where each of its files is in this copy."""
+    items = {item.key: item for item in assembled["snapshot"].items}
+    model = {item.key: item for item in assembled["projection"].model.items}
+    out = []
+    for report_id, revision_id in assembled["request"].reports:
+        key = ItemKey("report", f"{report_id}/{revision_id}")
+        source, shared = items[key], model[key]
+        directory = source.values.get("_directory")
+        files = []
+        for slot in shared.files:
+            entry = next(e for e in assembled["projection"].copy_plan if e.item == key and e.package_path == slot.package_path)
+            files.append({"path": entry.source.removeprefix(f"{directory}/content/"), "sha256": entry.recorded_sha256,
+                          "package_path": slot.package_path})
+        out.append({"report_id": report_id, "revision_id": revision_id, "version": source.values.get("number"),
+                    "state": source.values.get("state"), "manifest_sha256": source.values.get("_manifest_sha256"),
+                    "files": sorted(files, key=lambda f: f["path"])})
+    return out
+
+
+def _report_refs(manifest):
+    return [{"type": "report_revision", "report_id": r["report_id"], "revision_id": r["revision_id"],
+             "digest": {"sha256": r["manifest_sha256"]}, "relation": "includes", "basis": "declared",
+             "version_binding": "author"} for r in manifest["scope"]["reports"]]
 
 
 def _completion_details(manifest, digest, exclusions):
@@ -575,7 +697,8 @@ def _observe_completion(record_writer, pid, digest):
 
 
 def build_publication(
-    project, request=None, *, profile="read", projection=None, exclude=(), zip_path=None, origin
+    project, request=None, *, profile="read", projection=None, exclude=(), zip_path=None, origin,
+    report_renderer=None,
 ):
     """Build privately, bind once, reconcile uncertain append results; never execute analysis."""
     if profile not in PROFILES:
@@ -611,10 +734,11 @@ def build_publication(
             snapshot=snapshot,
             pending=False,
             identity=identity,
+            report_renderer=report_renderer,
         )
-        refs = _context_refs(project, snapshot)
         exclusions = _exclusion_refs(snapshot, assembled["request"])
         manifest = _manifest(summary, files, assembled, identity)
+        refs = _context_refs(project, snapshot) + _report_refs(manifest)
         files = {**files, "publication.json": _json_bytes(manifest)}
         roles = {**assembled["roles"], "publication.json": "identity"}
         checked = _checked_files(

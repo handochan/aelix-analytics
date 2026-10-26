@@ -640,6 +640,8 @@ def inspect_bytes(data, *, role, path="", parquet_extractor=None, depth=0):
         "attached_data": {"parquet"},
         "code_snapshot": {"text"},
         "report_file": {"png", "jpeg", "gif", "webp", "svg", "html", "parquet", "text", "css"},
+        # A ReportRenderer's document is authored content too: checked like one, never as a kit page.
+        "report_view": {"html"},
         "generated": {"html", "css", "javascript", "payload", "text"},
         "identity": {"html", "javascript", "text"},
         "library": {"javascript", "css"},
@@ -711,7 +713,7 @@ def inspect_bytes(data, *, role, path="", parquet_extractor=None, depth=0):
         result = Inspection(format_, tuple(strings(value)), tuple(links))
     elif format_ == "html":
         parsed = HTMLInspection(utf8(data))
-        if role in ("figure", "report_file", "inline") and parsed.unsafe:
+        if role in ("figure", "report_file", "report_view", "inline") and parsed.unsafe:
             raise PublicationError("figure_not_shareable", parsed.unsafe[0])
         result = Inspection(
             format_, tuple(parsed.strings), tuple(parsed.links), ids=tuple(parsed.ids)

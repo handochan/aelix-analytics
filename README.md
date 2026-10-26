@@ -93,9 +93,9 @@ aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역
 배포본은 아직 어디에도 게시하지 않았으므로 체크아웃에서 직접 만듭니다.
 
 ```sh
-cd $PACK && uv build                                   # dist/aelix_analytics-0.26.0-py3-none-any.whl
-uv tool install --python 3.12 dist/aelix_analytics-0.26.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
-uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.26.0-py3-none-any.whl   # aelix와 함께
+cd $PACK && uv build                                   # dist/aelix_analytics-0.27.0-py3-none-any.whl
+uv tool install --python 3.12 dist/aelix_analytics-0.27.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
+uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.27.0-py3-none-any.whl   # aelix와 함께
 ```
 
 - `analytics`는 체크아웃의 `bin/analytics`와 같은 명령·인자·usage(바이트까지 같음)를 쓰고 kit의 출력을 바이트 그대로 넘깁니다
@@ -497,7 +497,11 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
   `analytics build`는 `.analytics/publications/<publication_id>/`에 독립 사본과 manifest를 만들고 완료 이벤트로 결박합니다.
   `--list`는 기록 완료와 현재 폴더 same/changed/missing을 따로 표시합니다. `--verify FOLDER_OR_ZIP`는 원본 프로젝트 없이 Python 표준 라이브러리로도 검사하며,
   프로젝트 안에서는 완료 기록과도 대조합니다. `--zip PATH` 또는 `--zip-of ID --zip PATH`는 프로젝트 밖의 새 ZIP 경로만 받습니다.
-  공유 전에 결과의 `index.html`을 직접 확인하세요. Report/collection 범위와 publish는 아직 제공하지 않습니다.
+  `--report ID[@REV]`(여러 번)은 고른 Report 버전만 담은 사본을, `--scope project --report …`는 그 버전을 넣은 프로젝트 사본을,
+  `--collection ID@REV`는 묶음 버전과 complete 구성원을 만듭니다. REV를 빼면 head를 고르고 결과에 고른 버전을 적습니다.
+  Report는 버전 단위로만 들어가며, 철회한 버전(`--allow-withdrawn` 없이)·파일이 저장한 바이트가 아닌 버전·스크립트나 원격 참조가 있는
+  HTML/SVG·PDF/Office처럼 검사할 수 없는 파일이 든 버전은 build가 멈춥니다(`report_not_shareable`). 새 Report 버전을 저장해 고르세요.
+  공유 전에 결과의 `index.html`을 직접 확인하세요. publish는 아직 제공하지 않습니다.
   ZIP 운반·다른 독자·브라우저/다른 OS 도구의 수용은 별도 검증이며, 검사는 분석 결론이나 비밀 탐지 인증이 아닙니다.
 
 ## 개발
