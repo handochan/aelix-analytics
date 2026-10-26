@@ -7,8 +7,9 @@ DIR is a current-format project, for instance the #41 M fixture (`tools/eval_fix
 preview over that snapshot, the saved build and, apart, the package check (leak, link and name checks) over the same bytes,
 and records the package's file count, bytes, pages, largest page, timeline pages and figure payloads
 (how many exceed the 3,000,000-byte "Load figure" gate, 7.7). When the leak check stops a profile's preview
-(design 11.4-11.6: an included text names something the copy leaves out), the item it names is excluded and the
-preview is tried again, as a person would with `--exclude`; the exclusions and their reasons are recorded.
+(design 11.4-11.6: an included text, or a figure's copied file, names something the copy leaves out), that item
+or figure is excluded and the preview is tried again, as a person would with `--exclude`; the exclusions and their
+reasons are recorded.
 The build writes into DIR (a publication folder and its completion event); run it on a copy. It is a record of
 what was measured, not a gate.
 """
@@ -71,10 +72,12 @@ def main():
                 _summary, files, private = build._assemble(p, ShareRequest(), profile=profile, exclude=exclude,
                                                            snapshot=snapshot)
             except PublicationError as exc:
-                source = exc.details.get("source") or {}
+                # A copied file names its item (a figure's attached table, say): exclude that figure.
+                source = exc.details.get("source") or next(
+                    (s for s in exc.details.get("sources") or () if s["category"] == "visualization"), {})
                 if exc.code != "leak_found" or not source.get("identity") or len(stops) >= 200:
                     raise
-                stops.append({"category": source["category"], "field": source.get("field"),
+                stops.append({"category": source["category"], "field": source.get("field") or source.get("role"),
                               "seconds": round(time.perf_counter() - started, 2)})
                 exclude.append(source["identity"])
                 print(f"{profile}: leak stop {len(stops)} at {source['category']}.{source.get('field')}", file=sys.stderr)
@@ -93,6 +96,7 @@ def main():
             "package_check_seconds": round(check_s, 2),
             "build_seconds": round(build_s, 2), "ok": built["ok"], "included": built["included"],
             "leak_stops": len(stops), "leak_stop_fields": sorted({f"{s['category']}.{s['field']}" for s in stops}),
+            "excluded": exclude,
             "not_included": built["not_included"], **shape(files),
         }
     args.out.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

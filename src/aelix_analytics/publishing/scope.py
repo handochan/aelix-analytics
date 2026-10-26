@@ -351,6 +351,25 @@ def leak_policy(snapshot, request, profile, projection, *, environment=()):
         if isinstance(value, str):
             add(value.replace("\\", "/"), "strong", exempt=False)
             add(value.replace("/", "\\"), "strong", exempt=False)
+    # A script names every figure it makes. In an included run's copied code those names are that
+    # code, also for the figures the copy leaves out (5.2 stops at a run's other figures); everywhere
+    # else they stay forbidden (2026-10-27 owner decision).
+    figures = {}
+    for item in snapshot.items:
+        if item.key.category == "visualization" and isinstance(item.values.get("visualization_id"), str):
+            for run in item.attachments:
+                figures.setdefault(run, set()).add(item.values.get("visualization_id"))
+    items = {item.key: item for item in snapshot.items}
+    code_names = {}
+    for key in included:
+        if key.category == "run" and figures.get(key):
+            for code in items[key].attachments:
+                if code.category == "code" and code in included:
+                    for file in items[code].files:
+                        for digest in {file.recorded_sha256, file.current_sha256} - {None}:
+                            code_names.setdefault(digest, set()).update(figures[key])
     return LeakPolicy(
-        tuple(sorted(tokens, key=lambda t: (t.mode, t.value, str(t.source), t.field or ""))), short
+        tuple(sorted(tokens, key=lambda t: (t.mode, t.value, str(t.source), t.field or ""))),
+        short,
+        tuple(sorted((digest, frozenset(names)) for digest, names in code_names.items())),
     )

@@ -205,3 +205,6 @@ class BanToken:
 class LeakPolicy:
     tokens: tuple[BanToken, ...] = ()
     short_markers: int = 0
+    # sha256 of an included run's code snapshot -> the names of the figures that run recorded, which
+    # that code may name although a figure is left out (2026-10-27 owner decision, #20 PR5).
+    code_names: tuple[tuple[str, frozenset[str]], ...] = ()

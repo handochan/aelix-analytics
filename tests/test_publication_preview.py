@@ -1302,3 +1302,45 @@ def test_indexed_leak_check_finds_what_one_pass_over_every_token_finds():
             except PublicationError as exc:
                 got = (exc.code, exc.details)
             assert got == expected, (values, policy, strong_only)
+
+
+DROPPED = "detail-dropped-later"
+
+
+def _dropped_figure_project(root, *, later_comment=""):
+    """v1 of a script makes two figures; v2 drops the second. A finding cites v1's first figure, so
+    the evidence copy includes the v1 run and its code, which names the dropped, uncited figure."""
+    p = core.init_project(root, title="Dropped figure", origin=ORIGIN)
+    script = p.scripts / "charts.py"
+    make = 'a.visualize(go.Figure(go.Scatter(y=[1, 2])), "{}", title="{}")\n'
+    head = "import plotly.graph_objects as go\nimport aelix_analytics as a\n"
+    script.write_text(head + make.format("trend", "Trend") + make.format(DROPPED, "Detail"), encoding="utf-8")
+    first = runner.execute(p, script="scripts/charts.py", title="v1", origin=ORIGIN)["run"]
+    script.write_text(head + later_comment + make.format("trend", "Trend"), encoding="utf-8")
+    second = runner.execute(p, script="scripts/charts.py", title="v2", origin=ORIGIN)["run"]
+    assert first["status"] == second["status"] == "ok"
+    trend = next(v for v in first["visualizations"] if v["visualization_id"] == "trend")
+    core.record(p, "finding", "the first version rose", origin=ORIGIN, refs=[core.kit_reference(
+        "visualization_version", run_id=first["id"], visualization_id="trend", digest={"sha256": trend["sha256"]})])
+    return p, first
+
+
+def test_an_included_runs_code_may_name_that_runs_figures_the_copy_leaves_out(tmp_path):
+    """2026-10-27 owner decision: only in that run's copied code; the figure itself stays out."""
+    p, first = _dropped_figure_project(tmp_path / "p")
+    summary, files = build.preview_package(p, profile="evidence")
+    code = [data for name, data in files.items() if name.endswith(".py") and DROPPED.encode() in data]
+    assert code, "the v1 code snapshot is in the copy and names its dropped figure"
+    others = b"".join(data for name, data in files.items() if not name.endswith(".py"))
+    assert DROPPED.encode() not in others and b'"Detail"' not in others
+    assert f"{first['id']}/{DROPPED}".encode() not in b"".join(files.values())
+    assert summary["not_included"]
+
+
+def test_another_runs_code_naming_a_left_out_figure_still_stops(tmp_path):
+    p, first = _dropped_figure_project(tmp_path / "p", later_comment=f"# {DROPPED} moved to a notebook\n")
+    with pytest.raises(PublicationError) as caught:
+        build.preview_package(p, profile="evidence")
+    assert caught.value.code == "leak_found"
+    assert caught.value.details["cause"] == "copied_file"
+    assert caught.value.details["path"].endswith(".py")

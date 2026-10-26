@@ -236,7 +236,9 @@ def _matchers(policy):
     return cached[1:]
 
 
-def check_strings(values, policy, *, path, source=None, strong_only=False):
+def check_strings(values, policy, *, path, source=None, strong_only=False, own_names=frozenset()):
+    """`own_names`: figure names a run's own code may hold (LeakPolicy.code_names), never an
+    environment value."""
     warnings = []
     lines, strong, weak = _matchers(policy)
     for part in values:
@@ -248,6 +250,8 @@ def check_strings(values, policy, *, path, source=None, strong_only=False):
                 found += weak.find(text)
         # Policy order and one finding per token, as one pass over every token gave them.
         for token in (policy.tokens[n] for n in sorted(set(found))):
+            if token.source is not None and token.value in own_names:
+                continue
             detail = {
                 "path": path,
                 "location": part.location,
@@ -283,6 +287,7 @@ def check_package(files, roles, *, policy=None, parquet_extractor=None, pinned=N
     if set(roles) != set(files) or any(not isinstance(data, bytes) for data in files.values()):
         reject("every package byte file needs exactly one role")
     inspected, warnings, remote = {}, [], set()
+    code_names = dict(policy.code_names)
     for path, data in sorted(files.items()):
         role = roles[path]
         if role == "library":
@@ -334,7 +339,8 @@ def check_package(files, roles, *, policy=None, parquet_extractor=None, pinned=N
             name in data.decode("utf-8") for name in NETWORK_APIS
         ):
             reject("publication runtime contains a network API", path=path)
-        warnings.extend(check_strings(result.strings, policy, path=path))
+        own = code_names.get(hashlib.sha256(data).hexdigest()) if role == "code_snapshot" else None
+        warnings.extend(check_strings(result.strings, policy, path=path, own_names=own or frozenset()))
         for key in result.metadata_keys:
             warnings.append({"path": path, "reason": "image_metadata", "key": key})
         inspected[path] = {
