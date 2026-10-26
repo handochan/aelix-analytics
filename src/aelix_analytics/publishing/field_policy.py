@@ -22,10 +22,14 @@ CLASSIFIED_FIELDS = {
     "dataset_1": {
         "schema": "internal", "name": "include", "path": "evidence", "sha256": "evidence", "bytes": "evidence",
         "rows": "evidence", "columns": "evidence", "description": "evidence", "imported_at": "exclude", "source": "exclude"},
-    "report_revision_1": {k: "deferred_PR4" for k in (
-        "schema", "report_id", "revision_id", "previous_revision", "request_id", "request_fingerprint", "created_at",
-        "actor", "title", "entry", "files", "based_on", "summary", "scope", "purpose", "change_reason",
-        "generation", "content_status", "metadata_file", "collection")},
+    # #20 PR4 (PUBLICATION-BUILD 5.3) with the owner's 2026-10-26 choices: four descriptions (OD1) and a
+    # collection's member keys, statuses and reasons (OD2) are shared; scope and generation are not.
+    "report_revision_1": {
+        "schema": "internal", "report_id": "include", "revision_id": "include", "previous_revision": "exclude",
+        "request_id": "exclude", "request_fingerprint": "exclude", "created_at": "include", "actor": "role",
+        "title": "include", "entry": "include", "files": "copy", "based_on": "partial", "summary": "include",
+        "scope": "exclude", "purpose": "include", "change_reason": "include", "generation": "exclude",
+        "content_status": "include", "metadata_file": "internal", "collection": "partial"},
     "metric_definition_details": {
         "contract": "internal", "metric_id": "include", "name": "include", "status": "include", "definition": "include",
         "unresolved": "include", "change_reason": "include", "previous_definition": "references", "derived_from": "references"},
@@ -244,7 +248,7 @@ PERSISTED_FIELD_PATHS = {
 RECORD_FAMILIES = {
     "analytics.project/2": "partial",
     "analytics.event/2": "partial",
-    "analytics.report_revision/1": "deferred_PR4",
+    "analytics.report_revision/1": "partial",
     "analytics.run/2": "partial",
     "analytics.dataset/1": "partial",
     "analytics.trust/1": "excluded_internal",
@@ -305,6 +309,10 @@ PERSISTED_FIELD_PATHS['publication_1'] = frozenset((
     'renderer.kit_version renderer.libraries renderer.libraries[].license renderer.libraries[].name '
     'renderer.libraries[].sha256 renderer.libraries[].version schema scope scope.kind scope.reports '
     'ui_locale '
+    # #20 PR4: ADR-0014 decision 4's selected exact versions and their file mapping.
+    'scope.reports[].files scope.reports[].files[].package_path scope.reports[].files[].path '
+    'scope.reports[].files[].sha256 scope.reports[].manifest_sha256 scope.reports[].report_id '
+    'scope.reports[].revision_id scope.reports[].state scope.reports[].version '
 ).split())
 
 RECORD_FAMILIES["analytics.publication/1"] = "delivery_only_excluded"

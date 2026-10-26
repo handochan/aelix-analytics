@@ -192,6 +192,10 @@ def test_shared_writer_admits_only_the_build_completion_and_preserves_oversize_r
 
     origin = core.Origin("human", "sdk")
     p = core.init_project(tmp_path / "project", title="Public", origin=origin)
+    # A project made before the publication writer: a new one already asks for this kit's version.
+    value = json.loads(p.marker.read_bytes())
+    value["min_writer_version"] = "0.25.0"
+    p.marker.write_bytes(json.dumps(value, ensure_ascii=False, indent=2).encode("utf-8") + b"\n")
     w = writer.Writer(
         p.root,
         platform=p.platform,

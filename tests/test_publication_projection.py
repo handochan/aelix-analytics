@@ -116,10 +116,10 @@ def test_outside_reference_identity_is_removed_for_every_original_state(state):
 
 
 @pytest.mark.parametrize("scope", ["reports", "collection", "unknown"])
-def test_unsupported_scope_is_rejected_without_fallback(scope):
+def test_report_scope_without_a_selection_or_unknown_scope_is_rejected_without_fallback(scope):
     with pytest.raises(PublicationError) as error:
         project(synthetic(), ShareRequest(scope=scope))
-    assert error.value.code == ("scope_unknown" if scope == "unknown" else "scope_unsupported")
+    assert error.value.code == ("scope_unknown" if scope == "unknown" else "scope_invalid")
 
 
 def test_unknown_profile_and_basis_context_exclusion_are_explicit():

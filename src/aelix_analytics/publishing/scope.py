@@ -4,7 +4,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .model import ItemKey, PublicationError
+from .checks import check_names
+from .model import ItemKey, PublicationError, page_key
 
 PROJECT_KINDS = frozenset({"finding", "decision", "assumption", "question", "todo", "analysis_focus",
                            "metric_definition", "metric_observation"})
@@ -19,8 +20,13 @@ METRIC_FIELDS = {
     "metric_observation": ("details.metric_id", "details.definition_event_id", "details.run_id",
                            "details.scope", "details.result", "details.change_reason", "details.recomputed_from"),
 }
+# A Report version (5.3) with the owner's 2026-10-26 choices: its four descriptions (OD1) and a
+# collection's member keys, statuses and reasons (OD2). Its body files are copied, never fields.
+REPORT_FIELDS = ("report_id", "revision_id", "title", "created_at", "actor_role", "entry", "state", "number",
+                 "total", "based_on.as_of_seq", "based_on.context_version", "summary", "purpose", "change_reason",
+                 "content_status", "collection.members")
 READ_FIELDS = {
-    "project": ("title",), "context": ("text", "version", "recorded_at"),
+    "project": ("title",), "context": ("text", "version", "recorded_at"), "report": REPORT_FIELDS,
     "run": ("id", "title", "status", "recording_status", "recording_reasons", "started_at", "ended_at",
             "actor_role", "error.type", "error.line", "warning_count", "finalize_error_count"),
     "visualization": ("visualization_id", "title", "caption", "kind"),
@@ -43,10 +49,10 @@ class Profile:
     id: str
     evidence: bool
     rules_version: int = 1
-    capabilities: frozenset[str] = frozenset({"project"})
+    capabilities: frozenset[str] = frozenset({"project", "reports", "collection"})
 
     def fields(self, item) -> tuple[str, ...]:
-        if item.kind == "context_history" and not self.evidence:
+        if item.kind == "context_history" and not self.evidence or item.kind == "report_attempt":
             return ()
         if item.key.category == "event":
             if item.kind not in PROJECT_KINDS and not (self.evidence and item.kind == "note"):
@@ -77,14 +83,34 @@ KIT_VOCABULARY = frozenset({
     "AnalyticsPublication", "window.AnalyticsPublication",
     "Copy identity", "Built at", "Records through", "Resource counts exclude publication.json, which is checked separately when a copy is saved.",
     "This copy is a fixed snapshot. Its source may have changed.",
+    # #20 PR4 Report pages.
+    "Report version", "Version identity", "Entry file", "Author role", "State at this point", "Created", "Summary",
+    "Purpose", "Reason for this version", "Content status (as the author declared)", "Based on", "Records up to",
+    "Based on CONTEXT version", "(not included in this publication)", "A saved Report is not a review of its conclusions.",
+    "A later version existed when this copy was built — not included.", "Withdrawn",
+    "this version was withdrawn when this copy was built.", "Collection", "failed", "not generated",
+    "Member", "Status", "Reason", "Open member version", "Not included in this publication",
+    "Membership is the collection's structure, not evidence for its text.", "Evidence",
+    "This version does not point to any evidence (no links).", "Report body", "Open the report body on its own page",
+    "If this frame is empty, its file is missing from this copy.", "Parts of this body are offered as downloads only",
+    "This body is not displayed in this copy. Download its files below.", "Files", "bytes",
+    "Compared with the hashes the Report recorded.", "saved", "at an unknown time", "based on records up to",
 })
 
 
 def request_check(request, profile: Profile) -> None:
     if request.scope not in ("project", "reports", "collection"):
         raise PublicationError("scope_unknown", "unknown publication scope")
-    if request.scope not in profile.capabilities or request.reports or request.allow_withdrawn:
-        raise PublicationError("scope_unsupported", "Report and collection scopes are not available in this preview")
+    if request.scope not in profile.capabilities:
+        raise PublicationError("scope_unsupported", "this profile does not support the requested scope")
+    if request.scope != "project" and not request.reports:
+        raise PublicationError("scope_invalid", "a Report scope needs a selected Report version")
+    if request.allow_withdrawn and not request.reports:
+        raise PublicationError("scope_invalid", "--allow-withdrawn applies only to a selected Report version")
+    if (not isinstance(request.reports, tuple) or len(set(request.reports)) != len(request.reports)
+            or not all(isinstance(r, tuple) and len(r) == 2 and all(isinstance(v, str) for v in r)
+                       and r[0] for r in request.reports)):
+        raise PublicationError("scope_invalid", "selected Reports must be distinct report_id[@revision_id] values")
     if request.analysis_state not in ("in_progress", "complete"):
         raise PublicationError("analysis_state_invalid", "analysis state is explicitly declared")
     if request.ui_locale != "en":
@@ -103,22 +129,74 @@ def exclusion_reason(item, request, profile) -> str | None:
     return None
 
 
+def _not_shareable(reason, report, **details):
+    raise PublicationError("report_not_shareable", "the selected Report version cannot be shared as it is",
+                           details={"reason": reason, "report": report, **details})
+
+
+def selected_reports(snapshot, request) -> frozenset[ItemKey]:
+    """The exact selected Report versions, each shareable whole or the build stops (6.2, OQ9-OQ10, OQ23)."""
+    items = {item.key: item for item in snapshot.items}
+    selected = set()
+    for report_id, revision_id in request.reports:
+        where = f"{report_id}@{revision_id}"
+        key = ItemKey("report", f"{report_id}/{revision_id}")
+        item = items.get(key)
+        if not revision_id or item is None:
+            raise PublicationError("scope_invalid", "unknown Report version", details={"report": where})
+        if key in request.exclude:
+            raise PublicationError("scope_invalid", "a selected Report version cannot be excluded",
+                                   details={"report": where})
+        if item.kind != "report_revision":
+            _not_shareable("not_saved", where)
+        if item.values.get("_problem"):
+            _not_shareable(item.values.get("_problem"), where)
+        if item.values.get("_content") != "resolved":
+            _not_shareable(item.values.get("_content") or "content_unknown", where)
+        if item.values.get("state") == "withdrawn" and not request.allow_withdrawn:
+            _not_shareable("withdrawn", where)
+        directory = item.values.get("_directory") or ""
+        for file in item.files:
+            name = file.source.removeprefix(f"{directory}/content/") if file.source else None
+            if file.reason:
+                _not_shareable("path" if file.reason == "outside_project" else file.reason, where, file=name)
+            if not file.current_sha256 or file.current_sha256 != file.recorded_sha256:
+                _not_shareable("file_absent" if not file.current_sha256 else "content_changed", where, file=name)
+            if file.format == "unsupported":
+                _not_shareable("format", where, file=name)
+            try:
+                check_names([f"reports/{page_key(key)}/content/{name}"])
+            except PublicationError:
+                _not_shareable("path", where, file=name)
+        selected.add(key)
+    return frozenset(selected)
+
+
 def scope_closure(snapshot, request, profile: Profile) -> frozenset[ItemKey]:
     """Roots + bound direct targets + their allowed attachments. Never recurse into lineage."""
     request_check(request, profile)
     items = {item.key: item for item in snapshot.items}
     if any(k in request.exclude for k in items if k.category in ("project", "context")):
         raise PublicationError("exclusion_invalid", "project title and basis CONTEXT cannot be excluded")
-    roots = {item.key for item in snapshot.items if item.root and not exclusion_reason(item, request, profile)}
-    roots |= {item.key for item in snapshot.items if item.key.category == "event"
-              and (item.kind in PROJECT_KINDS or (profile.evidence and item.kind == "note"))
-              and not exclusion_reason(item, request, profile)}
+    selected = selected_reports(snapshot, request)
+    if request.scope == "project":
+        roots = {item.key for item in snapshot.items if item.root and not exclusion_reason(item, request, profile)}
+        roots |= {item.key for item in snapshot.items if item.key.category == "event"
+                  and (item.kind in PROJECT_KINDS or (profile.evidence and item.kind == "note"))
+                  and not exclusion_reason(item, request, profile)}
+    else:
+        # A Report-centred copy adds no other project content (5.1, PUBLISH 7): only the title its
+        # snapshot band names. CONTEXT enters when a selected version cites it.
+        roots = {ItemKey("project", "project")} & set(items)
+    roots |= selected
     included = set(roots)
     for key in sorted(roots):
         for ref in items[key].references:
             if (ref.binding in ("author", "inferred") and ref.target in items
                     and ref.state in ("resolved", "unknown", "content_changed")
-                    and ref.reason != "digest_mismatch"):
+                    and ref.reason != "digest_mismatch"
+                    # Another Report version is shared only as a selection, never as a cited target.
+                    and (ref.target.category != "report" or ref.target in selected)):
                 target = items[ref.target]
                 if not exclusion_reason(target, request, profile):
                     included.add(target.key)
@@ -165,6 +243,10 @@ def leak_policy(snapshot, request, profile, projection, *, environment=()):
                 allow(part)
 
     allow(projection.model)
+    # The copy's own basis (6.4) is named in every scope, even when that CONTEXT version's text is
+    # not included: a basis value, not an excluded object's content.
+    if snapshot.basis.content.context_version:
+        allowed.add(snapshot.basis.content.context_version)
     for item in projection.model.items:
         if item.key in included:
             for ref in item.references:

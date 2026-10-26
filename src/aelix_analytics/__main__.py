@@ -309,9 +309,9 @@ def _command(argv) -> int:
     mode.add_argument("--zip-of", metavar="PUBLICATION_ID")
     p.add_argument("--zip", metavar="PATH")
     p.add_argument("--profile", default="read")
-    p.add_argument("--scope", default="project")
-    p.add_argument("--report", action="append", default=[])
-    p.add_argument("--collection")
+    p.add_argument("--scope", choices=("project", "reports"))
+    p.add_argument("--report", action="append", default=[], metavar="REPORT_ID[@REVISION_ID]")
+    p.add_argument("--collection", metavar="REPORT_ID@REVISION_ID")
     p.add_argument("--exclude", action="append", default=[])
     p.add_argument("--analysis-state", default="in_progress")
     p.add_argument("--allow-withdrawn", action="store_true")
@@ -489,13 +489,39 @@ def _command(argv) -> int:
         return 1
 
 
+def _publication_scope(args):
+    """--report or --collection makes a Report copy unless --scope project asks for the project page
+    with those versions in it (PUBLICATION-BUILD 8.1)."""
+    if args.collection is not None:
+        if args.report or args.scope is not None:
+            raise core.AnalyticsError("scope_invalid", "--collection takes no --report or --scope")
+        return "collection"
+    if args.scope is None:
+        return "reports" if args.report else "project"
+    if args.scope == "reports" and not args.report:
+        raise core.AnalyticsError("scope_invalid", "--scope reports needs --report REPORT_ID[@REVISION_ID]")
+    return args.scope
+
+
+def _selected_reports(args):
+    values = [args.collection] if args.collection is not None else args.report
+    out = []
+    for value in values:
+        report_id, sep, revision_id = value.partition("@")
+        if not report_id or "@" in revision_id or sep and not revision_id or args.collection and not sep:
+            raise core.AnalyticsError("scope_invalid", "give REPORT_ID or REPORT_ID@REVISION_ID",
+                                      details={"value": value})
+        out.append((report_id, revision_id))
+    return tuple(out)
+
+
 def _publication_command(args):
     from . import relations
     from .publishing import state
     from .publishing.model import PublicationError
 
     readonly = args.list_publications or args.verify is not None or args.zip_of is not None
-    if readonly and (args.exclude or args.report or args.collection or args.scope != "project"
+    if readonly and (args.exclude or args.report or args.collection or args.scope not in (None, "project")
                      or args.profile != "read" or args.analysis_state != "in_progress" or args.allow_withdrawn):
         raise core.AnalyticsError("scope_invalid", "scope and profile options apply only to build or preview")
     if args.zip and (args.preview or args.list_publications or args.verify is not None):
@@ -533,15 +559,19 @@ def _publication_command(args):
         else:
             from .publishing.build import build_publication, preview_package
             from .publishing.projection import ShareRequest
+            from .workspace import default_report_renderer
 
-            request = ShareRequest(scope="collection" if args.collection is not None else args.scope,
-                                   reports=tuple((r, "") for r in args.report),
+            request = ShareRequest(scope=_publication_scope(args), reports=_selected_reports(args),
                                    analysis_state=args.analysis_state, allow_withdrawn=args.allow_withdrawn)
+            # The Workspace's own ReportRenderer, injected here so the publishing layer imports no
+            # renderer implementation (ADR-0013 7, PUBLICATION-BUILD 7.5).
+            renderer = default_report_renderer() if request.reports else None
             if args.preview:
-                result, _ = preview_package(project, request, profile=args.profile, exclude=args.exclude)
+                result, _ = preview_package(project, request, profile=args.profile, exclude=args.exclude,
+                                            report_renderer=renderer)
             else:
                 result = build_publication(project, request, profile=args.profile, exclude=args.exclude,
-                                           zip_path=args.zip, origin=_origin())
+                                           zip_path=args.zip, origin=_origin(), report_renderer=renderer)
     except PublicationError as exc:
         error = core.AnalyticsError(exc.code, exc.message, details=exc.details)
         if exc.details.get("interrupted"):

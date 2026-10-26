@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from typing import Literal
 
@@ -16,6 +17,11 @@ class PublicationError(ValueError):
 class ItemKey:
     category: str
     identity: str
+
+
+def page_key(key) -> str:
+    """The opaque page/folder name of an included item (never its identity, which may be private)."""
+    return hashlib.sha256(f"{key.category}:{key.identity}".encode()).hexdigest()[:16]
 
 
 @dataclass(frozen=True)
@@ -139,6 +145,8 @@ class RenderFacts:
     notices: tuple[ReaderNotice, ...] = ()
     no_recorded_hash: int = 0
     points: tuple[tuple[str, int], ...] = ()
+    # (Report page key, its view document's package path or "", displayed, the renderer's reasons)
+    report_views: tuple[tuple[str, str, bool, tuple[str, ...]], ...] = ()
 
 
 @dataclass(frozen=True)

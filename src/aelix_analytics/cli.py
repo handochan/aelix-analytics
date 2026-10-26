@@ -61,7 +61,8 @@ analytics — human CLI for Aelix Analytics projects (the same kit the aelix ext
   analytics reports save ID --files DIR --entry PATH --title TEXT --previous REV|none [--request-id ID] [--metadata JSON_FILE]
   analytics reports list | show ID@REV [--file PATH] | update ID@REV --expected-state STATE --state STATE --reason TEXT
   analytics reports clean --prepared ID@REV    remove one explicitly named prepared attempt
-  analytics build [--preview] [--profile read|evidence] [--exclude REF]... [--zip PATH]
+  analytics build [--preview] [--profile read|evidence] [--report ID[@REV]]... [--scope project|reports]
+                  [--collection ID@REV] [--allow-withdrawn] [--exclude REF]... [--zip PATH]
   analytics build --list | --verify FOLDER_OR_ZIP | --zip-of ID --zip PATH
   analytics assets list | show ID | review [ID] | update EVENT --expected STATE --to STATE --reason TEXT
   analytics assets register EVENT --name NAME    copy a validated asset into this project

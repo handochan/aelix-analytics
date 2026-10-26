@@ -362,8 +362,8 @@ def test_public_preview_cli_real_project_preserves_preview_and_explicit_build_wr
     assert "publication_id" not in value and tree_bytes(p.root) == before
     for args, code in [
         (["--profile", "unknown"], "profile_unknown"),
-        (["--scope", "reports"], "scope_unsupported"),
-        (["--collection", "group@version"], "scope_unsupported"),
+        (["--scope", "reports"], "scope_invalid"),
+        (["--collection", "group@version"], "scope_invalid"),
     ]:
         done = subprocess.run(
             [
@@ -1188,7 +1188,7 @@ def test_parquet_map_schema_keys_values_and_field_metadata_are_inspected():
 
 
 @pytest.mark.parametrize("profile", ["read", "evidence"])
-def test_integrated_report_metadata_and_collection_remain_deferred_from_preview(tmp_path, profile):
+def test_unselected_report_metadata_and_collection_stay_out_of_a_project_copy(tmp_path, profile):
     p = core.init_project(tmp_path / "p", title="Public", origin=ORIGIN)
     source = tmp_path / "report-source"
     source.mkdir()
@@ -1241,4 +1241,4 @@ def test_integrated_report_metadata_and_collection_remain_deferred_from_preview(
     for scope in ("reports", "collection"):
         with pytest.raises(PublicationError) as caught:
             build.preview_package(p, ShareRequest(scope=scope), profile=profile)
-        assert caught.value.code == "scope_unsupported"
+        assert caught.value.code == "scope_invalid"

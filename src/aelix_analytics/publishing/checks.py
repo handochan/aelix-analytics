@@ -18,7 +18,7 @@ from urllib.parse import unquote, urlsplit
 from .. import relations
 from .basis import _time
 from .inspections import HTMLInspection, detect_format, inspect_bytes
-from .model import LeakPolicy, PublicationError, ScanText, Text
+from .model import ItemKey, LeakPolicy, PublicationError, ScanText, Text, page_key
 
 IDENTITY_FILES = frozenset({"publication.json", "about.html", "assets/identity.js"})
 OS_METADATA = frozenset({".DS_Store", "desktop.ini", "Thumbs.db"})
@@ -35,6 +35,10 @@ NETWORK_APIS = (
     "navigator.sendBeacon",
     "import(",
 )
+
+
+# What a ReportRenderer made in a Report's folder: not its page, not its original files (#20 PR4).
+REPORT_VIEW = re.compile(r"reports/[0-9a-f]{16}/(?!content/|index\.html$).+")
 
 
 def reject(message, **details):
@@ -99,7 +103,10 @@ def resolve_link(path, link, files, ids=None):
     if any(ord(c) < 32 for c in value) or "\\" in value:
         reject("invalid URL characters", path=path, location=link.location)
     try:
-        parsed = urlsplit(value)
+        # Split before decoding: an escaped "#" or "?" in a file name (a Report's own path) is part
+        # of the path, not a fragment or query.
+        raw = urlsplit(link.value.strip())
+        parsed = raw._replace(path=unquote(raw.path), fragment=unquote(raw.fragment))
     except ValueError:
         reject("malformed URL", path=path, location=link.location)
     scheme = parsed.scheme.lower()
@@ -433,10 +440,7 @@ def _manifest_shape(value):
         and isinstance(scope["reports"], list),
         "scope",
     )
-    if scope["reports"] or scope["kind"] == "reports":
-        raise PublicationError(
-            "scope_unsupported", "Report package verification is not available in this kit"
-        )
+    need(scope["kind"] == "project" or bool(scope["reports"]), "a Report copy names its selected versions")
     need(
         isinstance(value["included"], list) and all(item_key(k) for k in value["included"]),
         "included keys",
@@ -613,13 +617,57 @@ def _manifest_shape(value):
                     "source digest",
                 )
     need(counts == summary["inspection"], "inspection inventory differs from summary")
+    # ADR-0014 decision 4: each selected exact version and where its every file is in this copy.
+    rows = {row["path"]: row for row in value["files"]}
+    selected = set()
+    for report in scope["reports"]:
+        need(
+            exact(report, ("report_id", "revision_id", "version", "state", "manifest_sha256", "files"))
+            and relations.report_name(report["report_id"])
+            and isinstance(report["revision_id"], str)
+            and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", report["revision_id"]) is not None
+            and type(report["version"]) is int
+            and report["version"] > 0
+            and report["state"] in ("current", "withdrawn")
+            and digest(report["manifest_sha256"])
+            and isinstance(report["files"], list)
+            and bool(report["files"]),
+            "selected Report",
+        )
+        pair = (report["report_id"], report["revision_id"])
+        need(pair not in selected, "duplicate selected Report")
+        selected.add(pair)
+        token = page_key(ItemKey("report", "/".join(pair)))
+        need(("report", token) in included, "selected Report is not an included item")
+        for file in report["files"]:
+            need(
+                exact(file, ("path", "sha256", "package_path"))
+                and relations.report_path(file["path"])
+                and digest(file["sha256"])
+                and file["package_path"] == f"reports/{token}/content/{file['path']}",
+                "selected Report file",
+            )
+            row = rows.get(file["package_path"])
+            need(
+                row is not None
+                and row["sha256"] == file["sha256"]
+                and row["origin"] == "copied"
+                and any(source["role"] == "report_file" for source in row["sources"]),
+                "selected Report file is not its recorded copy",
+            )
 
 
 def _verification_view(data, role, name):
     observed = detect_format(data, role=role, path=name)
     view = None
     if observed in ("html", "css", "svg", "payload"):
-        view = inspect_bytes(data, role=role, path=name)
+        try:
+            view = inspect_bytes(data, role=role, path=name)
+        except PublicationError as exc:
+            if exc.code != "figure_not_shareable":
+                raise
+            # As check_package: unsafe user content in a saved copy is a package defect.
+            reject("an unsafe user document is in the package", path=name, reason=exc.message)
         if view is None:
             reject("file role does not allow its format", path=name)
         if observed == "html":
@@ -760,6 +808,8 @@ def verify_package(path, binding=None, *, inspection_cache=None):
             )
             if origin == "copied":
                 role = row["sources"][0]["role"]
+            elif origin == "generated" and REPORT_VIEW.fullmatch(name):
+                role = "report_view"  # a ReportRenderer's document, checked as authored content
             # Only memoize pure inspections within this observation batch. Every invocation
             # still walks the folder, reads all bytes and checks their hashes above, even when
             # size/mtime/ctime are unchanged. Never trust a stat key or a persisted cache.

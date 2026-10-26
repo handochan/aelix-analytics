@@ -15,6 +15,17 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
 
+## [0.27.0] - 2026-10-26
+
+### Added
+
+- #20 PR4: Report 범위의 공유본입니다. `analytics build`와 `--preview`가 `--report ID[@REV]`, `--scope project|reports`,
+  `--collection ID@REV`, `--allow-withdrawn`을 받습니다. 고른 Report 버전은 버전 단위로 원래 경로 그대로 복사하고, 그 버전이 인용한
+  근거(`based_on`)와 그 부속까지만 담습니다. 보기 페이지는 주입한 ReportRenderer의 문서를 스크립트 없는 frame으로 열고 원본 다운로드를
+  둡니다. 묶음은 complete 구성원의 정확한 버전과 구성원 표(키·상태·사유)를 담습니다. Report 설명은 summary·purpose·change_reason·
+  content_status만 공유합니다(2026-10-26 소유자 결정). manifest의 `scope.reports`가 고른 버전·manifest SHA-256·파일 대응을 남기고
+  `--verify`가 대조합니다. 공유할 수 없는 버전은 `report_not_shareable`과 사유로 멈춥니다. 0.26.0 이하는 Report 사본을 검사하지 못합니다.
+
 ## [0.26.0] - 2026-10-22
 
 ### Added
