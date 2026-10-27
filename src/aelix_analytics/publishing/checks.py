@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import bisect
 import hashlib
 import json
 import os
@@ -18,7 +19,7 @@ from urllib.parse import unquote, urlsplit
 from .. import relations
 from .basis import _time
 from .inspections import HTMLInspection, detect_format, inspect_bytes
-from .model import ItemKey, LeakPolicy, PublicationError, ScanText, Text, page_key
+from .model import ItemKey, LeakPolicy, PublicationError, ScanText, Text, page_key, private_field
 
 IDENTITY_FILES = frozenset({"publication.json", "about.html", "assets/identity.js"})
 OS_METADATA = frozenset({".DS_Store", "desktop.ini", "Thumbs.db"})
@@ -172,28 +173,112 @@ def check_model(model, policy: LeakPolicy):
     return tuple(warnings)
 
 
-def check_strings(values, policy, *, path, source=None, strong_only=False):
+class _Literals:
+    """Every value of a set found in a text, in time linear in the text (12.7: thousands of tokens)."""
+
+    WIDTH = 8
+
+    def __init__(self, entries):
+        self.prefixes, self.short = {}, {}
+        for value, n in entries:
+            group = self.prefixes.setdefault(value[: self.WIDTH], {}) if len(value) >= self.WIDTH else self.short
+            group.setdefault(value, []).append(n)
+
+    def find(self, text):
+        found = [n for value, ns in self.short.items() if value in text for n in ns]
+        prefixes, width = self.prefixes, self.WIDTH
+        for i in range(len(text) - width + 1):
+            group = prefixes.get(text[i : i + width])
+            if group:
+                found.extend(n for value, ns in group.items() if text.startswith(value, i) for n in ns)
+        return found
+
+
+class _Words:
+    """Values with a non-word character or an end on both sides, as `(?<!\\w)value(?!\\w)` finds them."""
+
+    def __init__(self, entries):
+        self.values = {}
+        for value, n in entries:
+            self.values.setdefault(value, []).append(n)
+        self.longest = max(map(len, self.values), default=0)
+
+    def find(self, text):
+        if not self.values:
+            return []
+        starts = [m.start() for m in re.finditer(r"(?<!\w)", text)]
+        ends = [m.start() for m in re.finditer(r"(?!\w)", text)]
+        found = []
+        for start in starts:
+            window = ends[bisect.bisect_right(ends, start) : bisect.bisect_right(ends, start + self.longest)]
+            for end in window:
+                found.extend(self.values.get(text[start:end], ()))
+        return found
+
+
+def _inside(text, value, covers, *, word):
+    """Whether every occurrence of `value` lies inside an occurrence of one of `covers`."""
+    spans = []
+    for cover in covers:
+        start = text.find(cover)
+        while start != -1:
+            spans.append((start, start + len(cover)))
+            start = text.find(cover, start + 1)
+    pattern = r"(?<!\w)" + re.escape(value) + r"(?!\w)" if word else re.escape(value)
+    return all(
+        any(a <= m.start() and m.start() + len(value) <= b for a, b in spans)
+        for m in re.finditer("(?=" + pattern + ")", text)
+    )
+
+
+_MATCHERS = None
+
+
+def _matchers(policy):
+    """Normalise and index a policy's tokens once; check_model and check_package reuse one policy."""
+    global _MATCHERS
+    cached = _MATCHERS
+    if cached is None or cached[0] is not policy:
+        groups = {"lines": [], "strong": [], "weak": []}
+        covers, inside = dict(policy.covers), {}
+        for n, token in enumerate(policy.tokens):
+            value = normalized(token.value)
+            if token.mode in ("sentence", "warning"):
+                groups["lines"].append((" ".join(value.split()), n))
+            else:
+                groups[token.mode].append((value, n))
+                if token.value in covers and token.source is not None and not private_field(token.field):
+                    inside[n] = (value, tuple(normalized(c) for c in covers[token.value]))
+        cached = (
+            policy,
+            _Literals(groups["lines"]),
+            _Literals(groups["strong"]),
+            _Words(groups["weak"]),
+            inside,
+        )
+        _MATCHERS = cached
+    return cached[1:]
+
+
+def check_strings(values, policy, *, path, source=None, strong_only=False, own_names=frozenset()):
+    """`own_names`: figure names a run's own code may hold (LeakPolicy.code_names); only tokens
+    from a figure's `visualization_id` are skipped."""
     warnings = []
+    lines, strong, weak, inside = _matchers(policy)
     for part in values:
         text = normalized(part.value)
-        collapsed = " ".join(text.split())
-        for token in policy.tokens:
-            value = normalized(token.value)
-            if (
-                token.mode == "weak"
-                and not part.name_slot
-                or strong_only
-                and token.mode != "strong"
-            ):
+        found = strong.find(text)
+        if not strong_only:
+            found += lines.find(" ".join(text.split()))
+            if part.name_slot:
+                found += weak.find(text)
+        # Policy order and one finding per token, as one pass over every token gave them.
+        for n in sorted(set(found)):
+            token = policy.tokens[n]
+            # Only a figure's name (2026-10-27), never another field that holds the same value.
+            if token.field == "visualization_id" and token.source.category == "visualization" and token.value in own_names:
                 continue
-            found = (
-                " ".join(value.split()) in collapsed
-                if token.mode in ("sentence", "warning")
-                else bool(re.search(r"(?<!\w)" + re.escape(value) + r"(?!\w)", text))
-                if token.mode == "weak"
-                else value in text
-            )
-            if not found:
+            if n in inside and _inside(text, *inside[n], word=token.mode == "weak"):
                 continue
             detail = {
                 "path": path,
@@ -230,6 +315,7 @@ def check_package(files, roles, *, policy=None, parquet_extractor=None, pinned=N
     if set(roles) != set(files) or any(not isinstance(data, bytes) for data in files.values()):
         reject("every package byte file needs exactly one role")
     inspected, warnings, remote = {}, [], set()
+    code_names = dict(policy.code_names)
     for path, data in sorted(files.items()):
         role = roles[path]
         if role == "library":
@@ -281,7 +367,8 @@ def check_package(files, roles, *, policy=None, parquet_extractor=None, pinned=N
             name in data.decode("utf-8") for name in NETWORK_APIS
         ):
             reject("publication runtime contains a network API", path=path)
-        warnings.extend(check_strings(result.strings, policy, path=path))
+        own = code_names.get(hashlib.sha256(data).hexdigest()) if role == "code_snapshot" else None
+        warnings.extend(check_strings(result.strings, policy, path=path, own_names=own or frozenset()))
         for key in result.metadata_keys:
             warnings.append({"path": path, "reason": "image_metadata", "key": key})
         inspected[path] = {

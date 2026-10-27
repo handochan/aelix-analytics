@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import html
 import json
 import posixpath
@@ -65,6 +67,23 @@ REASONS = {
     "outside_project": "outside the project",
     "invalid_digest": "invalid recorded hash",
 }
+
+
+# 7.6: with JavaScript on but publication.js missing, show the page's own "could not load" notice.
+RUNTIME_CHECK = (
+    'window.addEventListener("load",function(){if(!window.AnalyticsRuntime){'
+    'var n=document.querySelector(".load-failure");if(n){n.style.display="block";}}});'
+)
+# Owner 2026-10-27 after measuring Chromium, Firefox and WebKit over file:// and HTTP (7.4): the pages
+# load only this copy's files, make no connection and run only the kit's scripts. plotly writes styles.
+PAGE_POLICY = (
+    "default-src 'self'; script-src 'self' 'sha256-"
+    + base64.b64encode(hashlib.sha256(RUNTIME_CHECK.encode()).digest()).decode()
+    + "'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src 'self'; connect-src 'none'; "
+    "object-src 'none'; base-uri 'none'; form-action 'none'"
+)
+# Checked user HTML may load its own files in its frame but never runs scripts (owner 2026-10-27).
+SANDBOX = 'sandbox="allow-same-origin"'
 
 
 def esc(value):
@@ -220,15 +239,19 @@ def render(
 
     has_plotly = any(f.format == "payload" for i in model.items for f in i.files)
 
-    def page(path, name, body):
+    def page(path, name, body, *, user_title=False):
         scripts = (
             f'<script src="{esc(relative(path, "assets/plotly.min.js"))}" defer></script>'
             if has_plotly
             else ""
         )
+        root = posixpath.relpath(".", posixpath.dirname(path) or ".")
         value = (
-            f'<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-            f'<meta name="referrer" content="no-referrer"><meta name="robots" content="noindex"><title>{esc(name)}</title>'
+            f'<!doctype html>\n<html lang="en" data-root="{esc(root)}/"><head><meta charset="utf-8">'
+            f'<meta http-equiv="Content-Security-Policy" content="{esc(PAGE_POLICY)}"><link rel="icon" href="data:,">'
+            f'<meta name="viewport" content="width=device-width,initial-scale=1">'
+            f'<meta name="referrer" content="no-referrer"><meta name="robots" content="noindex"><title lang="{"" if user_title else "en"}">{esc(name)}</title>'
+            f"<script>{RUNTIME_CHECK}</script>"
             f'<link rel="stylesheet" href="{esc(relative(path, "assets/publication.css"))}">{scripts}'
             f'<script src="{esc(relative(path, "assets/publication.js"))}" defer></script></head><body>'
             f'<a class="skip" href="#main">Skip to content</a><p class="load-failure">This page could not load its files. '
@@ -263,8 +286,15 @@ def render(
             )
             language = "en" if isinstance(field.value, Text) and field.value.origin == "kit" else ""
             body += f'<dt>{esc(name)}</dt><dd><pre lang="{language}">{esc(_shown(field.value))}</pre></dd>'
-        body += "</dl>" + references(item, path)
+        body += "</dl>" + references(item, path) + attachments(item, path)
         return body + files_html(item, path) + "</article>"
+
+    def attachments(item, path):
+        labels = {"run": "Made by run", "code": "Code snapshot", "data_observation": "Input or output"}
+        return "".join(
+            f"<p>{labels.get(key.category, 'Attached')}: "
+            f"{link(path, targets[key], title(next(i for i in model.items if i.key == key)))}</p>"
+            for key in item.attachments if key in targets)
 
     def references(item, path, *, skip=()):
         body = ""
@@ -315,7 +345,7 @@ def render(
             url = esc(target)
             if file.role == "figure":
                 if file.format == "html":
-                    body += f'<iframe src="{url}" sandbox title="Included figure"></iframe><p>If this frame is empty, its file is missing from this copy: {esc(file.package_path)}</p>'
+                    body += f'<iframe src="{url}" {SANDBOX} title="Included figure"></iframe><p>If this frame is empty, its file is missing from this copy: {esc(file.package_path)}</p>'
                 elif file.format == "payload":
                     key = Pure_name(file.package_path)
                     size = sizes.get(file.package_path, 0)
@@ -403,12 +433,14 @@ def render(
         view, shown, reasons = views.get(token, ("", False, ()))
         body += "<h2>Report body</h2>"
         if entry_slot is not None and entry_slot.format == "html":
-            body += (f'<iframe src="{esc(href(path, entry_slot.package_path))}" sandbox title="Report body"></iframe>'
-                     "<p>If this frame is empty, its file is missing from this copy.</p>")
+            body += (f'<iframe src="{esc(href(path, entry_slot.package_path))}" {SANDBOX} title="Report body"></iframe>'
+                     "<p>If this frame is empty, its file is missing from this copy: "
+                     f'<span lang="">{esc(entry_slot.package_path)}</span></p>')
         elif entry_slot is not None and entry_slot.format in ("svg", "png", "jpeg", "gif", "webp"):
             body += f'<img src="{esc(href(path, entry_slot.package_path))}" alt="Report body" loading="lazy">'
         elif view:
-            body += (f'<iframe src="{esc(relative(path, view))}" sandbox title="Report body"></iframe>'
+            body += (f'<iframe src="{esc(relative(path, view))}" {SANDBOX} title="Report body"></iframe>'
+                     f"<p>If this frame is empty, its file is missing from this copy: {esc(view)}</p>"
                      f'<p>{link(path, view, "Open the report body on its own page")}</p>')
             if not shown:
                 body += ("<p>Parts of this body are offered as downloads only: "
@@ -426,7 +458,8 @@ def render(
     for item in model.items:
         if item.key.category == "report":
             path = targets[item.key]
-            page(path, _plain(fields(item).get("title")) or "Report version", report_page(item, path))
+            title_text = _plain(fields(item).get("title"))
+            page(path, title_text or "Report version", report_page(item, path), user_title=bool(title_text))
         elif item.key.category not in ("event", "project"):
             path = targets[item.key]
             page(path, LABELS.get(item.kind, "Included item"), card(item, path))
@@ -504,7 +537,7 @@ def render(
         body += f"<p>{esc(labels[notice.code])}: {esc(notice.path)}</p>"
     body += "<p>"
     body += "Checks do not detect paraphrases, arbitrary encodings in text, text in image pixels, or secrets in included content.</p></section>"
-    page(path, model.title.value, body)
+    page(path, model.title.value, body, user_title=model.title.origin == "user")
     about = "<h1>About this copy</h1>"
     metadata = None
     if identity is None:

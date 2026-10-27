@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .checks import check_names
+from .checks import check_names, normalized
 from .model import ItemKey, PublicationError, page_key
 
 PROJECT_KINDS = frozenset({"finding", "decision", "assumption", "question", "todo", "analysis_focus",
@@ -83,6 +83,8 @@ KIT_VOCABULARY = frozenset({
     "AnalyticsPublication", "window.AnalyticsPublication",
     "Copy identity", "Built at", "Records through", "Resource counts exclude publication.json, which is checked separately when a copy is saved.",
     "This copy is a fixed snapshot. Its source may have changed.",
+    # #20 PR5 attachment links.
+    "Made by run", "Code snapshot", "Input or output", "Attached",
     # #20 PR4 Report pages.
     "Report version", "Version identity", "Entry file", "Author role", "State at this point", "Created", "Summary",
     "Purpose", "Reason for this version", "Content status (as the author declared)", "Based on", "Records up to",
@@ -222,7 +224,7 @@ def leak_policy(snapshot, request, profile, projection, *, environment=()):
     """Independent forbidden values: snapshot minus (claimed ledger intersected with closure)."""
     from dataclasses import fields, is_dataclass
 
-    from .model import BanToken, LeakPolicy, Text
+    from .model import BanToken, LeakPolicy, Text, private_field
 
     included = frozenset(projection.ledger.included) & scope_closure(snapshot, request, profile)
     labels = set(KIT_VOCABULARY) | set(PROJECT_KINDS) | set(EVIDENCE_FIELDS)
@@ -231,10 +233,13 @@ def leak_policy(snapshot, request, profile, projection, *, environment=()):
     allowed = labels | {word for label in labels for word in re.findall(r"[\w-]+", label)}
     allowed |= {value.lower() for value in allowed}
 
+    shared = set()
+
     def allow(value):
         if isinstance(value, Text):
             if value.origin == "kit" or value.source and value.source[0] in included:
                 allowed.add(value.value)
+                shared.update(" ".join(line.split()) for line in normalized(value.value).splitlines())
         elif is_dataclass(value):
             for f in fields(value):
                 allow(getattr(value, f.name))
@@ -254,10 +259,15 @@ def leak_policy(snapshot, request, profile, projection, *, environment=()):
                                if isinstance(value, str))
     tokens = set()
     short = 0
+    # A line that is also a whole line of included text is not an outside item's own words (an earlier
+    # CONTEXT version repeats most of the basis version's lines). A line quoted inside a longer line
+    # is still that outside item's sentence.
 
     def add(value, mode, key=None, field=None, exempt=True):
         nonlocal short
         if not isinstance(value, str) or not value or exempt and value in allowed:
+            return
+        if mode == "sentence" and exempt and " ".join(normalized(value).split()) in shared:
             return
         if mode != "weak" and len(value) < 8:
             short += 1
@@ -312,13 +322,7 @@ def leak_policy(snapshot, request, profile, projection, *, environment=()):
                         if len(" ".join(line.split())) >= 24:
                             add(line, "sentence", item.key, field)
             # Private environment fields are blocked even when their source item is included.
-            if field in (
-                "env.platform",
-                "env.executable",
-                "request_id",
-                "request_fingerprint",
-                "session",
-            ) or field.endswith(".session"):
+            if private_field(field):
                 add(value, "strong", item.key, field, exempt=False)
             if item.key in included and (
                 field.startswith(
@@ -341,6 +345,49 @@ def leak_policy(snapshot, request, profile, projection, *, environment=()):
         if isinstance(value, str):
             add(value.replace("\\", "/"), "strong", exempt=False)
             add(value.replace("/", "\\"), "strong", exempt=False)
+    # A script names every figure it makes. In an included run's copied code the names of the figures
+    # its script's runs recorded (the id of each `script::id`) are that code, also for figures the copy
+    # leaves out (5.2 stops at a run's other figures) and for a run that ended before making them;
+    # everywhere else they stay forbidden (2026-10-27 owner decisions).
+    items = {item.key: item for item in snapshot.items}
+
+    def script_of(run):
+        script = items[run].values.get("script") if run in items else None
+        return script.get("path") if hasattr(script, "get") and isinstance(script.get("path"), str) else run
+
+    figures = {}
+    for item in snapshot.items:
+        if item.key.category == "visualization" and isinstance(item.values.get("visualization_id"), str):
+            for run in item.attachments:
+                figures.setdefault(script_of(run), set()).add(item.values.get("visualization_id"))
+    code_names = {}
+    for key in included:
+        names = figures.get(script_of(key)) if key.category == "run" else None
+        if names:
+            for code in items[key].attachments:
+                if code.category == "code" and code in included:
+                    # Only bytes the copy holds: a code snapshot is copied when it is its recorded bytes.
+                    for file in items[code].files:
+                        if file.recorded_sha256 and file.current_sha256 == file.recorded_sha256 and not file.reason:
+                            code_names.setdefault(file.recorded_sha256, set()).update(names)
+    # An outside ID inside an included one is that included ID: a script run twice in one second makes
+    # runs X and X-2 (2026-10-27 owner decision). Standing alone, X is still a leak.
+    # The IDs themselves, not a `<run_id>/<visualization_id>` or `<report_id>/<revision_id>` key, which
+    # would hold an excluded run's ID.
+    identifiers = set()
+    for key in included:
+        if key.category in ("run", "visualization", "report", "context"):
+            identifiers.update(value for field in ("id", "visualization_id", "report_id", "revision_id", "version")
+                               if isinstance(value := items[key].values.get(field), str))
+    covers = {}
+    for token in tokens:
+        if token.mode in ("strong", "weak") and token.source is not None and not private_field(token.field):
+            inside = tuple(sorted(i for i in identifiers if token.value in i and i != token.value))
+            if inside:
+                covers[token.value] = inside
     return LeakPolicy(
-        tuple(sorted(tokens, key=lambda t: (t.mode, t.value, str(t.source), t.field or ""))), short
+        tuple(sorted(tokens, key=lambda t: (t.mode, t.value, str(t.source), t.field or ""))),
+        short,
+        tuple(sorted((digest, frozenset(names)) for digest, names in code_names.items())),
+        tuple(sorted(covers.items())),
     )

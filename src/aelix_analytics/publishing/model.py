@@ -91,6 +91,8 @@ class ShareItem:
     references: tuple[Reference, ...] = ()
     files: tuple[FileSlot, ...] = ()
     file_notices: tuple[FileNotice, ...] = ()
+    # Fixed attachment edges inside this copy (5.2): a Visualization version's run, a run's code and data.
+    attachments: tuple[ItemKey, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -191,6 +193,14 @@ class Inspection:
     ids: tuple[str, ...] = ()
 
 
+PRIVATE_FIELDS = ("env.platform", "env.executable", "request_id", "request_fingerprint", "session")
+
+
+def private_field(field):
+    """Environment fields forbidden even when their item is included (11.4); no exception covers them."""
+    return isinstance(field, str) and (field in PRIVATE_FIELDS or field.endswith(".session"))
+
+
 @dataclass(frozen=True)
 class BanToken:
     value: str
@@ -203,3 +213,9 @@ class BanToken:
 class LeakPolicy:
     tokens: tuple[BanToken, ...] = ()
     short_markers: int = 0
+    # sha256 of an included run's code snapshot -> the names of the figures its script's runs
+    # recorded, which that code may name although a figure is left out (2026-10-27 owner decisions).
+    code_names: tuple[tuple[str, frozenset[str]], ...] = ()
+    # Token value -> the included items' IDs it is part of (run X inside run X-2); a found token whose
+    # every occurrence lies inside one of them is that ID, not a leak (2026-10-27 owner decision).
+    covers: tuple[tuple[str, tuple[str, ...]], ...] = ()

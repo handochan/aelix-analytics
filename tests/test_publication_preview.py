@@ -1242,3 +1242,207 @@ def test_unselected_report_metadata_and_collection_stay_out_of_a_project_copy(tm
         with pytest.raises(PublicationError) as caught:
             build.preview_package(p, ShareRequest(scope=scope), profile=profile)
         assert caught.value.code == "scope_invalid"
+
+
+def _one_pass(values, policy, *, path, strong_only=False):
+    """The check before PR5's index: every token tried against every text, in policy order."""
+    import re
+
+    warnings = []
+    for part in values:
+        text = checks.normalized(part.value)
+        collapsed = " ".join(text.split())
+        for token in policy.tokens:
+            value = checks.normalized(token.value)
+            if token.mode == "weak" and not part.name_slot or strong_only and token.mode != "strong":
+                continue
+            found = (
+                " ".join(value.split()) in collapsed
+                if token.mode in ("sentence", "warning")
+                else bool(re.search(r"(?<!\w)" + re.escape(value) + r"(?!\w)", text))
+                if token.mode == "weak"
+                else value in text
+            )
+            if found:
+                detail = {"path": path, "location": part.location, "cause": "copied_file"}
+                if token.mode != "warning":
+                    return ("leak_found", detail)
+                warnings.append({**detail, "reason": "excluded_field_line"})
+        if not strong_only and checks.PATH_PATTERN.search(text):
+            warnings.append({"path": path, "location": part.location, "reason": "path_pattern"})
+    return ("ok", tuple(warnings))
+
+
+def test_indexed_leak_check_finds_what_one_pass_over_every_token_finds():
+    import random
+    import unicodedata
+
+    rng = random.Random(20)
+    pieces = ["a", "B", "7", "_", "-", "/", ".", " ", "\t", "\n", "%2F", "%", "매출", "북쪽",
+              unicodedata.normalize("NFD", "지역"), "é", "e\u0301", "\\/", "C:\\", "~/", "file://"]
+
+    def text(n):
+        return "".join(rng.choice(pieces) for _ in range(n))
+
+    for _case in range(400):
+        texts = [text(rng.randint(0, 40)) for _ in range(rng.randint(1, 4))]
+        tokens = set()
+        for _ in range(rng.randint(0, 12)):
+            source = rng.choice(texts)
+            start = rng.randint(0, len(source))
+            value = source[start : start + rng.randint(1, 30)] if rng.random() < 0.7 else text(rng.randint(1, 12))
+            if value:
+                tokens.add(BanToken(value, rng.choice(("strong", "weak", "sentence", "warning"))))
+        policy = LeakPolicy(tuple(sorted(tokens, key=lambda t: (t.mode, t.value))))
+        values = tuple(ScanText(t, f"part{n}", name_slot=rng.random() < 0.5) for n, t in enumerate(texts))
+        for strong_only in (False, True):
+            expected = _one_pass(values, policy, path="files/copy.txt", strong_only=strong_only)
+            try:
+                got = ("ok", checks.check_strings(values, policy, path="files/copy.txt", strong_only=strong_only))
+            except PublicationError as exc:
+                got = (exc.code, exc.details)
+            assert got == expected, (values, policy, strong_only)
+
+
+DROPPED = "detail-dropped-later"
+MAKE = 'a.visualize(go.Figure(go.Scatter(y=[1, 2])), "{}", title="{}")\n'
+HEAD = "import plotly.graph_objects as go\nimport aelix_analytics as a\n"
+
+
+def _run(p, name, body, title):
+    (p.scripts / name).write_text(HEAD + body, encoding="utf-8")
+    return runner.execute(p, script=f"scripts/{name}", title=title, origin=ORIGIN)["run"]
+
+
+def _dropped_figure_project(root):
+    """v1 of a script makes two figures; v2 drops the second. A finding cites v1's first figure, so
+    the evidence copy includes the v1 run and its code, which names the dropped, uncited figure."""
+    p = core.init_project(root, title="Dropped figure", origin=ORIGIN)
+    first = _run(p, "charts.py", MAKE.format("trend", "Trend") + MAKE.format(DROPPED, "Detail"), "v1")
+    second = _run(p, "charts.py", MAKE.format("trend", "Trend"), "v2")
+    assert first["status"] == second["status"] == "ok"
+    trend = next(v for v in first["visualizations"] if v["visualization_id"] == "trend")
+    core.record(p, "finding", "the first version rose", origin=ORIGIN, refs=[core.kit_reference(
+        "visualization_version", run_id=first["id"], visualization_id="trend", digest={"sha256": trend["sha256"]})])
+    return p, first
+
+
+def _left_out(files, first):
+    code = [data for name, data in files.items() if name.endswith(".py") and DROPPED.encode() in data]
+    assert code, "a copied code snapshot names the dropped figure"
+    others = b"".join(data for name, data in files.items() if not name.endswith(".py"))
+    assert DROPPED.encode() not in others and b'"Detail"' not in others
+    assert f"{first['id']}/{DROPPED}".encode() not in b"".join(files.values())
+
+
+def test_an_included_runs_code_may_name_that_runs_figures_the_copy_leaves_out(tmp_path):
+    """2026-10-27 owner decision: only in that run's copied code; the figure itself stays out."""
+    p, first = _dropped_figure_project(tmp_path / "p")
+    summary, files = build.preview_package(p, profile="evidence")
+    _left_out(files, first)
+    assert summary["not_included"]
+
+
+def test_a_failed_runs_code_may_name_the_figures_its_script_made(tmp_path):
+    """The second 2026-10-27 decision: a run that stopped before making them names its script's figures."""
+    p, first = _dropped_figure_project(tmp_path / "p")
+    failed = _run(p, "charts.py", 'raise RuntimeError("stopped early")\n' + MAKE.format(DROPPED, "Detail"), "v3")
+    assert failed["status"] == "error" and not failed.get("visualizations")
+    _run(p, "charts.py", MAKE.format("trend", "Trend"), "v4")
+    core.record(p, "finding", "the third version failed", refs=[failed["id"]], origin=ORIGIN)
+    _summary, files = build.preview_package(p, profile="evidence")
+    _left_out(files, first)
+
+
+def test_another_scripts_code_naming_a_left_out_figure_still_stops(tmp_path):
+    p, _first = _dropped_figure_project(tmp_path / "p")
+    _run(p, "other.py", f"# {DROPPED} moved to charts.py\n" + MAKE.format("other", "Other"), "other")
+    with pytest.raises(PublicationError) as caught:
+        build.preview_package(p, profile="evidence")
+    assert caught.value.code == "leak_found"
+    assert caught.value.details["cause"] == "copied_file"
+    assert caught.value.details["path"].endswith(".py")
+
+
+def _same_second_runs(root, monkeypatch, text="the second run printed"):
+    """One script run twice in one second: runs X and X-2. A finding cites X-2 only."""
+    fixed = core.now()
+    monkeypatch.setattr(core, "now", lambda: fixed)
+    p = core.init_project(root, title="Same second", origin=ORIGIN)
+    (p.scripts / "hello.py").write_text("print('hello')\n", encoding="utf-8")
+    first = runner.execute(p, script="scripts/hello.py", title="hello", origin=ORIGIN)["run"]
+    second = runner.execute(p, script="scripts/hello.py", title="hello", origin=ORIGIN)["run"]
+    assert second["id"] == first["id"] + "-2"
+    core.record(p, "finding", text.format(first=first["id"]), refs=[second["id"]], origin=ORIGIN)
+    return p, first
+
+
+@pytest.mark.parametrize("profile", ["read", "evidence"])
+def test_an_outside_run_id_inside_an_included_run_id_is_that_id(tmp_path, monkeypatch, profile):
+    """2026-10-27 owner decision: X inside X-2 is X-2."""
+    p, first = _same_second_runs(tmp_path / "p", monkeypatch)
+    summary, files = build.preview_package(p, profile=profile)
+    data = b"".join(files.values())
+    assert data.count(first["id"].encode()) == data.count((first["id"] + "-2").encode()) > 0
+    assert summary["not_included"]
+
+
+def test_an_outside_run_id_standing_alone_still_stops(tmp_path, monkeypatch):
+    p, _first = _same_second_runs(tmp_path / "p", monkeypatch, text="compare with {first} later")
+    with pytest.raises(PublicationError) as caught:
+        build.preview_package(p, profile="read")
+    assert caught.value.code == "leak_found"
+    assert caught.value.details["source"]["field"] == "text"
+
+
+def test_no_exception_lets_a_private_field_through():
+    """A figure name or an included ID that equals a private value does not excuse that value."""
+    value = "private-session-604d09"
+    figure = BanToken(value, "strong", ItemKey("visualization", f"r/{value}"), "visualization_id")
+    session = BanToken(value, "strong", ItemKey("run", "r"), "session")
+    text = (ScanText(f'a.visualize(fig, "{value}")', "raw"),)
+    checks.check_strings(text, LeakPolicy((figure,)), path="files/c.py", own_names=frozenset({value}))
+    with pytest.raises(PublicationError):
+        checks.check_strings(text, LeakPolicy((figure, session)), path="files/c.py", own_names=frozenset({value}))
+    inside = (ScanText(f"{value}-2", "raw"),)
+    covered = LeakPolicy((session,), covers=((value, (f"{value}-2",)),))
+    with pytest.raises(PublicationError):
+        checks.check_strings(inside, covered, path="files/c.txt")
+
+
+def test_a_code_snapshot_left_out_of_the_copy_lends_its_names_to_no_other_file(tmp_path):
+    """charts.py's v1 snapshot changed after its run, so it is not copied; its new bytes equal
+    other.py's code, which names charts.py's dropped figure: other.py's copy still stops."""
+    p, first = _dropped_figure_project(tmp_path / "p")
+    body = f"# {DROPPED} moved to charts.py\n" + MAKE.format("other", "Other")
+    _run(p, "other.py", body, "other")
+    snapshot = p.root / "runs" / first["id"] / "code/scripts/charts.py"
+    snapshot.write_text(HEAD + body, encoding="utf-8")
+    with pytest.raises(PublicationError) as caught:
+        build.preview_package(p, profile="evidence")
+    assert caught.value.code == "leak_found"
+    assert caught.value.details["cause"] == "copied_file"
+
+
+def test_an_excluded_records_line_quoted_inside_an_included_line_still_stops(tmp_path):
+    """Only a whole line that included text also has is exempt (the earlier CONTEXT case), not a quote."""
+    p = core.init_project(tmp_path / "p", title="Quoted", origin=ORIGIN)
+    line = "the north region grew for four weeks in a row"
+    core.record(p, "finding", line, origin=ORIGIN)
+    core.record(p, "finding", f"As noted, {line}, which we now doubt.", origin=ORIGIN)
+    model = core.read_model(p)
+    first = next(e for e in model.journal.in_order() if e.kind == "finding")
+    with pytest.raises(PublicationError) as caught:
+        build.preview_package(p, profile="read", exclude=(model.journal.source_of(first),))
+    assert caught.value.code == "leak_found" and caught.value.details["source"]["field"] == "text"
+
+
+def test_an_excluded_run_id_inside_an_included_figure_key_still_stops(tmp_path):
+    """Decision (4) covers IDs, not the `<run_id>/<visualization_id>` key that holds a run's ID."""
+    p, first = _dropped_figure_project(tmp_path / "p")
+    core.record(p, "finding", f"{first['id']}/trend shows the drop", origin=ORIGIN, refs=[core.kit_reference(
+        "visualization_version", run_id=first["id"], visualization_id="trend",
+        digest={"sha256": next(v for v in first["visualizations"] if v["visualization_id"] == "trend")["sha256"]})])
+    with pytest.raises(PublicationError) as caught:
+        build.preview_package(p, profile="read", exclude=(first["id"],))
+    assert caught.value.code == "leak_found"

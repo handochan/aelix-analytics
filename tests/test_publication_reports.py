@@ -190,7 +190,7 @@ def test_safe_report_html_opens_in_a_frame_without_scripts(tmp_path):
                                                     "img/a.png": PNG}), "r.html")
     _summary, files = preview(p, ("weekly", v1["revision_id"]))
     page = report_page(files, "weekly", v1["revision_id"])
-    assert '<iframe src="content/r.html" sandbox title="Report body">' in page
+    assert '<iframe src="content/r.html" sandbox="allow-same-origin" title="Report body">' in page
     assert "allow-scripts" not in page
 
 

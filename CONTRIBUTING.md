@@ -96,6 +96,16 @@ uv run --locked python tools/platform_smoke.py --gate required --output .devstat
 AELIX_ANALYTICS_TEST_INSTALL=1 uv run --locked pytest -q -p no:cacheprovider --timeout 600 --timeout-method=thread --ignore tests/test_windows_console.py
 ```
 
+Linux 레그는 저장한 공유본의 브라우저 E2E도 돌립니다(#20 PR5). `browser` 의존성 그룹(Playwright)과 브라우저가 필요하며, 엔진을
+`AELIX_ANALYTICS_TEST_BROWSER`로 고릅니다. 없으면 이 시험은 건너뜁니다. CI는 Chromium이고, Firefox·WebKit은 손으로 돌립니다
+(`AELIX_ANALYTICS_TEST_BROWSER=chromium,firefox,webkit`, `playwright install chromium firefox webkit`).
+
+```sh
+uv sync --locked --python 3.12 --group browser
+uv run --locked --group browser playwright install chromium
+AELIX_ANALYTICS_TEST_BROWSER=chromium uv run --locked --group browser pytest -q -p no:cacheprovider --timeout 600 --timeout-method=thread tests/test_publication_browser.py
+```
+
 `floor` 작업은 uv 없이 CPython 3.11과 표준 라이브러리만으로 aelix 프로세스가 로드하는 쪽을 봅니다(분석 라이브러리를 설치하지 않은
 3.11에서):
 
@@ -289,7 +299,7 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 | 작업 | 언제 | 무엇 | artifact (90일) |
 |---|---|---|---|
 | `lint` | 모든 PR, main push, 수동·주간 실행 | ruff, 문서 검사 | 문서 검사 결과, 실행 맥락 |
-| `platform` | Linux(`ubuntu-24.04`)·Windows(`windows-2025`)·macOS(`macos-26`), `lint`와 같은 때 | 플랫폼 스모크(`tools/platform_smoke.py --gate required`), 저장소 시험(`AELIX_ANALYTICS_TEST_INSTALL=1`, 배포본 end-to-end 포함), aelix 0.1.0b2 통합(CPython 3.12·3.11, [위의 다섯 시험 파일](#현재-개발-검증)), 사용량 보고서(`tools/usage_report.py`, CPython 3.12, 판정 없이 보고만), 런처 시험(CPython 3.11). Windows는 저장소 시험 뒤에 네이티브 콘솔 시험(`tests/test_windows_console.py`, 단계 따로)을, 시험 레그의 마지막에 LongPathsEnabled를 0으로 바꾸고 긴 경로 시험(`tests/test_windows_long_paths.py`)을 새 프로세스로 한 번 더 돌립니다 | 레그별 JUnit, 스모크 JSON(러너 설정 포함), 사용량 보고서(`usage/`: JSON·MD·`texts/`), 시험이 관찰해 남긴 것(`evidence/`, `evidence-long-paths-off/`, aelix 통합 레그의 `evidence-aelix-py3.12/`·`evidence-aelix-py3.11/`; 콘솔 사례는 단언하는 것까지 모두), 인터프리터, aelix 환경의 배포판 목록, 실행 맥락 |
+| `platform` | Linux(`ubuntu-24.04`)·Windows(`windows-2025`)·macOS(`macos-26`), `lint`와 같은 때 | 플랫폼 스모크(`tools/platform_smoke.py --gate required`), 저장소 시험(`AELIX_ANALYTICS_TEST_INSTALL=1`, 배포본 end-to-end 포함), aelix 0.1.0b2 통합(CPython 3.12·3.11, [위의 다섯 시험 파일](#현재-개발-검증)), 사용량 보고서(`tools/usage_report.py`, CPython 3.12, 판정 없이 보고만), 런처 시험(CPython 3.11). Linux는 `browser` 의존성 그룹(Playwright)과 Chromium으로 저장한 공유본의 브라우저 E2E(`tests/test_publication_browser.py`, `AELIX_ANALYTICS_TEST_BROWSER=chromium`, #20 PR5)를 돌립니다. Windows는 저장소 시험 뒤에 네이티브 콘솔 시험(`tests/test_windows_console.py`, 단계 따로)을, 시험 레그의 마지막에 LongPathsEnabled를 0으로 바꾸고 긴 경로 시험(`tests/test_windows_long_paths.py`)을 새 프로세스로 한 번 더 돌립니다 | 레그별 JUnit, 스모크 JSON(러너 설정 포함), 사용량 보고서(`usage/`: JSON·MD·`texts/`), 시험이 관찰해 남긴 것(`evidence/`, `evidence-long-paths-off/`, aelix 통합 레그의 `evidence-aelix-py3.12/`·`evidence-aelix-py3.11/`; 콘솔 사례는 단언하는 것까지 모두), 인터프리터, aelix 환경의 배포판 목록, 실행 맥락 |
 | `floor` | `platform`과 같은 OS | `actions/setup-python`의 CPython 3.11에서 표준 라이브러리만으로 플랫폼 스모크(`--stdlib-only`) | 스모크 JSON, 실행 맥락 |
 
 - 세 OS를 모든 PR·main push·수동 실행(`workflow_dispatch`)·매주 월요일 03:17 UTC 실행에서 돌립니다(2026-10-21 소유자 결정, #22).

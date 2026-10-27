@@ -334,7 +334,8 @@ class ReadProjection:
                     counts["file", reason] += 1
                     notices.append(FileNotice(file.role, reason))
             refs = tuple(_reference(r, included, request.exclude, reasons) for r in item.references)
-            items.append(ShareItem(key, item.kind, tuple(projected), refs, tuple(slots), tuple(notices)))
+            attached = tuple(k for k in item.attachments if k in included)
+            items.append(ShareItem(key, item.kind, tuple(projected), refs, tuple(slots), tuple(notices), attached))
         omitted = tuple(Omission(category, reason, count) for (category, reason), count in sorted(counts.items()))
         title = next((f.value for i in items if i.key.category == "project" for f in i.fields if f.name == "title"),
                      Text("Untitled project", "kit"))
@@ -398,6 +399,8 @@ def validate_projection(snapshot, request, profile, projection):
     for item in projection.model.items:
         if item.references != tuple(_reference(r, included, request.exclude, reasons) for r in source[item.key].references):
             raise PublicationError("leak_found", "reference judgment changed")
+        if item.attachments != tuple(k for k in source[item.key].attachments if k in included):
+            raise PublicationError("leak_found", "attachment edge is not the snapshot's included one")
         if any(field != _field(source[item.key], field.name, included) for field in item.fields):
             raise PublicationError("leak_found", "field value is not from its included allowed field")
         if item.kind != source[item.key].kind or any(f.name not in profile.fields(source[item.key]) for f in item.fields):
