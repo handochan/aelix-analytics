@@ -162,6 +162,7 @@ build를 멈추고 사람이 공유용 새 Report 버전을 저장해 고른다(
 ### 첫 대상: 지정 폴더
 
 2026-10-03에 채택한 설계이며 아직 구현하지 않았다([ADR-0009](decisions/0009-first-publish-target.md), [#21](https://github.com/handochan/aelix-analytics/issues/21)).
+구현 설계는 [폴더 게시 설계](design/PUBLISH-FOLDER.md)(제안)다.
 첫 대상은 사용자가 지정한 폴더 하나다. 로컬 폴더·마운트한 공유·동기화 폴더를 같은 폴더로 다루며, 대상과 프로젝트는 어느 쪽도 다른 쪽 안에 있으면 안 된다.
 대상은 analytics가 소유한 폴더다. 첫 게시가 대상 표식을 만들고, 표식 없이 비어 있지 않은 폴더에는 쓰지 않는다.
 대상 안에 버전 `publications/<publication_id>/`와 최신 주소 `projects/<channel>/`(`index.html`·`latest.json`)를 둔다. 버전에는 manifest와 manifest가 적은 파일만 있고 한 번 쓰면 바꾸지 않는다.
