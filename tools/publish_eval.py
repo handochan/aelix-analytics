@@ -115,11 +115,11 @@ def boundaries(work):
             finally:
                 publish._reached = lambda at: None
             held = {pid: "new", earlier: "old", None: "missing"}
-            again = publish.publish(p, pid, share, origin=ORIGIN)
-            rows.append({"first": first, "step": step, "outcome": result["outcome"], "receipt": "receipt" in result,
-                         "latest_json": held.get(latest_of(share), "other"), "channel_page": held.get(page_of(share), "other"),
-                         "receipt_pointers": result.get("pointers"), "final_check": result["steps"]["final_check"],
-                         "rerun": [again["outcome"], again["steps"]["transfer"], again["steps"]["switch"]]})
+            row = {"first": first, "step": step, "outcome": result["outcome"], "receipt": "receipt" in result,
+                   "latest_json": held.get(latest_of(share), "other"), "channel_page": held.get(page_of(share), "other"),
+                   "receipt_pointers": result.get("pointers"), "final_check": result["steps"]["final_check"]}
+            again = publish.publish(p, pid, share, origin=ORIGIN)  # the files are read above, before the rerun
+            rows.append({**row, "rerun": [again["outcome"], again["steps"]["transfer"], again["steps"]["switch"]]})
     return rows
 
 
