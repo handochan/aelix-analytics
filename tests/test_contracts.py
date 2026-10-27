@@ -446,6 +446,25 @@ def test_waiting_within_a_limit_gives_up_busy_and_a_busy_body_is_not_retried(imp
         assert created is False
 
 
+def test_a_lock_that_cannot_be_taken_at_all_is_unavailable_at_once(implementation, tmp_path):
+    """ADR-0009 check 9: a file system without locks answers LockUnavailable, which is never waited
+    for; the publisher then goes on without the lock and says so."""
+    class Unsupported:
+        def __init__(self):
+            self.tries = 0
+
+        def try_exclusive(self, path):
+            self.tries += 1
+            raise _platform.LockUnavailable(errno.ENOLCK, "no locks on this mount")
+
+    locks = Unsupported()
+    began = time.perf_counter()
+    with pytest.raises(_platform.LockUnavailable):
+        with _platform._exclusive_within(locks, tmp_path / "lock", 5):
+            raise AssertionError("taken")
+    assert locks.tries == 1 and time.perf_counter() - began < 1
+
+
 def test_waiting_within_a_limit_takes_the_lock_another_process_lets_go(implementation, tmp_path):
     needs(implementation, BETWEEN_PROCESSES)
     import multiprocessing  # noqa: PLC0415 - only this case starts another process
@@ -458,8 +477,10 @@ def test_waiting_within_a_limit_takes_the_lock_another_process_lets_go(implement
     try:
         assert started.wait(30), "the other process never took the lock"
         threading.Timer(0.5, release.set).start()
+        began = time.perf_counter()
         with implementation.make().locks.exclusive_within(lock, 20) as created:
             assert created is False
+            assert time.perf_counter() - began >= 0.4, "taken while the other process held it"
     finally:
         release.set()
         holder.join(20)
@@ -721,8 +742,8 @@ def test_without_the_exclusive_rename_a_directory_moves_by_posix_rename_never_on
         implementation, tmp_path, arming, how):
     """Where the file system does not take the flag (some SMB and NFS mounts), POSIX's rename(2)
     stands in for a directory: it never moves one onto entries or a file (OQ5)."""
-    if implementation.name == "windows":
-        pytest.skip("Windows' rename never replaces: rename_new is always there")
+    if os.name == "nt":
+        pytest.skip("Windows' rename never replaces: rename_new is always there, the stand-in's too")
     bundle = implementation.make()
     if implementation.name == "recording":
         bundle.files.renames = False
@@ -738,6 +759,78 @@ def test_without_the_exclusive_rename_a_directory_moves_by_posix_rename_never_on
         return
     assert bundle.files.rename_dir_new(stage, dst) == "posix_rename"
     assert not stage.exists() and (dst / "pages" / "본문.html").read_bytes() == b"<p>v</p>"
+
+
+def test_a_file_system_that_answers_taken_and_free_names_differently_still_falls_back(tmp_path):
+    """exFAT on macOS answered EEXIST for a taken name and ENOTSUP for a free one: after the empty
+    directory is removed, the second rename_new's RenameUnsupported falls back as the first's does."""
+    class Answering:
+        def rename_new(self, src, dst):
+            if os.path.lexists(dst):
+                raise FileExistsError(errno.EEXIST, "taken", str(dst))
+            raise _platform.RenameUnsupported(errno.ENOTSUP, "free")
+
+    stage, dst = _version_tree(tmp_path), tmp_path / "publications" / "pub-0"
+    dst.mkdir(parents=True)
+    assert _platform._rename_dir_new(Answering(), stage, dst, replacing_rename=True) == "posix_rename"
+    assert not stage.exists() and (dst / "pages" / "본문.html").read_bytes() == b"<p>v</p>"
+    other, again = _version_tree(tmp_path / "w"), tmp_path / "w" / "pub-1"
+    again.mkdir()
+    with pytest.raises(_platform.RenameUnsupported):
+        _platform._rename_dir_new(Answering(), other, again, replacing_rename=False)
+    assert (other / "publication.json").exists() and not again.exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="a symbolic link needs a privilege on Windows; a junction is the same rule")
+def test_committing_never_removes_or_follows_a_link(implementation, tmp_path):
+    """A link (or junction) to an empty directory is taken, not an empty directory: it and what it
+    points to stay; a link is never the directory moved."""
+    needs(implementation, RENAMES)
+    files = implementation.make().files
+    stage, dst = _version_tree(tmp_path), tmp_path / "publications" / "pub-0"
+    dst.parent.mkdir()
+    pointed = tmp_path / "elsewhere"
+    pointed.mkdir()
+    dst.symlink_to(pointed, target_is_directory=True)
+    with pytest.raises(FileExistsError):
+        files.rename_dir_new(stage, dst)
+    assert dst.is_symlink() and pointed.is_dir() and (stage / "publication.json").exists()
+    linked = tmp_path / "linked-stage"
+    linked.symlink_to(stage, target_is_directory=True)
+    with pytest.raises(NotADirectoryError):
+        files.rename_dir_new(linked, tmp_path / "publications" / "pub-1")
+    assert linked.is_symlink() and not (tmp_path / "publications" / "pub-1").exists()
+
+
+def test_an_empty_junction_is_taken_not_emptied(tmp_path, monkeypatch):
+    """Windows reports a junction to an empty folder as a directory; is_link says it is a link, and
+    the commit leaves it (and what it points to) where it is."""
+    class Taken:
+        def rename_new(self, src, dst):
+            raise FileExistsError(errno.EEXIST, "taken", str(dst))
+
+    stage, dst = _version_tree(tmp_path), tmp_path / "publications" / "pub-0"
+    dst.mkdir(parents=True)
+    real = _platform.is_link
+    monkeypatch.setattr(_platform, "is_link", lambda st: st.st_ino == os.lstat(dst).st_ino or real(st))
+    with pytest.raises(FileExistsError):
+        _platform._rename_dir_new(Taken(), stage, dst, replacing_rename=True)
+    assert dst.is_dir() and (stage / "publication.json").exists()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows refuses to move a folder holding a file another handle has open")
+def test_a_folder_with_a_file_held_open_moves_once_it_is_let_go(implementation, tmp_path):
+    """ADR-0009 check 8, measured on the Windows leg: an antivirus, indexer or sync client holding a
+    file in the version for a moment is waited for within rename_new's budget, not reported as taken."""
+    needs(implementation, RENAMES)
+    files = implementation.make().files
+    stage, dst = _version_tree(tmp_path), tmp_path / "publications" / "pub-0"
+    dst.parent.mkdir()
+    held = open(stage / "publication.json", "rb")  # noqa: SIM115 - let go by the timer
+    threading.Timer(0.5, held.close).start()
+    began = time.perf_counter()
+    assert files.rename_dir_new(stage, dst) == "rename_new"
+    assert time.perf_counter() - began < 10 and (dst / "publication.json").read_bytes() == b"{}"
 
 
 def test_committing_a_file_is_refused_and_nothing_changes(implementation, tmp_path):
@@ -779,7 +872,10 @@ def test_the_machine_identity_is_text_or_unknown_and_stays_the_same(implementati
     assert first is None or (isinstance(first, str) and first.strip() == first and first)
     if implementation.name == "recording":
         assert first is None
-    elif sys.platform.startswith("linux") and Path("/etc/machine-id").is_file():
+    elif sys.platform in ("darwin", "win32"):
+        assert first, "macOS and Windows always have their identifier (IOPlatformUUID, MachineGuid)"
+    elif Path("/etc/machine-id").is_file() and Path("/etc/machine-id").read_text(encoding="ascii").strip() not in (
+            "", "uninitialized"):
         assert first == Path("/etc/machine-id").read_text(encoding="ascii").strip()
 
 

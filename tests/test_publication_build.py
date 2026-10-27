@@ -777,3 +777,18 @@ def test_a_folder_that_differs_from_its_manifest_names_the_files(tmp_path):
         checks.verify_package(folder)
     assert caught.value.details["unlisted"] == ["pages/extra.html"]
     assert caught.value.details["missing"] == ["about.html"]
+
+
+def test_appledouble_files_beside_a_copy_are_metadata_not_content(tmp_path):
+    """#21 PR-1, measured: macOS writes `._<name>` for a file with extended attributes on FAT, exFAT
+    and some shares. --verify sets them apart as it does .DS_Store; they never pass as content."""
+    p = core.init_project(tmp_path / "p", title="Double", origin=ORIGIN)
+    folder = p.root / build.build_publication(p, origin=ORIGIN)["path"]
+    (folder / "._index.html").write_bytes(b"\x00\x05\x16\x07 AppleDouble")
+    (folder / "pages" / "._x.html").write_bytes(b"\x00\x05\x16\x07")
+    verified = checks.verify_package(folder)
+    assert sorted(verified["metadata"]) == ["._index.html", "pages/._x.html"]
+    (folder / "._index.html").unlink()
+    (folder / "._index.html").mkdir()
+    with pytest.raises(PublicationError):
+        checks.verify_package(folder)

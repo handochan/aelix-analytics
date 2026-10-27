@@ -28,6 +28,7 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 
 - `analytics build`가 다른 build의 잠금을 30초까지만 기다리고, 그 뒤에는 아무것도 쓰지 않고 `build_busy`로 끝납니다(#21 OQ3). 전에는 상한 없이 기다렸습니다.
 - `--verify`가 파일 목록이 manifest와 다른 사본을 거절할 때 어느 파일인지(`unlisted`·`missing`) 적습니다.
+- `--verify`가 AppleDouble 파일(`._*`)을 `.DS_Store`처럼 OS 메타데이터로 봅니다. macOS는 FAT·exFAT·일부 공유에 바이트만 쓴 사본에도 이 파일을 만듭니다.
 
 ## [0.28.0] - 2026-10-27
 

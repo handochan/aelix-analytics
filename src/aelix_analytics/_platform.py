@@ -631,41 +631,55 @@ _TAKEN_ERRNOS = frozenset({errno.ENOTEMPTY, errno.EEXIST, errno.ENOTDIR})
 
 
 def _empty_directory(path) -> bool:
+    """A real directory with no entries: a link or junction to one is not (it is left as it is)."""
     try:
-        return stat.S_ISDIR(os.lstat(path).st_mode) and not os.listdir(path)
+        st = os.lstat(path)
+        return not is_link(st) and stat.S_ISDIR(st.st_mode) and not os.listdir(path)
     except OSError:
         return False
 
 
+def _replacing_rename(src, dst) -> str:
+    try:
+        os.rename(src, dst)
+    except OSError as exc:
+        if exc.errno in _TAKEN_ERRNOS:
+            raise FileExistsError(exc.errno, f"{dst} is taken", os.fspath(dst)) from exc
+        raise
+    return "posix_rename"
+
+
 def _rename_dir_new(files, src, dst, *, replacing_rename: bool) -> str:
     """AtomicFiles.rename_dir_new over the port's rename_new; `replacing_rename` where the system's
-    rename(2) moves a directory only onto an empty one (POSIX)."""
-    if not stat.S_ISDIR(os.lstat(src).st_mode):
+    rename(2) moves a directory only onto an empty one (POSIX). A file system may answer a taken
+    name and a free one differently (exFAT on macOS: EEXIST, then ENOTSUP), so both calls of
+    rename_new fall back alike."""
+    st = os.lstat(src)
+    if is_link(st) or not stat.S_ISDIR(st.st_mode):
         raise NotADirectoryError(errno.ENOTDIR, f"{src} is not a directory")
     try:
         files.rename_new(src, dst)
         return "rename_new"
+    except RenameUnsupported:
+        if not replacing_rename:
+            raise
+        return _replacing_rename(src, dst)
     except FileExistsError:
         if not _empty_directory(dst):
             raise
-        try:
-            os.rmdir(dst)  # only while empty: an entry that arrived since keeps it
-        except OSError as exc:
-            if exc.errno in _TAKEN_ERRNOS:
-                raise FileExistsError(exc.errno, f"{dst} is taken", os.fspath(dst)) from exc
-            raise
+    try:
+        os.rmdir(dst)  # only while empty: an entry that arrived since keeps it
+    except OSError as exc:
+        if exc.errno in _TAKEN_ERRNOS:
+            raise FileExistsError(exc.errno, f"{dst} is taken", os.fspath(dst)) from exc
+        raise
+    try:
         files.rename_new(src, dst)
         return "rename_new_after_rmdir"
     except RenameUnsupported:
         if not replacing_rename:
             raise
-        try:
-            os.rename(src, dst)
-        except OSError as exc:
-            if exc.errno in _TAKEN_ERRNOS:
-                raise FileExistsError(exc.errno, f"{dst} is taken", os.fspath(dst)) from exc
-            raise
-        return "posix_rename"
+        return _replacing_rename(src, dst)
 
 
 def _linux_machine_identity() -> str | None:
@@ -674,7 +688,8 @@ def _linux_machine_identity() -> str | None:
             value = Path(name).read_text(encoding="ascii").strip()
         except (OSError, UnicodeError):
             continue
-        if value:
+        # systemd writes "uninitialized" until the first boot completes: no identity yet.
+        if value and value != "uninitialized":
             return value
     return None
 

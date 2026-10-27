@@ -124,6 +124,34 @@ def _within(inner: PurePath, outer: PurePath) -> bool:
     return len(a) >= len(b) and a[: len(b)] == b
 
 
+def system_entry(path: Path) -> bool:
+    """An entry a folder may hold and still be empty for a target: what core counts for init (.DS_Store,
+    AppleDouble files) and #20's OS_METADATA (desktop.ini, Thumbs.db), each a regular file."""
+    if core.empty_directory_entry(path):
+        return True
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return False
+    return checks.os_metadata_name(path.name) and stat.S_ISREG(st.st_mode) and not _platform.is_link(st)
+
+
+MARKER_TEMP = re.compile(r"\.analytics-target\.json\.att-[0-9a-hjkmnp-tv-z]{26}\.tmp\Z")
+
+
+def _kit_leftover(path: Path) -> bool:
+    """What an attempt that ended before the marker existed may leave, and the folder is still empty:
+    the empty lock file, or the marker's temporary file (a regular file, not a link)."""
+    if path.name != LOCK and not MARKER_TEMP.match(path.name):
+        return False
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return False
+    return (stat.S_ISREG(st.st_mode) and not _platform.is_link(st)
+            and (st.st_size == 0 or path.name != LOCK))
+
+
 def _is_link(path: Path) -> bool:
     try:
         return _platform.is_link(os.lstat(path))
@@ -135,7 +163,10 @@ def judge(target, project_root) -> TargetView:
     """Design 3: only reads. A refusal is target_refused with its reason; the marker of a format this
     kit does not know is target_unsupported."""
     given = Path(target).absolute()
-    resolved = Path(target).resolve(strict=False)
+    try:
+        resolved = Path(target).resolve(strict=False)
+    except (OSError, RuntimeError) as exc:  # a loop of links (RuntimeError before Python 3.13)
+        refuse("unresolvable", "the folder's path cannot be resolved", target=os.fspath(given), cause=str(exc))
     root = Path(project_root)
     for project in {root.absolute(), root.resolve(strict=False)}:
         for place in (given, resolved):
@@ -157,7 +188,7 @@ def judge(target, project_root) -> TargetView:
         marker = read_marker(resolved / MARKER)
     else:
         others = sorted(name for name in os.listdir(resolved)
-                        if name != LOCK and not core.empty_directory_entry(resolved / name))
+                        if not _kit_leftover(resolved / name) and not system_entry(resolved / name))
         if others:
             refuse("not_empty", "the folder holds files and is no publish target; give an empty folder",
                    target=os.fspath(resolved), entries=others[:20], count=len(others))
@@ -183,7 +214,7 @@ def create_marker(folder: Path, files, *, created_at: str) -> str:
     2026-10-08) — else no_exclusive_rename. Returns how ("publish_new", "rename_new") or "exists" when
     another made it first, whose contents are then read as a marker."""
     marker = folder / MARKER
-    temporary = folder / f".{MARKER}.{new_attempt_id()}.tmp"
+    temporary = folder / f".{MARKER}.{new_attempt_id()}.tmp"  # MARKER_TEMP
     with open(temporary, "xb") as fh:
         fh.write(canonical({"schema": MARKER_SCHEMA, "created_at": created_at, "kit_version": core.KIT_VERSION}))
     try:
@@ -247,7 +278,7 @@ def channels(projects: Path) -> dict[str, list[str]]:
     if not projects.is_dir():
         return out
     for name in sorted(os.listdir(projects)):
-        if core.empty_directory_entry(projects / name):
+        if system_entry(projects / name):
             continue
         out.setdefault(channel_key(name), []).append(name)
     return out
@@ -273,7 +304,7 @@ def channel_state(folder: Path, project_id: str) -> ChannelState:
     # A channel page without its latest.json proves no owner: it is not taken either.
     own_files = (LATEST, CHANNEL_PAGE) if LATEST in names else ()
     foreign = tuple(n for n in names if n not in own_files and not PUBLISHER_TEMP.match(n)
-                    and not core.empty_directory_entry(folder / n))
+                    and not system_entry(folder / n))
     if foreign:
         return ChannelState("foreign", None, foreign)
     if LATEST not in names:

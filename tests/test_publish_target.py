@@ -10,6 +10,7 @@ import os
 import sys
 
 import pytest
+from conftest import LINK_KINDS, dir_link
 from platform_doubles import recording_platform
 
 from aelix_analytics import core
@@ -38,7 +39,8 @@ def snapshot(folder):
 
 # --- design 3: only reads ------------------------------------------------------------------------------
 
-@pytest.mark.parametrize("contents", [(), (".DS_Store",), ("._notes",), (".analytics-target.lock",)])
+@pytest.mark.parametrize("contents", [(), (".DS_Store",), ("._notes",), (".analytics-target.lock",),
+                                      ("desktop.ini",), ("Thumbs.db",)])
 def test_a_missing_or_empty_folder_is_a_new_target_and_nothing_is_made(tmp_path, project, contents):
     folder = tmp_path / "공유 폴더"
     if contents:
@@ -67,21 +69,48 @@ def test_a_folder_with_a_person_s_entries_is_refused_and_untouched(tmp_path, pro
     assert snapshot(folder) == before
 
 
+def test_a_folder_named_like_the_lock_is_not_the_lock(tmp_path, project):
+    folder = tmp_path / "share"
+    (folder / ".analytics-target.lock").mkdir(parents=True)
+    (folder / ".analytics-target.lock" / "mine.txt").write_bytes(b"a person's")
+    refused("not_empty", folder, project)
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / ".analytics-target.lock").write_bytes(b"a person's bytes under the kit's name")
+    refused("not_empty", other, project)
+
+
+def test_an_attempt_that_ended_before_the_marker_leaves_the_folder_new(tmp_path, project):
+    """The empty lock file and the marker's temporary file are the kit's own leftovers (design 3.4)."""
+    folder = tmp_path / "share"
+    folder.mkdir()
+    (folder / ".analytics-target.lock").write_bytes(b"")
+    (folder / f".analytics-target.json.{target.new_attempt_id()}.tmp").write_bytes(b'{"schema": "analytics.pu')
+    assert target.judge(folder, project.root).marker is None
+
+
+@pytest.mark.skipif(os.name == "nt", reason="a symbolic link loop needs a privilege on Windows")
+def test_a_loop_of_links_is_refused_not_raised(tmp_path, project):
+    (tmp_path / "a").symlink_to(tmp_path / "b")
+    (tmp_path / "b").symlink_to(tmp_path / "a")
+    refused("unresolvable", tmp_path / "a", project)
+
+
 def test_a_target_and_the_project_may_not_be_inside_each_other(tmp_path, project):
     refused("overlaps_project", project.root / "share", project)
     refused("overlaps_project", project.root.parent, project)
     refused("overlaps_project", project.root, project)
 
 
-@pytest.mark.skipif(os.name == "nt", reason="a symbolic link needs a privilege on Windows")
-def test_a_link_to_or_from_the_project_is_seen_through(tmp_path, project):
+@pytest.mark.parametrize("kind", LINK_KINDS)
+def test_a_link_to_or_from_the_project_is_seen_through(tmp_path, project, kind):
     """A target given through a link into the project, and a project given through a link inside the
     target: both the given paths and the resolved ones are compared (ADR-0009 decision 1, check 6)."""
-    (tmp_path / "into-project").symlink_to(project.root, target_is_directory=True)
+    dir_link(kind, tmp_path / "into-project", project.root)
     refused("overlaps_project", tmp_path / "into-project" / "share", project)
     outside = tmp_path / "outside"
     outside.mkdir()
-    (outside / "linked-project").symlink_to(project.root, target_is_directory=True)
+    dir_link(kind, outside / "linked-project", project.root)
     with pytest.raises(PublicationError) as caught:
         target.judge(outside, outside / "linked-project")
     assert caught.value.details["reason"] == "overlaps_project"
@@ -99,14 +128,14 @@ def test_a_folder_inside_another_target_is_refused(tmp_path, project):
     refused("inside_target", outer / "publications" / "inner", project)
 
 
-@pytest.mark.skipif(os.name == "nt", reason="a symbolic link needs a privilege on Windows")
+@pytest.mark.parametrize("kind", LINK_KINDS)
 @pytest.mark.parametrize("name", ["publications", ".staging", "projects", "analytics-target.json"])
-def test_a_managed_name_that_is_a_link_is_refused(tmp_path, project, name):
+def test_a_managed_name_that_is_a_link_is_refused(tmp_path, project, name, kind):
     folder = tmp_path / "share"
     folder.mkdir()
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
-    (folder / name).symlink_to(elsewhere, target_is_directory=True)
+    dir_link(kind, folder / name, elsewhere)
     refused("managed_link", folder, project)
 
 

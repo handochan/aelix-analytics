@@ -23,6 +23,14 @@ from .model import ItemKey, LeakPolicy, PublicationError, ScanText, Text, page_k
 
 IDENTITY_FILES = frozenset({"publication.json", "about.html", "assets/identity.js"})
 OS_METADATA = frozenset({".DS_Store", "desktop.ini", "Thumbs.db"})
+
+
+def os_metadata_name(name: str) -> bool:
+    """A name the operating system writes beside a package's files, never the package's own: the three
+    above and an AppleDouble file `._<name>`, which macOS writes for a file with extended attributes on
+    FAT, exFAT and some network shares (measured for #21 PR-1 on an exFAT image; core's rule since the
+    owner's decision of 2026-10-09)."""
+    return name in OS_METADATA or (len(name) > 2 and name.startswith("._"))
 MAX_PACKAGE_PATH = 240
 DEVICE = re.compile(r"^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)", re.I)
 PATH_PATTERN = re.compile(
@@ -427,7 +435,7 @@ def _folder_files(root):
                 directories.append(relative)
                 walk(path)
             elif stat.S_ISREG(mode):
-                if entry.name in OS_METADATA:
+                if os_metadata_name(entry.name):
                     metadata.append(relative)
                 else:
                     out[relative] = path.read_bytes()

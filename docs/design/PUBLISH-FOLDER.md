@@ -82,11 +82,11 @@
   기기 고유 값을 그대로 두지 않는다. `user`는 POSIX uid의 10진 문자열, Windows는 사용자 SID다. 모르는 값은 null이다.
 - `attempt_id`는 `att-`와 소문자 ULID다(`publication_id`와 같은 생성기, 대소문자를 구별하지 않는 대상에서도 겹치지 않음).
 - 모든 JSON은 UTF-8·LF, 키 정렬, 끝 줄바꿈 하나다(ADR-0007). 모르는 `schema`의 표식·`latest.json`은 읽지 않고 거절한다(`target_unsupported`).
-- 메타데이터의 닫힌 목록(결정 4·6)은 #20의 `checks.OS_METADATA` 하나다(지금 `.DS_Store`·`desktop.ini`·`Thumbs.db`). 게시와 `--verify`가 같은 목록을 쓴다.
-  이 이름은 같음 판단을 바꾸지 않고 receipt의 `observations.metadata`에 남는다. AppleDouble(`._*`)과 동기화 프로그램의 이름을 더할지는 PR-1이 macOS의
-  SMB·FAT 복사와 Dropbox·OneDrive 폴더에서 재서 정하고, 더하면 `--verify`도 같이 바뀐다고 현재 계약에 적는다.
-- 전송은 바이트만 쓴다(`copy2`·`copystat`를 쓰지 않는다). 권한 비트와 확장 속성을 옮기지 않으므로 새 파일은 대상 폴더와 게시한 계정의 기본 권한을 받고
-  (결정 8), macOS가 확장 속성을 AppleDouble 파일로 만들 일이 없다.
+- 메타데이터의 닫힌 목록(결정 4·6)은 `checks.os_metadata_name` 하나다: #20의 `OS_METADATA`(`.DS_Store`·`desktop.ini`·`Thumbs.db`)와 AppleDouble(`._*`).
+  게시와 `--verify`가 같은 목록을 쓴다. 이 이름은 같음 판단을 바꾸지 않고 receipt의 `observations.metadata`에 남는다. AppleDouble은 PR-1이 macOS exFAT
+  이미지에서 바이트만 쓴 사본에도 생기는 것을 재서 더했다(현재 계약 D3·G). 동기화 프로그램의 이름은 재지 않았고 더하지 않았다.
+- 전송은 바이트만 쓴다(`copy2`·`copystat`를 쓰지 않는다). 권한 비트를 옮기지 않으므로 새 파일은 대상 폴더와 게시한 계정의 기본 권한을 받는다(결정 8).
+  macOS는 kit이 만든 파일에도 확장 속성(`com.apple.provenance`)을 붙이므로 FAT·exFAT·일부 공유에는 AppleDouble 파일이 생기며, 위의 메타데이터로 다룬다.
 
 ## 3. 대상의 판정(결정 1·4)
 
@@ -97,8 +97,9 @@
 2. 프로젝트와의 겹침: 프로젝트 루트와 대상 각각의 받은 경로·실제 위치 네 쌍 가운데 하나라도 한쪽이 다른 쪽의 조상(같음 포함)이면 거절(`overlaps_project`).
    비교는 OS 규칙의 대소문자(Windows·기본 macOS는 대소문자 무시)와 NFC로 한다. bind mount·`subst`를 거친 겹침을 `(st_dev, st_ino)`로 찾는 것은 ADR 밖의 후속이다.
 3. 상위 표식: 대상의 조상에 `analytics-target.json`이 있으면 거절(`inside_target`).
-4. 표식: 있으면 형식 버전을 확인한다. 없으면 대상이 없거나, 비어 있을 때만 새 대상이다. 비어 있음은 `core`의 빈 폴더 규칙(`EMPTY_DIRECTORY_NAMES`, AppleDouble)에
-   더해 `.analytics-target.lock` 하나를 허용한다(kit 자신의 이름이며, 표식을 만들기 전에 끝난 시도가 남긴다). 그 밖은 거절(`not_empty`). 표식 없는
+4. 표식: 있으면 형식 버전을 확인한다. 없으면 대상이 없거나, 비어 있을 때만 새 대상이다. 비어 있음은 `core`의 빈 폴더 규칙(`EMPTY_DIRECTORY_NAMES`, AppleDouble)과
+   2절의 메타데이터 목록(일반 파일)에 더해, 표식을 만들기 전에 끝난 시도가 남기는 kit 자신의 두 이름을 허용한다: 빈 일반 파일 `.analytics-target.lock`과
+   표식의 임시 파일(`.analytics-target.json.<attempt_id>.tmp`). 같은 이름의 디렉터리·링크나 바이트가 든 잠금 파일은 허용하지 않는다. 링크 순환은 `unresolvable`이다. 그 밖은 거절(`not_empty`). 표식 없는
    `.staging/`은 사용자 것으로 본다(확인 6).
 5. 관리 경로의 링크: 이미 있는 표식·잠금 파일·`publications`·`projects`·`.staging`과 그 아래 이 시도가 다룰 디렉터리가 링크·junction이면 거절(`managed_link`).
    대상 경로까지의 링크는 1에서 풀었다.
@@ -159,7 +160,8 @@ ADR-0009는 확정 연산과 잠금 대기 상한을 기존 `AtomicFiles`·`File
    - `RenameUnsupported`면 POSIX에서는 `os.rename`으로 대신한다. `rename(2)`는 디렉터리를 비어 있지 않은 디렉터리나 파일 위로 옮기지 않고(`ENOTEMPTY`·`EEXIST`·
      `ENOTDIR`, macOS는 errno 66), 이 오류들은 `FileExistsError`로 바꿔 낸다. 빈 디렉터리 위로는 옮기며 첫 경우와 같은 결과다(OQ5). 옮기는 것이 디렉터리일 때만
      이렇게 하므로 `rename_new`의 "교체하는 rename으로 대신하지 않는다"는 파일에 대해 그대로다. Windows의 `rename_new`는 교체하지 않으므로 대신할 일이 없다.
-   - Windows에서 다른 프로세스(백신·색인·동기화 프로그램)가 연 파일 때문에 생기는 거절은 `replace`처럼 정해 둔 횟수만 다시 시도한다. 횟수는 PR-1이 재서 정한다(확인 8).
+   - Windows에서 다른 프로세스(백신·색인·동기화 프로그램)가 연 파일 때문에 생기는 거절은 `rename_new`의 기존 예산(`replace`와 같은 약 2초) 안에 다시 시도한다.
+     PR-1의 Windows 레그 계약 시험이 파일 하나를 연 채 옮기기 시작해 0.5초 뒤 닫으면 옮겨지는 것을 확인한다(확인 8).
    - 다른 볼륨(`EXDEV`)과 그 밖의 오류는 실패로 끝난다. 복사로 대신하지 않는다.
 2. **`FileLocks.exclusive_within(path, seconds)`** — `try_exclusive`를 짧은 간격으로 되풀이해 상한 안에 잡는다. 넘으면 `LockBusy`. 디렉터리를 만들지 않는다.
    build 잠금도 이것으로 바꾸고 넘으면 `build_busy`다(BUILD 9.5 R18, 지금의 `analytics build` 동작을 바꾸므로 현재 계약 D3를 고친다).
@@ -328,4 +330,5 @@ ADR-0009 "구현에서 확인할 것"의 담당:
 | OQ7 | Workspace의 게시 표시 | Timeline에 시작 기록·receipt를 보이고, receipt 없는 시도는 "result not recorded" | 표시하지 않음(`--list`만) |
 
 - 리뷰 뒤의 한계: 표식을 만들 때는 링크(`publish_new`)나 플래그 있는 rename(`rename_new`)이 있어야 한다(전환과 같은 규칙). 둘 다 없는 마운트에는 새 대상을 만들 수
-  없고(`no_exclusive_rename`), 다른 곳에서 만든 표식이 있는 대상에는 OQ5의 대신하는 이동으로 게시할 수 있다. PR-1이 측정한 마운트를 현재 계약 G에 적는다.
+  없고(`no_exclusive_rename`), 다른 곳에서 만든 표식이 있는 대상에는 OQ5의 대신하는 이동으로 게시할 수 있다. PR-1은 macOS exFAT 이미지에서 이 한계를 재서
+  현재 계약 G에 적었다. SMB·NFS는 PR-3이 잰다.

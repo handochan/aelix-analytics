@@ -1756,6 +1756,10 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
   - 다른 OS가 기록한 절대 경로는 이 기계에서 파일이 없어 `missing`/`file_absent`로, 그 입력의 생산자는 이 기계의 기록과 경로가 맞지 않아 `none`으로 보입니다(Freshness의 전과 같습니다). 옛 kit 경로의 추론(E)은 이 기계의 지금 루트·링크 대상 아래 경로와 파일 시스템이 같은 항목으로 여는 철자만 대응시킵니다. 그래서 다른 OS·옮긴 프로젝트의 절대 경로, 대소문자·정규화를 구별하는 파일 시스템에서 다른 철자로 기록된 상대 경로는 대응하지 않습니다(글자를 접어 맞추지 않습니다).
   - 옛 kit 경로의 추론은 오늘의 링크·이름으로 판정합니다. 그 run 뒤에 링크를 바꿨거나 파일을 옮겼으면 다른 파일로 대응할 수 있어 확정 연결로 세지 않습니다. 표시는 그 판정 자리마다입니다: stale을 따라가는 길의 중간(후보의 후보)에서 쓴 추론은 그 차트에 표시하지 않고, 직접 입력의 후보만 표시합니다. 맥락 블록(journal만 읽음)은 경로를 읽지 않습니다. kit 버전이 없는 이벤트의 `refs.charts` 글자는 어떤 옛 run이 그 키를 기록했을 때만 그 대응을 따르고, `refs.data`는 대응하지 않습니다. 대응이 지금 있는 항목인지는 읽는 프로세스가 열 수 있는 경로로 봅니다(Windows에서 LongPathsEnabled가 0이면 260자를 넘는 경로는 없는 것으로 보아 대응하지 않을 수 있습니다).
   - 비용(측정은 이 PR의 기록). 맥락 블록은 프롬프트마다 journal만 읽어 줄마다 기록을 판정하므로 줄 수에 비례하고, `analytics_status`는 run.json을 한 번, 기준 파일들을 두 번 stat합니다. Workspace는 타임라인의 모든 참조를 판정합니다. 이벤트를 쓸 때도 잠금 안에서 journal 전체를 읽어 seq를 정하므로 쓰기 한 번이 줄 수에 비례합니다(#49의 PR이 macOS arm64에서 잰 값: 10,000줄·2.6 MB journal에 쓰기 한 번 약 30 ms. 그 전에는 끝 64 KiB만 읽어 0.2 ms 미만). kit 0.8.0의 공통 writer는 기록 하나에 journal 전체를 두 번 파싱합니다: 잠금 밖(결박과 줄 크기)과 잠금 안(재판정과 상태 재생). 다른 기록의 상태를 바꾸는 참조(`resolves`·`supersedes`)가 있으면 덧붙인 뒤 한 번 더 파싱합니다(응답의 `targets`). 이름으로 준 참조가 있으면 읽기 모델도 읽고, kit CLI `record`·`analytics_record`는 맥락 동기화 전에 잠금 밖 판정을 한 번 더 합니다(C1). #13의 셋째 PR이 macOS arm64에서 잰 값(10,000줄 journal, 20회의 p50, [측정 기록](verification/2026-10-09-issue-13-writer.md)의 `writer_latency`, 리뷰 수정 뒤): 보통 기록 69 ms(그 전 kit의 `/1` writer 33 ms), 참조 넷을 결박하는 기록 124 ms(32 ms), 질문을 닫는 기록 129 ms(65 ms), `record_update` 91 ms. 영속 인덱스는 없습니다(#15).
+- 게시 대상의 파일 시스템(#21, kit 0.29.0의 측정). macOS 26.6.2의 exFAT 디스크 이미지에서 잠금은 잡혔습니다. 이름을 바꾸지 않는 rename(`renamex_np`)은
+  빈 이름에 ENOTSUP이라 디렉터리 확정(`rename_dir_new`)은 `rename(2)`로 옮겼고, 내용이 있는 디렉터리·파일 위로는 거절하며 양쪽을 보존했습니다. 링크도
+  없어 대상 표식을 만들 수 없었습니다(`no_exclusive_rename`). 그래서 이런 볼륨에는 새 게시 대상을 만들 수 없습니다. 바이트만 쓴 사본에도 macOS가
+  AppleDouble 파일(`._*`)을 만들었습니다. SMB·NFS 마운트와 Windows의 실제 공유는 재지 않았습니다.
 - 무결성. 해시 체인·서명이 없고 불변성은 규약입니다.
 - 표식 판정의 틈. 판정은 잠금 없이 두 표식을 읽습니다. 판정과 첫 부수 효과 사이에 다른 프로세스가 표식을 바꾸는 틈은 남습니다. journal 쓰기는
   잠금 안에서 다시 판정해 그 틈을 줄이지만, run이 시작한 뒤의 코드 스냅샷·스크립트가 직접 쓰는 파일은 run이 시작할 때의 판정을 따릅니다(run
@@ -2151,6 +2155,7 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
 표식 허용 판정을 최초 부수 효과 전에 하고, 프로젝트별 build 잠금 안에서 system-origin CONTEXT 동기화→기록 읽기→파일→manifest→완료 이벤트 순서로 진행합니다.
 build 잠금은 최대 30초 기다리고, 그래도 다른 build가 쥐고 있으면 아무것도 쓰지 않고 `build_busy`로 끝납니다(kit 0.29.0부터, #21 OQ3. 그 전에는 상한 없이 기다림).
 `--verify`가 사본의 파일 목록이 manifest와 다르다고 거절할 때는 manifest에 없는 파일(`unlisted`)과 없는 파일(`missing`)을 앞 20개까지 적습니다.
+AppleDouble 파일(`._*`, 일반 파일)은 `.DS_Store`·`desktop.ini`·`Thumbs.db`처럼 OS 메타데이터로 따로 셉니다(kit 0.29.0, macOS가 FAT·exFAT·일부 공유에 만듦).
 기존 분석·모델 실행을 부르지 않고, 이미 준비된 환경을 사용합니다. Reader format은6이며 publication 첫 기록의 writer floor는0.26.0입니다.
 기존 TypedRef enum·Report fingerprint·50KiB journal 한도는 유지합니다. 큰 제외 목록은 명시적으로 거절될 수 있습니다.
 
