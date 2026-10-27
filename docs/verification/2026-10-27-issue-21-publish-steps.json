@@ -177,7 +177,30 @@
    }
   ]
  },
- "ci": [],
+ "ci": [
+  {
+   "run": 40518453677,
+   "head": "374009b",
+   "conclusion": "success",
+   "linux_full": "3031 passed, 109 skipped",
+   "windows_full": "2836 passed, 335 skipped"
+  },
+  {
+   "run": 40526373272,
+   "attempt": 1,
+   "head": "82e8be5",
+   "conclusion": "failure",
+   "cause": "platform · windows-2025: tests/test_model_eval.py::test_the_dry_run_goes_through_aelix_and_is_scored, T07's secret scan failed (T06 passed); the run's secret_scan is not in the artifact, so the cause is not known; the last diff (the tool, this record) is not read by that test"
+  },
+  {
+   "run": 40526373272,
+   "attempt": 2,
+   "head": "82e8be5",
+   "conclusion": "success",
+   "note": "the failed job alone run again",
+   "windows_full": "2836 passed, 335 skipped"
+  }
+ ],
  "publish_eval": {
   "command": "uv run --locked python tools/publish_eval.py --work <scratch> --out <evidence>/publish-eval.json --m-project <#20 PR5 M copy, migrated, two builds> --volume /Volumes/PUBEXFAT --pairs 20",
   "seconds": 58.9,
