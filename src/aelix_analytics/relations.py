@@ -292,6 +292,17 @@ DATASET_V2 = "analytics.dataset/1"
 REPORT_V1 = "analytics.report_revision/1"
 PUBLICATION_V1 = "analytics.publication/1"
 PUBLICATION_WRITER_SINCE = "0.26.0"  # first publication writer after main 0.25.0
+# The first writer of a publish attempt and its receipt (#21 PR-2, docs/design/PUBLISH-FOLDER.md 6).
+PUBLISH_WRITER_SINCE = "0.30.0"
+ATTEMPT_ID = re.compile(r"att-[0-9a-hjkmnp-tv-z]{26}\Z")
+PUBLISH_KINDS = frozenset({"publish_attempt", "publish_receipt"})
+PUBLISH_ACTIONS = ("publish", "switch")
+PUBLISH_OUTCOMES = ("published", "not_newer", "superseded", "failed", "interrupted", "unknown")
+PUBLISH_STEPS = ("transfer", "check", "commit", "final_check", "switch")
+PUBLISH_STEP_STATES = frozenset({"done", "reused", "exists", "already", "not_newer", "superseded", "failed",
+                                 "interrupted", "unknown", "not_started"})
+PUBLISH_POINTER_STATES = frozenset({"old", "new", "other", "missing", "unknown"})
+PUBLISH_BINDINGS = ("project_record", "channel_history", "none")
 PUBLICATION_ID = re.compile(r"pub-[0-9a-hjkmnp-tv-z]{26}\Z")
 # A migration's plan, mapping and report (design 2.7 and 6.8), told apart by their `record`.
 MIGRATION_V1 = "analytics.migration/1"
@@ -310,8 +321,8 @@ KINDS = {
                          "question", "todo", "note", "resolve", "workflow_feedback", "analysis_focus",
                          "metric_definition", "metric_observation", "record_update", "checkpoint",
                          "reuse_proposal", "reuse_notification", "reuse_mode", "report_revision",
-                         "publication", "publish_receipt", "asset_candidate", "asset_check", "asset_effect",
-                         "asset_notification", "asset_mode"}),
+                         "publication", "publish_attempt", "publish_receipt", "asset_candidate", "asset_check",
+                         "asset_effect", "asset_notification", "asset_mode"}),
 }
 REF_TYPES = frozenset({"event", "run", "visualization_version", "data_observation", "dataset_import",
                        "code_snapshot", "context_version", "metric_definition", "analysis_focus",
@@ -627,6 +638,8 @@ class Journal:
         # Include uninterpretable rows: an unknown publication format must be unsupported,
         # rather than disappearing from logical-ID lookup as though no record existed.
         self._publications: dict[str, list[tuple[int, dict]]] = {}
+        # A publish attempt's start record and receipt by attempt_id (#21), uninterpretable rows too.
+        self._publish_attempts: dict[str, dict[str, list[tuple[int, dict]]]] = {}
         self._ordered: list[Event] | None = None
         self._replay: Replay | None = None
         top = 0
@@ -654,6 +667,12 @@ class Journal:
                 pid = details.get("publication_id") if isinstance(details, dict) else None
                 if isinstance(pid, str):
                     self._publications.setdefault(pid, []).append((number, value))
+            if isinstance(value, dict) and value.get("kind") in PUBLISH_KINDS:
+                details = value.get("details")
+                attempt = details.get("attempt_id") if isinstance(details, dict) else None
+                if isinstance(attempt, str):
+                    rows = self._publish_attempts.setdefault(attempt, {"publish_attempt": [], "publish_receipt": []})
+                    rows[value["kind"]].append((number, value))
             reason = unsupported_reason(value, JOURNAL_FAMILIES)
             if reason:
                 self.unsupported.append({"location": f"journal:{number}", "reason": reason})
@@ -1213,6 +1232,101 @@ def publication_details_problem(value, *, refs=None, seq=None, validate_referenc
     except Exception:
         return "publication references cannot be interpreted"
     return None
+
+
+def _str_or_none(value) -> bool:
+    return value is None or (isinstance(value, str) and bool(value))
+
+
+def publish_details_problem(kind, details) -> str | None:
+    """The fields of a publish attempt's start record or receipt (docs/design/PUBLISH-FOLDER.md 6.1,
+    6.2): those always there, and those a receipt holds by its outcome and steps. Pure; no file I/O."""
+    if not isinstance(details, dict):
+        return "publish details are not an object"
+    try:
+        json.dumps(details, ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except (ValueError, TypeError, RecursionError):
+        return "publish details are not finite UTF-8 JSON"
+    if not isinstance(details.get("attempt_id"), str) or not ATTEMPT_ID.fullmatch(details["attempt_id"]):
+        return "invalid attempt_id"
+    pid = details.get("publication_id")
+    if not isinstance(pid, str) or not PUBLICATION_ID.fullmatch(pid):
+        return "invalid publication_id"
+    if details.get("action") not in PUBLISH_ACTIONS:
+        return "invalid action"
+    target = details.get("target")
+    if (not isinstance(target, dict) or not _str_or_none(target.get("name"))
+            or not isinstance(target.get("path"), str) or not isinstance(target.get("resolved"), str)):
+        return "invalid target"
+    if not _instant(details.get("started_at")):
+        return "invalid started_at"
+    if kind == "publish_attempt":
+        return None if _str_or_none(details.get("channel")) else "invalid channel"
+    if details.get("outcome") not in PUBLISH_OUTCOMES:
+        return "invalid outcome"
+    if details.get("binding") not in PUBLISH_BINDINGS:
+        return "invalid binding"
+    digest = details.get("package_sha256")
+    if digest is not None and not (isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest)):
+        return "invalid package_sha256"
+    if not _instant(details.get("ended_at")):
+        return "invalid ended_at"
+    steps = details.get("steps")
+    if not isinstance(steps, dict) or set(steps) != set(PUBLISH_STEPS) or not set(steps.values()) <= PUBLISH_STEP_STATES:
+        return "invalid steps"
+    lock = details.get("lock")
+    if not isinstance(lock, dict) or lock.get("state") not in ("held", "unsupported", "busy", "failed", "not_started"):
+        return "invalid lock"
+    reports = details.get("reports")
+    if reports is not None and not (isinstance(reports, list) and all(
+            isinstance(r, dict) and isinstance(r.get("report_id"), str) and isinstance(r.get("revision_id"), str)
+            for r in reports)):
+        return "invalid reports"
+    if "reports" not in details:
+        return "missing reports"
+    outcome = details["outcome"]
+    if outcome in ("failed", "interrupted", "unknown"):
+        failure = details.get("failure")
+        if not isinstance(failure, dict) or not isinstance(failure.get("step"), str) or not isinstance(failure.get("code"), str):
+            return "a failed receipt names its failure"
+    if steps["switch"] != "not_started":
+        pointers = details.get("pointers")
+        if (not isinstance(pointers, dict) or set(pointers) != {"latest_json", "channel_page"}
+                or not set(pointers.values()) <= PUBLISH_POINTER_STATES):
+            return "a receipt that reached the switch names both pointers"
+        channel = details.get("channel")
+        if not isinstance(channel, dict) or not isinstance(channel.get("name"), str):
+            return "a receipt that reached the switch names its channel"
+    if steps["commit"] in ("done", "exists") and not isinstance(details.get("commit_method"), str):
+        return "a committed version names how it was committed"
+    if outcome in ("published", "not_newer", "superseded"):
+        if not isinstance(details.get("addresses"), dict) or not isinstance(details.get("access"), dict):
+            return "a delivered version names its addresses and access"
+    return None
+
+
+def publish_attempts(journal) -> list[dict]:
+    """Every publish attempt this journal names, oldest first: its start record and receipt, and
+    whether its result was recorded (ADR-0006 6: incomplete, no_completion_event)."""
+    out = []
+    for attempt, rows in journal._publish_attempts.items():
+        starts, receipts = rows["publish_attempt"], rows["publish_receipt"]
+        start = starts[0][1] if len(starts) == 1 else None
+        receipt = receipts[-1][1] if receipts else None
+        details = (start or receipt or {}).get("details") or {}
+        out.append({
+            "attempt_id": attempt,
+            "publication_id": details.get("publication_id"),
+            "action": details.get("action"),
+            "target": details.get("target"),
+            "start": {"id": start["id"], "seq": start.get("seq")} if start else None,
+            "receipt": {"id": receipt["id"], "seq": receipt.get("seq"),
+                        "outcome": (receipt.get("details") or {}).get("outcome")} if receipt else None,
+            "recording_status": "complete" if receipt else "incomplete",
+            "reason": None if receipt else "no_completion_event",
+            "line": min(line for line, _ in starts + receipts),
+        })
+    return sorted(out, key=lambda a: a["line"])
 
 
 def publication_event_problem(event, *, validate_reference=None) -> str | None:

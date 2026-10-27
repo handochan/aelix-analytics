@@ -524,6 +524,15 @@ class Site:
         return self.ref_badge(tone, t("ref.resolved") if found else problem, f"<span{USER}>{esc(label)}</span>",
                               state, sep=True, note=self.candidates_note(judged))
 
+    def publish_attempt_html(self, event: dict) -> str:
+        """A publish attempt with no receipt is not a success (#21, ADR-0006 6: no_completion_event)."""
+        details = event.get("details")
+        attempt = details.get("attempt_id") if isinstance(details, dict) else None
+        rows = self.model.journal._publish_attempts.get(attempt) if isinstance(attempt, str) else None
+        if rows and rows["publish_receipt"]:
+            return ""
+        return f'<p class="note">{esc(t("publish.result_not_recorded"))}</p>'
+
     def publication_event_html(self, event: dict, depth: int) -> str:
         details = event.get("details")
         pid = details.get("publication_id") if isinstance(details, dict) else None
@@ -652,7 +661,8 @@ class Site:
         state = self.record_state_html(ev, depth)
         event = self.relations.events.get(source)
         publication = (self.publication_event_html(event.value, depth)
-                       if kind == "publication" and event else "")
+                       if kind == "publication" and event else
+                       self.publish_attempt_html(event.value) if kind == "publish_attempt" and event else "")
         return (f'<li class="ev rec" id="{esc(row_id)}" data-kind="{esc(kind)}" data-selection="{quote(source or "", safe="")}">'
                 f'<span class="rec-kind kind-{esc(kind)}"><span class="dot" aria-hidden="true"></span>{words("kind", kind)}</span>'
                 f'<div class="rec-main"><div class="rec-line"><span class="rec-text"{USER}>{esc(ev.get("text"))}</span>{state}</div>'

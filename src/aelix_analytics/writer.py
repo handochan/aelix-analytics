@@ -1039,6 +1039,14 @@ class Locked:
                 raise ValueError("publication identity is already recorded")
             requires = max((requires or relations.PUBLICATION_WRITER_SINCE,
                             relations.PUBLICATION_WRITER_SINCE), key=relations.version_key)
+        if kind in relations.PUBLISH_KINDS:
+            if self.operation != "publish":
+                raise ValueError("a publish attempt and its receipt are written by the publish application")
+            problem = relations.publish_details_problem(kind, details)
+            if problem:
+                raise ValueError(f"not a {kind}: " + problem)
+            requires = max((requires or relations.PUBLISH_WRITER_SINCE, relations.PUBLISH_WRITER_SINCE),
+                           key=relations.version_key)
         problem = _too_long(text_bytes, line)
         if problem:
             raise problem

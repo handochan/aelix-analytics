@@ -316,6 +316,15 @@ def _command(argv) -> int:
     p.add_argument("--analysis-state", default="in_progress")
     p.add_argument("--allow-withdrawn", action="store_true")
 
+    p = sub.add_parser("publish", allow_abbrev=False,
+                       help="publish a built publication to a folder, or list this project's publish attempts")
+    mode = p.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--build", metavar="PUBLICATION_ID")
+    mode.add_argument("--list", action="store_true", dest="list_attempts")
+    p.add_argument("--to", metavar="FOLDER")
+    p.add_argument("--channel", metavar="NAME")
+    p.add_argument("--reassign-channel", action="store_true")
+
     p = sub.add_parser("demo", help="fill a new project with synthetic data and example runs")
 
     # No abbreviated options: the launchers read --to and --dry-run from what is passed on, and an
@@ -346,6 +355,8 @@ def _command(argv) -> int:
             return 0
         if args.command == "build":
             return _publication_command(args)
+        if args.command == "publish":
+            return _publish_command(args)
         project = _project(args)
         # Before anything is written — a lock file, a context version, a cache — and before the
         # analysis libraries are imported: a write where this kit does not write is refused, a read
@@ -585,6 +596,31 @@ def _publication_command(args):
         raise core.AnalyticsError(code, "publication resources are unavailable") from exc
     _emit(result)
     return 130 if result.get("interrupted") else 0 if result.get("ok") else 1
+
+
+def _publish_command(args):
+    from .publishing import publish
+    from .publishing.model import PublicationError
+
+    project = _project(args)
+    if args.list_attempts:
+        if args.to or args.channel or args.reassign_channel:
+            raise core.AnalyticsError("publish_input_invalid", "--list takes no target or channel")
+        core.readable(project, "inspect publish attempts")
+        _emit(publish.attempts(project))
+        return 0
+    if not args.to:
+        raise core.AnalyticsError("publish_input_invalid", "--build needs --to FOLDER")
+    core.admit(project, "publish")
+    try:
+        result = publish.publish(project, args.build, args.to, origin=_origin(), channel=args.channel,
+                                 reassign=args.reassign_channel)
+    except PublicationError as exc:
+        raise core.AnalyticsError(exc.code, exc.message, details=exc.details) from exc
+    _emit(result)
+    if result.get("access_note"):
+        print(result["access_note"], file=sys.stderr)
+    return 130 if result.get("outcome") == "interrupted" else 0 if result.get("ok") else 1
 
 
 def _safe_render(workspace, project) -> dict:

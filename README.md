@@ -93,9 +93,9 @@ aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역
 배포본은 아직 어디에도 게시하지 않았으므로 체크아웃에서 직접 만듭니다.
 
 ```sh
-cd $PACK && uv build                                   # dist/aelix_analytics-0.29.0-py3-none-any.whl
-uv tool install --python 3.12 dist/aelix_analytics-0.29.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
-uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.29.0-py3-none-any.whl   # aelix와 함께
+cd $PACK && uv build                                   # dist/aelix_analytics-0.30.0-py3-none-any.whl
+uv tool install --python 3.12 dist/aelix_analytics-0.30.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
+uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.30.0-py3-none-any.whl   # aelix와 함께
 ```
 
 - `analytics`는 체크아웃의 `bin/analytics`와 같은 명령·인자·usage(바이트까지 같음)를 쓰고 kit의 출력을 바이트 그대로 넘깁니다
@@ -501,7 +501,10 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
   `--collection ID@REV`는 묶음 버전과 complete 구성원을 만듭니다. REV를 빼면 head를 고르고 결과에 고른 버전을 적습니다.
   Report는 버전 단위로만 들어가며, 철회한 버전(`--allow-withdrawn` 없이)·파일이 저장한 바이트가 아닌 버전·스크립트나 원격 참조가 있는
   HTML/SVG·PDF/Office처럼 검사할 수 없는 파일이 든 버전은 build가 멈춥니다(`report_not_shareable`). 새 Report 버전을 저장해 고르세요.
-  공유 전에 결과의 `index.html`을 직접 확인하세요. publish는 아직 제공하지 않습니다.
+  공유 전에 결과의 `index.html`을 직접 확인하세요.
+  `analytics publish --build ID --to FOLDER`는 결박된 build를 지정한 폴더(로컬·마운트한 공유·동기화 폴더)에 전달합니다. 옮긴 곳에서 결박과 다시 대조한 버전만
+  최신 주소(`projects/<channel>/index.html`)가 되고, 실패하면 이전 최신이 그대로입니다. 그 폴더를 열 수 있는 사람은 그 안의 모든 버전을 읽을 수 있습니다
+  ("팀 전용"이 아님). 시도마다 시작 기록과 receipt가 남고 `--list`로 봅니다. 도착 확인 뒤 옮기는 channel 페이지와 `--switch-to`, 저장한 대상은 아직입니다.
   받은 사본은 세 OS CI에서 원본 없는 경로·HTTP 하위 경로·ZIP 풀기로, Linux CI에서 Chromium으로 엽니다([D5](docs/CONTRACTS.md#d5-독자-환경과-브라우저-kit-0280-20-pr5)).
   다른 독자·OS 보관 도구·Safari·모바일의 수용은 별도 검증이며, 검사는 분석 결론이나 비밀 탐지 인증이 아닙니다.
 

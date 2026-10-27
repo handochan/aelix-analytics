@@ -7,7 +7,8 @@ from datetime import datetime
 from .. import relations
 from .model import ContentBasis, SnapshotBasis
 
-PUBLICATION_KINDS = frozenset({"publication", "publish_receipt"})
+# The closed set of publication-family kinds (ADR-0014 decision 2); #21 adds its start record.
+PUBLICATION_KINDS = frozenset({"publication", "publish_attempt", "publish_receipt"})
 PUBLICATION_ID = relations.PUBLICATION_ID
 
 

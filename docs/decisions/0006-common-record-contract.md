@@ -77,7 +77,7 @@ Status: Accepted — 2026-10-03 소유자 결정 (Issue #4)
 | B1 지표·초점·정정 | `analysis_focus`, `metric_definition`, `metric_observation`, `record_update` |
 | B2 메모리 | `checkpoint` |
 | B3 재사용 | `reuse_proposal`, `reuse_notification`(후보를 사람에게 보인 사실, `trigger`: `requested`·`automatic`), `reuse_mode`(제안 모드의 변경, `mode`: `on_demand`·`always_on`, `scope`: `project`·`session`). 후보의 거절·보류·승격은 그 후보를 대상으로 한 `record_update`다(6절) |
-| B4 보고서·게시 | `report_revision`(Report 저장의 완료 이벤트), `publication`(게시본 build), `publish_receipt`(전달 결과) |
+| B4 보고서·게시 | `report_revision`(Report 저장의 완료 이벤트), `publication`(게시본 build), `publish_attempt`(게시 시도의 시작 기록, #21에서 더함), `publish_receipt`(전달 결과) |
 
 이벤트 줄은 `schema`, `seq`, `id`, `recorded_at`, `kind`, `actor`, `text`, `refs`(3절의 참조 목록)를 가지고,
 `session`, `request_id`, `details`(kind별 필드)를 선택으로 가진다. kind별 필수 필드는 schema에 있다. 실행 수단(CLI·SDK·

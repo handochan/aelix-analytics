@@ -315,4 +315,22 @@ PERSISTED_FIELD_PATHS['publication_1'] = frozenset((
     'scope.reports[].revision_id scope.reports[].state scope.reports[].version '
 ).split())
 
+# #21 PR-2: a publish attempt's start record and receipt (PUBLISH-FOLDER 6). Publication-family kinds are
+# never projected (ADR-0014 decision 2); their paths are private values of a build (6.4).
+_PUBLISH_RECEIPT_PATHS = (
+    'access action addresses attempt_id binding channel channel.name commit_method ended_at failure '
+    'failure.code failure.step lock lock.state observations outcome package_sha256 pointers '
+    'pointers.channel_page pointers.latest_json publication_id reports started_at steps steps.check '
+    'steps.commit steps.final_check steps.switch steps.transfer target target.marker_created target.name '
+    'target.path target.resolved'
+).split()
+PERSISTED_FIELD_PATHS['event_2'] |= frozenset("details." + path for path in _PUBLISH_RECEIPT_PATHS)
+PERSISTED_FIELD_PATHS['publish_receipt_details'] = frozenset(_PUBLISH_RECEIPT_PATHS)
+PERSISTED_FIELD_PATHS['publish_attempt_details'] = frozenset((
+    'action attempt_id channel publication_id started_at target target.marker_created target.name '
+    'target.path target.resolved'
+).split())
+for _family in ('publish_receipt_details', 'publish_attempt_details'):
+    CLASSIFIED_FIELDS[_family] = {path.split('.')[0]: "delivery_only_excluded" for path in PERSISTED_FIELD_PATHS[_family]}
+
 RECORD_FAMILIES["analytics.publication/1"] = "delivery_only_excluded"
