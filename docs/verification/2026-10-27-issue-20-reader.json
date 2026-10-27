@@ -1,42 +1,44 @@
 {
   "record_kind": "aelix-analytics-reader-verification",
-  "observed_at": "2026-10-27T06:00:19+00:00",
+  "observed_at": "2026-10-27T07:17:47+00:00",
   "issue": "https://github.com/handochan/aelix-analytics/issues/20",
   "pull_request": "https://github.com/handochan/aelix-analytics/pull/134",
   "run_id": "b826214a-7b7d-4d7e-9ae6-dec8c1309f97",
   "measured_source": {
-    "head": "acae803fc58551061cdfb7d7a88ad7334b773647",
+    "head": "5b8114c1dd7a54b8abad27d9068322c02f0508dc",
     "tracked_dirty": false,
     "kit_version": "0.28.0",
     "sha256": {
       ".github/workflows/ci.yml": "26af80aa1a6347632624ea0af110e5e320630b64e3f130908d4117ad4cb5b843",
       "src/aelix_analytics/publishing/__init__.py": "0f0bf472ed9eeb7e96fc2494cc98b90c596438365faee48552f396ff6725eef4",
       "src/aelix_analytics/publishing/assets/publication.css": "73d131cb53eddc7ceb2a323adb551b16907234428b3a98d11c89107ff3462392",
-      "src/aelix_analytics/publishing/assets/publication.js": "bb4659099488dd0a21b91507ac2e122a9bfaa6d36aa15662ab5191c863b439f1",
+      "src/aelix_analytics/publishing/assets/publication.js": "79c29668c59fb2852db543a5fcbaeb72d34be23ba0b2d01222012cf3b5679c21",
       "src/aelix_analytics/publishing/basis.py": "d6b8bca8f941d4c6d1171769143f5a5068fd72ca6c82942dce78c7cd007e96b0",
       "src/aelix_analytics/publishing/build.py": "35dbef9dff2a411a450629a322c19f055260d7a8cf3bab72b5e3df9ce38d9517",
-      "src/aelix_analytics/publishing/checks.py": "d283629f10a69caaecd946c7d6d624ab96350c6d8f462ac0fd94b0ba2bff82c8",
+      "src/aelix_analytics/publishing/checks.py": "eabe979a96fd52e78a7ee178e45a0f6a08082ef3dcca5bb00d343b77f8d24435",
       "src/aelix_analytics/publishing/extract.py": "dfa4c45ea963a3a63826ea46e286172513e15119f5df783a1d7c9d8b43f31ca8",
       "src/aelix_analytics/publishing/field_policy.py": "389acc3b0613c21b777feae5a896942a1b3df3660091f5a026f0eee703b5dc8c",
       "src/aelix_analytics/publishing/inspections.py": "d9ce45da32392d93aa4b9c24d93442ce89d1eb175af8b045d4ab67b304d39bd1",
-      "src/aelix_analytics/publishing/model.py": "38a926ca72dfc602348521d33f99cc300e53fe758beb0bdd8254248f30d53a70",
+      "src/aelix_analytics/publishing/model.py": "333c65723e6ca69cf9f9cdd744919f278bfde6da90923608491dfe1d0d0a75fc",
       "src/aelix_analytics/publishing/package.py": "6ea3cba3dcbc546cf2af9ef9ab13565f38f7343ea4e8f3e21ca1e6c2c402d7f4",
       "src/aelix_analytics/publishing/projection.py": "025602a9e24a81194041b1f8b05007a64131a78fad9e0b078709327d7057a14b",
       "src/aelix_analytics/publishing/render.py": "4d43f8ec99a6e31be026ddec6b64fcd9397b2cc1ef90d895fa41adfe93950d8d",
-      "src/aelix_analytics/publishing/scope.py": "21462db96efcba6a6a898db91cdacd1e0f464bf8b19740b8bf335187642500f1",
+      "src/aelix_analytics/publishing/scope.py": "41d97678c8029edd6f76b6a349e8a382871803f1a7dd0cb0394763cc56731ed4",
       "src/aelix_analytics/publishing/snapshot.py": "e95a0d01cdbebb98a5d17d8f1d9430575b086ccb6a1129e5e6dfa660970113f8",
       "src/aelix_analytics/publishing/state.py": "016ea46d52c785ceb4bb0910aba6e0ad85337ba46a96fe90b28ff77b385896bc",
       "src/aelix_analytics/report_renderers.py": "0c442ee9eb2e76e136ef2055d36137d0e56f9cf369b41c10c580e8dd7f92e401",
       "tests/publication_reader_fixture.py": "bd7c8426eb244d8608d809ddb316307ae0f2de30c1e45fe60556a42204352493",
-      "tests/test_publication_browser.py": "01788de379c84a19c49768a56165ea9692d33eeb4a33650efce54620dcd306b0",
-      "tests/test_publication_preview.py": "8ebfbaae39381290ca78e56f169018aa5b11f46016d57b6a8d6463ec21c2a989",
+      "tests/test_publication_browser.py": "0cbe596af367d57e30ea27512d14ab5c9be2c990ecf5d71bf25e528a4aa7b3bd",
+      "tests/test_publication_preview.py": "7d2f8d0bd1cb3f58e546a61014dffe61c8ab3102b19d3d8c8cc6f7bc9eedb8a6",
       "tests/test_publication_reader.py": "9d80ff22f8e41ab2242142af27ef8e1c2c75b56d40b7a925d6dddf380d78946a",
       "tools/publication_scale_eval.py": "5bd59b47468175d69543fa62dfd061fb9493d7d893506aa0e51ac90f853a6439"
-    }
+    },
+    "scale_and_browsers_at": "ad509b2f325755557f4a1f61dddbc0b364c13998",
+    "after": "5b8114c renames one test variable; product and tool bytes are ad509b2's"
   },
   "environment": {
     "schema": "aelix-analytics.eval-environment/1",
-    "recorded_at": "2026-10-26T15:28:20+00:00",
+    "recorded_at": "2026-10-27T06:30:32+00:00",
     "machine": {
       "system": "Darwin",
       "release": "25.6.0",
@@ -49,7 +51,7 @@
     "disk": {
       "path": "~/dev/aelix-extensions/.worktrees/aelix-analytics-issue-20-pr5/.devstate/runs/b826214a-7b7d-4d7e-9ae6-dec8c1309f97/evidence",
       "total_bytes": 994610155520,
-      "free_bytes": 346327306240,
+      "free_bytes": 338331860992,
       "device": {
         "status": "not_measured",
         "reason": "the standard library has no portable way to name the device or its kind (SSD, HDD, network)"
@@ -118,8 +120,8 @@
       ]
     },
     "browser": {
-      "status": "not_measured",
-      "reason": "not given: pass --browser NAME=VERSION when a browser is measured"
+      "name": "chromium 156.0.8078.4",
+      "version": null
     },
     "libraries": {
       "duckdb": "1.5.5",
@@ -133,16 +135,16 @@
       "jsonschema": "4.26.0"
     },
     "kit": {
-      "version": "0.27.0",
-      "sha256": "2164cd5046d65d17d3dd4ad800ca67a430a96c89cd9ec6179b1886016bf3cbff"
+      "version": "0.28.0",
+      "sha256": "fa85cf19083b4009afc83bae316ba9466e07c5960354c3ec88ceae6465a27019"
     },
     "threads": {
       "polars": 1,
       "note": "the generator runs Polars on one thread (POLARS_MAX_THREADS=1) so its results' bits are the seed's; a measurement records the threads it ran with"
     },
     "cache_state": {
-      "measurement": "warm",
-      "kit_caches": "warm",
+      "measurement": "unknown",
+      "kit_caches": "unknown",
       "os_file_cache": "unknown",
       "definition": "cold: the kit's caches (.lab/cache/, report/) are absent, the first read; warm: a repeat in the same process and machine after one full read. The OS file cache is not dropped (that needs privileges)."
     },
@@ -156,25 +158,38 @@
   "tests": {
     "full_suite": {
       "command": "uv run --locked pytest -q -p no:cacheprovider",
-      "head": "acae803fc58551061cdfb7d7a88ad7334b773647",
-      "result": "2902 passed, 120 skipped",
-      "seconds": 604.81
+      "head": "5b8114c1dd7a54b8abad27d9068322c02f0508dc",
+      "result": "2906 passed, 120 skipped",
+      "seconds": 666.92
     },
     "browser_three_engines": {
       "command": "AELIX_ANALYTICS_TEST_BROWSER=chromium,firefox,webkit uv run --locked --group browser pytest -q tests/test_publication_browser.py",
-      "head": "acae803fc58551061cdfb7d7a88ad7334b773647",
+      "head": "5b8114c1dd7a54b8abad27d9068322c02f0508dc",
       "result": "21 passed",
-      "seconds": 34.79
+      "seconds": 37.82,
+      "measured_at": "ad509b2"
     },
     "affected": {
       "command": "uv run --locked pytest -q tests/test_publication_*.py tests/test_asset_publication.py tests/test_workspace_publications.py tests/test_contracts.py tests/test_layers.py",
-      "result": "472 passed, 63 skipped"
+      "result": "476 passed, 63 skipped"
     },
-    "earlier_full_suite": {
-      "head": "ecc61ec8c52e3e1314c81b854ed3d12d871a3ad1",
-      "result": "1 failed, 2898 passed, 120 skipped",
-      "failed": "test_a_failed_runs_code_may_name_the_figures_its_script_made: two runs of one script fell in one second (run X and X-2); fixed in acae803"
-    }
+    "earlier_full_suites": [
+      {
+        "head": "ad509b2f325755557f4a1f61dddbc0b364c13998",
+        "result": "1 failed, 2905 passed, 120 skipped",
+        "failed": "test_model_eval::test_no_file_of_the_repository_holds_a_key read a new test's `secret = ...`; renamed in 5b8114c"
+      },
+      {
+        "head": "ecc61ec8c52e3e1314c81b854ed3d12d871a3ad1",
+        "result": "1 failed, 2898 passed, 120 skipped",
+        "failed": "test_a_failed_runs_code_may_name_the_figures_its_script_made: two runs of one script fell in one second (run X and X-2); fixed in acae803"
+      },
+      {
+        "head": "acae803fc58551061cdfb7d7a88ad7334b773647",
+        "result": "2902 passed, 120 skipped",
+        "seconds": 604.81
+      }
+    ]
   },
   "ci": [
     {
@@ -206,6 +221,19 @@
       "conclusion": "success",
       "linux_suite": "2912 passed, 89 skipped",
       "browser_step": "7 passed in 27.09s"
+    },
+    {
+      "run": 40461527462,
+      "head": "ad509b2",
+      "conclusion": "cancelled",
+      "cause": "superseded; before that the Linux suite had 1 failed (the repository key scan read a test's `secret = ...`)"
+    },
+    {
+      "run": 40462998062,
+      "head": "5b8114c",
+      "conclusion": "success",
+      "linux_suite": "2916 passed, 89 skipped",
+      "browser_step": "7 passed in 20.59s"
     }
   ],
   "probes": {
@@ -339,22 +367,22 @@
     "fixture": "tools/eval_fixtures.py scale --scale M --seed 0 --kit-root <git archive ebd10b64 src>, then analytics migrate --to (a fresh copy per measurement)",
     "command": "tools/publication_scale_eval.py --project <copy> --out scale-m.json",
     "process": {
-      "real_seconds": 93.65,
-      "max_rss_bytes": 562692096,
+      "real_seconds": 96.39,
+      "max_rss_bytes": 627261440,
       "covers": "both profiles: snapshot, preview, package check and saved build"
     },
     "result": {
-      "source_commit": "acae803fc58551061cdfb7d7a88ad7334b773647",
+      "source_commit": "ad509b2f325755557f4a1f61dddbc0b364c13998",
       "kit_version": "0.28.0",
       "python": "3.12.13",
       "platform": "macOS-26.6.2-arm64-arm-64bit",
       "machine": "arm64",
       "profiles": {
         "read": {
-          "snapshot_seconds": 0.62,
-          "preview_seconds": 10.14,
-          "package_check_seconds": 3.25,
-          "build_seconds": 17.25,
+          "snapshot_seconds": 0.63,
+          "preview_seconds": 10.11,
+          "package_check_seconds": 3.34,
+          "build_seconds": 17.42,
           "ok": true,
           "included": {
             "context": 1,
@@ -415,7 +443,7 @@
             }
           ],
           "files": 425,
-          "bytes": 12398045,
+          "bytes": 12398096,
           "pages": 387,
           "largest_page": {
             "path": "index.html",
@@ -427,10 +455,10 @@
           "payloads_over_gate": 0
         },
         "evidence": {
-          "snapshot_seconds": 0.68,
-          "preview_seconds": 19.24,
-          "package_check_seconds": 5.9,
-          "build_seconds": 31.19,
+          "snapshot_seconds": 0.69,
+          "preview_seconds": 19.91,
+          "package_check_seconds": 6.09,
+          "build_seconds": 32.72,
           "ok": true,
           "included": {
             "code": 292,
@@ -492,7 +520,7 @@
             }
           ],
           "files": 1611,
-          "bytes": 19613640,
+          "bytes": 19613691,
           "pages": 1453,
           "largest_page": {
             "path": "index.html",
@@ -513,38 +541,38 @@
       "read": {
         "index_bytes": 1645173,
         "dom_content_loaded_ms": [
-          468,
-          471,
-          472,
-          476,
-          521
+          492,
+          495,
+          499,
+          502,
+          503
         ],
         "load_ms": [
-          468,
-          471,
-          472,
-          476,
-          521
+          492,
+          495,
+          499,
+          502,
+          503
         ],
-        "load_median_ms": 472
+        "load_median_ms": 499
       },
       "evidence": {
         "index_bytes": 2883608,
         "dom_content_loaded_ms": [
-          676,
-          676,
-          677,
-          681,
-          697
+          724,
+          728,
+          731,
+          736,
+          742
         ],
         "load_ms": [
-          676,
-          676,
-          677,
-          682,
-          698
+          724,
+          728,
+          731,
+          737,
+          742
         ],
-        "load_median_ms": 677
+        "load_median_ms": 731
       },
       "browser": {
         "name": "chromium",
@@ -572,10 +600,23 @@
     "2026-10-27: widened to the figures its script's runs recorded (a run that ended before making them)",
     "2026-10-27: an outside ID inside an included ID is that ID (runs X and X-2)"
   ],
+  "reviews": {
+    "frozen": "00aece75c2465dbd9ed8d7a1cf53153c3174d9a3",
+    "codex": "2 must-fix, 1 minor: the figure-name exception skipped any token of that value (a private session value passed); names registered for an uncopied snapshot's current hash; the environment record was kit 0.27.0's",
+    "independent": "2 must-fix, 4 minor, 4 follow-up: outside sentences exempt as substrings of joined included text; plotly.min.js missing path; figure keys counted as IDs; documents; a missing Playwright skipped",
+    "fixes": [
+      "d693ba6",
+      "ad509b2"
+    ],
+    "re_review": "none (review budget); affected tests, full suite, CI and the M measurement re-run at the fixed head"
+  },
   "not_run": [
     "M on Linux and Windows; repeated builds for p50/p95; warm and cold apart; L scale",
     "Windows Explorer and macOS Archive Utility opening the ZIP (owner)",
     "Safari, mobile browsers, a real other reader (#24)",
-    "Firefox and WebKit in CI (local only)"
+    "Firefox and WebKit in CI (local only)",
+    "12.6 cases the E2E does not open: a copy with index.html moved alone, a copy without an HTML figure or Report frame document",
+    "a script in a frame reaching parent (the E2E checks the sandbox attribute; frames run no script)",
+    "the absence of navigation to a later version (12.6, beta criterion section 4)"
   ]
 }
