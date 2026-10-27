@@ -189,7 +189,10 @@ def judge(target, project_root) -> TargetView:
     else:
         others = sorted(name for name in os.listdir(resolved)
                         if not _kit_leftover(resolved / name) and not system_entry(resolved / name))
-        if others:
+        if others and os.path.lexists(resolved / MARKER):
+            # Another attempt made the marker (and its folders) between the two looks (#21 PR-2).
+            marker = read_marker(resolved / MARKER)
+        elif others:
             refuse("not_empty", "the folder holds files and is no publish target; give an empty folder",
                    target=os.fspath(resolved), entries=others[:20], count=len(others))
     staging, versions = resolved / STAGING, resolved / PUBLICATIONS

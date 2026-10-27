@@ -69,6 +69,26 @@ def test_a_folder_with_a_person_s_entries_is_refused_and_untouched(tmp_path, pro
     assert snapshot(folder) == before
 
 
+def test_a_marker_made_by_another_attempt_between_the_two_looks_is_read(tmp_path, project, monkeypatch):
+    """Judging without the lock: the marker is absent at the first look, and another attempt makes
+    it and its folders before the folder is listed. The folder is then that attempt's target (#21 PR-2,
+    seen as two publishes at once on a file system without locks)."""
+    folder = tmp_path / "share"
+    folder.mkdir()
+    listed = os.listdir
+
+    def meanwhile(path):
+        if os.fspath(path) == os.fspath(folder) and not (folder / target.MARKER).exists():
+            target.create_marker(folder, core.Project(project.root).platform.files, created_at=core.iso())
+            for name in (target.PUBLICATIONS, target.PROJECTS, target.STAGING):
+                (folder / name).mkdir()
+        return listed(path)
+
+    monkeypatch.setattr(target.os, "listdir", meanwhile)
+    view = target.judge(folder, project.root)
+    assert view.marker is not None and view.exists
+
+
 def test_a_folder_named_like_the_lock_is_not_the_lock(tmp_path, project):
     folder = tmp_path / "share"
     (folder / ".analytics-target.lock").mkdir(parents=True)
