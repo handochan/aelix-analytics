@@ -1,0 +1,1592 @@
+{
+ "record_kind": "aelix-analytics-publish-verification",
+ "observed_at": "2026-10-27T14:11:03+00:00",
+ "issue": "https://github.com/handochan/aelix-analytics/issues/21",
+ "pull_request": "https://github.com/handochan/aelix-analytics/pull/137",
+ "run_id": "4f26843e-1076-4342-950d-d95e07398a55",
+ "measured_source": {
+  "head": "2c7e11e8098428219fcf32a9f8f64c1535ebe88c",
+  "tracked_dirty": false,
+  "kit_version": "0.30.0",
+  "sha256": {
+   "src/aelix_analytics/publishing/publish.py": "2111195515a2020cd501f670b5f2089f7249cae2e7efba3bcb294604780a28be",
+   "src/aelix_analytics/publishing/target.py": "f64615d5bcf06989e6d08d529968a9b4603bd1d95d4ae62ba3437cd925b6edee",
+   "src/aelix_analytics/publishing/basis.py": "35418c41f8589cac5ca6c381951de1ba6dc1533dfd555fc2ec708d1f7258518b",
+   "src/aelix_analytics/publishing/snapshot.py": "748a91069c69920bb9892e0a11534e7014a3ccb66af9684e2de902c310e6845c",
+   "src/aelix_analytics/publishing/field_policy.py": "7d2bb764915710dbb5feedf6eaf54ce4077e56b4d23ca0f5243cb5616ab56d0e",
+   "src/aelix_analytics/relations.py": "986f8dc97c22e53cf96553485a909dac45fd62ac3565421d56af28628f24377a",
+   "src/aelix_analytics/writer.py": "7fe2e6a954e587e8452866563fa549895abae3c61f14a95aa25147fb739afdd0",
+   "src/aelix_analytics/workspace.py": "261f41b8fefa605e201d0d54d2cc748e04a4c6f7ffba6cc51b0c6db72ee9cff4",
+   "src/aelix_analytics/__main__.py": "16a07b2f949915ee36e9b3e2a72a6e708c314f4bb03d870743d3ccee55d43420",
+   "src/aelix_analytics/cli.py": "9ee43af5de5d0e5b471b6445974c7833b901343e81dd206184fb192657dd1f1b",
+   "src/aelix_analytics/core.py": "5568c7acda765f0cd20fb2be58daad0e13a880d3043d722e6e43d3a9859c1b1d",
+   "bin/analytics": "d64a344d7ac17b126d277cdffd59ba42a54f5445c89f6e1fc5a9647ac0444167",
+   "extension/aelix_analytics.py": "89db10b8a3ab1405ea2e10bb31671051fe9d72f9523f1ea612395b46a2e3ab43",
+   "docs/schemas/analytics-records.schema.json": "7c99441e304b1e3d511677e8df49f57528ea90ec4b662779edc894b8dc83da45",
+   "tests/test_publish.py": "6ac065db0f4f1db28354f2fa06ede2eebc67bd05f193460835537cbfa1defe2c",
+   "tests/test_publish_target.py": "aece52bf18b1c92e575a0a858377b41e55a032413d9467ed5f0c546650b0f7fc",
+   "tools/publish_eval.py": "ed38eabdf99062cd5fcc7c8b3d3561230c9a5689d4a69218e39755baca04f60f"
+  },
+  "note": "tools/publish_eval.py ran at this commit; the full suite ran at 11ba5d7, whose only difference is tools/publish_eval.py (the order it reads the pointers), so the tests that read that file ran again at this commit"
+ },
+ "environment": {
+  "schema": "aelix-analytics.eval-environment/1",
+  "recorded_at": "2026-10-27T14:11:03+00:00",
+  "machine": {
+   "system": "Darwin",
+   "release": "25.6.0",
+   "version": "Darwin Kernel Version 25.6.0: Fri Jul 31 19:19:08 PDT 2026; root:xnu-12377.161.14~5/RELEASE_ARM64_T6050",
+   "machine": "arm64",
+   "processor": "arm",
+   "cpu_count": 18,
+   "memory_bytes": 68719476736
+  },
+  "disk": {
+   "path": "~/dev/aelix-extensions/.worktrees/aelix-analytics-issue-21-pr2/.devstate/runs/4f26843e-1076-4342-950d-d95e07398a55/evidence",
+   "total_bytes": 994610155520,
+   "free_bytes": 334655262720,
+   "device": {
+    "status": "not_measured",
+    "reason": "the standard library has no portable way to name the device or its kind (SSD, HDD, network)"
+   },
+   "filesystem": {
+    "status": "not_measured",
+    "reason": "the standard library has no portable way to read it"
+   }
+  },
+  "python": {
+   "version": "3.12.13",
+   "implementation": "CPython",
+   "executable": "~/dev/aelix-extensions/.worktrees/aelix-analytics-issue-21-pr2/.venv/bin/python3"
+  },
+  "sqlite": {
+   "version": "3.53.1",
+   "fts5": true,
+   "json": true,
+   "compile_options": [
+    "ATOMIC_INTRINSICS=1",
+    "COMPILER=clang-22.1.3",
+    "DEFAULT_AUTOVACUUM",
+    "DEFAULT_CACHE_SIZE=-2000",
+    "DEFAULT_FILE_FORMAT=4",
+    "DEFAULT_JOURNAL_SIZE_LIMIT=-1",
+    "DEFAULT_MMAP_SIZE=0",
+    "DEFAULT_PAGE_SIZE=4096",
+    "DEFAULT_PCACHE_INITSZ=20",
+    "DEFAULT_RECURSIVE_TRIGGERS",
+    "DEFAULT_SECTOR_SIZE=4096",
+    "DEFAULT_SYNCHRONOUS=2",
+    "DEFAULT_WAL_AUTOCHECKPOINT=1000",
+    "DEFAULT_WAL_SYNCHRONOUS=2",
+    "DEFAULT_WORKER_THREADS=0",
+    "DIRECT_OVERFLOW_READ",
+    "ENABLE_DBSTAT_VTAB",
+    "ENABLE_FTS3",
+    "ENABLE_FTS3_PARENTHESIS",
+    "ENABLE_FTS4",
+    "ENABLE_FTS5",
+    "ENABLE_GEOPOLY",
+    "ENABLE_MATH_FUNCTIONS",
+    "ENABLE_PERCENTILE",
+    "ENABLE_RTREE",
+    "MALLOC_SOFT_LIMIT=1024",
+    "MAX_ATTACHED=10",
+    "MAX_COLUMN=2000",
+    "MAX_COMPOUND_SELECT=500",
+    "MAX_DEFAULT_PAGE_SIZE=8192",
+    "MAX_EXPR_DEPTH=1000",
+    "MAX_FUNCTION_ARG=1000",
+    "MAX_LENGTH=1000000000",
+    "MAX_LIKE_PATTERN_LENGTH=50000",
+    "MAX_MMAP_SIZE=0x7fff0000",
+    "MAX_PAGE_COUNT=0xfffffffe",
+    "MAX_PAGE_SIZE=65536",
+    "MAX_SQL_LENGTH=1000000000",
+    "MAX_TRIGGER_DEPTH=1000",
+    "MAX_VARIABLE_NUMBER=32766",
+    "MAX_VDBE_OP=250000000",
+    "MAX_WORKER_THREADS=8",
+    "MUTEX_PTHREADS",
+    "SYSTEM_MALLOC",
+    "TEMP_STORE=1",
+    "THREADSAFE=1"
+   ]
+  },
+  "browser": {
+   "status": "not_measured",
+   "reason": "not given: pass --browser NAME=VERSION when a browser is measured"
+  },
+  "libraries": {
+   "duckdb": "1.5.5",
+   "polars": "1.44.2",
+   "pyarrow": "25.0.1",
+   "numpy": "2.5.3",
+   "plotly": "6.9.0",
+   "matplotlib": "3.11.2",
+   "markdown-it-py": "4.2.0",
+   "pygments": "2.21.0",
+   "jsonschema": "4.26.0"
+  },
+  "kit": {
+   "version": "0.30.0",
+   "sha256": "b582b2c4e4af80eca70195ca98553a9c6b584595655303d1917285292b53cf06"
+  },
+  "threads": {
+   "polars": 1,
+   "note": "the generator runs Polars on one thread (POLARS_MAX_THREADS=1) so its results' bits are the seed's; a measurement records the threads it ran with"
+  },
+  "cache_state": {
+   "measurement": "warm",
+   "kit_caches": "warm",
+   "os_file_cache": "unknown",
+   "definition": "cold: the kit's caches (.lab/cache/, report/) are absent, the first read; warm: a repeat in the same process and machine after one full read. The OS file cache is not dropped (that needs privileges)."
+  }
+ },
+ "tests": {
+  "full_suite": {
+   "command": "uv run --locked pytest -q -p no:cacheprovider",
+   "head": "11ba5d73d9d9094a45b3a0300c6f566a89f275d0",
+   "result": "3022 passed, 139 skipped",
+   "seconds": 613.39
+  },
+  "full_suite_code": {
+   "head": "374009b9684265aac553ca467523ecf1e1aac21c",
+   "result": "3022 passed, 139 skipped",
+   "seconds": 615.32
+  },
+  "after_tool_fix": {
+   "command": "uv run --locked pytest -q -p no:cacheprovider tests/test_line_endings.py tests/test_model_eval.py tests/test_layers.py tests/test_kit.py tests/test_publish.py",
+   "head": "2c7e11e8098428219fcf32a9f8f64c1535ebe88c",
+   "result": "337 passed",
+   "seconds": 188.25
+  },
+  "earlier": [
+   {
+    "head": "0280a148",
+    "result": "1 failed, 2994 passed, 139 skipped",
+    "cause": "a hand-edited line whose kind is a list stopped the new attempt index (a regression the independent review also found); fixed in 95b9697"
+   },
+   {
+    "head": "95b9697b",
+    "result": "3016 passed, 139 skipped"
+   },
+   {
+    "head": "2a9196f6",
+    "result": "1 failed, 3020 passed, 139 skipped",
+    "cause": "tests/test_line_endings.py: tracked files were edited while the suite ran (the next fix); not a product failure, 374009b passed"
+   }
+  ]
+ },
+ "ci": [],
+ "publish_eval": {
+  "command": "uv run --locked python tools/publish_eval.py --work <scratch> --out <evidence>/publish-eval.json --m-project <#20 PR5 M copy, migrated, two builds> --volume /Volumes/PUBEXFAT --pairs 20",
+  "seconds": 58.9,
+  "max_rss_bytes": 300040192,
+  "result": {
+   "kit_version": "0.30.0",
+   "python": "3.12.13",
+   "platform": "darwin",
+   "small": {
+    "first": {
+     "median_seconds": 0.038,
+     "max_seconds": 0.0392,
+     "results": [
+      [
+       "published",
+       "done",
+       "done"
+      ]
+     ]
+    },
+    "again": {
+     "median_seconds": 0.0194,
+     "max_seconds": 0.0214,
+     "results": [
+      [
+       "published",
+       "reused",
+       "already"
+      ]
+     ]
+    },
+    "newer": {
+     "median_seconds": 0.0381,
+     "max_seconds": 0.0387,
+     "results": [
+      [
+       "published",
+       "done",
+       "done"
+      ]
+     ]
+    },
+    "older": {
+     "median_seconds": 0.0183,
+     "max_seconds": 0.0212,
+     "results": [
+      [
+       "not_newer",
+       "reused",
+       "not_newer"
+      ]
+     ]
+    },
+    "files_per_version": 9
+   },
+   "boundaries": [
+    {
+     "first": true,
+     "step": "init",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "missing",
+     "channel_page": "missing",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "done",
+      "done"
+     ]
+    },
+    {
+     "first": true,
+     "step": "lock",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "missing",
+     "channel_page": "missing",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "done",
+      "done"
+     ]
+    },
+    {
+     "first": true,
+     "step": "transfer",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "missing",
+     "channel_page": "missing",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "done",
+      "done"
+     ]
+    },
+    {
+     "first": true,
+     "step": "check",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "missing",
+     "channel_page": "missing",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "done",
+      "done"
+     ]
+    },
+    {
+     "first": true,
+     "step": "commit",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "missing",
+     "channel_page": "missing",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "done",
+      "done"
+     ]
+    },
+    {
+     "first": true,
+     "step": "final_check",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "missing",
+     "channel_page": "missing",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "reused",
+      "done"
+     ]
+    },
+    {
+     "first": true,
+     "step": "switch",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "missing",
+     "channel_page": "missing",
+     "receipt_pointers": null,
+     "final_check": "done",
+     "rerun": [
+      "published",
+      "reused",
+      "done"
+     ]
+    },
+    {
+     "first": true,
+     "step": "channel_page",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "new",
+     "channel_page": "missing",
+     "receipt_pointers": {
+      "latest_json": "new",
+      "channel_page": "missing"
+     },
+     "final_check": "done",
+     "rerun": [
+      "published",
+      "reused",
+      "already"
+     ]
+    },
+    {
+     "first": false,
+     "step": "init",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "old",
+     "channel_page": "old",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "done",
+      "done"
+     ]
+    },
+    {
+     "first": false,
+     "step": "lock",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "old",
+     "channel_page": "old",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "done",
+      "done"
+     ]
+    },
+    {
+     "first": false,
+     "step": "transfer",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "old",
+     "channel_page": "old",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "done",
+      "done"
+     ]
+    },
+    {
+     "first": false,
+     "step": "check",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "old",
+     "channel_page": "old",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "done",
+      "done"
+     ]
+    },
+    {
+     "first": false,
+     "step": "commit",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "old",
+     "channel_page": "old",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "done",
+      "done"
+     ]
+    },
+    {
+     "first": false,
+     "step": "final_check",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "old",
+     "channel_page": "old",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "reused",
+      "done"
+     ]
+    },
+    {
+     "first": false,
+     "step": "switch",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "old",
+     "channel_page": "old",
+     "receipt_pointers": null,
+     "final_check": "done",
+     "rerun": [
+      "published",
+      "reused",
+      "done"
+     ]
+    },
+    {
+     "first": false,
+     "step": "channel_page",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "new",
+     "channel_page": "old",
+     "receipt_pointers": {
+      "latest_json": "new",
+      "channel_page": "old"
+     },
+     "final_check": "done",
+     "rerun": [
+      "published",
+      "reused",
+      "already"
+     ]
+    }
+   ],
+   "pairs": {
+    "held": [
+     {
+      "older": [
+       "not_newer",
+       "True",
+       "0.0927",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0409",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0423",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0962",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0409",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0949",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0412",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0959",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "not_newer",
+       "True",
+       "0.0979",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0411",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0425",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0973",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "not_newer",
+       "True",
+       "0.0933",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0419",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0404",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0974",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "not_newer",
+       "True",
+       "0.092",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0396",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.04",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0941",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0388",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0957",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "not_newer",
+       "True",
+       "0.0992",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0507",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "not_newer",
+       "True",
+       "0.0948",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0412",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "not_newer",
+       "True",
+       "0.0956",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0386",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "not_newer",
+       "True",
+       "0.0931",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0391",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0399",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0954",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0427",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0972",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "not_newer",
+       "True",
+       "0.0969",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0448",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "not_newer",
+       "True",
+       "0.0976",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0453",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "not_newer",
+       "True",
+       "0.096",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0408",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     }
+    ],
+    "unsupported": [
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0508",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0493",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "older",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0487",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0508",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0538",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0541",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "older",
+      "page": "older",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0503",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0506",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "superseded",
+       "True",
+       "0.0505",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0511",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0497",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.048",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0497",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0483",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0513",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0519",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0511",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0502",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "older",
+      "page": "older",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0486",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0491",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.055",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0554",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "superseded",
+       "True",
+       "0.0595",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0605",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.048",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0492",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0501",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0504",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0522",
+       "unsupported"
+      ],
+      "newer": [
+       "superseded",
+       "True",
+       "0.0519",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "older",
+      "page": "older",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0667",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0671",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "older",
+      "page": "older",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0516",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0505",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "superseded",
+       "True",
+       "0.0505",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0522",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0542",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0535",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0492",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0477",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     }
+    ]
+   },
+   "m": [
+    {
+     "case": "first",
+     "seconds": 2.8613,
+     "outcome": "published",
+     "transfer": "done",
+     "switch": "done",
+     "receipt_bytes": 2893
+    },
+    {
+     "case": "second",
+     "seconds": 5.163,
+     "outcome": "published",
+     "transfer": "done",
+     "switch": "done",
+     "receipt_bytes": 2922
+    },
+    {
+     "case": "first_again",
+     "seconds": 1.4422,
+     "outcome": "not_newer",
+     "transfer": "reused",
+     "switch": "not_newer",
+     "receipt_bytes": 2718
+    },
+    {
+     "publication": "pub-01m5y0w2zg6a4az78h5pdrcqdw",
+     "files": 426,
+     "bytes": 12839471
+    },
+    {
+     "publication": "pub-01m5y0xk5k24dtf8gvrwxzyh3n",
+     "files": 1612,
+     "bytes": 20589469
+    }
+   ],
+   "volume": [
+    {
+     "attempt": "first",
+     "outcome": "failed",
+     "failure": {
+      "step": "init",
+      "code": "no_exclusive_rename",
+      "message": "this folder's file system can neither link nor rename without replacing, so no marker can be made",
+      "paths": []
+     },
+     "receipt": true,
+     "lock": {
+      "state": "held"
+     },
+     "left": [
+      "._.analytics-target.lock",
+      ".analytics-target.lock"
+     ]
+    },
+    {
+     "attempt": "again",
+     "outcome": "failed",
+     "failure": {
+      "step": "init",
+      "code": "no_exclusive_rename",
+      "message": "this folder's file system can neither link nor rename without replacing, so no marker can be made",
+      "paths": []
+     },
+     "receipt": true,
+     "lock": {
+      "state": "held"
+     },
+     "left": [
+      "._.analytics-target.lock",
+      ".analytics-target.lock"
+     ]
+    }
+   ]
+  }
+ },
+ "reviews": {
+  "frozen": "124837eb9f5c0b44d4749b1655b16cd0fb638549",
+  "codex": "8 must-fix: an unchecked version drawn on the page after a reread; build folder links above the file; an already switch whose page failed left a receipt the writer refused; an unknown-version receipt read as a result; access.posix.blocked over the line limit; not_newer left the pointers apart; the receipt lost the start record's digest; README's failure sentence",
+  "independent": "10 must-fix, 11 minor, 8 follow-up: the list-kind regression; already/page failures; failures after the lock named lock; refs digest; outcome overwritten after the switch; --reassign-channel skipping the order on the project's own channel; a file under a version's name reused; a 6.4 test that could not fail; documents; and minors (links, the page's older-build sentence, missing pointer, channel name timing, unknown checks, paths, counts, text, temporary files)",
+  "fixes": [
+   "95b9697"
+  ],
+  "fix_diff_check": {
+   "by": "codex",
+   "on": "95b9697b8121097699cff95583f6a046e3bca830",
+   "result": "3 must-fix, all introduced by the fixes: an interruption while an already switch draws the page left no receipt; a page unread after that redraw recorded success; the receipt check raised on hand-edited step values",
+   "fixes": [
+    "2a9196f"
+   ]
+  },
+  "measurement": "publish_eval's first run found one of two lockless publishes refused as not_empty (the marker appeared between the judgment's two looks); fixed in 374009b, 0 of 40 pairs after",
+  "re_review": "none (review budget)"
+ },
+ "not_run": [
+  "publish_eval on Linux and Windows (CI runs the tests, including the two-process test, not the eval)",
+  "a second OS account, an HTTP subpath and SMB loopback (PR-3), a network share or a sync folder",
+  "/analytics publish inside aelix and the installed launchers (bin/analytics ran here from the checkout)",
+  "Windows ACL observation (windows_acl: not_checked by design 9.2)",
+  "repeated runs for p50/p95; one run of each M case",
+  "two processes on two machines; the order of lockless publishes is not guaranteed (current contract G)"
+ ]
+}
