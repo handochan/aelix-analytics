@@ -375,8 +375,23 @@ def leak_policy(snapshot, request, profile, projection, *, environment=()):
                     for file in items[code].files:
                         for digest in {file.recorded_sha256, file.current_sha256} - {None}:
                             code_names.setdefault(digest, set()).update(names)
+    # An outside ID inside an included one is that included ID: a script run twice in one second makes
+    # runs X and X-2 (2026-10-27 owner decision). Standing alone, X is still a leak.
+    identifiers = set()
+    for key in included:
+        if key.category in ("run", "visualization", "report", "context"):
+            identifiers.add(key.identity)
+            identifiers.update(value for field in ("id", "run_id", "visualization_id", "report_id", "revision_id", "version")
+                               if isinstance(value := items[key].values.get(field), str))
+    covers = {}
+    for token in tokens:
+        if token.mode in ("strong", "weak") and token.source is not None:
+            inside = tuple(sorted(i for i in identifiers if token.value in i and i != token.value))
+            if inside:
+                covers[token.value] = inside
     return LeakPolicy(
         tuple(sorted(tokens, key=lambda t: (t.mode, t.value, str(t.source), t.field or ""))),
         short,
         tuple(sorted((digest, frozenset(names)) for digest, names in code_names.items())),
+        tuple(sorted(covers.items())),
     )

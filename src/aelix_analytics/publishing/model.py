@@ -208,3 +208,6 @@ class LeakPolicy:
     # sha256 of an included run's code snapshot -> the names of the figures its script's runs
     # recorded, which that code may name although a figure is left out (2026-10-27 owner decisions).
     code_names: tuple[tuple[str, frozenset[str]], ...] = ()
+    # Token value -> the included items' IDs it is part of (run X inside run X-2); a found token whose
+    # every occurrence lies inside one of them is that ID, not a leak (2026-10-27 owner decision).
+    covers: tuple[tuple[str, tuple[str, ...]], ...] = ()

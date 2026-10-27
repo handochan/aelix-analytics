@@ -216,6 +216,21 @@ class _Words:
         return found
 
 
+def _inside(text, value, covers, *, word):
+    """Whether every occurrence of `value` lies inside an occurrence of one of `covers`."""
+    spans = []
+    for cover in covers:
+        start = text.find(cover)
+        while start != -1:
+            spans.append((start, start + len(cover)))
+            start = text.find(cover, start + 1)
+    pattern = r"(?<!\w)" + re.escape(value) + r"(?!\w)" if word else re.escape(value)
+    return all(
+        any(a <= m.start() and m.start() + len(value) <= b for a, b in spans)
+        for m in re.finditer("(?=" + pattern + ")", text)
+    )
+
+
 _MATCHERS = None
 
 
@@ -225,13 +240,22 @@ def _matchers(policy):
     cached = _MATCHERS
     if cached is None or cached[0] is not policy:
         groups = {"lines": [], "strong": [], "weak": []}
+        covers, inside = dict(policy.covers), {}
         for n, token in enumerate(policy.tokens):
             value = normalized(token.value)
             if token.mode in ("sentence", "warning"):
                 groups["lines"].append((" ".join(value.split()), n))
             else:
                 groups[token.mode].append((value, n))
-        cached = (policy, _Literals(groups["lines"]), _Literals(groups["strong"]), _Words(groups["weak"]))
+                if token.value in covers:
+                    inside[n] = (value, tuple(normalized(c) for c in covers[token.value]))
+        cached = (
+            policy,
+            _Literals(groups["lines"]),
+            _Literals(groups["strong"]),
+            _Words(groups["weak"]),
+            inside,
+        )
         _MATCHERS = cached
     return cached[1:]
 
@@ -240,7 +264,7 @@ def check_strings(values, policy, *, path, source=None, strong_only=False, own_n
     """`own_names`: figure names a run's own code may hold (LeakPolicy.code_names), never an
     environment value."""
     warnings = []
-    lines, strong, weak = _matchers(policy)
+    lines, strong, weak, inside = _matchers(policy)
     for part in values:
         text = normalized(part.value)
         found = strong.find(text)
@@ -249,8 +273,11 @@ def check_strings(values, policy, *, path, source=None, strong_only=False, own_n
             if part.name_slot:
                 found += weak.find(text)
         # Policy order and one finding per token, as one pass over every token gave them.
-        for token in (policy.tokens[n] for n in sorted(set(found))):
+        for n in sorted(set(found)):
+            token = policy.tokens[n]
             if token.source is not None and token.value in own_names:
+                continue
+            if n in inside and _inside(text, *inside[n], word=token.mode == "weak"):
                 continue
             detail = {
                 "path": path,

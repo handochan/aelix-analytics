@@ -1362,3 +1362,34 @@ def test_another_scripts_code_naming_a_left_out_figure_still_stops(tmp_path):
     assert caught.value.code == "leak_found"
     assert caught.value.details["cause"] == "copied_file"
     assert caught.value.details["path"].endswith(".py")
+
+
+def _same_second_runs(root, monkeypatch, text="the second run printed"):
+    """One script run twice in one second: runs X and X-2. A finding cites X-2 only."""
+    fixed = core.now()
+    monkeypatch.setattr(core, "now", lambda: fixed)
+    p = core.init_project(root, title="Same second", origin=ORIGIN)
+    (p.scripts / "hello.py").write_text("print('hello')\n", encoding="utf-8")
+    first = runner.execute(p, script="scripts/hello.py", title="hello", origin=ORIGIN)["run"]
+    second = runner.execute(p, script="scripts/hello.py", title="hello", origin=ORIGIN)["run"]
+    assert second["id"] == first["id"] + "-2"
+    core.record(p, "finding", text.format(first=first["id"]), refs=[second["id"]], origin=ORIGIN)
+    return p, first
+
+
+@pytest.mark.parametrize("profile", ["read", "evidence"])
+def test_an_outside_run_id_inside_an_included_run_id_is_that_id(tmp_path, monkeypatch, profile):
+    """2026-10-27 owner decision: X inside X-2 is X-2."""
+    p, first = _same_second_runs(tmp_path / "p", monkeypatch)
+    summary, files = build.preview_package(p, profile=profile)
+    data = b"".join(files.values())
+    assert data.count(first["id"].encode()) == data.count((first["id"] + "-2").encode()) > 0
+    assert summary["not_included"]
+
+
+def test_an_outside_run_id_standing_alone_still_stops(tmp_path, monkeypatch):
+    p, _first = _same_second_runs(tmp_path / "p", monkeypatch, text="compare with {first} later")
+    with pytest.raises(PublicationError) as caught:
+        build.preview_package(p, profile="read")
+    assert caught.value.code == "leak_found"
+    assert caught.value.details["source"]["field"] == "text"
