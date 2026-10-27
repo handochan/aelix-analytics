@@ -1397,15 +1397,15 @@ def test_an_outside_run_id_standing_alone_still_stops(tmp_path, monkeypatch):
 
 def test_no_exception_lets_a_private_field_through():
     """A figure name or an included ID that equals a private value does not excuse that value."""
-    secret = "private-session-604d09"
-    figure = BanToken(secret, "strong", ItemKey("visualization", f"r/{secret}"), "visualization_id")
-    session = BanToken(secret, "strong", ItemKey("run", "r"), "session")
-    text = (ScanText(f'a.visualize(fig, "{secret}")', "raw"),)
-    checks.check_strings(text, LeakPolicy((figure,)), path="files/c.py", own_names=frozenset({secret}))
+    value = "private-session-604d09"
+    figure = BanToken(value, "strong", ItemKey("visualization", f"r/{value}"), "visualization_id")
+    session = BanToken(value, "strong", ItemKey("run", "r"), "session")
+    text = (ScanText(f'a.visualize(fig, "{value}")', "raw"),)
+    checks.check_strings(text, LeakPolicy((figure,)), path="files/c.py", own_names=frozenset({value}))
     with pytest.raises(PublicationError):
-        checks.check_strings(text, LeakPolicy((figure, session)), path="files/c.py", own_names=frozenset({secret}))
-    inside = (ScanText(f"{secret}-2", "raw"),)
-    covered = LeakPolicy((session,), covers=((secret, (f"{secret}-2",)),))
+        checks.check_strings(text, LeakPolicy((figure, session)), path="files/c.py", own_names=frozenset({value}))
+    inside = (ScanText(f"{value}-2", "raw"),)
+    covered = LeakPolicy((session,), covers=((value, (f"{value}-2",)),))
     with pytest.raises(PublicationError):
         checks.check_strings(inside, covered, path="files/c.txt")
 
