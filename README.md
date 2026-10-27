@@ -502,7 +502,8 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
   Report는 버전 단위로만 들어가며, 철회한 버전(`--allow-withdrawn` 없이)·파일이 저장한 바이트가 아닌 버전·스크립트나 원격 참조가 있는
   HTML/SVG·PDF/Office처럼 검사할 수 없는 파일이 든 버전은 build가 멈춥니다(`report_not_shareable`). 새 Report 버전을 저장해 고르세요.
   공유 전에 결과의 `index.html`을 직접 확인하세요. publish는 아직 제공하지 않습니다.
-  ZIP 운반·다른 독자·브라우저/다른 OS 도구의 수용은 별도 검증이며, 검사는 분석 결론이나 비밀 탐지 인증이 아닙니다.
+  받은 사본은 세 OS CI에서 원본 없는 경로·HTTP 하위 경로·ZIP 풀기로, Linux CI에서 Chromium으로 엽니다([D5](docs/CONTRACTS.md#d5-독자-환경과-브라우저-kit-0280-20-pr5)).
+  다른 독자·OS 보관 도구·Safari·모바일의 수용은 별도 검증이며, 검사는 분석 결론이나 비밀 탐지 인증이 아닙니다.
 
 ## 개발
 

@@ -2223,7 +2223,8 @@ D2의 미리보기와 D3의 build가 같은 경로를 씁니다.
 
 ### D5. 독자 환경과 브라우저 (kit 0.28.0, #20 PR5)
 
-[공유 build 설계](design/PUBLICATION-BUILD.md) §7.4·§7.6·§12.6·§12.7과 그 "PR5 구현 구체화"의 구현과 검증입니다.
+[공유 build 설계](design/PUBLICATION-BUILD.md) §7.4·§7.6·§12.6·§12.7과 그 "PR5 구현 구체화"의 구현과 검증입니다. 측정과 M 규모의 수치는
+[검증 기록](verification/2026-10-27-issue-20-reader.md)에 있습니다.
 
 - **페이지**: kit 페이지마다 CSP meta(`default-src 'self'`, `connect-src 'none'`, `object-src`·`base-uri`·`form-action 'none'`, script는 `'self'`와 머리
   inline script의 해시, style은 `'self' 'unsafe-inline'`, img는 `'self' data:`)와 `data:` 아이콘이 있습니다(2026-10-27 소유자 결정). 사용자 HTML·
