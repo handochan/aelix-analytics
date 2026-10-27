@@ -1272,7 +1272,8 @@ def publish_details_problem(kind, details) -> str | None:
     if not _instant(details.get("ended_at")):
         return "invalid ended_at"
     steps = details.get("steps")
-    if not isinstance(steps, dict) or set(steps) != set(PUBLISH_STEPS) or not set(steps.values()) <= PUBLISH_STEP_STATES:
+    if (not isinstance(steps, dict) or set(steps) != set(PUBLISH_STEPS)
+            or not all(isinstance(v, str) and v in PUBLISH_STEP_STATES for v in steps.values())):
         return "invalid steps"
     lock = details.get("lock")
     if not isinstance(lock, dict) or lock.get("state") not in ("held", "unsupported", "busy", "failed", "not_started"):
@@ -1292,7 +1293,7 @@ def publish_details_problem(kind, details) -> str | None:
     if steps["switch"] != "not_started":
         pointers = details.get("pointers")
         if (not isinstance(pointers, dict) or set(pointers) != {"latest_json", "channel_page"}
-                or not set(pointers.values()) <= PUBLISH_POINTER_STATES):
+                or not all(isinstance(v, str) and v in PUBLISH_POINTER_STATES for v in pointers.values())):
             return "a receipt that reached the switch names both pointers"
         channel = details.get("channel")
         if not isinstance(channel, dict) or not isinstance(channel.get("name"), str):

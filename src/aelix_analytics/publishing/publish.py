@@ -328,12 +328,14 @@ def publish(project, publication_id, folder, *, origin, channel=None, reassign=F
     return _receipt(w, state)
 
 
-SWITCH_ENDED = frozenset({"done", "already", "not_newer", "superseded"})
+SWITCH_OUTCOME = {"done": "published", "already": "published", "not_newer": "not_newer", "superseded": "superseded"}
+SWITCH_ENDED = frozenset(SWITCH_OUTCOME)
 
 
 def _after_switch(state, what):
     """An interruption or error once the switch has ended (the access observation, the cleanup):
     the outcome stays the one the steps gave (design 6.2); what happened is an observation."""
+    state["outcome"] = SWITCH_OUTCOME[state["steps"]["switch"]]
     state["observations"]["after_switch"] = {"step": state.get("_at"), "error": what[:512]}
     state.setdefault("addresses", state["_addresses"])
     state.setdefault("access", {"reread": "not_checked", "posix": None, "windows_acl": "not_checked"})
@@ -457,9 +459,11 @@ def _traces(journal, w, state, root):
     for attempt in attempts:
         if attempt["receipt"]:
             for _n, value in relations.publish_rows(now, attempt["attempt_id"], "publish_receipt"):
-                for trace in ((value.get("details") or {}).get("observations") or {}).get("unrecorded_attempts") or ():
-                    if isinstance(trace, dict):
-                        reported.add(trace.get("attempt_id"))
+                observations = value["details"].get("observations")
+                traces = observations.get("unrecorded_attempts") if isinstance(observations, dict) else None
+                for trace in traces if isinstance(traces, list) else ():
+                    if isinstance(trace, dict) and isinstance(trace.get("attempt_id"), str):
+                        reported.add(trace["attempt_id"])
     out = []
     for attempt in attempts:
         if (attempt["recording_status"] != "incomplete" or attempt["attempt_id"] in reported
@@ -623,12 +627,13 @@ def _switch(project, state, channel_dir, initial, event, details, project_id, ti
         raise _Stop("switch", "unknown", "the channel's latest.json cannot be read", paths=[latest_path])
     now_latest = (current or {}).get("latest")
     if current is not None and now_latest == pid:
-        steps["switch"] = "already"
+        # The switch stays interrupted until the page agrees (design 8: only the page is drawn).
         state["pointers"]["latest_json"] = "new"
         state["pointers"]["channel_page"] = _page_state(state, page_path)
         if state["pointers"]["channel_page"] != "new":
             _boundary(state, "channel_page")
             _page(files, page_path, current, state, initial)
+        steps["switch"] = "already" if state["pointers"]["channel_page"] == "new" else "unknown"
         state["outcome"] = "published"
         return
     if now_latest != initial:

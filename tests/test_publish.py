@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator, FormatChecker
 
-from aelix_analytics import _platform, core, relations
+from aelix_analytics import _platform, core, relations, writer
 from aelix_analytics.publishing import build, publish, target
 from aelix_analytics.publishing.model import PublicationError
 
@@ -652,3 +652,116 @@ def test_the_launcher_runs_publish_and_its_list(project, tmp_path):
     listed = subprocess.run([str(ROOT / "bin/analytics"), "publish", "--list"], env=env, capture_output=True,
                             timeout=300, cwd=project.root)
     assert listed.returncode == 0 and json.loads(listed.stdout)["attempts"][0]["recording_status"] == "complete"
+
+
+@pytest.mark.parametrize("locks", ["held", "unsupported"])
+def test_two_publishes_at_once_end_with_a_checked_latest_and_both_receipts(project, tmp_path, locks):
+    """ADR-0009 check 9 for PR-2: two processes publish an older and a newer build to one target at
+    the same moment. With the lock one waits; without one (a file system that has none) either may
+    win the switch. Either way latest.json and the page name a version checked there, and each
+    attempt has its receipt."""
+    share = tmp_path / "share"
+    older, newer = built(project), built(project)
+    go = tmp_path / "go"
+    script = (
+        "import os, sys, time\n"
+        "from pathlib import Path\n"
+        "from aelix_analytics import _platform, core\n"
+        "from aelix_analytics.publishing import publish\n"
+        "project = core.Project(sys.argv[1])\n"
+        "if sys.argv[4] == 'unsupported':\n"
+        "    real = project.platform.locks\n"
+        "    class NoTargetLocks:\n"
+        "        exclusive = staticmethod(real.exclusive)\n"
+        "        try_exclusive = staticmethod(real.try_exclusive)\n"
+        "        def exclusive_within(self, path, seconds):\n"
+        "            if Path(path).name == '.analytics-target.lock':\n"
+        "                raise _platform.LockUnavailable(publish.errno.ENOLCK, 'no locks here')\n"
+        "            return real.exclusive_within(path, seconds)\n"
+        "    project.platform.locks = NoTargetLocks()\n"
+        "while not os.path.exists(sys.argv[5]):\n"
+        "    time.sleep(0.005)\n"
+        "r = publish.publish(project, sys.argv[2], sys.argv[3], origin=core.Origin('human', 'cli'))\n"
+        "print(r['outcome'], 'receipt' in r)\n"
+    )
+    env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
+    runs = [subprocess.Popen([sys.executable, "-c", script, str(project.root), pid, str(share), locks, str(go)],
+                             env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
+            for pid in (older, newer)]
+    go.write_bytes(b"")
+    outs = [run.communicate(timeout=300) for run in runs]
+    assert all(run.returncode == 0 for run in runs), outs
+    results = [out.split() for out, _ in outs]
+    assert all(found == "True" for _, found in results), outs
+    assert {outcome for outcome, _ in results} <= {"published", "not_newer", "superseded"}
+    pointed = latest(share)["latest"]
+    assert pointed in (older, newer) and page_points_to(share) in (older, newer)
+    if locks == "held":
+        assert pointed == newer and page_points_to(share) == newer
+    for pid in {pointed, page_points_to(share)}:
+        event, _folder, _journal = publish.binding(project, pid)
+        publish._verify(share / "publications" / pid, pid, event["details"])
+    rows = relations.publish_attempts(relations.Journal(project.journal.read_bytes()))
+    assert [r["recording_status"] for r in rows] == ["complete", "complete"]
+    assert os.listdir(share / ".staging") == []
+
+
+@pytest.mark.parametrize("trouble", ["interrupt", "unread"])
+def test_redrawing_the_page_of_a_version_already_latest_is_recorded_either_way(project, tmp_path, monkeypatch, trouble):
+    """latest.json names B, the page A; B again: a stop while the page is drawn, or a page that
+    cannot be read back after it, is a receipt that says so, never a success."""
+    share = tmp_path / "share"
+    publish.publish(project, built(project), share, origin=ORIGIN)
+    b = built(project)
+    interrupt_at(monkeypatch, "channel_page")
+    publish.publish(project, b, share, origin=ORIGIN)
+    monkeypatch.undo()
+    if trouble == "interrupt":
+        interrupt_at(monkeypatch, "channel_page")
+        expected = "interrupted"
+    else:
+        read = publish._page_points_to
+        drawn = []
+        written = publish._write_page
+
+        def write(*args):
+            written(*args)
+            drawn.append(True)
+
+        monkeypatch.setattr(publish, "_write_page", write)
+        monkeypatch.setattr(publish, "_page_points_to", lambda path: (None, "unknown") if drawn else read(path))
+        expected = "unknown"
+    result = publish.publish(project, b, share, origin=ORIGIN)
+    assert "receipt" in result and result["outcome"] == expected and not result["ok"]
+    assert result["steps"]["switch"] in ("interrupted", "unknown") and result["failure"]
+
+
+def test_hand_edited_publish_lines_of_any_shape_are_read_not_raised(project, tmp_path):
+    """A start record or receipt with a field of another type is not a result, and reading it
+    (the list, a later publish, the content basis) never stops (ADR-0006 6)."""
+    from aelix_analytics.publishing.basis import content_basis
+
+    share = tmp_path / "share"
+    pid = built(project)
+    publish.publish(project, pid, share, origin=ORIGIN)
+    receipt = events(project, "publish_receipt")[-1]
+    odd = []
+    for key in ("steps", "pointers", "observations", "target", "lock", "reports", "failure", "channel"):
+        for value in ([], {}, 1, None, [[1]], {"transfer": []}, {"latest_json": [], "channel_page": {}}):
+            details = json.loads(json.dumps(receipt["details"]))
+            if isinstance(details.get(key), dict) and isinstance(value, dict):
+                details[key] = {**details[key], **value}
+            else:
+                details[key] = value
+            odd.append(details)
+    lines = [json.dumps({**receipt, "seq": receipt["seq"] + n + 1, "id": f"e{receipt['seq'] + n + 1}", "details": d})
+             for n, d in enumerate(odd)]
+    with project.journal.open("a", encoding="utf-8") as fh:
+        fh.write("\n".join(lines) + "\n")
+    journal = relations.Journal(project.journal.read_bytes())
+    problems = [relations.publish_details_problem("publish_receipt", d) for d in odd]  # never raises
+    # Steps of another shape are never a receipt ({} merges into the steps and leaves them as they were).
+    assert all(isinstance(p, str) for n, p in enumerate(problems[:7]) if n != 1) and problems[1] is None
+    assert publish.attempts(project)["ok"]
+    content_basis(journal, validate_reference=writer.reference_problem)
+    assert publish.publish(project, pid, share, origin=ORIGIN)["outcome"] == "published"
