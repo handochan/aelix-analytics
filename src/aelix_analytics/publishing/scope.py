@@ -233,13 +233,13 @@ def leak_policy(snapshot, request, profile, projection, *, environment=()):
     allowed = labels | {word for label in labels for word in re.findall(r"[\w-]+", label)}
     allowed |= {value.lower() for value in allowed}
 
-    shared = []
+    shared = set()
 
     def allow(value):
         if isinstance(value, Text):
             if value.origin == "kit" or value.source and value.source[0] in included:
                 allowed.add(value.value)
-                shared.append(" ".join(normalized(value.value).split()))
+                shared.update(" ".join(line.split()) for line in normalized(value.value).splitlines())
         elif is_dataclass(value):
             for f in fields(value):
                 allow(getattr(value, f.name))
@@ -259,15 +259,15 @@ def leak_policy(snapshot, request, profile, projection, *, environment=()):
                                if isinstance(value, str))
     tokens = set()
     short = 0
-    # A sentence that included text also says is not an outside item's own words (an earlier CONTEXT
-    # version repeats most of the basis version's lines).
-    shared_text = "\n".join(shared)
+    # A line that is also a whole line of included text is not an outside item's own words (an earlier
+    # CONTEXT version repeats most of the basis version's lines). A line quoted inside a longer line
+    # is still that outside item's sentence.
 
     def add(value, mode, key=None, field=None, exempt=True):
         nonlocal short
         if not isinstance(value, str) or not value or exempt and value in allowed:
             return
-        if mode == "sentence" and exempt and " ".join(normalized(value).split()) in shared_text:
+        if mode == "sentence" and exempt and " ".join(normalized(value).split()) in shared:
             return
         if mode != "weak" and len(value) < 8:
             short += 1
@@ -372,11 +372,12 @@ def leak_policy(snapshot, request, profile, projection, *, environment=()):
                             code_names.setdefault(file.recorded_sha256, set()).update(names)
     # An outside ID inside an included one is that included ID: a script run twice in one second makes
     # runs X and X-2 (2026-10-27 owner decision). Standing alone, X is still a leak.
+    # The IDs themselves, not a `<run_id>/<visualization_id>` or `<report_id>/<revision_id>` key, which
+    # would hold an excluded run's ID.
     identifiers = set()
     for key in included:
         if key.category in ("run", "visualization", "report", "context"):
-            identifiers.add(key.identity)
-            identifiers.update(value for field in ("id", "run_id", "visualization_id", "report_id", "revision_id", "version")
+            identifiers.update(value for field in ("id", "visualization_id", "report_id", "revision_id", "version")
                                if isinstance(value := items[key].values.get(field), str))
     covers = {}
     for token in tokens:

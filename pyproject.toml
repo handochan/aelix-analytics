@@ -61,7 +61,7 @@ dev = [
   "ruff>=0.12",
   "jsonschema[format-nongpl]>=4,<5",
 ]
-# The publication browser E2E (#20 PR5, design OQ22): its own CI job installs it and its browsers.
+# The publication browser E2E (#20 PR5, design OQ22): CI's Linux platform leg installs it and Chromium.
 browser = [
   "playwright==1.64.0",
 ]

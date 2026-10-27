@@ -1,8 +1,8 @@
 """#20 PR5: a saved copy in a real browser (PUBLICATION-BUILD 12.6, design OQ22).
 
 Runs only when AELIX_ANALYTICS_TEST_BROWSER names engines (e.g. "chromium" or "chromium,firefox,webkit") and
-the `browser` dependency group and those Playwright browsers are installed; the CI's reader job runs Chromium
-on Linux. Every request the pages make is checked: only this copy's files, over file:// and an HTTP subpath.
+the `browser` dependency group and those Playwright browsers are installed; CI runs Chromium in the Linux
+platform leg. Every request the pages make is checked: only this copy's files, over file:// and an HTTP subpath.
 """
 
 from __future__ import annotations
@@ -22,7 +22,10 @@ from publication_reader_fixture import FINDING, detached, project, saved
 ENGINES = [name for name in os.environ.get("AELIX_ANALYTICS_TEST_BROWSER", "").split(",") if name]
 if not ENGINES:
     pytest.skip("AELIX_ANALYTICS_TEST_BROWSER names no browser engine", allow_module_level=True)
-sync_api = pytest.importorskip("playwright.sync_api", reason="the browser dependency group is not installed")
+try:
+    from playwright import sync_api
+except ImportError as exc:  # engines named but no Playwright: a failure, never a skip that passes CI
+    raise RuntimeError("AELIX_ANALYTICS_TEST_BROWSER names engines; install the `browser` dependency group") from exc
 
 
 @pytest.fixture(scope="module")
@@ -196,6 +199,19 @@ def test_missing_files_are_named_in_the_page(copy, browser):
         page.goto(base + "index.html")
         page.wait_for_load_state("load")
         assert page.locator(".load-failure").is_visible()  # the inline check, the stylesheet still there
+    finally:
+        context.close()
+    library = Path(tempfile.mkdtemp(dir=tmp)) / "plotly 없는 사본"
+    shutil.copytree(folder, library)
+    (library / "assets/plotly.min.js").unlink()
+    base = library.as_uri() + "/"
+    context, page, _guard, _errors = opened(browser, base)
+    try:
+        figure = next(name for name in kit_pages(library) if "data-payload" in (library / name).read_text(encoding="utf-8"))
+        page.goto(base + quote(figure))
+        page.wait_for_load_state("load")
+        page.wait_for_timeout(200)
+        assert "Missing from this copy: assets/plotly.min.js" in page.inner_text("body"), figure
     finally:
         context.close()
 

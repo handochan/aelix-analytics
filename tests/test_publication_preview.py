@@ -1422,3 +1422,27 @@ def test_a_code_snapshot_left_out_of_the_copy_lends_its_names_to_no_other_file(t
         build.preview_package(p, profile="evidence")
     assert caught.value.code == "leak_found"
     assert caught.value.details["cause"] == "copied_file"
+
+
+def test_an_excluded_records_line_quoted_inside_an_included_line_still_stops(tmp_path):
+    """Only a whole line that included text also has is exempt (the earlier CONTEXT case), not a quote."""
+    p = core.init_project(tmp_path / "p", title="Quoted", origin=ORIGIN)
+    line = "the north region grew for four weeks in a row"
+    core.record(p, "finding", line, origin=ORIGIN)
+    core.record(p, "finding", f"As noted, {line}, which we now doubt.", origin=ORIGIN)
+    model = core.read_model(p)
+    first = next(e for e in model.journal.in_order() if e.kind == "finding")
+    with pytest.raises(PublicationError) as caught:
+        build.preview_package(p, profile="read", exclude=(model.journal.source_of(first),))
+    assert caught.value.code == "leak_found" and caught.value.details["source"]["field"] == "text"
+
+
+def test_an_excluded_run_id_inside_an_included_figure_key_still_stops(tmp_path):
+    """Decision (4) covers IDs, not the `<run_id>/<visualization_id>` key that holds a run's ID."""
+    p, first = _dropped_figure_project(tmp_path / "p")
+    core.record(p, "finding", f"{first['id']}/trend shows the drop", origin=ORIGIN, refs=[core.kit_reference(
+        "visualization_version", run_id=first["id"], visualization_id="trend",
+        digest={"sha256": next(v for v in first["visualizations"] if v["visualization_id"] == "trend")["sha256"]})])
+    with pytest.raises(PublicationError) as caught:
+        build.preview_package(p, profile="read", exclude=(first["id"],))
+    assert caught.value.code == "leak_found"
