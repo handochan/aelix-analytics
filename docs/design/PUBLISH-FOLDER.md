@@ -80,7 +80,8 @@
 - `history[]`의 항목: `publication_id`, `package_sha256`, `content_sha256`, `renderer`, `build_seq`(결박 이벤트의 seq), `built_at`, `latest_since`(최신이 된 시각),
   `attempt_id`, `project_id`. channel 페이지는 `latest.json`만으로 그릴 수 있어야 한다.
 - 소유 기록의 `machine`·`host`는 원값이 아니라 `sha256("aelix-analytics/publish\0" + 값)`의 앞 32자다. 대상의 독자는 staging도 읽을 수 있으므로(결정 8)
-  기기 고유 값을 그대로 두지 않는다. `user`는 POSIX uid의 10진 문자열, Windows는 사용자 SID다. 모르는 값은 null이다.
+  기기 고유 값을 그대로 두지 않는다. `user`도 같은 해시로, POSIX는 uid, Windows는 사용자 이름에서 만든다(SID는 표준 라이브러리로 얻을 수 없다,
+  PR-2). 같은 계정인지 비교하는 데만 쓴다. 모르는 값은 null이다.
 - `attempt_id`는 `att-`와 소문자 ULID다(`publication_id`와 같은 생성기, 대소문자를 구별하지 않는 대상에서도 겹치지 않음).
 - 모든 JSON은 UTF-8·LF, 키 정렬, 끝 줄바꿈 하나다(ADR-0007). 모르는 `schema`의 표식·`latest.json`은 읽지 않고 거절한다(`target_unsupported`).
 - 메타데이터의 닫힌 목록(결정 4·6)은 `checks.os_metadata_name` 하나다: #20의 `OS_METADATA`(`.DS_Store`·`desktop.ini`·`Thumbs.db`)와 AppleDouble(`._*`).
