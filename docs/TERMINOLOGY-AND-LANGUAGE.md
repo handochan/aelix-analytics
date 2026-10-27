@@ -352,6 +352,22 @@ kit 0.21.0은 개별 버전 저장·조회·철회/복원·prepared 정리의 CL
 | `report_collection/1` | `analytics.report_revision/1`의 선택 `collection.contract` 값. 별도 schema 가족이 아니며, 요청한 전체 구성원의 정확한 버전·실패·미생성 상태를 고정한 묶음 |
 | `metadata_file` | 선택 메타데이터를 지문에 결박하는 보존 파일 경로. 사용자 본문이나 재생성 Workspace 파일과 구별 |
 
+### #21 채택한 공개 이름
+
+[ADR-0009](decisions/0009-first-publish-target.md)와 [폴더 게시 설계](design/PUBLISH-FOLDER.md)(2026-10-27 채택)의 이름이다. kit 0.29.0은 대상 폴더의 판정·형식·channel 규칙과
+포트 확장만 구현하고, `analytics publish` 명령·게시 기록은 후속 PR이다.
+
+| 이름 | 범위와 기존 개념과의 차이 |
+|---|---|
+| 게시 대상(publish target) | 사용자가 지정한 폴더 가운데 표식이 있는 analytics 소유 폴더. 프로젝트 안의 build 폴더(`.analytics/publications/`)와 구별 |
+| `analytics-target.json`(`analytics.publish_target/1`) | 대상 표식. analytics가 이 폴더를 쓴다는 표시일 뿐 접근 권한이나 팀 범위를 뜻하지 않음 |
+| `.analytics-target.lock` | 대상 잠금 파일. 정리하지 않음 |
+| channel | 한 프로젝트의 최신 주소 이름(`projects/<channel>/`). Report 묶음(collection)이나 배포 채널과 구별 |
+| 버전 주소 / 최신 주소 | `publications/<publication_id>/index.html` / `projects/<channel>/index.html`. 최신 주소는 확인을 마친 버전 가운데 build 순서가 가장 새 것(되돌린 동안은 사람이 고른 것)이며 §6의 Latest(가장 최근 저장본)와 다름 |
+| `latest.json`(`analytics.publish_channel/1`) | 최신 포인터의 정본과 그 channel의 history |
+| 소유 기록(`analytics.publish_staging/1`) | `.staging/<attempt_id>.json`. 한 게시 시도가 그 staging을 쓰는 중이라는 표시. 기기·호스트는 해시로만 담음 |
+| `attempt_id` | `att-`와 소문자 ULID. 게시 시도를 구별할 뿐 재시도 판정에 쓰지 않음(재시도 단위는 `publication_id`·패키지 해시·대상) |
+
 명칭·영어 기본화는 새 공개 표면에서 한 번에 일관되게 제공한다. 구현 PR은 현재 코드·예제·오류 안내·실제 설치물을 함께 갱신한다.
 옛 도구를 기본 노출 목록에 남기거나 사용자를 두 가지 용어 체계로 안내하지 않는다.
 과거 프로젝트·세션·보존 스크립트는 원래 이름과 바이트를 보존하고 legacy reader·명시적 전환으로 읽는다.

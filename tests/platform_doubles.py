@@ -66,6 +66,10 @@ class _RecordingLocks:
         finally:
             self._held.discard(path)
 
+    def exclusive_within(self, path, seconds):
+        self.calls.append(("locks.exclusive_within", Path(path).name))
+        return _platform._exclusive_within(self, path, seconds)
+
 
 class _RecordingFiles:
     _rename_lock = threading.Lock()
@@ -97,6 +101,11 @@ class _RecordingFiles:
             if os.path.lexists(dst):
                 raise FileExistsError(str(dst))
             os.rename(src, dst)  # this double promises only in-process exclusion
+
+    def rename_dir_new(self, src, dst):
+        self.calls.append(("files.rename_dir_new", Path(dst).name))
+        # Without its rename (renames = False) it stands for a POSIX file system without the flag.
+        return _platform._rename_dir_new(self, src, dst, replacing_rename=os.name != "nt")
 
     def flush_handle(self, fh):
         self.calls.append(("files.flush_handle", Path(str(fh.name)).name))
@@ -135,6 +144,11 @@ class _RecordingProcesses:
         # Opens nothing: a test must not start a desktop program.
         self.calls.append(("processes.open_document", Path(path).name))
         return 0 if wait else None
+
+    def machine_identity(self):
+        # Says nothing about the machine: an unknown identity, which a caller reads as another one.
+        self.calls.append(("processes.machine_identity", None))
+        return None
 
     def find_program(self, name):
         self.calls.append(("processes.find_program", name))

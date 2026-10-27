@@ -6,6 +6,10 @@ import hashlib
 from dataclasses import dataclass
 from typing import Literal
 
+# How long a build or a publish waits for its lock before it stops (Issue #21, owner's OQ3 of
+# 2026-10-27; BUILD 9.5 R18): `build_busy` and `target_busy`.
+LOCK_WAIT_SECONDS = 30
+
 
 class PublicationError(ValueError):
     def __init__(self, code: str, message: str, *, details=None):

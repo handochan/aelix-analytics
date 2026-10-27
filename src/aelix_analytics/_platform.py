@@ -84,11 +84,18 @@ class FileLocks(Protocol):
     body runs holding it, and the context manager gives whether this call created the lock file.
     Contention raises LockBusy at once. It never makes the lock's directory: a missing directory, or
     a lock file it can neither create nor open, raises LockUnavailable. A lock file that exists and
-    cannot be opened for writing is opened for reading. It is not re-entrant either."""
+    cannot be opened for writing is opened for reading. It is not re-entrant either.
+
+    `exclusive_within` takes the same lock as `try_exclusive`, retrying contention for at most
+    `seconds` (Issue #21, ADR-0009 decision 5: a publish or build waits a bounded time). Still busy
+    then, it raises LockBusy; LockUnavailable is raised at once, as `try_exclusive` raises it. It
+    never makes the lock's directory and gives whether this call created the lock file."""
 
     def exclusive(self, path: Path) -> contextlib.AbstractContextManager[None]: ...
 
     def try_exclusive(self, path: Path) -> contextlib.AbstractContextManager[bool]: ...
+
+    def exclusive_within(self, path: Path, seconds: float) -> contextlib.AbstractContextManager[bool]: ...
 
 
 class AtomicFiles(Protocol):
@@ -117,6 +124,16 @@ class AtomicFiles(Protocol):
     A taken destination, including an empty directory, preserves both source and destination.
     Cross-filesystem moves fail; implementations never fall back to copy or replacing rename.
 
+    `rename_dir_new` moves the directory `src` to the new name `dst` (Issue #21, ADR-0009 decision 5:
+    committing a published version). An entry with content at `dst` — a file, a directory that is not
+    empty — raises FileExistsError and nothing changes. It returns how it moved: "rename_new" (the
+    call above), "rename_new_after_rmdir" (an empty directory at `dst` was removed, only while empty,
+    and the call made again: no content is lost), or "posix_rename" (where the system or file system
+    has no rename_new, POSIX's rename(2), which never moves a directory onto a directory with entries
+    or onto a file: ENOTEMPTY, EEXIST and ENOTDIR become FileExistsError). The replacing rename is used
+    for a directory only, so the rule above stays true for files. Another volume, and every other
+    failure, raises; nothing is copied.
+
     `flush_handle` writes a file's buffered bytes through to the device (a file object open for
     writing); `flush_dir` does that for a directory's entries where the platform can. Neither hides
     an error. They are the migration's durable writes before its commit point: a goal, not a
@@ -127,6 +144,8 @@ class AtomicFiles(Protocol):
     def publish_new(self, src: Path | str, dst: Path | str) -> None: ...
 
     def rename_new(self, src: Path | str, dst: Path | str) -> None: ...
+
+    def rename_dir_new(self, src: Path | str, dst: Path | str) -> str: ...
 
     def flush_handle(self, fh) -> None: ...
 
@@ -172,7 +191,12 @@ class ProcessControl(Protocol):
     path separator is a path, checked as it stands (`~` expanded); a bare name is looked up where
     this platform looks for programs, which on Windows is PATH alone — never the working directory,
     where a project's files are. A symbolic link is not followed: a shim (mise's, for one) is a link
-    to a program that decides what to be from the name it was started by."""
+    to a program that decides what to be from the name it was started by.
+
+    `machine_identity` answers the operating system's own identifier of this machine, or None where
+    it cannot be read (Issue #21, ADR-0009 decision 5: whether another publish attempt's process ran
+    here). Linux's /etc/machine-id (else /var/lib/dbus/machine-id), macOS's IOPlatformUUID, Windows'
+    MachineGuid. A caller that stores it beyond this machine stores a digest of it, not the value."""
 
     asks_by_request: bool
 
@@ -189,6 +213,8 @@ class ProcessControl(Protocol):
     def open_document(self, path: Path, *, wait: bool) -> int | None: ...
 
     def find_program(self, name: str) -> str | None: ...
+
+    def machine_identity(self) -> str | None: ...
 
 
 class RunGuard(Protocol):
@@ -582,6 +608,88 @@ def recorded_pid(pid: object, maximum: int) -> int | None:
 # --- POSIX ------------------------------------------------------------------------------------
 
 
+@contextlib.contextmanager
+def _exclusive_within(locks, path, seconds: float) -> Iterator[bool]:
+    """FileLocks.exclusive_within over the port's own try_exclusive: only taking the lock is retried,
+    so a LockBusy the caller's body raises is not mistaken for contention."""
+    deadline = time.monotonic() + seconds
+    with contextlib.ExitStack() as stack:
+        while True:
+            try:
+                created = stack.enter_context(locks.try_exclusive(path))
+                break
+            except LockBusy:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(LOCK_POLL_SECONDS)
+        yield created
+
+
+# The answers of rename(2) that say a directory was not moved onto a taken name: a directory with
+# entries (ENOTEMPTY, EEXIST — POSIX allows either) or a file (ENOTDIR).
+_TAKEN_ERRNOS = frozenset({errno.ENOTEMPTY, errno.EEXIST, errno.ENOTDIR})
+
+
+def _empty_directory(path) -> bool:
+    try:
+        return stat.S_ISDIR(os.lstat(path).st_mode) and not os.listdir(path)
+    except OSError:
+        return False
+
+
+def _rename_dir_new(files, src, dst, *, replacing_rename: bool) -> str:
+    """AtomicFiles.rename_dir_new over the port's rename_new; `replacing_rename` where the system's
+    rename(2) moves a directory only onto an empty one (POSIX)."""
+    if not stat.S_ISDIR(os.lstat(src).st_mode):
+        raise NotADirectoryError(errno.ENOTDIR, f"{src} is not a directory")
+    try:
+        files.rename_new(src, dst)
+        return "rename_new"
+    except FileExistsError:
+        if not _empty_directory(dst):
+            raise
+        try:
+            os.rmdir(dst)  # only while empty: an entry that arrived since keeps it
+        except OSError as exc:
+            if exc.errno in _TAKEN_ERRNOS:
+                raise FileExistsError(exc.errno, f"{dst} is taken", os.fspath(dst)) from exc
+            raise
+        files.rename_new(src, dst)
+        return "rename_new_after_rmdir"
+    except RenameUnsupported:
+        if not replacing_rename:
+            raise
+        try:
+            os.rename(src, dst)
+        except OSError as exc:
+            if exc.errno in _TAKEN_ERRNOS:
+                raise FileExistsError(exc.errno, f"{dst} is taken", os.fspath(dst)) from exc
+            raise
+        return "posix_rename"
+
+
+def _linux_machine_identity() -> str | None:
+    for name in ("/etc/machine-id", "/var/lib/dbus/machine-id"):
+        try:
+            value = Path(name).read_text(encoding="ascii").strip()
+        except (OSError, UnicodeError):
+            continue
+        if value:
+            return value
+    return None
+
+
+def _macos_machine_identity() -> str | None:
+    try:
+        out = subprocess.run(["/usr/sbin/ioreg", "-rd1", "-c", "IOPlatformExpertDevice"],
+                             capture_output=True, text=True, encoding="utf-8", errors="replace",
+                             timeout=10, check=False).stdout
+    except (OSError, subprocess.SubprocessError, UnicodeError):
+        return None
+    found = re.search(r'"IOPlatformUUID"\s*=\s*"([^"]+)"', out or "")
+    return found.group(1) if found else None
+
+
 class PosixFileLocks:
     @contextlib.contextmanager
     def exclusive(self, path: Path) -> Iterator[None]:
@@ -616,6 +724,10 @@ class PosixFileLocks:
                     fcntl.flock(fd, fcntl.LOCK_UN)
         finally:
             os.close(fd)
+
+
+    def exclusive_within(self, path: Path, seconds: float) -> contextlib.AbstractContextManager[bool]:
+        return _exclusive_within(self, path, seconds)
 
 
 # The errors that say a lock file cannot be created, or opened for writing, because of where it is (a
@@ -735,6 +847,9 @@ class PosixAtomicFiles:
         # EEXIST makes this a FileExistsError: the name is taken, and nothing changed.
         raise OSError(code, os.strerror(code), os.fspath(src), None, os.fspath(dst))
 
+    def rename_dir_new(self, src: Path | str, dst: Path | str) -> str:
+        return _rename_dir_new(self, src, dst, replacing_rename=True)
+
     def flush_handle(self, fh) -> None:
         import fcntl  # noqa: PLC0415 - absent on Windows, so it is imported with its user
 
@@ -851,6 +966,13 @@ class PosixProcessControl:
             return _absolute(path) if path.is_file() and os.access(path, os.X_OK) else None
         found = shutil.which(name)
         return _absolute(found) if found else None
+
+    def machine_identity(self) -> str | None:
+        if sys.platform == "darwin":
+            return _macos_machine_identity()
+        if sys.platform.startswith("linux"):
+            return _linux_machine_identity()
+        return None
 
 
 class _PosixGuard(_RunGuard):
@@ -1009,6 +1131,10 @@ class WindowsFileLocks:
             os.close(fd)
 
 
+    def exclusive_within(self, path: Path, seconds: float) -> contextlib.AbstractContextManager[bool]:
+        return _exclusive_within(self, path, seconds)
+
+
 class WindowsAtomicFiles:
     """What has and has not been run on Windows is in docs/CONTRACTS.md G, not here."""
 
@@ -1047,6 +1173,10 @@ class WindowsAtomicFiles:
         # MoveFileEx without MOVEFILE_REPLACE_EXISTING is the rename that refuses a taken name, on
         # every file system Windows renames on: publish_new's own call, retried within its budget.
         self.publish_new(src, dst)
+
+    def rename_dir_new(self, src: Path | str, dst: Path | str) -> str:
+        # Windows' rename never replaces, so rename_new is always there and nothing stands in for it.
+        return _rename_dir_new(self, src, dst, replacing_rename=False)
 
     def flush_handle(self, fh) -> None:
         fh.flush()
@@ -1163,6 +1293,17 @@ class WindowsProcessControl:
             if candidate.is_file():
                 return os.path.abspath(candidate)
         return None
+
+    def machine_identity(self) -> str | None:
+        try:
+            import winreg  # noqa: PLC0415 - absent on POSIX, so it is imported with its user
+
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Cryptography", 0,
+                                winreg.KEY_READ | winreg.KEY_WOW64_64KEY) as key:
+                value, _kind = winreg.QueryValueEx(key, "MachineGuid")
+        except OSError:
+            return None
+        return value if isinstance(value, str) and value else None
 
     def system_program(self, name: str) -> str:
         """A program of Windows itself, by its absolute path in the system directory. A bare name is

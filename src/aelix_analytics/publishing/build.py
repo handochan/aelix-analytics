@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -20,6 +21,7 @@ from .. import _platform, core, relations, writer
 from . import checks, package
 from .extract import parquet_strings
 from .model import (
+    LOCK_WAIT_SECONDS,
     ContentBasis,
     ItemKey,
     PublicationError,
@@ -696,6 +698,22 @@ def _observe_completion(record_writer, pid, digest):
         return "unknown", None, False
 
 
+@contextlib.contextmanager
+def _build_lock(project, lock):
+    """One build of a project at a time (BUILD 9.5 R18), waiting at most LOCK_WAIT_SECONDS (#21 OQ3)."""
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    with contextlib.ExitStack() as stack:
+        try:
+            stack.enter_context(project.platform.locks.exclusive_within(lock, LOCK_WAIT_SECONDS))
+        except _platform.LockBusy as exc:
+            raise PublicationError(
+                "build_busy",
+                "another build of this project still holds its lock; run the build again",
+                details={"waited_seconds": LOCK_WAIT_SECONDS},
+            ) from exc
+        yield
+
+
 def build_publication(
     project, request=None, *, profile="read", projection=None, exclude=(), zip_path=None, origin,
     report_renderer=None,
@@ -710,7 +728,7 @@ def build_publication(
     base = project.root / ".analytics/publications"
     lock = base / ".lock"
     _managed(project.root, lock)
-    with project.platform.locks.exclusive(lock):
+    with _build_lock(project, lock):
         w.admit("build_publication")
         core.sync_context(project, origin=core.system_origin(origin))
         snapshot = capture_snapshot(project)

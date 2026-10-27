@@ -866,11 +866,14 @@ def verify_package(path, binding=None, *, inspection_cache=None):
         listed = manifest["files"]
         if not isinstance(listed, list) or len({r["path"] for r in listed}) != len(listed):
             reject("duplicate manifest files")
-        if set(files) != {
-            "publication.json",
-            *(r["path"] for r in listed),
-        } or "publication.json" in {r["path"] for r in listed}:
-            reject("file list differs from manifest")
+        expected = {"publication.json", *(r["path"] for r in listed)}
+        if set(files) != expected or "publication.json" in {r["path"] for r in listed}:
+            # Which files (#21: a publish attempt names what it found): the first 20 of each.
+            reject(
+                "file list differs from manifest",
+                unlisted=sorted(set(files) - expected)[:20],
+                missing=sorted(expected - set(files))[:20],
+            )
         for item in listed:
             name = item["path"]
             if (

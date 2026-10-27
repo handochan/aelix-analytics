@@ -1,6 +1,7 @@
 # 폴더 게시 설계 — 고정 build의 전달·확인·최신 주소 전환
 
-- 상태: **설계 제안.** `analytics publish`는 아직 없다. 채택한 결정은 [ADR-0009](../decisions/0009-first-publish-target.md)(첫 대상: 사용자가 지정한 폴더)이고,
+- 상태: **설계 채택·단계별 구현 중.** PR-1(kit 0.29.0)은 포트 확장 셋(5절)·build 잠금 대기 상한·대상 판정·표식·channel 규칙(2·3·9.1절)을 구현했다.
+  `analytics publish`는 아직 없다. 채택한 결정은 [ADR-0009](../decisions/0009-first-publish-target.md)(첫 대상: 사용자가 지정한 폴더)이고,
   이 문서는 그 결정이 "구현 PR이 정한다"로 남긴 것을 정하고 구현을 PR로 나눈다. 현재 공개 동작은 [현재 계약](../CONTRACTS.md)이 설명한다.
 - 작업: [#21](https://github.com/handochan/aelix-analytics/issues/21) `[B4-s/P1]`. 완료 조건 1(첫 대상·접근 범위·실패/재시도 계약의 기록)은 ADR-0009로 채웠다.
   선행인 [#20](https://github.com/handochan/aelix-analytics/issues/20)(P0 독립 build)은 2026-10-27에 끝났다(kit 0.28.0).

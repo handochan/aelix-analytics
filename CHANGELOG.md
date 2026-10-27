@@ -15,6 +15,20 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
 
+## [0.29.0] - 2026-10-27
+
+### Added
+
+- #21 PR-1: 폴더 게시의 바탕입니다. 게시 명령은 아직 없습니다([폴더 게시 설계](docs/design/PUBLISH-FOLDER.md)).
+  - 포트에 메서드 셋을 더했습니다. `FileLocks.exclusive_within`은 정해진 시간까지만 잠금을 기다립니다. `AtomicFiles.rename_dir_new`는
+    디렉터리를 내용이 없는 이름으로만 옮깁니다. `ProcessControl.machine_identity`는 이 기기의 식별자를 읽습니다.
+  - 게시 대상 폴더의 판정·표식·channel 규칙(`publishing/target.py`)을 더했습니다. 판정은 대상에 아무것도 만들지 않습니다.
+
+### Changed
+
+- `analytics build`가 다른 build의 잠금을 30초까지만 기다리고, 그 뒤에는 아무것도 쓰지 않고 `build_busy`로 끝납니다(#21 OQ3). 전에는 상한 없이 기다렸습니다.
+- `--verify`가 파일 목록이 manifest와 다른 사본을 거절할 때 어느 파일인지(`unlisted`·`missing`) 적습니다.
+
 ## [0.28.0] - 2026-10-27
 
 ### Added
