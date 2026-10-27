@@ -19,7 +19,7 @@ from urllib.parse import unquote, urlsplit
 from .. import relations
 from .basis import _time
 from .inspections import HTMLInspection, detect_format, inspect_bytes
-from .model import ItemKey, LeakPolicy, PublicationError, ScanText, Text, page_key
+from .model import ItemKey, LeakPolicy, PublicationError, ScanText, Text, page_key, private_field
 
 IDENTITY_FILES = frozenset({"publication.json", "about.html", "assets/identity.js"})
 OS_METADATA = frozenset({".DS_Store", "desktop.ini", "Thumbs.db"})
@@ -247,7 +247,7 @@ def _matchers(policy):
                 groups["lines"].append((" ".join(value.split()), n))
             else:
                 groups[token.mode].append((value, n))
-                if token.value in covers:
+                if token.value in covers and token.source is not None and not private_field(token.field):
                     inside[n] = (value, tuple(normalized(c) for c in covers[token.value]))
         cached = (
             policy,
@@ -261,8 +261,8 @@ def _matchers(policy):
 
 
 def check_strings(values, policy, *, path, source=None, strong_only=False, own_names=frozenset()):
-    """`own_names`: figure names a run's own code may hold (LeakPolicy.code_names), never an
-    environment value."""
+    """`own_names`: figure names a run's own code may hold (LeakPolicy.code_names); only tokens
+    from a figure's `visualization_id` are skipped."""
     warnings = []
     lines, strong, weak, inside = _matchers(policy)
     for part in values:
@@ -275,7 +275,8 @@ def check_strings(values, policy, *, path, source=None, strong_only=False, own_n
         # Policy order and one finding per token, as one pass over every token gave them.
         for n in sorted(set(found)):
             token = policy.tokens[n]
-            if token.source is not None and token.value in own_names:
+            # Only a figure's name (2026-10-27), never another field that holds the same value.
+            if token.field == "visualization_id" and token.source.category == "visualization" and token.value in own_names:
                 continue
             if n in inside and _inside(text, *inside[n], word=token.mode == "weak"):
                 continue

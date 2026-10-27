@@ -224,7 +224,7 @@ def leak_policy(snapshot, request, profile, projection, *, environment=()):
     """Independent forbidden values: snapshot minus (claimed ledger intersected with closure)."""
     from dataclasses import fields, is_dataclass
 
-    from .model import BanToken, LeakPolicy, Text
+    from .model import BanToken, LeakPolicy, Text, private_field
 
     included = frozenset(projection.ledger.included) & scope_closure(snapshot, request, profile)
     labels = set(KIT_VOCABULARY) | set(PROJECT_KINDS) | set(EVIDENCE_FIELDS)
@@ -322,13 +322,7 @@ def leak_policy(snapshot, request, profile, projection, *, environment=()):
                         if len(" ".join(line.split())) >= 24:
                             add(line, "sentence", item.key, field)
             # Private environment fields are blocked even when their source item is included.
-            if field in (
-                "env.platform",
-                "env.executable",
-                "request_id",
-                "request_fingerprint",
-                "session",
-            ) or field.endswith(".session"):
+            if private_field(field):
                 add(value, "strong", item.key, field, exempt=False)
             if item.key in included and (
                 field.startswith(
@@ -372,9 +366,10 @@ def leak_policy(snapshot, request, profile, projection, *, environment=()):
         if names:
             for code in items[key].attachments:
                 if code.category == "code" and code in included:
+                    # Only bytes the copy holds: a code snapshot is copied when it is its recorded bytes.
                     for file in items[code].files:
-                        for digest in {file.recorded_sha256, file.current_sha256} - {None}:
-                            code_names.setdefault(digest, set()).update(names)
+                        if file.recorded_sha256 and file.current_sha256 == file.recorded_sha256 and not file.reason:
+                            code_names.setdefault(file.recorded_sha256, set()).update(names)
     # An outside ID inside an included one is that included ID: a script run twice in one second makes
     # runs X and X-2 (2026-10-27 owner decision). Standing alone, X is still a leak.
     identifiers = set()
@@ -385,7 +380,7 @@ def leak_policy(snapshot, request, profile, projection, *, environment=()):
                                if isinstance(value := items[key].values.get(field), str))
     covers = {}
     for token in tokens:
-        if token.mode in ("strong", "weak") and token.source is not None:
+        if token.mode in ("strong", "weak") and token.source is not None and not private_field(token.field):
             inside = tuple(sorted(i for i in identifiers if token.value in i and i != token.value))
             if inside:
                 covers[token.value] = inside

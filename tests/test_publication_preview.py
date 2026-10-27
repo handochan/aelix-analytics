@@ -1393,3 +1393,32 @@ def test_an_outside_run_id_standing_alone_still_stops(tmp_path, monkeypatch):
         build.preview_package(p, profile="read")
     assert caught.value.code == "leak_found"
     assert caught.value.details["source"]["field"] == "text"
+
+
+def test_no_exception_lets_a_private_field_through():
+    """A figure name or an included ID that equals a private value does not excuse that value."""
+    secret = "private-session-604d09"
+    figure = BanToken(secret, "strong", ItemKey("visualization", f"r/{secret}"), "visualization_id")
+    session = BanToken(secret, "strong", ItemKey("run", "r"), "session")
+    text = (ScanText(f'a.visualize(fig, "{secret}")', "raw"),)
+    checks.check_strings(text, LeakPolicy((figure,)), path="files/c.py", own_names=frozenset({secret}))
+    with pytest.raises(PublicationError):
+        checks.check_strings(text, LeakPolicy((figure, session)), path="files/c.py", own_names=frozenset({secret}))
+    inside = (ScanText(f"{secret}-2", "raw"),)
+    covered = LeakPolicy((session,), covers=((secret, (f"{secret}-2",)),))
+    with pytest.raises(PublicationError):
+        checks.check_strings(inside, covered, path="files/c.txt")
+
+
+def test_a_code_snapshot_left_out_of_the_copy_lends_its_names_to_no_other_file(tmp_path):
+    """charts.py's v1 snapshot changed after its run, so it is not copied; its new bytes equal
+    other.py's code, which names charts.py's dropped figure: other.py's copy still stops."""
+    p, first = _dropped_figure_project(tmp_path / "p")
+    body = f"# {DROPPED} moved to charts.py\n" + MAKE.format("other", "Other")
+    _run(p, "other.py", body, "other")
+    snapshot = p.root / "runs" / first["id"] / "code/scripts/charts.py"
+    snapshot.write_text(HEAD + body, encoding="utf-8")
+    with pytest.raises(PublicationError) as caught:
+        build.preview_package(p, profile="evidence")
+    assert caught.value.code == "leak_found"
+    assert caught.value.details["cause"] == "copied_file"

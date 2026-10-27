@@ -193,6 +193,14 @@ class Inspection:
     ids: tuple[str, ...] = ()
 
 
+PRIVATE_FIELDS = ("env.platform", "env.executable", "request_id", "request_fingerprint", "session")
+
+
+def private_field(field):
+    """Environment fields forbidden even when their item is included (11.4); no exception covers them."""
+    return isinstance(field, str) and (field in PRIVATE_FIELDS or field.endswith(".session"))
+
+
 @dataclass(frozen=True)
 class BanToken:
     value: str
