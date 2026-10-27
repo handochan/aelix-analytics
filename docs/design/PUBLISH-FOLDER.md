@@ -243,7 +243,8 @@ ADR-0009는 확정 연산과 잠금 대기 상한을 기존 `AtomicFiles`·`File
 
 - 전환 직전에 `latest.json`을 다시 읽는다. 시작할 때 본 값과 다르면 `superseded`로 끝낸다(바꾸지 않음). 이미 이 시도의 버전이면 `already`이고 channel 페이지만 맞춘다.
 - 일반 게시: `latest.json`이 없거나 이 build의 `build_seq`가 지금 최신 항목의 `build_seq`보다 클 때만 바꾼다. 비교는 같은 `project_id`끼리만 하고, 지금 최신의
-  항목에 `build_seq`가 없거나 `project_id`가 다르면 새 build로 보지 않는다(`not_newer`). `--reassign-channel`은 비교하지 않는다.
+  항목에 `build_seq`가 없거나 `project_id`가 다르면 새 build로 보지 않는다(`not_newer`). `--reassign-channel`로 다른 프로젝트의 channel을 넘겨받는 게시만
+  비교하지 않는다(ADR-0009 결정 5). 자기 channel에서는 그 옵션이 있어도 비교한다.
 - 교체 순서: `latest.json`(`replace`) → channel 페이지(`replace`). 임시 파일 이름은 `.<attempt_id>.latest.json.tmp`처럼 `attempt_id`를 담는다(정리 규칙).
 - 두 포인터가 다르면(앞 시도가 그 사이에 멈춤) 이 channel의 다음 게시가 `latest.json` 기준으로 channel 페이지를 다시 그린다. 그 전에 `latest.json`이 가리키는 버전을
   이 기기에서 대조한다(결박이 있으면 결박, 없으면 history의 `package_sha256`). 대조하지 못하면 다시 그리지 않고 receipt에 적는다. 동기화 폴더에서 아직 다 도착하지

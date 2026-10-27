@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -78,6 +79,11 @@ def build_folder(p, pid):
 def test_the_records_follow_the_schema_and_a_receipt_names_what_it_needs(project, tmp_path):
     publish.publish(project, built(project), tmp_path / "share", origin=ORIGIN)
     validator = Draft202012Validator(SCHEMA, format_checker=FormatChecker())
+    folder = tmp_path / "mine"
+    folder.mkdir()
+    publish.publish(project, built(project), tmp_path / "share", origin=ORIGIN, channel="other")
+    (build_folder(project, pid := built(project)) / "about.html").write_bytes(b"changed")
+    assert publish.publish(project, pid, tmp_path / "share", origin=ORIGIN)["outcome"] == "failed"
     for event in events(project):
         errors = sorted(validator.iter_errors(event), key=str)
         assert not errors, (event["kind"], errors[:1])
@@ -116,14 +122,17 @@ def test_build_order_is_the_binding_s_seq_not_its_clock(project, tmp_path, monke
     assert latest(share)["latest"] == second
 
 
+@pytest.mark.parametrize("first", [True, False], ids=["first", "later"])
 @pytest.mark.parametrize("step", ["init", "lock", "transfer", "check", "commit", "final_check", "switch",
                                   "channel_page"])
-def test_an_interrupted_publish_leaves_only_checked_versions_in_the_pointers(project, tmp_path, monkeypatch, step):
+def test_an_interrupted_publish_leaves_only_checked_versions_in_the_pointers(project, tmp_path, monkeypatch, step, first):
     """ADR-0009 check 3 for a first and a later publish: the receipt says what each pointer holds, and
     running it again ends in reuse and a switch."""
     share = tmp_path / "share"
-    earlier = built(project)
-    publish.publish(project, earlier, share, origin=ORIGIN)
+    earlier = None
+    if not first:
+        earlier = built(project)
+        publish.publish(project, earlier, share, origin=ORIGIN)
     pid = built(project)
 
     def stop(at):
@@ -134,14 +143,18 @@ def test_an_interrupted_publish_leaves_only_checked_versions_in_the_pointers(pro
     result = publish.publish(project, pid, share, origin=ORIGIN)
     monkeypatch.undo()
     assert result["outcome"] == "interrupted" and result["failure"]["step"] == step
-    pointed = latest(share)["latest"]
-    assert pointed in (earlier, pid)
-    if pointed == pid:  # only once the version was checked where it lies
+    path = share / "projects/weekly-sales/latest.json"
+    pointed = latest(share)["latest"] if path.exists() else None
+    page = page_points_to(share) if path.parent.joinpath("index.html").exists() else None
+    assert pointed in (earlier, pid) and page in (earlier, pid)
+    if pid in (pointed, page):  # only once the version was checked where it lies
         assert result["steps"]["final_check"] == "done"
     receipt = events(project, "publish_receipt")[-1]["details"]
     if receipt["steps"]["switch"] != "not_started":
-        assert receipt["pointers"]["latest_json"] == ("new" if pointed == pid else "old")
-    assert os.listdir(share / ".staging") == []
+        held = {pid: "new", earlier: "old", None: "missing"}
+        assert receipt["pointers"] == {"latest_json": held[pointed], "channel_page": held[page]}
+    if (share / ".staging").exists():
+        assert os.listdir(share / ".staging") == []
     again = publish.publish(project, pid, share, origin=ORIGIN)
     assert again["outcome"] == "published" and latest(share)["latest"] == pid
     assert again["steps"]["transfer"] in ("done", "reused")
@@ -359,9 +372,16 @@ def test_a_receipt_that_cannot_be_written_is_said_with_the_target_s_result(proje
 
 
 def test_a_build_after_a_publish_never_names_the_target_s_folder(project, tmp_path):
-    """PUBLISH-FOLDER 6.4: the receipt's paths are private values of every later copy."""
+    """PUBLISH-FOLDER 6.4: the receipt's paths are private values of every later copy. The folder
+    here lies under the temporary folder, itself a private value, so the snapshot's values are
+    asked directly too: without 6.4 they would not hold the target."""
+    from aelix_analytics.publishing.snapshot import capture_snapshot
+
     share = tmp_path / "team share"
-    publish.publish(project, built(project), share, origin=ORIGIN)
+    result = publish.publish(project, built(project), share, origin=ORIGIN)
+    values = capture_snapshot(project).private_values
+    assert os.fspath(share.resolve()) in values and os.fspath(share) in values
+    assert result["addresses"]["version"] in values
     core.record(project, "finding", f"copied from {share.resolve()} by hand", origin=ORIGIN)
     with pytest.raises(PublicationError) as caught:
         build.build_publication(project, origin=ORIGIN)
@@ -391,3 +411,244 @@ def test_the_command_publishes_and_lists(project, tmp_path, capsys, monkeypatch)
     listed = json.loads(capsys.readouterr().out)["attempts"]
     assert listed[0]["receipt"]["outcome"] == "published" and listed[0]["recording_status"] == "complete"
     assert cli.main(["publish", "--build", pid]) != 0
+
+
+def interrupt_at(monkeypatch, step):
+    def stop(at):
+        if at == step:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(publish, "_reached", stop)
+
+
+def page_points_to(share, channel="weekly-sales"):
+    return publish._page_points_to(share / "projects" / channel / "index.html")[0]
+
+
+def test_a_latest_json_replaced_by_another_publish_is_not_drawn_on_the_page(project, tmp_path, monkeypatch):
+    """Without a lock, another publish may replace latest.json right after this one: its version was
+    not checked here, so the page is not drawn from it and the attempt is superseded (design 8)."""
+    share = tmp_path / "share"
+    a = built(project)
+    publish.publish(project, a, share, origin=ORIGIN)
+    b, c = built(project), built(project)
+    written = publish._write_json
+
+    def raced(path, value, files, attempt_id):
+        written(path, value, files, attempt_id)
+        if path.name == "latest.json":
+            written(path, {**value, "latest": c}, files, attempt_id)
+
+    monkeypatch.setattr(publish, "_write_json", raced)
+    result = publish.publish(project, b, share, origin=ORIGIN)
+    assert result["ok"] and result["outcome"] == "superseded" and result["steps"]["switch"] == "superseded"
+    assert result["pointers"]["latest_json"] == "other" and page_points_to(share) == a
+
+
+def test_a_link_inside_the_build_folder_is_refused_at_any_level(project, tmp_path):
+    """Design 4, transfer (3): a folder of the build replaced by a link to the same bytes elsewhere
+    is not followed, even though every byte would match the binding."""
+    share = tmp_path / "share"
+    pid = built(project)
+    folder = build_folder(project, pid)
+    elsewhere = tmp_path / "elsewhere"
+    shutil.copytree(folder / "pages", elsewhere)
+    shutil.rmtree(folder / "pages")
+    try:
+        os.symlink(elsewhere, folder / "pages", target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"this account cannot make a link: {exc}")
+    result = publish.publish(project, pid, share, origin=ORIGIN)
+    assert result["outcome"] == "failed" and result["failure"]["code"] == "build_changed"
+    assert result["steps"]["transfer"] == "failed" and not (share / "publications" / pid).exists()
+
+
+def test_a_channel_page_that_cannot_be_redrawn_is_a_recorded_failure(project, tmp_path, monkeypatch):
+    """latest.json already names this version; the page write fails: the receipt says so (6.2)."""
+    share = tmp_path / "share"
+    a = built(project)
+    publish.publish(project, a, share, origin=ORIGIN)
+    b = built(project)
+    interrupt_at(monkeypatch, "channel_page")
+    publish.publish(project, b, share, origin=ORIGIN)
+    monkeypatch.undo()
+    assert latest(share)["latest"] == b and page_points_to(share) == a
+
+    def refused(*args):
+        raise PermissionError("read-only page")
+
+    monkeypatch.setattr(publish, "_write_page", refused)
+    result = publish.publish(project, b, share, origin=ORIGIN)
+    assert "receipt" in result and result["outcome"] == "failed"
+    assert result["failure"]["code"] == "switch_failed" and result["steps"]["switch"] == "failed"
+    # The page still holds what it held when this attempt began.
+    assert result["pointers"] == {"latest_json": "new", "channel_page": "old"}
+    monkeypatch.undo()
+    again = publish.publish(project, b, share, origin=ORIGIN)
+    assert again["outcome"] == "published" and again["steps"]["switch"] == "already" and page_points_to(share) == b
+
+
+def test_a_receipt_of_an_unknown_version_is_not_a_result(project, tmp_path, monkeypatch):
+    share = tmp_path / "share"
+    pid = built(project)
+    interrupt_at(monkeypatch, "receipt")
+    with pytest.raises(KeyboardInterrupt):
+        publish.publish(project, pid, share, origin=ORIGIN)
+    monkeypatch.undo()
+    start = events(project, "publish_attempt")[-1]
+    later = {**start, "schema": "analytics.event/99", "kind": "publish_receipt", "seq": start["seq"] + 1,
+             "id": f"e{start['seq'] + 1}", "details": {**start["details"], "outcome": "published"}}
+    with project.journal.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(later) + "\n")
+    rows = publish.attempts(project)["attempts"]
+    assert [(r["recording_status"], r["receipt"]) for r in rows] == [("incomplete", None)]
+
+
+def test_the_receipt_keeps_its_references_and_fits_a_journal_line(project, tmp_path, monkeypatch):
+    """6.2: the receipt's refs are the start record's even when it ends before any check; every
+    list shrinks to fit, its full count kept."""
+    share = tmp_path / "share"
+    interrupt_at(monkeypatch, "transfer")
+    publish.publish(project, built(project), share, origin=ORIGIN)
+    monkeypatch.undo()
+    start, receipt = events(project, "publish_attempt")[-1], events(project, "publish_receipt")[-1]
+    assert receipt["details"]["package_sha256"] is None and receipt["refs"] == start["refs"]
+    assert start["refs"][0]["digest"]["sha256"]
+    long = os.fspath(share) + "/" + "가" * 300
+    monkeypatch.setattr(publish, "_access", lambda root, version: {
+        "reread": "done", "posix": {"others_can_read": False, "blocked": [f"{long}/{n}" for n in range(200)],
+                                    "blocked_count": 200}, "windows_acl": "not_checked"})
+    result = publish.publish(project, built(project), share, origin=ORIGIN)
+    assert result["ok"] and "receipt" in result
+    blocked = events(project, "publish_receipt")[-1]["details"]["access"]["posix"]
+    assert blocked["blocked_count"] == 200 and len(blocked["blocked"]) < 200 and blocked["truncated"]
+
+
+def test_pointers_that_differ_are_made_to_agree_by_the_next_publish_after_a_check(project, tmp_path, monkeypatch):
+    """Design 8: B stopped between its pointers; publishing A again is not_newer, and draws the
+    page from latest.json only once B is checked where it lies."""
+    share = tmp_path / "share"
+    a = built(project)
+    publish.publish(project, a, share, origin=ORIGIN)
+    b = built(project)
+    interrupt_at(monkeypatch, "channel_page")
+    publish.publish(project, b, share, origin=ORIGIN)
+    monkeypatch.undo()
+    (share / "publications" / b / "about.html").write_bytes(b"<p>not yet arrived</p>")
+    unchecked = publish.publish(project, a, share, origin=ORIGIN)
+    assert unchecked["outcome"] == "not_newer" and page_points_to(share) == a
+    repair = events(project, "publish_receipt")[-1]["details"]["observations"]["channel_page_repair"]
+    assert repair == {"publication_id": b, "state": "not_verified", "basis": "project_record"}
+    shutil.copyfile(build_folder(project, b) / "about.html", share / "publications" / b / "about.html")
+    repaired = publish.publish(project, a, share, origin=ORIGIN)
+    assert repaired["outcome"] == "not_newer" and page_points_to(share) == b
+    assert repaired["pointers"] == {"latest_json": "old", "channel_page": "other"}  # drawn from B, not this attempt
+    assert events(project, "publish_receipt")[-1]["details"]["observations"]["channel_page_repair"]["state"] == "done"
+
+
+def test_failures_after_the_lock_name_their_step_reason_and_path(project, tmp_path):
+    share = tmp_path / "share"
+    publish.publish(project, built(project), share, origin=ORIGIN)
+    pid = built(project)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    try:
+        os.symlink(elsewhere, share / "publications" / pid, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"this account cannot make a link: {exc}")
+    result = publish.publish(project, pid, share, origin=ORIGIN)
+    assert result["failure"]["step"] == "transfer" and result["failure"]["reason"] == "managed_link"
+    assert result["failure"]["paths"] == [os.fspath(share / "publications" / pid)]
+    os.unlink(share / "publications" / pid)
+    (share / "projects/odd").mkdir()
+    (share / "projects/odd/latest.json").write_bytes(b'{"schema": "analytics.publish_channel/9"}')
+    odd = publish.publish(project, pid, share, origin=ORIGIN)
+    assert odd["outcome"] == "failed" and odd["failure"]["step"] == "channel"
+
+
+def test_a_file_under_a_version_s_name_is_not_a_version(project, tmp_path):
+    """Its own deterministic ZIP under the version's name would verify; it is still not a folder."""
+    share = tmp_path / "share"
+    publish.publish(project, built(project), share, origin=ORIGIN)
+    from aelix_analytics.publishing.package import write_zip
+
+    pid = built(project)
+    event, folder, _journal = publish.binding(project, pid)
+    write_zip(folder, tmp_path / "copy.zip", project_root=project.root, binding=event["details"])
+    from aelix_analytics.publishing import checks
+    assert checks.verify_package(tmp_path / "copy.zip", binding=event["details"])  # it would verify
+    (share / "publications" / pid).write_bytes((tmp_path / "copy.zip").read_bytes())
+    result = publish.publish(project, pid, share, origin=ORIGIN)
+    assert result["outcome"] == "failed" and result["failure"]["code"] == "version_differs"
+    assert latest(share)["latest"] != pid
+
+
+def test_after_the_switch_an_interruption_does_not_change_the_outcome(project, tmp_path, monkeypatch):
+    share = tmp_path / "share"
+    pid = built(project)
+
+    def stop(root, version):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(publish, "_access", stop)
+    result = publish.publish(project, pid, share, origin=ORIGIN)
+    assert result["ok"] and result["outcome"] == "published" and "receipt" in result
+    details = events(project, "publish_receipt")[-1]["details"]
+    assert details["observations"]["after_switch"]["step"] == "cleanup"
+    assert details["access"]["reread"] == "not_checked" and details["addresses"]
+
+
+def test_reassign_on_the_project_s_own_channel_still_compares_build_order(project, tmp_path):
+    """ADR-0009 decision 5: only a publish that takes another project's channel over skips it."""
+    share = tmp_path / "share"
+    a, b = built(project), built(project)
+    publish.publish(project, b, share, origin=ORIGIN)
+    older = publish.publish(project, a, share, origin=ORIGIN, reassign=True)
+    assert older["outcome"] == "not_newer" and latest(share)["latest"] == b
+    assert "older build" not in (share / "projects/weekly-sales/index.html").read_text(encoding="utf-8")
+
+
+def test_a_bad_channel_name_is_refused_before_anything_is_written(project, tmp_path):
+    pid = built(project)
+    journal = project.journal.read_bytes()
+    with pytest.raises(PublicationError):
+        publish.publish(project, pid, tmp_path / "share", origin=ORIGIN, channel="../up")
+    assert project.journal.read_bytes() == journal and not (tmp_path / "share").exists()
+
+
+def test_a_live_attempt_on_this_machine_keeps_its_staging_and_temporary_files_go_with_their_owner(project, tmp_path):
+    share = tmp_path / "share"
+    publish.publish(project, built(project), share, origin=ORIGIN)
+    staging, channel = share / ".staging", share / "projects/weekly-sales"
+    me = target.digest(project.platform.processes.machine_identity())
+    if me is None:
+        pytest.skip("this machine has no identity to compare")
+    aid, gone = target.new_attempt_id(), target.new_attempt_id()
+    (staging / aid).mkdir()
+    (staging / f"{aid}.json").write_bytes(target.canonical({
+        "schema": "analytics.publish_staging/1", "attempt_id": aid, "project_id": "prj_x",
+        "publication_id": "pub-" + "0" * 26, "machine": me, "host": target.digest(publish.socket.gethostname()),
+        "user": publish._user(), "pid": os.getpid(), "started_at": core.iso(), "updated_at": core.iso()}))
+    (channel / f".{aid}.latest.json.tmp").write_bytes(b"{}")
+    (channel / f".{gone}.index.html.tmp").write_bytes(b"x")
+    old = 1_000_000_000
+    os.utime(channel / f".{gone}.index.html.tmp", (old, old))
+    publish.publish(project, built(project), share, origin=ORIGIN)
+    assert (staging / aid).exists() and (channel / f".{aid}.latest.json.tmp").exists()
+    assert not (channel / f".{gone}.index.html.tmp").exists()
+    assert [k for k in events(project, "publish_receipt")[-1]["details"]["observations"]["kept"]
+            if "not a publisher name" in k.get("reason", "")] == []
+
+
+def test_the_launcher_runs_publish_and_its_list(project, tmp_path):
+    if os.name == "nt":
+        pytest.skip("bin/analytics is the POSIX launcher; Windows runs analytics.cmd")
+    pid = built(project)
+    env = {**os.environ, "PYTHONPATH": str(ROOT / "src"), "AELIX_ANALYTICS_PROJECT": str(project.root)}
+    done = subprocess.run([str(ROOT / "bin/analytics"), "publish", "--build", pid, "--to", str(tmp_path / "share")],
+                          env=env, capture_output=True, timeout=300, cwd=project.root)
+    assert done.returncode == 0, done.stderr
+    assert json.loads(done.stdout)["outcome"] == "published"
+    listed = subprocess.run([str(ROOT / "bin/analytics"), "publish", "--list"], env=env, capture_output=True,
+                            timeout=300, cwd=project.root)
+    assert listed.returncode == 0 and json.loads(listed.stdout)["attempts"][0]["recording_status"] == "complete"

@@ -613,7 +613,11 @@ def _publish_command(args):
         raise core.AnalyticsError("publish_input_invalid", "--build needs --to FOLDER")
     core.admit(project, "publish")
     try:
-        result = publish.publish(project, args.build, args.to, origin=_origin(), channel=args.channel,
+        folder = Path(args.to).expanduser()
+    except RuntimeError as exc:  # "~typo/dir"
+        raise core.AnalyticsError("publish_input_invalid", f"--to cannot be read: {exc}") from exc
+    try:
+        result = publish.publish(project, args.build, folder, origin=_origin(), channel=args.channel,
                                  reassign=args.reassign_channel)
     except PublicationError as exc:
         raise core.AnalyticsError(exc.code, exc.message, details=exc.details) from exc

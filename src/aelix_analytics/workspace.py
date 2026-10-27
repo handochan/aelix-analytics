@@ -528,8 +528,7 @@ class Site:
         """A publish attempt with no receipt is not a success (#21, ADR-0006 6: no_completion_event)."""
         details = event.get("details")
         attempt = details.get("attempt_id") if isinstance(details, dict) else None
-        rows = self.model.journal._publish_attempts.get(attempt) if isinstance(attempt, str) else None
-        if rows and rows["publish_receipt"]:
+        if relations.publish_rows(self.model.journal, attempt, "publish_receipt"):
             return ""
         return f'<p class="note">{esc(t("publish.result_not_recorded"))}</p>'
 

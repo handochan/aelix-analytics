@@ -667,7 +667,7 @@ class Journal:
                 pid = details.get("publication_id") if isinstance(details, dict) else None
                 if isinstance(pid, str):
                     self._publications.setdefault(pid, []).append((number, value))
-            if isinstance(value, dict) and value.get("kind") in PUBLISH_KINDS:
+            if isinstance(value, dict) and isinstance(value.get("kind"), str) and value["kind"] in PUBLISH_KINDS:
                 details = value.get("details")
                 attempt = details.get("attempt_id") if isinstance(details, dict) else None
                 if isinstance(attempt, str):
@@ -1305,12 +1305,23 @@ def publish_details_problem(kind, details) -> str | None:
     return None
 
 
+def publish_rows(journal, attempt_id, kind) -> list[tuple[int, dict]]:
+    """An attempt's start records or receipts this kit understands: a supported /2 line whose
+    details hold their fields. A line of an unknown family or version is never a result (ADR-0006 6)."""
+    rows = journal._publish_attempts.get(attempt_id) if isinstance(attempt_id, str) else None
+    return [(line, value) for line, value in (rows or {}).get(kind, ())
+            if line not in journal._unsupported_lines and value.get("schema") == EVENT_V2
+            and publish_details_problem(kind, value.get("details")) is None]
+
+
 def publish_attempts(journal) -> list[dict]:
     """Every publish attempt this journal names, oldest first: its start record and receipt, and
     whether its result was recorded (ADR-0006 6: incomplete, no_completion_event)."""
     out = []
-    for attempt, rows in journal._publish_attempts.items():
-        starts, receipts = rows["publish_attempt"], rows["publish_receipt"]
+    for attempt in journal._publish_attempts:
+        starts, receipts = publish_rows(journal, attempt, "publish_attempt"), publish_rows(journal, attempt, "publish_receipt")
+        if not starts and not receipts:
+            continue
         start = starts[0][1] if len(starts) == 1 else None
         receipt = receipts[-1][1] if receipts else None
         details = (start or receipt or {}).get("details") or {}
@@ -1319,8 +1330,8 @@ def publish_attempts(journal) -> list[dict]:
             "publication_id": details.get("publication_id"),
             "action": details.get("action"),
             "target": details.get("target"),
-            "start": {"id": start["id"], "seq": start.get("seq")} if start else None,
-            "receipt": {"id": receipt["id"], "seq": receipt.get("seq"),
+            "start": {"id": start.get("id"), "seq": start.get("seq")} if start else None,
+            "receipt": {"id": receipt.get("id"), "seq": receipt.get("seq"),
                         "outcome": (receipt.get("details") or {}).get("outcome")} if receipt else None,
             "recording_status": "complete" if receipt else "incomplete",
             "reason": None if receipt else "no_completion_event",

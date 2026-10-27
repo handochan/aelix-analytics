@@ -423,7 +423,7 @@ kit CLI, SDK, 확장, init·데모, run·가져오기·맥락 동기화가 남�
 | `schema` | `analytics.event/2` |
 | `seq`, `id` | 1부터 증가하는 번호와 `e<seq>`. 프로젝트 파일 잠금(`.analytics/lock`) 안에서 그때의 journal을 읽어 배정합니다: 파싱하거나 복구한 모든 줄(모르는 가족·버전·kind의 줄과 `lab.event/1` 줄 포함)의 가장 큰 seq 다음 값입니다(ADR-0006 6절). 끊긴 줄에 글자로 남은 seq는 세지 않습니다. 그 쓰기는 끝나지 않아 id를 돌려준 적이 없고, reader는 그 줄에서 id를 읽지 않습니다. 그래서 다음 기록이 그 번호를 받을 수 있지만 같은 id의 두 기록으로 읽히지는 않습니다. 읽히는 줄이 그 번호의 id를 이미 가지고 있으면(손으로 고친 줄: seq가 정수가 아니거나(`"3"`, `3.0`, `true`) id의 번호와 다름) 그 번호를 건너뛰고 다음 번호를 받습니다. kit 0.5.0의 #49 수정 전에는 읽히는 마지막 줄의 seq 다음 값이었습니다 |
 | `recorded_at` | 로컬 시간대 ISO 8601(밀리초). `lab.event/1`의 `ts` |
-| `kind` | kit 자신의 기록 `project` `import` `run` `context`와 사람·에이전트의 기록 `finding` `decision` `assumption` `question` `todo` `note` `workflow_feedback` `resolve`(`writer.RECORD_KINDS`). 기록하는 진입점에 준 `gap`은 쓰지 않고 `bad_kind`(`details.use: workflow_feedback`)입니다. kit 0.9.0은 `metric_definition`·`analysis_focus`·`metric_observation`도 구조화 details로 씁니다(C6). kit 0.10.0은 `asset_candidate`·`asset_check`·`asset_effect`를 받고 자산 응용 기능이 requested `asset_notification`·승격 `record_update`를 씁니다(C7). kit 0.12.0은 사람의 프로젝트 `asset_mode`·automatic `asset_notification`과 새 거절/보류 requirements snapshot을 응용 기능에서 씁니다(C8). kit 0.13.0은 사람의 session asset_mode와 Aelix context/status automatic asset_notification을 응용 기능에서 씁니다(C9). 게시 등 그 밖의 종류는 읽기만 합니다 kit 0.30.0은 게시 시도의 `publish_attempt`·`publish_receipt`를 `analytics publish`만 씁니다(D6). |
+| `kind` | kit 자신의 기록 `project` `import` `run` `context`와 사람·에이전트의 기록 `finding` `decision` `assumption` `question` `todo` `note` `workflow_feedback` `resolve`(`writer.RECORD_KINDS`). 기록하는 진입점에 준 `gap`은 쓰지 않고 `bad_kind`(`details.use: workflow_feedback`)입니다. kit 0.9.0은 `metric_definition`·`analysis_focus`·`metric_observation`도 구조화 details로 씁니다(C6). kit 0.10.0은 `asset_candidate`·`asset_check`·`asset_effect`를 받고 자산 응용 기능이 requested `asset_notification`·승격 `record_update`를 씁니다(C7). kit 0.12.0은 사람의 프로젝트 `asset_mode`·automatic `asset_notification`과 새 거절/보류 requirements snapshot을 응용 기능에서 씁니다(C8). kit 0.13.0은 사람의 session asset_mode와 Aelix context/status automatic asset_notification을 응용 기능에서 씁니다(C9). 게시 등 그 밖의 종류는 읽기만 합니다. 다만 kit 0.30.0은 게시 시도의 `publish_attempt`·`publish_receipt`를 `analytics publish`만 씁니다(D6). |
 | `actor`, `actor_basis`, `means` | 작성 출처(`Origin`): 작성 주체(`agent` `human` `system` 등), 진입점이 그것을 알거나 선언받았는지(`declared`) 선언이 없어 `human`으로 본 것인지(`inferred`), 실행 수단(`cli` `sdk` `tool` `command` `hook`). 진입점마다의 값은 아래 "작성 출처"와 A |
 | `session` | aelix 세션 파일 경로(있을 때) |
 | `request_id` | 부른 쪽이 요청 id를 넘긴 쓰기에만 있습니다. 공개 진입점은 그 입력을 열지 않았으므로(#19) 지금은 쓰기의 응답에만 있습니다(D) |
@@ -2277,18 +2277,26 @@ D2의 미리보기와 D3의 build가 같은 경로를 씁니다.
 - **버전**: `rename_dir_new`로 확정하고 옮긴 위치에서 다시 대조합니다. 같은 ID의 버전이 이미 있으면 대조해 맞으면 재사용(`steps.transfer: reused`),
   다르면 `version_differs`로 그대로 둡니다. 버전을 고치거나 지우지 않습니다.
 - **전환**: `latest.json`이 없거나 이 build의 결박 seq가 지금 최신보다 클 때만 바꿉니다(`not_newer`). 시작할 때 본 최신과 다르면 `superseded`입니다.
-  `latest.json` → channel 페이지 순서로 교체하고 각 포인터의 상태(`old`·`new`·`other`·`missing`·`unknown`)를 receipt에 적습니다. 지금의 channel 페이지는
-  최신·이전 버전 링크와 버전 목록, 접근 범위 문구만 있는 정적 페이지입니다.
+  `latest.json` → channel 페이지 순서로 교체하고 각 포인터의 상태(`old`·`new`·`other`·`missing`·`unknown`)를 receipt에 적습니다. 교체 뒤 다시 읽은
+  `latest.json`이 다른 게시의 버전이면 그 버전을 페이지에 그리지 않고 `superseded`입니다. 두 포인터가 다르면(앞 시도가 그 사이에 멈춤) `not_newer`로 끝나는
+  다음 게시가 `latest.json`이 가리키는 버전을 이 프로젝트의 결박(없으면 history의 `package_sha256`)으로 대조한 뒤에만 페이지를 다시 그리고 그 결과를
+  `observations.channel_page_repair`에 적습니다. 지금의 channel 페이지는 최신·이전 버전 링크와 버전 목록, 접근 범위 문구만 있는 정적 페이지입니다.
+- **build 읽기**: build 폴더 아래 어느 단계의 링크도 따라가지 않습니다(POSIX는 디렉터리 기준 열기, Windows는 단계마다 확인). receipt의 `refs`는 시작 기록과
+  같습니다. 줄 상한을 넘으면 목록(`failure.paths`·`observations`의 목록·`access.posix.blocked`·`reports`)을 20 → 5 → 0개로 줄이고 처음 개수를 남깁니다.
 - **channel**: 지정하지 않으면 이 프로젝트의 channel, 없으면 제목의 slug(없으면 `project-<project_id 앞 8자>`)입니다. 다른 프로젝트의 channel은
   `--reassign-channel`로만 넘겨받고 receipt에 이전 소유자를 적습니다. publisher가 쓰지 않은 파일이 있는 channel은 넘겨받지 않습니다(`channel_owned`).
 - **기록**: 시작 기록 `publish_attempt`와 `publish_receipt`(필드는 설계 §6, schema의 `publish_attempt_details`·`publish_receipt_details`). 첫 기록 전에 표식의
   `min_writer_version`을 0.30.0으로 올리므로 0.29.0 이하 kit은 그 프로젝트에 쓰지 못합니다. 두 kind는 게시 계열이라 공유 사본에 들어가지 않고
-  `content_seq`를 늘리지 않으며, 그 `details`의 절대 경로와 `file://` URL은 뒤의 build가 금지 값으로 씁니다. 결과는 `published`·`not_newer`·`superseded`·
-  `failed`·`interrupted`·`unknown`이고, 단계 가운데 하나라도 `unknown`이면 `unknown`입니다.
+  `content_seq`를 늘리지 않으며(필드를 갖춘 줄만. 필드가 빠진 줄은 정상 이벤트가 아니어서 셉니다), 그 `details`의 절대 경로와 `file://` URL은 뒤의 build가
+  금지 값으로 씁니다. 결과는 `published`·`not_newer`·`superseded`·
+  `failed`·`interrupted`·`unknown`이고, 단계 가운데 하나라도 `unknown`이면 `unknown`입니다. 이 kit이 이해하는 `analytics.event/2` 줄만 결과로 읽습니다.
 - **결과가 기록되지 않은 시도**: 시작 기록만 있는 시도는 성공으로 읽지 않습니다(`--list`의 `recording_status: incomplete`, Workspace Timeline의 "Publish
   result not recorded"). 같은 대상의 다음 게시가 그 흔적(소유 기록·staging·버전·포인터)을 한 번 receipt에 적고, 이전 기록은 고치지 않습니다. receipt를
   쓰지 못하면 대상의 주소와 `receipt_not_recorded`를 함께 내고 실패로 끝납니다.
-- **정리**: 자기 소유 기록과 staging은 끝날 때 지웁니다. 다른 시도의 것은 기기·호스트·사용자(해시)가 모두 같고 그 프로세스가 끝났거나, 24시간 넘게
-  갱신이 없을 때만 지웁니다.
+- **정리**: 자기 소유 기록과 staging, 이름에 자기 `attempt_id`가 든 임시 파일은 끝날 때 지웁니다. 다른 시도의 것(channel 폴더의 임시 파일 포함)은
+  기기·호스트·사용자(해시)가 모두 같고 그 프로세스가 끝났거나, 24시간 넘게 갱신이 없을 때만 지웁니다. 전환이 끝난 뒤(접근 관찰·정리)의 중단·오류는
+  결과를 바꾸지 않고 `observations.after_switch`에 적습니다.
+- **channel 순서**: `--reassign-channel`로 다른 프로젝트의 channel을 넘겨받을 때만 build 순서를 비교하지 않습니다. 자기 channel에서는 그 옵션이 있어도
+  더 오래된 build는 `not_newer`입니다. 잘못된 `--channel` 이름은 시작 기록 전에 거절합니다.
 - **한계**: 동시 게시의 순서, 네트워크 잠금, 동기화 폴더의 전파는 보장하지 않습니다(G). 링크·플래그 있는 rename이 둘 다 없는 볼륨(exFAT 등)에는 새 대상을
   만들지 못합니다. 실제 다른 독자의 열람은 #24입니다.

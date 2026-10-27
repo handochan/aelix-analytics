@@ -64,7 +64,9 @@ def _normal_delivery(event, journal, validate_reference):
         or not PUBLICATION_ID.fullmatch(d["publication_id"])
     ):
         return False
-    # Receipt's stronger contract belongs to #21. Only its currently known normal shape is ignored.
+    # #21: a publish attempt's start record and receipt are normal only with their fields (6.1, 6.2).
+    if event.kind in relations.PUBLISH_KINDS and relations.publish_details_problem(event.kind, d) is not None:
+        return False
 
     return True
 

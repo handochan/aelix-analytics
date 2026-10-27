@@ -503,7 +503,8 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
   HTML/SVG·PDF/Office처럼 검사할 수 없는 파일이 든 버전은 build가 멈춥니다(`report_not_shareable`). 새 Report 버전을 저장해 고르세요.
   공유 전에 결과의 `index.html`을 직접 확인하세요.
   `analytics publish --build ID --to FOLDER`는 결박된 build를 지정한 폴더(로컬·마운트한 공유·동기화 폴더)에 전달합니다. 옮긴 곳에서 결박과 다시 대조한 버전만
-  최신 주소(`projects/<channel>/index.html`)가 되고, 실패하면 이전 최신이 그대로입니다. 그 폴더를 열 수 있는 사람은 그 안의 모든 버전을 읽을 수 있습니다
+  최신 주소(`projects/<channel>/index.html`)가 됩니다. 전환 전에 멈추면 이전 최신이 그대로이고, 전환 중에 멈추면 receipt가 두 포인터(`latest.json`·channel 페이지)가
+  무엇을 가리키는지 적습니다. 다시 실행하면 재사용과 전환으로 끝납니다. 그 폴더를 열 수 있는 사람은 그 안의 모든 버전을 읽을 수 있습니다
   ("팀 전용"이 아님). 시도마다 시작 기록과 receipt가 남고 `--list`로 봅니다. 도착 확인 뒤 옮기는 channel 페이지와 `--switch-to`, 저장한 대상은 아직입니다.
   받은 사본은 세 OS CI에서 원본 없는 경로·HTTP 하위 경로·ZIP 풀기로, Linux CI에서 Chromium으로 엽니다([D5](docs/CONTRACTS.md#d5-독자-환경과-브라우저-kit-0280-20-pr5)).
   다른 독자·OS 보관 도구·Safari·모바일의 수용은 별도 검증이며, 검사는 분석 결론이나 비밀 탐지 인증이 아닙니다.

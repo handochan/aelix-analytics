@@ -14,6 +14,7 @@ import hashlib
 import html
 import json
 import os
+import re
 import shutil
 import socket
 import stat
@@ -75,20 +76,71 @@ def _user() -> str | None:
 def _write_json(path: Path, value, files, attempt_id: str) -> None:
     """A target JSON file by a temporary name holding the attempt and a replace (PUBLISH-FOLDER 8)."""
     temporary = path.with_name(f".{attempt_id}.{path.name}.tmp")
-    with open(temporary, "wb") as fh:
-        fh.write(target.canonical(value))
-    files.replace(temporary, path)
+    try:
+        with open(temporary, "wb") as fh:
+            fh.write(target.canonical(value))
+        files.replace(temporary, path)
+    except OSError:
+        with contextlib.suppress(OSError):
+            os.unlink(temporary)
+        raise
 
 
-def _read_regular(path: Path) -> bytes:
-    """A build file's bytes, never through a link (design 4, transfer (3))."""
-    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
-    st = os.lstat(path)
-    if _platform.is_link(st) or not stat.S_ISREG(st.st_mode):
-        raise PublicationError("build_changed", "a build file is a link or not a file", details={"path": os.fspath(path)})
-    fd = os.open(path, flags)
-    with os.fdopen(fd, "rb") as fh:
+TEMPORARY = re.compile(r"\.(att-[0-9a-hjkmnp-tv-z]{26})\..+\.tmp")
+
+
+def _read_regular(build_folder: Path, name: str) -> bytes:
+    with _open_regular(build_folder, name) as fh:
         return fh.read()
+
+
+def _open_regular(build_folder: Path, name: str):
+    """A build file opened for reading, never through a link at any level under the build folder (design 4,
+    transfer (3)). Where the platform opens relative to a directory, each folder is opened from the
+    one before without following a link; elsewhere (Windows) each level is looked at first."""
+    def refused():
+        return PublicationError("build_changed", "a build file is a link or not a file",
+                                details={"path": os.fspath(build_folder / name)})
+
+    parts = name.split("/")
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    st = os.lstat(build_folder)
+    if _platform.is_link(st) or not stat.S_ISDIR(st.st_mode):
+        raise refused()
+    leaf_flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | nofollow | getattr(os, "O_NONBLOCK", 0)
+    if nofollow and hasattr(os, "O_DIRECTORY") and os.open in os.supports_dir_fd:
+        folder_flags = os.O_RDONLY | os.O_DIRECTORY | nofollow
+        fd = os.open(build_folder, folder_flags)
+        try:
+            for index, part in enumerate(parts):
+                try:
+                    opened = os.open(part, folder_flags if index < len(parts) - 1 else leaf_flags, dir_fd=fd)
+                except OSError as exc:
+                    if exc.errno in (errno.ELOOP, errno.ENOTDIR, getattr(errno, "EMLINK", errno.ELOOP)):
+                        raise refused() from exc
+                    raise
+                os.close(fd)
+                fd = opened
+            leaf, fd = fd, None
+        finally:
+            if fd is not None:
+                os.close(fd)
+    else:
+        at = build_folder
+        for part in parts[:-1]:
+            at = at / part
+            st = os.lstat(at)
+            if _platform.is_link(st) or not stat.S_ISDIR(st.st_mode):
+                raise refused()
+        st = os.lstat(at / parts[-1])
+        if _platform.is_link(st) or not stat.S_ISREG(st.st_mode):
+            raise refused()
+        leaf = os.open(at / parts[-1], leaf_flags)
+    fh = os.fdopen(leaf, "rb")
+    if not stat.S_ISREG(os.fstat(fh.fileno()).st_mode):
+        fh.close()
+        raise refused()
+    return fh
 
 
 # --- the binding (design 4) ----------------------------------------------------------------------------
@@ -125,7 +177,9 @@ def _verify(folder: Path, publication_id, details):
 
 def channel_page(latest: dict) -> bytes:
     history = sorted(latest["history"], key=lambda h: h.get("latest_since") or "", reverse=True)
-    newest_build = max((h for h in latest["history"] if isinstance(h.get("build_seq"), int)),
+    pointed = next((h for h in latest["history"] if h.get("publication_id") == latest["latest"]), {})
+    newest_build = max((h for h in latest["history"] if isinstance(h.get("build_seq"), int)
+                        and h.get("project_id") == pointed.get("project_id")),
                        key=lambda h: h["build_seq"], default=None)
     rows = []
     for entry in history:
@@ -199,6 +253,8 @@ def publish(project, publication_id, folder, *, origin, channel=None, reassign=F
     before the start record (the folder's judgment, no binding) raises and records nothing."""
     w = core.writer_for(project, origin)
     w.admit(OPERATION)
+    if channel is not None:
+        target.channel_name(channel)
     view = target.judge(folder, project.root)
     event, build_folder, journal = binding(project, publication_id)
     details = event["details"]
@@ -208,7 +264,7 @@ def publish(project, publication_id, folder, *, origin, channel=None, reassign=F
     attempt_id = target.new_attempt_id()
     started_at = _now()
     record_target = {"name": target_name, "path": os.fspath(view.given), "resolved": os.fspath(view.resolved)}
-    ref = _reference(publication_id, details["package_sha256"])
+    ref = _reference(publication_id, details["package_sha256"])  # the receipt's refs too (design 6.2)
     with w.locked(OPERATION) as held:
         held.append("publish_attempt", f"Publishing {publication_id} to {target_name or view.resolved.name}",
                     refs=[ref], details={"attempt_id": attempt_id, "publication_id": publication_id,
@@ -221,6 +277,7 @@ def publish(project, publication_id, folder, *, origin, channel=None, reassign=F
         "started_at": started_at, "steps": dict.fromkeys(relations.PUBLISH_STEPS, "not_started"),
         "lock": {"state": "not_started"}, "reports": None,
         "observations": {"metadata": [], "kept": [], "removed": [], "unrecorded_attempts": [], "remote_links": None},
+        "_ref": ref, "_shown": target_name or view.resolved.name,
     }
     root = view.resolved
     staging = root / target.STAGING / attempt_id
@@ -233,22 +290,34 @@ def publish(project, publication_id, folder, *, origin, channel=None, reassign=F
     except _Stop as stop:
         state["outcome"] = stop.outcome
         state["failure"] = {"step": stop.step, "code": stop.code, "message": stop.message[:2048],
-                            "paths": [os.fspath(p) for p in stop.details.get("paths", ())][:20]}
+                            "paths": [os.fspath(p) for p in stop.details.get("paths", ())]}
         if stop.details.get("reason"):
             state["failure"]["reason"] = stop.details["reason"]
     except KeyboardInterrupt:
-        state["outcome"] = "interrupted"
-        state["failure"] = {"step": state.get("_at", "init"), "code": "interrupted",
-                            "message": "the publish was interrupted", "paths": []}
-        _observe_pointers(state)
+        if state["steps"]["switch"] in SWITCH_ENDED:
+            _after_switch(state, "interrupted")
+        else:
+            state["outcome"] = "interrupted"
+            state["failure"] = {"step": state.get("_at", "init"), "code": "interrupted",
+                                "message": "the publish was interrupted", "paths": []}
+            _observe_pointers(state)
     except Exception as exc:  # noqa: BLE001 - every end of an attempt is in its receipt
-        for name, value in state["steps"].items():
-            if value == "interrupted":
-                state["steps"][name] = "failed"
-        state["outcome"] = "failed"
-        state["failure"] = {"step": state.get("_at", "init"), "code": getattr(exc, "code", type(exc).__name__),
-                            "message": str(getattr(exc, "message", exc))[:2048], "paths": []}
-        _observe_pointers(state)
+        if state["steps"]["switch"] in SWITCH_ENDED:
+            _after_switch(state, f"{type(exc).__name__}: {exc}")
+        else:
+            for name, value in state["steps"].items():
+                if value == "interrupted":
+                    state["steps"][name] = "failed"
+            state["outcome"] = "failed"
+            state["failure"] = {"step": state.get("_at", "init"), "code": getattr(exc, "code", type(exc).__name__),
+                                "message": str(getattr(exc, "message", exc))[:2048], "paths": []}
+            found = getattr(exc, "details", None)
+            if isinstance(found, dict):
+                if found.get("reason"):
+                    state["failure"]["reason"] = str(found["reason"])
+                if found.get("path"):
+                    state["failure"]["paths"] = [os.fspath(found["path"])]
+            _observe_pointers(state)
     finally:
         _clean_own(state, staging, owner)
     if any(v == "unknown" for v in state["steps"].values()):
@@ -259,6 +328,22 @@ def publish(project, publication_id, folder, *, origin, channel=None, reassign=F
     return _receipt(w, state)
 
 
+SWITCH_ENDED = frozenset({"done", "already", "not_newer", "superseded"})
+
+
+def _after_switch(state, what):
+    """An interruption or error once the switch has ended (the access observation, the cleanup):
+    the outcome stays the one the steps gave (design 6.2); what happened is an observation."""
+    state["observations"]["after_switch"] = {"step": state.get("_at"), "error": what[:512]}
+    state.setdefault("addresses", state["_addresses"])
+    state.setdefault("access", {"reread": "not_checked", "posix": None, "windows_acl": "not_checked"})
+
+
+def _page_state(state, page_path):
+    """The channel page against what it held when the attempt began and this attempt's version."""
+    return _pointer_state(*_page_points_to(page_path), state.get("_initial_page"), state["publication_id"])
+
+
 def _observe_pointers(state):
     """After an interruption or failure inside the switch: what each pointer holds now (design 5)."""
     if state["steps"]["switch"] not in ("interrupted", "failed", "unknown") or "_channel_dir" not in state:
@@ -266,7 +351,7 @@ def _observe_pointers(state):
     folder, initial, pid = state["_channel_dir"], state.get("_initial"), state["publication_id"]
     value, read = _latest_of(folder / target.LATEST)
     state["pointers"] = {"latest_json": _pointer_state((value or {}).get("latest"), read, initial, pid),
-                         "channel_page": _pointer_state(*_page_points_to(folder / target.CHANNEL_PAGE), initial, pid)}
+                         "channel_page": _page_state(state, folder / target.CHANNEL_PAGE)}
 
 
 
@@ -293,6 +378,7 @@ def _attempt(project, w, stack, state, view, build_folder, details, event, journ
         else:
             state["lock"] = {"state": "failed", "error": str(exc)}
             raise _Stop("lock", "lock_failed", f"the target's lock cannot be taken: {exc}") from exc
+    state["_at"] = "init"
     try:
         view = target.judge(root, project.root)
     except PublicationError as exc:
@@ -309,14 +395,18 @@ def _attempt(project, w, stack, state, view, build_folder, details, event, journ
         folder.mkdir(exist_ok=True)
     if os.stat(versions).st_dev != os.stat(staging_root).st_dev:
         raise _Stop("init", "target_refused", "the target's staging and versions are on different volumes")
+    state["_at"] = "channel"
     channel_dir, initial = _channel(projects, project_id, title, channel, reassign, state)
+    state["_addresses"] = {"version": (versions / state["publication_id"] / "index.html").as_uri(),
+                           "latest": (channel_dir / target.CHANNEL_PAGE).as_uri()}
+    state["_at"] = "init"
     state["observations"]["unrecorded_attempts"] = _traces(journal, w, state, root)
     _transfer_and_commit(project, state, build_folder, details, versions / state["publication_id"], staging, owner)
-    _switch(project, state, channel_dir, initial, event, details, project_id, title, reassign)
+    _switch(project, state, channel_dir, initial, event, details, project_id, title)
+    state["addresses"] = state["_addresses"]
+    state["_at"] = "cleanup"
     state["access"] = _access(root, versions / state["publication_id"])
-    state["addresses"] = {"version": (versions / state["publication_id"] / "index.html").as_uri(),
-                          "latest": (channel_dir / target.CHANNEL_PAGE).as_uri()}
-    _clean_others(project, state, root)
+    _clean_others(project, state, root, channel_dir)
 
 
 def _channel(projects, project_id, title, channel, reassign, state):
@@ -355,6 +445,7 @@ def _channel(projects, project_id, title, channel, reassign, state):
     if current.latest is not None:
         state["channel"]["previous_latest"] = current.latest["latest"]
     state["_channel_dir"], state["_initial"] = folder, (current.latest or {}).get("latest")
+    state["_initial_page"] = _page_points_to(folder / target.CHANNEL_PAGE)[0]
     return folder, state["_initial"]
 
 
@@ -365,7 +456,7 @@ def _traces(journal, w, state, root):
     attempts = relations.publish_attempts(now)
     for attempt in attempts:
         if attempt["receipt"]:
-            for _n, value in now._publish_attempts[attempt["attempt_id"]]["publish_receipt"]:
+            for _n, value in relations.publish_rows(now, attempt["attempt_id"], "publish_receipt"):
                 for trace in ((value.get("details") or {}).get("observations") or {}).get("unrecorded_attempts") or ():
                     if isinstance(trace, dict):
                         reported.add(trace.get("attempt_id"))
@@ -373,7 +464,8 @@ def _traces(journal, w, state, root):
     for attempt in attempts:
         if (attempt["recording_status"] != "incomplete" or attempt["attempt_id"] in reported
                 or attempt["attempt_id"] == state["attempt_id"]
-                or (attempt["target"] or {}).get("resolved") != state["target"]["resolved"]):
+                or not isinstance(attempt["target"], dict)
+                or attempt["target"].get("resolved") != state["target"]["resolved"]):
             continue
         aid, pid = attempt["attempt_id"], attempt["publication_id"]
         latest, read = _latest_of(root / target.PROJECTS / (state.get("channel") or {}).get("name", "") / target.LATEST)
@@ -396,14 +488,16 @@ def _transfer_and_commit(project, state, build_folder, details, version, staging
     pid = state["publication_id"]
     files = project.platform.files
     steps = state["steps"]
+    state["_at"] = "transfer"  # looking at a version already there is the transfer's (its reuse)
     if os.path.lexists(version):
         target.managed_child(version)
         try:
+            _version_folder(version)
             verified = _verify(version, pid, details)
         except PublicationError as exc:
             steps["transfer"] = "failed"
             raise _Stop("transfer", "version_differs", "the target already holds a different version of this ID",
-                        paths=[version], cause=exc.message) from exc
+                        paths=_mismatched(version, exc)) from exc
         except OSError as exc:
             steps["transfer"] = "unknown"
             raise _Stop("transfer", "unknown", f"the version there cannot be read: {exc}", paths=[version]) from exc
@@ -416,7 +510,7 @@ def _transfer_and_commit(project, state, build_folder, details, version, staging
     record = _owner(state, project.platform, state["started_at"],
                     marker.get("project_id") if isinstance(marker, dict) else None)
     _write_json(owner, record, files, state["attempt_id"])
-    manifest_bytes = _read_regular(build_folder / "publication.json")
+    manifest_bytes = _read_regular(build_folder, "publication.json")
     if hashlib.sha256(manifest_bytes).hexdigest() != details["package_sha256"]:
         steps["transfer"] = "failed"
         raise _Stop("transfer", "build_changed", "the build's manifest is not the bound one", paths=[build_folder])
@@ -426,16 +520,15 @@ def _transfer_and_commit(project, state, build_folder, details, version, staging
     staging.mkdir()
     refreshed = time.monotonic()
     for name in names:
-        source = build_folder / name
         destination = staging / name
         destination.parent.mkdir(parents=True, exist_ok=True)
         try:
-            data = _read_regular(source)
+            source = _open_regular(build_folder, name)
         except PublicationError:
             steps["transfer"] = "failed"
             raise
-        with open(destination, "xb") as fh:
-            fh.write(data)
+        with source, open(destination, "xb") as fh:
+            shutil.copyfileobj(source, fh)
         if time.monotonic() - refreshed > REFRESH_SECONDS:
             record["updated_at"] = _now()
             _write_json(owner, record, files, state["attempt_id"])
@@ -449,7 +542,10 @@ def _transfer_and_commit(project, state, build_folder, details, version, staging
         _verify(staging, pid, details)
     except PublicationError as exc:
         steps["check"] = "failed"
-        raise _Stop("check", "version_mismatch", exc.message, paths=[staging]) from exc
+        raise _Stop("check", "version_mismatch", exc.message, paths=_mismatched(staging, exc)) from exc
+    except OSError as exc:
+        steps["check"] = "unknown"
+        raise _Stop("check", "unknown", f"the staging cannot be read back: {exc}", paths=[staging]) from exc
     steps["check"] = "done"
     _boundary(state, "commit")
     steps["commit"] = "interrupted"
@@ -458,11 +554,16 @@ def _transfer_and_commit(project, state, build_folder, details, version, staging
         steps["commit"] = "done"
     except FileExistsError:
         try:
+            target.managed_child(version)
+            _version_folder(version)
             _verify(version, pid, details)
         except PublicationError as exc:
             steps["commit"] = "failed"
             raise _Stop("commit", "version_differs", "another attempt put a different version under this ID",
-                        paths=[version]) from exc
+                        paths=_mismatched(version, exc)) from exc
+        except OSError as exc:
+            steps["commit"] = "unknown"
+            raise _Stop("commit", "unknown", f"the version there cannot be read: {exc}", paths=[version]) from exc
         steps["commit"], state["commit_method"] = "exists", "exists"
     except OSError as exc:
         # The rename may have happened anyway (NFS): judged by what is there now (design 4).
@@ -477,12 +578,26 @@ def _transfer_and_commit(project, state, build_folder, details, version, staging
         verified = _verify(version, pid, details)
     except PublicationError as exc:
         steps["final_check"] = "failed"
-        raise _Stop("final_check", "version_mismatch", exc.message, paths=[version]) from exc
+        raise _Stop("final_check", "version_mismatch", exc.message, paths=_mismatched(version, exc)) from exc
     except OSError as exc:
         steps["final_check"] = "unknown"
         raise _Stop("final_check", "unknown", f"the committed version cannot be read back: {exc}", paths=[version]) from exc
     steps["final_check"] = "done"
     _observed(state, verified)
+
+
+def _version_folder(version: Path) -> None:
+    """A version is a folder: a file of that name (a ZIP, say) is not one, whatever it holds."""
+    if not stat.S_ISDIR(os.lstat(version).st_mode):
+        raise PublicationError("version_differs", "the version's name holds something that is not a folder",
+                               details={"path": os.fspath(version)})
+
+
+def _mismatched(folder: Path, exc) -> list[str]:
+    """The folder, and the file the check names when it names one (decisions 5 and 6)."""
+    named = (exc.details or {}).get("path") if isinstance(getattr(exc, "details", None), dict) else None
+    return [os.fspath(folder)] + ([os.fspath(folder / named) if not os.path.isabs(str(named)) else str(named)]
+                                  if isinstance(named, str) and named else [])
 
 
 def _observed(state, verified):
@@ -495,7 +610,7 @@ def _observed(state, verified):
     state["_manifest"] = manifest
 
 
-def _switch(project, state, channel_dir, initial, event, details, project_id, title, reassign):
+def _switch(project, state, channel_dir, initial, event, details, project_id, title):
     pid, files, steps = state["publication_id"], project.platform.files, state["steps"]
     latest_path, page_path = channel_dir / target.LATEST, channel_dir / target.CHANNEL_PAGE
     _boundary(state, "switch")
@@ -509,22 +624,29 @@ def _switch(project, state, channel_dir, initial, event, details, project_id, ti
     now_latest = (current or {}).get("latest")
     if current is not None and now_latest == pid:
         steps["switch"] = "already"
-        _page(files, page_path, current, state, pid, initial)
         state["pointers"]["latest_json"] = "new"
+        state["pointers"]["channel_page"] = _page_state(state, page_path)
+        if state["pointers"]["channel_page"] != "new":
+            _boundary(state, "channel_page")
+            _page(files, page_path, current, state, initial)
+        state["outcome"] = "published"
         return
     if now_latest != initial:
         steps["switch"] = "superseded"
-        state["pointers"] = {"latest_json": "other", "channel_page": _pointer_state(*_page_points_to(page_path), initial, pid)}
+        state["pointers"] = {"latest_json": _pointer_state(now_latest, read, initial, pid),
+                             "channel_page": _page_state(state, page_path)}
         state["outcome"] = "superseded"
         return
-    if current is not None and not reassign:
+    # Only a publish that takes another project's channel over skips the order (ADR-0009 decision 5).
+    if current is not None and not state["channel"]["reassigned_from"]:
         entry = next((h for h in current["history"] if h.get("publication_id") == now_latest), None)
         newer = (entry is not None and entry.get("project_id") == project_id and isinstance(entry.get("build_seq"), int)
                  and event["seq"] > entry["build_seq"])
         if not newer:
             steps["switch"] = "not_newer"
-            state["pointers"] = {"latest_json": "old", "channel_page": _pointer_state(*_page_points_to(page_path), initial, pid)}
             state["outcome"] = "not_newer"
+            _repair_page(project, state, page_path, current)
+            state["pointers"] = {"latest_json": "old", "channel_page": _page_state(state, page_path)}
             return
     manifest = state.get("_manifest") or {}
     history = [h for h in (current or {}).get("history", []) if h.get("publication_id") != pid]
@@ -543,23 +665,83 @@ def _switch(project, state, channel_dir, initial, event, details, project_id, ti
         raise _Stop("switch", "switch_failed", f"latest.json cannot be replaced: {exc}", paths=[latest_path]) from exc
     value, read = _latest_of(latest_path)
     state["pointers"]["latest_json"] = _pointer_state((value or {}).get("latest"), read, initial, pid)
+    if state["pointers"]["latest_json"] == "other":
+        # Another publish replaced it after this one (no lock here): its version is not drawn here.
+        steps["switch"], state["outcome"] = "superseded", "superseded"
+        state["pointers"]["channel_page"] = _page_state(state, page_path)
+        return
+    if state["pointers"]["latest_json"] != "new":
+        steps["switch"] = "unknown"
+        state["pointers"]["channel_page"] = _page_state(state, page_path)
+        raise _Stop("switch", "unknown", "latest.json cannot be read back after its replace", paths=[latest_path])
     _boundary(state, "channel_page")
-    _page(files, page_path, value or latest, state, pid, initial)
-    steps["switch"] = "done" if state["pointers"] == {"latest_json": "new", "channel_page": "new"} else "unknown"
+    _page(files, page_path, latest, state, initial)
+    steps["switch"] = "done" if state["pointers"]["channel_page"] == "new" else "unknown"
     state["outcome"] = "published"
 
 
-def _page(files, page_path, latest, state, pid, initial):
-    temporary = page_path.with_name(f".{state['attempt_id']}.{target.CHANNEL_PAGE}.tmp")
+def _write_page(files, page_path, latest, attempt_id):
+    temporary = page_path.with_name(f".{attempt_id}.{target.CHANNEL_PAGE}.tmp")
     try:
         with open(temporary, "wb") as fh:
             fh.write(channel_page(latest))
         files.replace(temporary, page_path)
     except OSError:
-        pass
-    state["pointers"]["channel_page"] = _pointer_state(*_page_points_to(page_path), initial, pid)
-    if state["pointers"]["channel_page"] == "new" and state["steps"]["switch"] == "already":
-        state["outcome"] = "published"
+        with contextlib.suppress(OSError):
+            os.unlink(temporary)
+        raise
+
+
+def _page(files, page_path, latest, state, initial):
+    """The channel page from a latest.json naming this attempt's checked version; a failed write
+    ends the attempt with what the page holds (design 8)."""
+    try:
+        _write_page(files, page_path, latest, state["attempt_id"])
+    except OSError as exc:
+        state["pointers"]["channel_page"] = _page_state(state, page_path)
+        state["steps"]["switch"] = "unknown" if state["pointers"]["channel_page"] == "unknown" else "failed"
+        raise _Stop("switch", "switch_failed", f"the channel page cannot be replaced: {exc}", paths=[page_path]) from exc
+    state["pointers"]["channel_page"] = _page_state(state, page_path)
+
+
+def _repair_page(project, state, page_path, current):
+    """Pointers that differ (an earlier attempt stopped between them) are made to agree from
+    latest.json by the channel's next publish, only after the version it names is checked here: by
+    this project's binding, else by its history entry's package_sha256 (design 8). The result is an
+    observation; the attempt's own outcome does not change."""
+    other = current["latest"]
+    pointed, read = _page_points_to(page_path)
+    if read == "read" and pointed == other:
+        return
+    repair = state["observations"]["channel_page_repair"] = {"publication_id": other, "state": "not_verified",
+                                                              "basis": None}
+    version = page_path.parent.parent.parent / target.PUBLICATIONS / other
+    found, _reason, _candidates, event = relations.publication_record(
+        relations.Journal(writer._journal_bytes(project.journal)), other)
+    entry = next((h for h in current["history"] if h.get("publication_id") == other), None) or {}
+    try:
+        target.managed_child(version)
+        _version_folder(version)
+        if found == "resolved":
+            repair["basis"] = "project_record"
+            _verify(version, other, event["details"])
+            if entry.get("package_sha256") not in (None, event["details"]["package_sha256"]):
+                return
+        elif isinstance(entry.get("package_sha256"), str):
+            repair["basis"] = "channel_history"
+            verified = checks.verify_package(version)
+            if verified["manifest"]["publication_id"] != other or verified["package_sha256"] != entry["package_sha256"]:
+                return
+        else:
+            return
+    except (PublicationError, OSError):
+        return
+    try:
+        _write_page(project.platform.files, page_path, current, state["attempt_id"])
+    except OSError as exc:
+        repair["state"], repair["error"] = "failed", str(exc)[:512]
+        return
+    repair["state"] = "done"
 
 
 def _access(root: Path, version: Path):
@@ -585,7 +767,12 @@ def _access(root: Path, version: Path):
 
 
 def _clean_own(state, staging, owner):
-    for path in (staging, owner):
+    leftovers = []
+    for folder in (staging.parent, state.get("_channel_dir")):
+        with contextlib.suppress(OSError, TypeError):
+            leftovers += [folder / n for n in os.listdir(folder)
+                          if (m := TEMPORARY.fullmatch(n)) and m.group(1) == state["attempt_id"]]
+    for path in (staging, owner, *leftovers):
         try:
             if path.is_dir() and not path.is_symlink():
                 shutil.rmtree(path)
@@ -597,17 +784,27 @@ def _clean_own(state, staging, owner):
             state["observations"]["kept"].append({"path": os.fspath(path), "reason": str(exc)})
 
 
-def _clean_others(project, state, root):
+def _clean_others(project, state, root, channel_dir):
     """Other attempts' leftovers, only when their process is known to have ended here or 24 hours
-    have passed without an update (design 4; ADR-0009 decision 5)."""
+    have passed without an update (design 4; ADR-0009 decision 5): their staging and owner record,
+    and the temporary files their names hold (here and in this channel)."""
     platform = project.platform
     me = {"machine": target.digest(platform.processes.machine_identity()), "host": target.digest(socket.gethostname()),
           "user": _user()}
     now = datetime.now().astimezone()
     staging_root = root / target.STAGING
-    for name in sorted(os.listdir(staging_root)):
-        path = staging_root / name
-        aid = name.removesuffix(".json")
+    entries = []
+    for folder in (staging_root, channel_dir):
+        try:
+            entries += [(folder, name) for name in sorted(os.listdir(folder))]
+        except OSError as exc:
+            state["observations"]["kept"].append({"path": os.fspath(folder), "reason": str(exc)})
+    for folder, name in entries:
+        path = folder / name
+        temporary = TEMPORARY.fullmatch(name)
+        aid = temporary.group(1) if temporary else name.removesuffix(".json") if folder == staging_root else None
+        if aid is None:
+            continue
         if not target.ATTEMPT_ID.fullmatch(aid) or aid == state["attempt_id"]:
             if not target.ATTEMPT_ID.fullmatch(aid) and not target.system_entry(path):
                 state["observations"]["kept"].append({"path": os.fspath(path), "reason": "not a publisher name"})
@@ -643,17 +840,20 @@ def _bounded(details: dict) -> dict:
     """Fit the receipt to a journal line: lists shrink to 20, 5 and then 0 entries with their counts,
     then the failure message to 2,048 characters; the result never shrinks (design 6.2)."""
     lists = [("failure", "paths"), ("observations", "metadata"), ("observations", "kept"),
-             ("observations", "removed"), ("observations", "unrecorded_attempts"), (None, "reports")]
+             ("observations", "removed"), ("observations", "unrecorded_attempts"), ("access", "posix", "blocked"),
+             ("reports",)]
 
     def size(value):
         return len(json.dumps(value, ensure_ascii=False).encode("utf-8"))
 
     for limit in (None, 20, 5, 0):
         if limit is not None:
-            for outer, key in lists:
-                holder = details.get(outer) if outer else details
+            for *outer, key in lists:
+                holder = details
+                for name in outer:
+                    holder = holder.get(name) if isinstance(holder, dict) else None
                 if isinstance(holder, dict) and isinstance(holder.get(key), list) and len(holder[key]) > limit:
-                    holder[f"{key}_count"] = len(holder[key])
+                    holder.setdefault(f"{key}_count", len(holder[key]))
                     holder[key] = holder[key][:limit]
                     holder["truncated"] = True
         if size(details) < writer.LINE_LIMIT - 4096:
@@ -669,11 +869,11 @@ def _receipt(w, state):
     details = {k: v for k, v in state.items() if not k.startswith("_")}
     details = _bounded(details)
     outcome = details["outcome"]
-    summary = (f"Published {details['publication_id']}" if outcome == "published" else
-               f"Publish of {details['publication_id']} {outcome}" + (f" at {details['failure']['step']}: "
-                                                                       f"{details['failure']['code']}"
-                                                                       if details.get("failure") else ""))
-    ref = _reference(details["publication_id"], details.get("package_sha256"))
+    shown = state["_shown"]
+    summary = (f"Published {details['publication_id']} to {shown}" if outcome == "published" else
+               f"Publish of {details['publication_id']} to {shown} {outcome}" + (
+                   f" at {details['failure']['step']}: {details['failure']['code']}" if details.get("failure") else ""))
+    ref = state["_ref"]
     result = {"ok": outcome in ("published", "not_newer", "superseded"), **{k: details.get(k) for k in (
         "attempt_id", "publication_id", "outcome", "steps", "pointers", "addresses", "channel", "failure",
         "access", "lock")}}
