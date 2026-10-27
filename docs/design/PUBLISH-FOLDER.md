@@ -139,9 +139,9 @@
 - **대조.** 결박이 있으면 `verify_package(dir, binding=결박 이벤트의 details)`와 manifest `publication_id` == 요청 ID다(`state.py`와 같은 검사). 해시만 맞추지 않는다.
   결박이 없는 기기의 되돌리기는 history의 `package_sha256`과 manifest ID의 일치만 볼 수 있고, receipt의 `binding: "channel_history"`로 구별한다.
   대조가 `OSError`로 읽지 못하면 `unknown`이다(같은 ID의 다른 내용인 `version_differs`가 아니다).
-- **다른 시도의 정리.** 다른 시도의 항목은 (a) 소유 기록의 `machine`·`host`·`user`가 모두 이 시도와 같고 `ProcessControl.alive(pid)`가 False이거나, (b) `updated_at`이
+- **다른 시도의 정리.** 다른 시도의 항목은 (a) 소유 기록의 `machine`·`host`·`user`가 모두 null이 아니고 이 시도와 같으며 `ProcessControl.alive(pid)`가 False이거나, (b) `updated_at`이
   24시간보다 오래됐을 때만 지운다. `alive`는 다른 사용자의 프로세스에도 False를 답하므로 사용자가 다르거나 모르면 (a)로 판정하지 않는다. 복제한 VM은 같은
-  `machine`을 가질 수 있어 `host`를 함께 본다(호스트 이름만으로 같은 기기라고 하지 않는다, 결정 5). 소유 기록이 없거나 읽을 수 없는 항목은 수정 시각이
+  `machine`을 가질 수 있어 `host`를 함께 본다(호스트 이름만으로 같은 기기라고 하지 않는다, 결정 5). 어느 하나라도 null이면 다른 기기로 본다(OQ4). 소유 기록이 없거나 읽을 수 없는 항목은 수정 시각이
   24시간보다 오래됐을 때만 지운다. 표식·잠금 파일·이름 규칙에 맞지 않는 항목은 지우지 않고 `observations.kept`에 남긴다.
 - **중단.** `KeyboardInterrupt`를 받으면 다음 단계를 시작하지 않고 자기 staging을 지우려 시도한 뒤 receipt를 쓴다. 전환 도중이면 포인터 상태를 관찰해 적는다.
 - **결과가 불확실한 호출.** `rename_dir_new`·`replace`가 오류를 내도 관련 이름을 다시 읽어 판단한다(결정 5). 확정 뒤 staging이 없고 최종 위치가 결박과 맞으면
@@ -191,13 +191,15 @@ ADR-0009는 확정 연산과 잠금 대기 상한을 기존 `AtomicFiles`·`File
   `not_newer`·`superseded`(전환만)·`failed`·`interrupted`·`unknown`·`not_started`다.
 - `outcome`은 단계에서 정해진다. 우선순위: 단계 가운데 `unknown`이 하나라도 있으면 `unknown` → `interrupted` → `failed` → 전환의 `not_newer`·`superseded` →
   `published`(전환 `done`·`already`). 재사용은 `outcome`이 아니라 `steps.transfer: "reused"`로 보인다.
-- **늘 있어야 하는 필드**: `attempt_id`, `publication_id`, `action`, `outcome`, `binding`, `package_sha256`(null 허용), `target`, `started_at`, `ended_at`, `steps`, `lock`.
+- **늘 있어야 하는 필드**: `attempt_id`, `publication_id`, `action`, `outcome`, `binding`, `package_sha256`(null 허용), `target`, `started_at`, `ended_at`, `steps`, `lock`,
+  `reports`(빌드가 담은 Report 버전. 없으면 빈 배열, 대조 전에 끝나 모르면 null).
   모르는 값은 생략하지 않고 `unknown`이나 null로 적는다.
 - **조건부로 있어야 하는 필드**(schema의 `if/then`): `outcome`이 `failed`·`interrupted`·`unknown`이면 `failure`. `steps.switch`가 `not_started`가 아니면 `pointers`
   (두 키 모두)와 `channel`. `steps.commit`이 `done`·`exists`면 `commit_method`. `outcome`이 `published`·`not_newer`·`superseded`면 `addresses`와 `access`.
 - **크기.** receipt는 journal 한 줄이다(`writer.LINE_LIMIT` 50 KiB). 원격 링크 목록은 manifest의 `remote_links`가 `package_sha256`으로 고정하므로 receipt에는
-  `remote_links: {count, source: "manifest"}`만 둔다. 그 밖의 목록(`failure.paths`, `metadata`, `kept`, `unrecorded_attempts`)은 모두 담되, 줄이 상한을 넘으면
-  각 목록을 앞 20개와 `<목록>_count`·`truncated: true`로 줄여 다시 맞춘다. 결과(`outcome`·`steps`·`pointers`)는 줄이지 않는다.
+  `remote_links: {count, source: "manifest"}`만 둔다. 그 밖의 목록(`failure.paths`, `metadata`, `kept`, `unrecorded_attempts`, `reports`)은 모두 담되, 줄이 상한을
+  넘으면 각 목록을 앞 20개 → 5개 → 0개로 줄여(`<목록>_count`·`truncated: true`를 남김) 다시 맞추고, 그래도 넘으면 `failure.message`를 2,048자로 자른다. 목록이
+  0개면 남는 값은 정해진 필드와 OS 경로 길이로 묶인 경로(대상·주소)뿐이므로 상한 안에 든다. 결과(`outcome`·`steps`·`pointers`)는 줄이지 않는다.
 
 ### 6.3 결과가 기록되지 않은 시도와 receipt 실패
 
