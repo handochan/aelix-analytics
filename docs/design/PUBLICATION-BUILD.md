@@ -778,8 +778,8 @@ analytics build --zip-of <publication_id> --zip <path>
 - **build 잠금(OQ17).** 읽기부터 결박까지 한 프로젝트의 build를 하나씩 돌린다. 그러면 뒤 build의 `as_of_seq`는 앞 build의 결박 seq 이상이고,
   `content_seq`는 앞 build의 `content_seq`보다 작지 않다(같으면 그 사이에 게시 계열 이벤트만 있었고, 같은 요청·renderer면 내용도 같다). 잠금이
   없으면 늦게 시작해 먼저 끝난 build B 뒤에 먼저 시작한 build A가 결박되어, 더 오래된 기록의 A가 "더 새 build"로 최신이 될 수 있다.
-- 잠금은 기존 `FileLocks.exclusive`(지금 상한 없이 기다림)다. 대기 상한은 ADR-0009 결정 5가 #21에 맡긴 `FileLocks` 확장이므로, #21이 먼저 들어오면 같은
-  규칙(넘으면 `build_busy`)을 쓰고 그 전에는 기다린다(R18). `--preview`는 잠금을 잡지 않는다. 아무것도 쓰지 않고 결박하지 않으므로 build 순서와
+- 잠금은 kit 0.29.0부터 `FileLocks.exclusive_within`(#21의 `FileLocks` 확장)으로 30초까지 기다리고 넘으면 `build_busy`다(R18, #21 OQ3). 옛 kit의 `exclusive`와
+  같은 파일·바이트 범위라 서로 막는다. 그 전에는 `exclusive`로 상한 없이 기다렸다. `--preview`는 잠금을 잡지 않는다. 아무것도 쓰지 않고 결박하지 않으므로 build 순서와
   무관하고, 읽기의 일관성은 relations의 재시도와 미리 계산한 digest 표가 맡는다.
 - 공개 명령에 `--as-of`가 없는 이유도 같다. 과거 기준으로 새로 만든 build가 더 큰 seq를 받아 최신이 되는 길을 열지 않는다.
 - build는 게시하지 않는다. 더 오래된 build도 결박이 있으면 게시할 수 있고, 최신 전환(`not_newer`)과 `--switch-to`는 #21이 판정한다.
