@@ -823,6 +823,8 @@ def test_a_folder_with_a_file_held_open_moves_once_it_is_let_go(implementation, 
     """ADR-0009 check 8, measured on the Windows leg: an antivirus, indexer or sync client holding a
     file in the version for a moment is waited for within rename_new's budget, not reported as taken."""
     needs(implementation, RENAMES)
+    if implementation.name == "recording":
+        pytest.skip("the stand-in renames once, in this process: it has no retry budget to measure")
     files = implementation.make().files
     stage, dst = _version_tree(tmp_path), tmp_path / "publications" / "pub-0"
     dst.parent.mkdir()
