@@ -1,7 +1,8 @@
 # 폴더 게시 설계 — 고정 build의 전달·확인·최신 주소 전환
 
 - 상태: **설계 채택·단계별 구현 중.** PR-1(kit 0.29.0)은 포트 확장 셋(5절)·build 잠금 대기 상한·대상 판정·표식·channel 규칙(2·3·9.1절)을 구현했다.
-  `analytics publish`는 아직 없다. 채택한 결정은 [ADR-0009](../decisions/0009-first-publish-target.md)(첫 대상: 사용자가 지정한 폴더)이고,
+  PR-2(kit 0.30.0)는 게시 단계(4절)·기록(6절)·`analytics publish --build`/`--list`·누출 금지 값(6.4)과 정적 channel 페이지를 구현했다. channel 페이지의
+  도착 확인(7절)·`--switch-to`(8절)·저장한 대상(9.3)은 PR-3이다. 채택한 결정은 [ADR-0009](../decisions/0009-first-publish-target.md)(첫 대상: 사용자가 지정한 폴더)이고,
   이 문서는 그 결정이 "구현 PR이 정한다"로 남긴 것을 정하고 구현을 PR로 나눈다. 현재 공개 동작은 [현재 계약](../CONTRACTS.md)이 설명한다.
 - 작업: [#21](https://github.com/handochan/aelix-analytics/issues/21) `[B4-s/P1]`. 완료 조건 1(첫 대상·접근 범위·실패/재시도 계약의 기록)은 ADR-0009로 채웠다.
   선행인 [#20](https://github.com/handochan/aelix-analytics/issues/20)(P0 독립 build)은 2026-10-27에 끝났다(kit 0.28.0).
@@ -79,7 +80,8 @@
 - `history[]`의 항목: `publication_id`, `package_sha256`, `content_sha256`, `renderer`, `build_seq`(결박 이벤트의 seq), `built_at`, `latest_since`(최신이 된 시각),
   `attempt_id`, `project_id`. channel 페이지는 `latest.json`만으로 그릴 수 있어야 한다.
 - 소유 기록의 `machine`·`host`는 원값이 아니라 `sha256("aelix-analytics/publish\0" + 값)`의 앞 32자다. 대상의 독자는 staging도 읽을 수 있으므로(결정 8)
-  기기 고유 값을 그대로 두지 않는다. `user`는 POSIX uid의 10진 문자열, Windows는 사용자 SID다. 모르는 값은 null이다.
+  기기 고유 값을 그대로 두지 않는다. `user`도 같은 해시로, POSIX는 uid, Windows는 사용자 이름에서 만든다(SID는 표준 라이브러리로 얻을 수 없다,
+  PR-2). 같은 계정인지 비교하는 데만 쓴다. 모르는 값은 null이다.
 - `attempt_id`는 `att-`와 소문자 ULID다(`publication_id`와 같은 생성기, 대소문자를 구별하지 않는 대상에서도 겹치지 않음).
 - 모든 JSON은 UTF-8·LF, 키 정렬, 끝 줄바꿈 하나다(ADR-0007). 모르는 `schema`의 표식·`latest.json`은 읽지 않고 거절한다(`target_unsupported`).
 - 메타데이터의 닫힌 목록(결정 4·6)은 `checks.os_metadata_name` 하나다: #20의 `OS_METADATA`(`.DS_Store`·`desktop.ini`·`Thumbs.db`)와 AppleDouble(`._*`).
@@ -241,7 +243,8 @@ ADR-0009는 확정 연산과 잠금 대기 상한을 기존 `AtomicFiles`·`File
 
 - 전환 직전에 `latest.json`을 다시 읽는다. 시작할 때 본 값과 다르면 `superseded`로 끝낸다(바꾸지 않음). 이미 이 시도의 버전이면 `already`이고 channel 페이지만 맞춘다.
 - 일반 게시: `latest.json`이 없거나 이 build의 `build_seq`가 지금 최신 항목의 `build_seq`보다 클 때만 바꾼다. 비교는 같은 `project_id`끼리만 하고, 지금 최신의
-  항목에 `build_seq`가 없거나 `project_id`가 다르면 새 build로 보지 않는다(`not_newer`). `--reassign-channel`은 비교하지 않는다.
+  항목에 `build_seq`가 없거나 `project_id`가 다르면 새 build로 보지 않는다(`not_newer`). `--reassign-channel`로 다른 프로젝트의 channel을 넘겨받는 게시만
+  비교하지 않는다(ADR-0009 결정 5). 자기 channel에서는 그 옵션이 있어도 비교한다.
 - 교체 순서: `latest.json`(`replace`) → channel 페이지(`replace`). 임시 파일 이름은 `.<attempt_id>.latest.json.tmp`처럼 `attempt_id`를 담는다(정리 규칙).
 - 두 포인터가 다르면(앞 시도가 그 사이에 멈춤) 이 channel의 다음 게시가 `latest.json` 기준으로 channel 페이지를 다시 그린다. 그 전에 `latest.json`이 가리키는 버전을
   이 기기에서 대조한다(결박이 있으면 결박, 없으면 history의 `package_sha256`). 대조하지 못하면 다시 그리지 않고 receipt에 적는다. 동기화 폴더에서 아직 다 도착하지

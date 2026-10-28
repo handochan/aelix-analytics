@@ -158,6 +158,7 @@ MODULES: dict[str, str] = {
     "src/aelix_analytics/publishing/package.py": "publishing",
     "src/aelix_analytics/publishing/build.py": "publishing",
     "src/aelix_analytics/publishing/target.py": "publishing",
+    "src/aelix_analytics/publishing/publish.py": "publishing",
     "src/aelix_analytics/publishing/state.py": "publication_observation",
     "src/aelix_analytics/_install.py": "distribution",
     "src/aelix_analytics/writer.py": "writer",

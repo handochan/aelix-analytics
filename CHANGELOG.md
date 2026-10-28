@@ -15,6 +15,20 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
 
+## [0.30.0] - 2026-10-27
+
+### Added
+
+- #21 PR-2: `analytics publish --build ID --to FOLDER [--channel NAME] [--reassign-channel]`와 `--list`. 결박된 build를 지정한 폴더에 전달하고, 옮긴 곳에서
+  결박과 다시 대조한 버전만 최신 주소로 바꿉니다. 더 새 build가 아니면 최신을 바꾸지 않습니다(`not_newer`). 단계마다 중단해도 포인터에는 확인한 버전만 있고,
+  다시 실행하면 재사용과 전환으로 끝납니다. 현재 동작은 현재 계약 D6입니다.
+- 게시 시도의 시작 기록 `publish_attempt`(새 kind)와 `publish_receipt`의 필드. 첫 게시 전에 표식의 `min_writer_version`을 0.30.0으로 올립니다.
+  receipt가 없는 시도는 Workspace Timeline과 `--list`에 결과가 기록되지 않은 시도로 보입니다.
+
+### Changed
+
+- build가 게시 기록에 남은 대상 폴더의 경로와 `file://` URL을 공유 사본의 금지 값으로 씁니다.
+
 ## [0.29.0] - 2026-10-27
 
 ### Added

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 from collections import Counter
+from pathlib import PureWindowsPath
 
 from .. import core, relations, writer
 from .basis import PUBLICATION_KINDS, content_basis
@@ -152,6 +153,19 @@ def _report_items(project, sha, model, by_source):
                                     freeze({"report_id": report_id, "revision_id": attempt["revision_id"]}),
                                     complete=False))
     return out
+
+
+def _delivery_paths(value):
+    """The absolute paths and file:// URLs in a publication-family record's details."""
+    if isinstance(value, str):
+        if value.startswith("file://") or value.startswith("/") or PureWindowsPath(value).anchor:
+            yield value
+    elif isinstance(value, dict):
+        for part in value.values():
+            yield from _delivery_paths(part)
+    elif isinstance(value, list):
+        for part in value:
+            yield from _delivery_paths(part)
 
 
 def capture_snapshot(project, *, reader=core.read_model, validate_reference=relations.reference_problem):
@@ -328,5 +342,9 @@ def capture_snapshot(project, *, reader=core.read_model, validate_reference=rela
             counts["journal", reason] = len(values)
     unique = {item.key: item for item in items}
     private_values = (marker["project_id"],) if isinstance(marker, dict) and isinstance(marker.get("project_id"), str) else ()
+    # A publish's records leave the projection (ADR-0014 decision 2), but the folders and file:// URLs
+    # they name stay forbidden in a copy (BUILD 11.4, PUBLISH-FOLDER 6.4).
+    private_values += tuple(sorted({value for event in model.journal.in_order() if event.kind in PUBLICATION_KINDS
+                                    for value in _delivery_paths(event.value.get("details"))}))
     return ShareSnapshot(basis, tuple(unique[k] for k in sorted(unique)),
                          tuple(Omission(cat, reason, n) for (cat, reason), n in sorted(counts.items())), private_values)

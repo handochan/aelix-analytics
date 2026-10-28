@@ -129,6 +129,77 @@
       },
       "additionalProperties": false
     },
+    "attempt_id": {"type": "string", "pattern": "^att-[0-9a-hjkmnp-tv-z]{26}$"},
+    "publish_target": {
+      "type": "object",
+      "required": ["name", "path", "resolved"],
+      "properties": {"name": {"type": ["string", "null"]}, "path": {"type": "string"}, "resolved": {"type": "string"},
+                     "marker_created": {"type": "boolean"}}
+    },
+    "publish_step": {"enum": ["done", "reused", "exists", "already", "not_newer", "superseded", "failed", "interrupted",
+                              "unknown", "not_started"]},
+    "publish_pointer": {"enum": ["old", "new", "other", "missing", "unknown"]},
+    "publish_attempt_details": {
+      "description": "A publish attempt's start record, written before the target changes (#21, docs/design/PUBLISH-FOLDER.md 6.1).",
+      "type": "object",
+      "required": ["attempt_id", "publication_id", "action", "target", "channel", "started_at"],
+      "properties": {
+        "attempt_id": {"$ref": "#/$defs/attempt_id"},
+        "publication_id": {"$ref": "#/$defs/publication_id"},
+        "action": {"enum": ["publish", "switch"]},
+        "target": {"$ref": "#/$defs/publish_target"},
+        "channel": {"type": ["string", "null"]},
+        "started_at": {"$ref": "#/$defs/timestamp"}
+      }
+    },
+    "publish_receipt_details": {
+      "description": "A publish attempt's receipt, written last (#21, docs/design/PUBLISH-FOLDER.md 6.2).",
+      "type": "object",
+      "required": ["attempt_id", "publication_id", "action", "outcome", "binding", "package_sha256", "target", "started_at",
+                   "ended_at", "steps", "lock", "reports"],
+      "properties": {
+        "attempt_id": {"$ref": "#/$defs/attempt_id"},
+        "publication_id": {"$ref": "#/$defs/publication_id"},
+        "action": {"enum": ["publish", "switch"]},
+        "outcome": {"enum": ["published", "not_newer", "superseded", "failed", "interrupted", "unknown"]},
+        "binding": {"enum": ["project_record", "channel_history", "none"]},
+        "package_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "target": {"$ref": "#/$defs/publish_target"},
+        "started_at": {"$ref": "#/$defs/timestamp"},
+        "ended_at": {"$ref": "#/$defs/timestamp"},
+        "steps": {
+          "type": "object",
+          "required": ["transfer", "check", "commit", "final_check", "switch"],
+          "properties": {"transfer": {"$ref": "#/$defs/publish_step"}, "check": {"$ref": "#/$defs/publish_step"},
+                         "commit": {"$ref": "#/$defs/publish_step"}, "final_check": {"$ref": "#/$defs/publish_step"},
+                         "switch": {"$ref": "#/$defs/publish_step"}},
+          "additionalProperties": false
+        },
+        "lock": {"type": "object", "required": ["state"],
+                 "properties": {"state": {"enum": ["held", "unsupported", "busy", "failed", "not_started"]}}},
+        "pointers": {"type": "object", "required": ["latest_json", "channel_page"],
+                     "properties": {"latest_json": {"$ref": "#/$defs/publish_pointer"},
+                                    "channel_page": {"$ref": "#/$defs/publish_pointer"}}},
+        "channel": {"type": "object", "required": ["name"], "properties": {"name": {"type": "string"}}},
+        "failure": {"type": "object", "required": ["step", "code"],
+                    "properties": {"step": {"type": "string"}, "code": {"type": "string"}}},
+        "commit_method": {"type": "string"},
+        "addresses": {"type": "object"},
+        "access": {"type": "object"},
+        "observations": {"type": "object"},
+        "reports": {"anyOf": [{"type": "null"},
+                              {"type": "array", "items": {"type": "object", "required": ["report_id", "revision_id"]}}]}
+      },
+      "allOf": [
+        {"if": {"properties": {"outcome": {"enum": ["failed", "interrupted", "unknown"]}}}, "then": {"required": ["failure"]}},
+        {"if": {"properties": {"steps": {"properties": {"switch": {"not": {"const": "not_started"}}}}}},
+         "then": {"required": ["pointers", "channel"]}},
+        {"if": {"properties": {"steps": {"properties": {"commit": {"enum": ["done", "exists"]}}}}},
+         "then": {"required": ["commit_method"]}},
+        {"if": {"properties": {"outcome": {"enum": ["published", "not_newer", "superseded"]}}},
+         "then": {"required": ["addresses", "access"]}}
+      ]
+    },
     "publication_details": {
       "type": "object",
       "required": [
@@ -1382,7 +1453,7 @@
         "kind": {"enum": ["project", "import", "run", "context", "finding", "decision", "assumption", "question", "todo",
                           "note", "resolve", "workflow_feedback", "analysis_focus", "metric_definition",
                           "metric_observation", "record_update", "checkpoint", "reuse_proposal", "reuse_notification",
-                          "reuse_mode", "report_revision", "publication", "publish_receipt", "asset_candidate", "asset_check",
+                          "reuse_mode", "report_revision", "publication", "publish_attempt", "publish_receipt", "asset_candidate", "asset_check",
                           "asset_effect", "asset_mode", "asset_notification"]},
         "actor": {"type": "string", "minLength": 1},
         "actor_basis": {"$ref": "#/$defs/actor_basis"},
@@ -1460,8 +1531,10 @@
                                                                                             {"type": "null"}]}}}}}},
         {"if": {"properties": {"kind": {"const": "publication"}}},
          "then": {"required": ["details"], "properties": {"details": {"$ref": "#/$defs/publication_details"}}}},
+        {"if": {"properties": {"kind": {"const": "publish_attempt"}}},
+         "then": {"required": ["details"], "properties": {"details": {"$ref": "#/$defs/publish_attempt_details"}}}},
         {"if": {"properties": {"kind": {"const": "publish_receipt"}}},
-         "then": {"required": ["details"], "properties": {"details": {"required": ["publication_id"]}}}}
+         "then": {"required": ["details"], "properties": {"details": {"$ref": "#/$defs/publish_receipt_details"}}}}
       ]
     },
     "report_revision_1": {

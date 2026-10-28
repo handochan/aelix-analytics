@@ -39,7 +39,7 @@ OQ20은 보존 파일을 검사하는 일반 참조 규칙의 예외이므로 �
 이 build의 결박 이벤트보다 앞이다. build가 읽을 수 없으면 결박하지 않는다. 새 build의 값은 null이 아닌 0 이상의 정수다.
 
 `basis.content_seq`는 그 기준 이하에서 **게시 계열로 안전하게 제외할 수 없는 마지막 줄의 seq**다.
-게시 계열의 닫힌 집합은 지금 `analytics.event/2`의 `publication`·`publish_receipt`뿐이다.
+게시 계열의 닫힌 집합은 지금 `analytics.event/2`의 `publication`·`publish_attempt`·`publish_receipt`다(`publish_attempt`는 #21 PR-2가 더함, kit 0.30.0).
 알고 있는 schema·kind의 정상 이벤트만 제외한다. 모르는 가족·버전·kind, `unsupported` 줄, 복구된 줄은
 kind 철자가 같아도 제외하지 않는다. reader가 파싱·복구하여 얻은 seq를 사용하고, seq를 얻지 못한 손상 줄에
 새 seq나 시각을 추정하지 않는다. 해당 줄의 손상 표시는 공유 모델에 그대로 남긴다.

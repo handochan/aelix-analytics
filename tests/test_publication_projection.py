@@ -200,9 +200,18 @@ def journal(values):
 def test_content_seq_closed_set_empty_unknown_unsupported_recovered_and_time():
     basis, _ = content_basis(journal([]), validate_reference=writer.reference_problem)
     assert basis == SnapshotBasis(0, ContentBasis(0, None, None))
-    normal = [event(1), publication(2), event(3, "publish_receipt", details={"publication_id": "pub-"+"0"*26})]
+    receipt = {"attempt_id": "att-" + "0" * 26, "publication_id": "pub-" + "0" * 26, "action": "publish",
+               "outcome": "failed", "binding": "project_record", "package_sha256": None,
+               "target": {"name": None, "path": "/share", "resolved": "/share", "marker_created": False},
+               "started_at": "2026-10-01T00:00:00+00:00", "ended_at": "2026-10-01T00:00:01+00:00",
+               "steps": dict.fromkeys(relations.PUBLISH_STEPS, "not_started"), "lock": {"state": "busy"},
+               "reports": None, "failure": {"step": "lock", "code": "target_busy"}}
+    normal = [event(1), publication(2), event(3, "publish_receipt", details=receipt)]
     basis, excluded = content_basis(journal(normal), validate_reference=writer.reference_problem)
     assert basis.as_of_seq == 3 and basis.content.content_seq == 1 and excluded == {2, 3}
+    # #21: a receipt without its fields is not a normal delivery event, so it counts (ADR-0014 decision 2).
+    short = [event(1), publication(2), event(3, "publish_receipt", details={"publication_id": "pub-" + "0" * 26})]
+    assert content_basis(journal(short), validate_reference=writer.reference_problem)[0].content.content_seq == 3
     for changed in (event(4, "unknown"), event(4, "publication", schema="analytics.event/99"), event(4, "publication")):
         b, _ = content_basis(journal([*normal, changed]), validate_reference=writer.reference_problem)
         assert b.content.content_seq == 4

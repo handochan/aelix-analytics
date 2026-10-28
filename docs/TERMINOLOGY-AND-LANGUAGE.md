@@ -367,6 +367,9 @@ kit 0.21.0은 개별 버전 저장·조회·철회/복원·prepared 정리의 CL
 | `latest.json`(`analytics.publish_channel/1`) | 최신 포인터의 정본과 그 channel의 history |
 | 소유 기록(`analytics.publish_staging/1`) | `.staging/<attempt_id>.json`. 한 게시 시도가 그 staging을 쓰는 중이라는 표시. 기기·호스트는 해시로만 담음 |
 | `attempt_id` | `att-`와 소문자 ULID. 게시 시도를 구별할 뿐 재시도 판정에 쓰지 않음(재시도 단위는 `publication_id`·패키지 해시·대상) |
+| `publish_attempt` | 게시 시도의 시작 기록 kind(kit 0.30.0). 대상을 바꾸기 전에 씀. receipt 없는 시도는 결과가 기록되지 않은 시도이며 성공이 아님 |
+| `analytics publish` | 고정 build를 지정한 폴더에 전달·확인하고 최신 주소를 바꾸는 명령. build(`analytics build`)와 별개이며 분석을 다시 실행하지 않음 |
+| `not_newer` / `superseded` | 게시는 끝났으나 최신 주소를 바꾸지 않은 결과: 더 새 build가 아님 / 시작한 뒤 다른 게시가 최신을 바꿈 |
 
 명칭·영어 기본화는 새 공개 표면에서 한 번에 일관되게 제공한다. 구현 PR은 현재 코드·예제·오류 안내·실제 설치물을 함께 갱신한다.
 옛 도구를 기본 노출 목록에 남기거나 사용자를 두 가지 용어 체계로 안내하지 않는다.

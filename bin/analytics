@@ -19,6 +19,7 @@
 #   analytics build [--preview] [--profile read|evidence] [--report ID[@REV]]... [--scope project|reports]
 #                   [--collection ID@REV] [--allow-withdrawn] [--exclude REF]... [--zip PATH]
 #   analytics build --list | --verify FOLDER_OR_ZIP | --zip-of ID --zip PATH
+#   analytics publish --build ID --to FOLDER [--channel NAME] [--reassign-channel] | --list
 #   analytics assets list | show ID | review [ID] | update EVENT --expected STATE --to STATE --reason TEXT
 #   analytics assets register EVENT --name NAME    copy a validated asset into this project
 #   analytics assets mode on_demand|always_on      human project suggestion mode
@@ -208,6 +209,20 @@ case $cmd in
     refuse_renamed
     proj=$(find_project)
     run_kit "$proj" "$cmd" "$@"
+    ;;
+  publish)
+    refuse_renamed
+    # Publishing imports no analysis library (#21): any Python 3.11 or later, as for build --list.
+    python=$PACK/.venv/bin/python
+    if [ ! -f "$python" ]; then
+      python=$(command -v python3 || command -v python || true)
+    fi
+    if [ -z "$python" ] || ! "$python" -c 'import sys; raise SystemExit(sys.version_info < (3, 11))'; then
+      echo "analytics: publish needs Python 3.11 or later" >&2
+      exit 1
+    fi
+    "$python" -m aelix_analytics publish "$@"
+    exit $?
     ;;
   build)
     refuse_renamed

@@ -444,8 +444,10 @@ async def run_kit(project, args, *, timeout: float, actor: str = "agent", means:
     model's tools: agent·tool; /analytics: human·command). Returns (ok, result object)."""
     processes = project.platform.processes
     try:
-        if args[:1] == ["build"]:
-            readonly = any(a in ("--list", "--verify", "--zip-of") or a.startswith(("--verify=", "--zip-of=")) for a in args[1:])
+        if args[:1] in (["build"], ["publish"]):
+            # A publish, like the read-only build commands, imports no analysis library (#21).
+            readonly = args[:1] == ["publish"] or any(
+                a in ("--list", "--verify", "--zip-of") or a.startswith(("--verify=", "--zip-of=")) for a in args[1:])
             python = Path(sys.executable) if readonly else project.root / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
             if not python.is_file():
                 mode = "preview" if "--preview" in args else "build"
@@ -456,10 +458,10 @@ async def run_kit(project, args, *, timeout: float, actor: str = "agent", means:
             argv = [uv, "run", "--project", str(project.root), "--quiet", "python", "-m", "aelix_analytics",
                     "--project", str(project.root), *args]
         # Only where the platform asks through it: POSIX asks with a signal and needs no file.
-        request = _CancelRequest() if processes.asks_by_request and args[:1] != ["build"] else None
+        request = _CancelRequest() if processes.asks_by_request and args[:1] not in (["build"], ["publish"]) else None
         try:
             env = child_env(processes, actor, means)
-            if args[:1] == ["build"]:
+            if args[:1] in (["build"], ["publish"]):
                 env["PYTHONDONTWRITEBYTECODE"] = "1"
             if request is not None:
                 env["AELIX_ANALYTICS_CANCEL_FILE"] = str(request.path)
@@ -1787,6 +1789,7 @@ HELP = """/analytics — Aelix Analytics project
   /analytics render | open      rebuild the report | open it in the browser
   /analytics build [--preview]  build privately or inspect a sharing preview
   /analytics build --list | --verify PATH | --zip-of ID --zip PATH
+  /analytics publish --build ID --to FOLDER | --list  publish a build to a folder
   /analytics record KIND TEXT   journal entry as a human (finding, decision, question, ...);
                                 KIND workflow_feedback: something this analysis workflow lacked
                                 or made awkward
@@ -1913,6 +1916,15 @@ async def analytics_command(args, ctx=None):
                 raise core.AnalyticsError("scope_invalid", "quote the build arguments") from exc
             ok, value = await run_kit(project, ["build", *args], timeout=1200, actor="human", means="command")
             return json.dumps(value, ensure_ascii=False, indent=2) if ok else render_error("/analytics build", value)
+        if sub == "publish":
+            # A person's explicit publish (ADR-0009 decision 2): the same command, no model tool.
+            project, _ = resolve_project()
+            try:
+                args = shlex.split(rest)
+            except ValueError as exc:
+                raise core.AnalyticsError("publish_input_invalid", "quote the publish arguments") from exc
+            ok, value = await run_kit(project, ["publish", *args], timeout=1200, actor="human", means="command")
+            return json.dumps(value, ensure_ascii=False, indent=2) if ok else render_error("/analytics publish", value)
         if sub == "record":
             # Kinds as the common writer has them (writer.RECORD_KINDS): `/analytics record gap TEXT`,
             # what `/lab gap TEXT` was, is bad_kind with its new name, workflow_feedback (design 2.8).

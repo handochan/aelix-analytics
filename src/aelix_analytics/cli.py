@@ -64,6 +64,7 @@ analytics — human CLI for Aelix Analytics projects (the same kit the aelix ext
   analytics build [--preview] [--profile read|evidence] [--report ID[@REV]]... [--scope project|reports]
                   [--collection ID@REV] [--allow-withdrawn] [--exclude REF]... [--zip PATH]
   analytics build --list | --verify FOLDER_OR_ZIP | --zip-of ID --zip PATH
+  analytics publish --build ID --to FOLDER [--channel NAME] [--reassign-channel] | --list
   analytics assets list | show ID | review [ID] | update EVENT --expected STATE --to STATE --reason TEXT
   analytics assets register EVENT --name NAME    copy a validated asset into this project
   analytics assets mode on_demand|always_on      human project suggestion mode
@@ -79,7 +80,7 @@ puts an empty line before it. Nothing here is a sandbox.
 """
 
 COMMANDS = ("init", "demo", "status", "context", "open", "run", "import", "query", "record", "checkpoint", "render",
-            "migrate", "assets", "reports", "build")
+            "migrate", "assets", "reports", "build", "publish")
 
 # The environment variables this command read under the kit's old names (before kit 0.3.0), each with
 # its new name; bin/analytics refuses the same three in the same order with the same words. The kit
@@ -166,6 +167,11 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
         # standalone verification outside every Project. The kit finds an optional Project.
         env["PYTHONDONTWRITEBYTECODE"] = "1"
         return children.run([sys.executable, "-m", "aelix_analytics", "build", *args], env)
+    if command == "publish":
+        # Publishing copies a bound build's bytes and imports no analysis library (#21): this
+        # launcher's interpreter, as for the read-only build commands. The kit finds the project.
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        return children.run([sys.executable, "-m", "aelix_analytics", "publish", *args], env)
     project = find_project()
     if project is None:
         return 1
