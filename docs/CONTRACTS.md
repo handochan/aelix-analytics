@@ -2326,13 +2326,15 @@ D2의 미리보기와 D3의 build가 같은 경로를 씁니다.
   `basis: declared`). 둘 다 있는데 다르면 시작 기록 전에 거절합니다(`version_differs`). 고를 수 있는 것은 이 프로젝트 channel의 history에 있는 버전이나
   결박이 있고 대상에 확정된 버전이고, 그 밖은 시작 기록 전에 `not_bound`·`not_on_target`입니다. build 순서는 비교하지 않고, 시작한 뒤 다른 게시가 최신을
   바꿨으면 `superseded`입니다. receipt는 `action: switch`이고(글은 "Switched <대상> to <id>"), `transfer`·`check`·`commit`은 `not_started`, `final_check`가 그 대조입니다. 그 뒤
-  더 새 build를 게시하면 channel은 다시 앞으로 갑니다(되돌리기는 고정이 아님).
+  이 프로젝트의 더 새 build를 게시하면 channel은 다시 앞으로 갑니다(되돌리기는 고정이 아님). 넘겨받은 channel에서 history에 남은 다른 프로젝트의
+  버전으로 되돌렸다면 build 순서를 비교할 수 없어 다음 게시는 `not_newer`입니다(설계 8절). 그때는 이 프로젝트의 버전으로 먼저 되돌립니다.
 - **저장한 대상**: `--save-target`은 폴더를 판정만 하고(대상에 아무것도 만들지 않음) `.analytics/publish-targets.json`(`analytics.publish_targets/1`,
   `targets`: 이름 → 절대 경로)에 적습니다. 프로젝트의 `.gitignore`에 `.analytics/publish-targets.json` 줄이 없으면 저장하지 않습니다(`targets_not_ignored`).
   kit 0.31.0이 만든 프로젝트에는 그 줄이 있고, 이전 프로젝트와 전환한 프로젝트에는 사람이 더합니다. 이름은 영문자·숫자로 시작하는 64자까지의
   영문자·숫자·`.`·`_`·`-`입니다. 그 줄 뒤에 `!`로 되돌리는 줄이 있으면 저장하지 않습니다. 없는 이름은 `target_unknown`, 읽을 수 없는 파일은
   `saved_targets_invalid`입니다(`--list`는 시도를 보이고 그 오류를 `saved_targets_error`에 적습니다). 저장한 폴더와 그 실제 위치(링크를 푼 것)는
-  게시에 쓰지 않았어도 뒤의 build가 공유 사본의 금지 값으로 씁니다.
+  게시에 쓰지 않았어도 뒤의 build가 공유 사본의 금지 값으로 씁니다. 그 파일을 읽을 수 없으면 build는 멈추지 않고 저장한 폴더를 금지 값에 넣지
+  않습니다(게시한 폴더는 게시 기록에서 따로 금지 값이 됩니다).
 - **다른 계정의 읽기(설계 9.2)**: receipt의 `access.posix`는 대상까지의 폴더와 버전 아래의 group·other 권한 비트를 관찰합니다(`others_can_read`·
   `blocked`, `group_can_read`·`group_blocked`). other가 읽지 못해 보이면 결과에 경고 `others_cannot_read`를 더하고 stderr에 적습니다. 권한을 바꾸지
   않고, Windows의 ACL은 읽지 않습니다(`windows_acl: not_checked`).

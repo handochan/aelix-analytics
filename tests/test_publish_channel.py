@@ -327,6 +327,24 @@ def test_a_channel_taken_over_names_its_former_owner_in_the_receipt(project, tmp
     assert [h["publication_id"] for h in latest(share)["history"]][0] == theirs  # the history is kept
 
 
+def test_after_a_switch_to_the_former_owner_s_version_a_new_build_waits_for_a_switch_back(project, tmp_path):
+    """CONTRACTS D7: the build order compares one project's builds, so a channel switched to a version
+    another project published (its history after a takeover) is not moved forward by a publish."""
+    share = tmp_path / "share"
+    other = core.init_project(tmp_path / "other", title="Weekly sales", origin=ORIGIN)
+    theirs = built(other)
+    publish.publish(other, theirs, share, origin=ORIGIN)
+    mine = built(project)
+    publish.publish(project, mine, share, origin=ORIGIN, reassign=True)
+    assert publish.switch(project, theirs, share, origin=ORIGIN)["outcome"] == "published"
+    newer = built(project)
+    assert publish.publish(project, newer, share, origin=ORIGIN)["outcome"] == "not_newer"
+    assert latest(share)["latest"] == theirs
+    assert publish.switch(project, mine, share, origin=ORIGIN)["outcome"] == "published"
+    assert publish.publish(project, newer, share, origin=ORIGIN)["outcome"] == "published"
+    assert latest(share)["latest"] == newer
+
+
 # --- saved targets (design 9.3) ----------------------------------------------------------------------
 
 def test_a_saved_target_is_judged_only_and_used_by_name(project, tmp_path, capsys, monkeypatch):

@@ -19,7 +19,8 @@
 #   analytics build [--preview] [--profile read|evidence] [--report ID[@REV]]... [--scope project|reports]
 #                   [--collection ID@REV] [--allow-withdrawn] [--exclude REF]... [--zip PATH]
 #   analytics build --list | --verify FOLDER_OR_ZIP | --zip-of ID --zip PATH
-#   analytics publish (--build ID | --switch-to ID) (--to FOLDER | --target NAME) [--channel NAME] [--reassign-channel]
+#   analytics publish --build ID (--to FOLDER | --target NAME) [--channel NAME] [--reassign-channel]
+#   analytics publish --switch-to ID (--to FOLDER | --target NAME) [--channel NAME]
 #   analytics publish --save-target NAME --to FOLDER | --list [--to FOLDER | --target NAME]
 #   analytics assets list | show ID | review [ID] | update EVENT --expected STATE --to STATE --reason TEXT
 #   analytics assets register EVENT --name NAME    copy a validated asset into this project

@@ -279,7 +279,8 @@ ADR-0009는 확정 연산과 잠금 대기 상한을 기존 `AtomicFiles`·`File
 - `--target <이름>`은 git이 무시하는 로컬 설정의 이름이다. `.analytics/publish-targets.json`(`analytics.publish_targets/1`, `{name: path}`).
 - 만들기는 `analytics publish --save-target <이름> --to <폴더>`다. 3절 판정만 하고 대상에 아무것도 만들지 않는다.
 - PR-3은 템플릿 `.gitignore`에 그 줄을 더한다. 전환(`migration.py`)은 바꾸지 않는다. 그 줄이 없는 프로젝트(이전 프로젝트, 전환한 프로젝트)에서는 저장하지 않고
-  줄을 더하라고 안내한다. 그래서 저장한 대상은 언제나 git이 무시하는 곳에 있다.
+  줄을 더하라고 안내한다. 그래서 저장한 대상은 프로젝트 `.gitignore`가 무시하는 곳에 있다. 검사는 그 파일에 줄이 있고 뒤에 `!`로 되돌리는 줄이
+  없는지만 본다. 이미 git이 추적하는 파일, 하위 폴더의 `.gitignore`, 전역 제외 설정은 보지 않는다.
 
 ## 10. 명령과 출력
 
