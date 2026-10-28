@@ -14,7 +14,7 @@
 |---|---|
 | 로컬 전체 시험(`7286182`) | **3051 passed, 140 skipped**, 611.09초 |
 | 브라우저 시험 세 엔진(`tests/test_publish_browser.py`, Chromium 156·Firefox 157·WebKit 27.2) | 18 passed |
-| CI 세 OS(필수 검사 일곱 개) | `f5825e4` 성공, 아래 표 |
+| CI 세 OS(필수 검사 일곱 개) | `f5825e4` 성공, 이 기록의 커밋 `f2811e9` 성공(시도 2), 아래 표 |
 
 고정 커밋 `7823374`의 전체 시험은 3건이 실패했다(3041 passed). template 규칙의 집합 시험, 현재 계약의 버전 문장, 인코딩이 없는 subprocess였고
 `d96776a`가 고쳤다.
@@ -24,6 +24,8 @@
 | 40713376229 | `7823374` | 실패: 세 platform 레그에서 위의 3건. Windows는 접근 도구 시험(이 계정의 읽기)도 실패했고, `net user /add`가 15자 이상 암호의 Y/N 질문에서 멈췄다. Linux·macOS의 두 번째 계정과 Windows 루프백 SMB 게시는 통과 |
 | 40721743265 | `86cff5f` | 실패(Windows): 계정은 만들었지만 `Start-Process -Credential`이 세 경우 모두 180초 안에 끝나지 않았다(`not_run`). 이 계정의 읽기는 PowerShell 7 아래의 Windows PowerShell 5.1이 `Get-FileHash`를 불러오지 못해 실패 |
 | 40732331281 | `f5825e4` | 성공. 전체 시험 Linux 3059 passed, macOS 3060 passed, Windows 2862 passed. Linux 브라우저 13 passed. 세 OS의 두 번째 계정이 읽음 |
+| 40740608581 시도 1 | `f2811e9`(이 기록) | 실패: `platform · windows-2025`의 `tests/test_model_eval.py::test_settle_bounds_a_stream_of_new_writers_and_reports_the_last_one`. 이 PR이 바꾸지 않은 시험이다. 가짜 프로세스 표의 PID(10001–10032)가 pytest의 PID와 같으면 `settle`이 그 PID를 건너뛰어 일찍 끝난다. 로컬에서 `os.getpid()`를 10004·10012로 바꾸면 같은 단언으로 실패하고, 99999면 통과했다 |
+| 40740608581 시도 2 | `f2811e9` | 성공(실패한 job만 다시 실행). Linux 3060 passed, macOS 3061 passed, Windows 2863 passed. Linux 브라우저 13 passed. 세 OS의 두 번째 계정과 Windows SMB 통과 |
 
 ## 다른 계정의 읽기(`tools/publish_access_check.py`, ADR-0009 확인 1·2·8·9)
 

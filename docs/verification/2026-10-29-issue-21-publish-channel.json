@@ -181,6 +181,20 @@
    "head": "f5825e4",
    "conclusion": "success",
    "detail": "suite: Linux 3059 passed 110 skipped, macOS 3060 passed 109 skipped, Windows 2862 passed 338 skipped; Linux browser 13 passed; the second account read on all three, Windows also over the loopback share"
+  },
+  {
+   "run": 40740608581,
+   "attempt": 1,
+   "head": "f2811e9",
+   "conclusion": "failure",
+   "detail": "platform windows-2025: tests/test_model_eval.py::test_settle_bounds_a_stream_of_new_writers_and_reports_the_last_one, a test this PR does not change. Its fake process table names pids 10001-10032 and settle skips its own pid, so a pytest pid among them ends the wait early; with os.getpid() made 10004 or 10012 it fails with the same assertion here, with 99999 it passes"
+  },
+  {
+   "run": 40740608581,
+   "attempt": 2,
+   "head": "f2811e9",
+   "conclusion": "success",
+   "detail": "the failed job rerun: suite Linux 3060 passed, macOS 3061 passed, Windows 2863 passed; Linux browser 13 passed; the second account and the Windows share pass"
   }
  ],
  "access_check": {
