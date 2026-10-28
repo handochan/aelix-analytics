@@ -10,8 +10,10 @@ reader: latest.json, the channel page and every file the newest version's manife
 
 - Without --account the reader is this account: what the reader does is tried, nothing is changed.
 - --account makes a second OS account (Linux `useradd`, macOS `sysadminctl`, Windows `net user`) and
-  reads as it (`sudo -u`; on Windows `Start-Process -Credential` and a PowerShell reader). The folder
-  only this account can open must then not be readable.
+  reads as it: through `sudo -u`, or on Windows by a reader that takes the account's logon token
+  (LogonUserW, ImpersonateLoggedOnUser) before it opens anything. The reader reports its uid or account
+  name, and a read by any other account fails. The folder only this account can open (on Windows the
+  publisher's own temporary folder) must then not be readable.
 - --smb (Windows) shares a folder as \\\\localhost\\<name>, publishes there and reads it back, as this
   account and, with --account, as the second one.
 
@@ -33,7 +35,6 @@ import string
 import subprocess
 import sys
 import tempfile
-import time
 from pathlib import Path
 
 PACK = Path(__file__).resolve().parents[1]
@@ -45,10 +46,33 @@ ORIGIN = core.Origin("human", "cli")
 ACCOUNT = "analyticsreader" if sys.platform == "darwin" else "analytics-reader"
 CHANNEL = "access-check"
 
-POSIX_READER = r'''
+READER = r'''
 import hashlib, json, os, sys
 root, channel = sys.argv[1], sys.argv[2]
-out = {"uid": os.getuid(), "files": 0, "bytes": 0, "errors": []}
+out = {"files": 0, "bytes": 0, "errors": []}
+if os.name == "nt":
+    import ctypes
+    from ctypes import wintypes
+    advapi = ctypes.WinDLL("advapi32", use_last_error=True)
+    if os.environ.get("READER_NAME"):
+        # This thread takes the second account's logon token: every open below is checked as that account.
+        token = wintypes.HANDLE()
+        for kind in (2, 8, 3):  # interactive; network keeping the credentials (for a share); network
+            if advapi.LogonUserW(os.environ["READER_NAME"], ".", os.environ["READER_LOGON"], kind, 0, ctypes.byref(token)):
+                out["logon_type"] = kind
+                break
+            out.setdefault("logon_errors", []).append({"type": kind, "winerror": ctypes.get_last_error()})
+        else:
+            print(json.dumps({"not_run": {"step": "LogonUserW", **out}}))
+            sys.exit(3)
+        if not advapi.ImpersonateLoggedOnUser(token):
+            print(json.dumps({"not_run": {"step": "ImpersonateLoggedOnUser", "winerror": ctypes.get_last_error()}}))
+            sys.exit(3)
+    size = wintypes.DWORD(257)
+    name = ctypes.create_unicode_buffer(257)
+    out["account"] = name.value if advapi.GetUserNameW(name, ctypes.byref(size)) else None
+else:
+    out["uid"] = os.getuid()
 try:
     folder = os.path.join(root, "projects", channel)
     with open(os.path.join(folder, "latest.json"), encoding="utf-8") as fh:
@@ -66,33 +90,8 @@ try:
         out["files"] += 1
         out["bytes"] += len(data)
 except OSError as exc:
-    out["errors"].append({"path": exc.filename, "error": type(exc).__name__})
+    out["errors"].append({"path": exc.filename, "error": type(exc).__name__, "winerror": getattr(exc, "winerror", None)})
 print(json.dumps(out))
-'''
-
-WINDOWS_READER = r'''
-param([string]$Root, [string]$Channel, [string]$Out)
-# Windows PowerShell 5.1 writes some arrays as {"value": [...], "Count": n} through this type data.
-Remove-TypeData System.Array -ErrorAction SilentlyContinue
-$r = [ordered]@{account = [Environment]::UserName; files = 0; bytes = 0; errors = @()}
-try {
-    $folder = Join-Path (Join-Path $Root "projects") $Channel
-    $r.latest = (Get-Content -LiteralPath (Join-Path $folder "latest.json") -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json).latest
-    $page = Get-Content -LiteralPath (Join-Path $folder "index.html") -Raw -Encoding UTF8 -ErrorAction Stop
-    $r.page_names_latest = $page.Contains('content="' + $r.latest + '"')
-    $version = Join-Path (Join-Path $Root "publications") $r.latest
-    $manifest = Get-Content -LiteralPath (Join-Path $version "publication.json") -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json
-    foreach ($entry in $manifest.files) {
-        $path = Join-Path $version ($entry.path -replace "/", "\")
-        $hash = (Get-FileHash -LiteralPath $path -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
-        if ($hash -ne $entry.sha256) { $r.errors += @{path = $entry.path; error = "sha256"} }
-        $r.files += 1
-        $r.bytes += (Get-Item -LiteralPath $path -ErrorAction Stop).Length
-    }
-} catch {
-    $r.errors += @{path = $null; error = $_.Exception.GetType().Name; message = $_.Exception.Message}
-}
-$r | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $Out -Encoding UTF8
 '''
 
 
@@ -150,43 +149,26 @@ def make_account():
 
 def read_as(account, root: Path, work: Path):
     """The reader run as `account` (None: this account). Returns its report, or None and why not."""
-    if os.name == "nt":
-        script = work / "reader.ps1"
-        script.write_text(WINDOWS_READER, encoding="utf-8-sig")
-        out = work / f"read-{time.monotonic_ns()}.json"
-        if account is None:
-            code, stdout, err = run(["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-                                     "-File", str(script), str(root), CHANNEL, str(out)])
-        else:
-            code, stdout, err = powershell(
-                "$c = New-Object System.Management.Automation.PSCredential($env:READER_NAME, "
-                "(ConvertTo-SecureString $env:READER_LOGON -AsPlainText -Force)); "
-                "$p = Start-Process -FilePath powershell.exe -Credential $c -Wait -PassThru -WindowStyle Hidden "
-                "-WorkingDirectory $env:READER_WORK -ArgumentList @('-NoProfile','-NonInteractive','-ExecutionPolicy',"
-                "'Bypass','-File',$env:READER_SCRIPT,$env:READER_ROOT,$env:READER_CHANNEL,$env:READER_OUT); "
-                "exit $p.ExitCode",
-                env={"READER_NAME": account["name"], "READER_LOGON": account["logon"], "READER_WORK": str(work),
-                     "READER_SCRIPT": str(script), "READER_ROOT": str(root), "READER_CHANNEL": CHANNEL,
-                     "READER_OUT": str(out)})
-        if not out.exists():
-            return None, {"step": "start the reader", "code": code, "stderr": err or stdout}
-        read = json.loads(out.read_text(encoding="utf-8-sig"))
-        for key in ("errors",):  # the 5.1 shape, should the type data have stayed
-            if isinstance(read.get(key), dict) and "value" in read[key]:
-                read[key] = read[key]["value"]
-        errors = read.get("errors")
-        read["errors"] = errors if isinstance(errors, list) else [] if errors is None else [errors]
-        return read, None
     script = work / "reader.py"
-    script.write_text(POSIX_READER, encoding="utf-8")
-    os.chmod(script, 0o644)
-    argv = [sys.executable, str(script), str(root), CHANNEL] if account is None else [
-        "sudo", "-n", "-u", account["name"], account["python"], str(script), str(root), CHANNEL]
-    code, stdout, err = run(argv, cwd="/")
+    script.write_text(READER, encoding="utf-8")
+    if os.name == "nt":
+        env = {**os.environ, **({"READER_NAME": account["name"], "READER_LOGON": account["logon"]} if account else {})}
+        argv = [sys.executable, "-I", str(script), str(root), CHANNEL]
+    else:
+        os.chmod(script, 0o644)
+        env = None
+        argv = [sys.executable, "-I", str(script), str(root), CHANNEL] if account is None else [
+            "sudo", "-n", "-u", account["name"], account["python"], "-I", str(script), str(root), CHANNEL]
+    code, stdout, err = run(argv, cwd=str(work) if os.name == "nt" else "/", env=env)
     try:
-        return json.loads(stdout.strip().splitlines()[-1]), None
+        read = json.loads(stdout.strip().splitlines()[-1])
     except (ValueError, IndexError):
         return None, {"step": "run the reader", "code": code, "stderr": err or stdout}
+    if "not_run" in read:
+        return None, read["not_run"]
+    if any(e.get("winerror") == 1346 for e in read["errors"]):  # an identification-level token opens nothing
+        return None, {"step": "ImpersonateLoggedOnUser", "reader": read}
+    return read, None
 
 
 # --- the cases -------------------------------------------------------------------------------------
@@ -204,16 +186,24 @@ def publish_both(project, ids, folder):
 REFUSED = frozenset({"PermissionError", "UnauthorizedAccessException"})
 
 
-def judged(case, read, why, *, expect_read):
-    """A case passes when the reader got what it should: every file by its hash, or (expect_read
-    False) a refusal of access and nothing else."""
+def read_by(read, account) -> bool:
+    """The reader ran as `account` (None: as this one), by the uid or the name it reports."""
+    if os.name == "nt":
+        name = str(read.get("account") or "").lower()
+        return name == account["name"].lower() if account else bool(name)
+    return read.get("uid") != os.getuid() if account else read.get("uid") == os.getuid()
+
+
+def judged(case, read, why, *, expect_read, account):
+    """A case passes when the reader, as `account`, got what it should: every file by its hash, or
+    (expect_read False) a refusal of access and nothing else."""
     if read is None:
         case.update(reader="not_run", reader_reason=why, result="not_run")
         return
     case["reader"] = read
     whole = not read["errors"] and read["files"] > 0 and read.get("page_names_latest") is True
     refused = bool(read["errors"]) and all(e.get("error") in REFUSED for e in read["errors"])
-    case["result"] = "pass" if (whole if expect_read else refused) else "fail"
+    case["result"] = "pass" if read_by(read, account) and (whole if expect_read else refused) else "fail"
 
 
 def main():
@@ -228,8 +218,12 @@ def main():
         parser.error("--account and --smb change this machine: they run on GitHub Actions or with --allow-machine-changes")
     if args.smb and os.name != "nt":
         parser.error("--smb is the Windows loopback share")
-    base = Path(tempfile.mkdtemp(prefix="analytics-access-", dir=os.environ.get("SystemDrive", "C:") + "\\")
-                if os.name == "nt" else tempfile.mkdtemp(prefix="analytics-access-", dir="/tmp"))
+    if os.name == "nt":
+        # Not mkdtemp: from Python 3.13 its mode 0o700 gives a Windows folder only this account can open.
+        base = Path(os.environ.get("SystemDrive", "C:") + "\\", f"analytics-access-{secrets.token_hex(6)}")
+        base.mkdir()
+    else:
+        base = Path(tempfile.mkdtemp(prefix="analytics-access-", dir="/tmp"))
     private = Path(tempfile.mkdtemp(prefix="analytics-access-project-"))
     os.environ["AELIX_ANALYTICS_TRUST_FILE"] = str(private / "trust" / "lab-projects.json")
     for name in ("AELIX_LAB_HOME", "AELIX_LAB_TRUST_FILE"):
@@ -282,6 +276,16 @@ def cases(args, out, base: Path, private: Path) -> bool:
         folders["shut"] = shut / "share"
     elif account is not None:
         folders["shut"] = private / "share"  # the publisher's own profile folder
+    stuck = []  # a reader as the account that did not end: later cases do not wait for it again
+
+    def read_account(folder):
+        if stuck:
+            return None, {"step": "run the reader", "not_tried": "it did not end in an earlier case"}
+        read, why = read_as(account, folder, work)
+        if read is None and why.get("code") is None and why.get("step") == "run the reader":
+            stuck.append(why)
+        return read, why
+
     for name, folder in folders.items():
         case = out["cases"][name] = {"folder": os.fspath(folder), **publish_both(project, ids, folder)}
         if case["outcomes"] != ["published", "published"]:
@@ -291,8 +295,8 @@ def cases(args, out, base: Path, private: Path) -> bool:
             self_read, why = read_as(None, folder, work)
             case.update(reader="not_run", result="not_run", self_reader=self_read if self_read is not None else why)
         else:
-            read, why = read_as(account, folder, work)
-            judged(case, read, why, expect_read=name == "open" or account is None)
+            read, why = read_account(folder)
+            judged(case, read, why, expect_read=name == "open" or account is None, account=account)
             if name == "shut" and os.name != "nt" and "others_cannot_read" not in case["warnings"]:
                 case["result"] = "fail"  # design 9.2: the publish says others may not read it
         if case["result"] == "fail" or (case["result"] == "not_run" and args.require_account):
@@ -313,9 +317,9 @@ def cases(args, out, base: Path, private: Path) -> bool:
                 smb["reread"] = checks.verify_package(version)["package_sha256"]
                 smb["result"] = "pass" if smb["outcomes"] == ["published", "published"] else "fail"
                 if account is not None and smb["result"] == "pass":
-                    read, why = read_as(account, unc, work)
+                    read, why = read_account(unc)
                     smb["second_account"] = read if read is not None else {"state": "not_run", "reason": why}
-                    if read is not None and (read["errors"] or not read["files"]):
+                    if read is not None and (read["errors"] or not read["files"] or not read_by(read, account)):
                         smb["result"] = "fail"
             except Exception as exc:  # noqa: BLE001 - what a share does is the measurement
                 smb.update(result="fail", error=f"{type(exc).__name__}: {exc}")
