@@ -3,10 +3,13 @@
 The steps: judge (read only) → binding → start record → target folder → lock → judge again → marker →
 managed folders → earlier traces → transfer → check → commit → final check → switch → cleanup →
 receipt. Only a version checked where it lies reaches a pointer; nothing here rereads the project's
-analysis or changes a version with content. The receipt is written last (ADR-0006's commit rule)."""
+analysis or changes a version with content. The receipt is written last (ADR-0006's commit rule).
+A switch (`--switch-to`, design 8) is the same attempt without the transfer: the version already on
+the target is checked where it lies, then only the pointers move."""
 
 from __future__ import annotations
 
+import base64
 import contextlib
 import errno
 import getpass
@@ -14,13 +17,16 @@ import hashlib
 import html
 import json
 import os
+import posixpath
 import re
 import shutil
 import socket
 import stat
 import time
 from datetime import datetime, timedelta
+from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 from .. import _platform, core, relations, writer
 from . import checks, target
@@ -173,41 +179,133 @@ def _verify(folder: Path, publication_id, details):
     return verified
 
 
-# --- the channel page (design 7; PR-3 adds the arrival check) -------------------------------------------
+# --- the channel page (design 7) -------------------------------------------------------------------
 
-def channel_page(latest: dict) -> bytes:
-    history = sorted(latest["history"], key=lambda h: h.get("latest_since") or "", reverse=True)
-    pointed = next((h for h in latest["history"] if h.get("publication_id") == latest["latest"]), {})
-    newest_build = max((h for h in latest["history"] if isinstance(h.get("build_seq"), int)
+# Before it moves to the newest version, the page loads what that version's entry loads itself and a
+# browser reports without running it: stylesheets (media "not all", so nothing applies here) and
+# images. Measured for #21 PR-3 in Chromium, Firefox and WebKit over file:// and an HTTP subpath: each
+# gives "load" for a file that is there and "error" for one that is not, and 'self' admits the
+# version's files over file:// too. One that answers neither in ARRIVAL_SECONDS counts as not arrived.
+ARRIVAL_SECONDS = 15
+ARRIVAL_LIMIT = 20
+ARRIVAL_SCRIPT = (
+    '(function(){var box=document.getElementById("arrival");if(!box)return;var data=null;'
+    'try{data=JSON.parse(box.getAttribute("data-check"));}catch(e){}'
+    'var left=data&&data.check?data.check.length:0,ended=false,timer=null;'
+    'function stop(){if(ended)return;ended=true;clearTimeout(timer);'
+    'document.getElementById("arrival-checking").hidden=true;document.getElementById("arrival-failed").hidden=false;}'
+    'if(!left){stop();return;}timer=setTimeout(stop,data.seconds*1000);'
+    'data.check.forEach(function(c){var el=c.kind==="image"?new Image():document.createElement("link");'
+    'el.onload=function(){if(!ended&&--left===0){ended=true;clearTimeout(timer);location.replace(data.entry);}};'
+    'el.onerror=stop;if(c.kind==="image"){el.src=c.href;}'
+    'else{el.rel="stylesheet";el.media="not all";el.href=c.href;document.head.appendChild(el);}});})();'
+)
+PAGE_POLICY = (
+    "default-src 'none'; script-src 'sha256-"
+    + base64.b64encode(hashlib.sha256(ARRIVAL_SCRIPT.encode()).digest()).decode()
+    + "'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'"
+)
+NOT_ARRIVED = "The newest version may not have fully arrived on this device."
+
+
+class _Loads(HTMLParser):
+    """The stylesheets and images a page loads itself, in document order."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.found = []
+
+    def handle_starttag(self, tag, attrs):
+        values = dict(attrs)
+        if tag == "link" and "stylesheet" in (values.get("rel") or "").lower().split() and values.get("href"):
+            self.found.append(("stylesheet", values["href"]))
+        elif tag == "img" and values.get("src"):
+            self.found.append(("image", values["src"]))
+
+
+def arrival_resources(version: Path, manifest: dict) -> list[dict]:
+    """What the channel page loads before it moves to this checked version (design 7): the entry's
+    own stylesheets and images that are files of the version, as links from the channel page. An
+    entry that cannot be read gives none, and the page then does not move."""
+    try:
+        text = _read_regular(version, manifest.get("entry") or "index.html").decode("utf-8")
+        loads = _Loads()
+        loads.feed(text)
+        loads.close()
+    except (OSError, UnicodeError, PublicationError, AssertionError):
+        return []
+    listed = {f.get("path") for f in manifest.get("files") or () if isinstance(f, dict)}
+    out, seen = [], set()
+    for kind, url in loads.found:
+        parts = urlsplit(url)
+        if parts.scheme or parts.netloc or parts.query or url.startswith("/"):
+            continue
+        name = posixpath.normpath(unquote(parts.path))
+        if name in seen or name not in listed:
+            continue
+        seen.add(name)
+        out.append({"kind": kind, "href": f"../../{target.PUBLICATIONS}/{version.name}/{parts.path}"})
+    return out[:ARRIVAL_LIMIT]
+
+
+def _same_content(a: dict, b: dict | None) -> bool:
+    """Two versions of the same content (ADR-0014 decision 1): one renderer, one content_sha256."""
+    return (b is not None and a.get("renderer") is not None and a.get("renderer") == b.get("renderer")
+            and isinstance(a.get("content_sha256"), str) and a.get("content_sha256") == b.get("content_sha256"))
+
+
+def channel_page(latest: dict, arrival: list[dict]) -> bytes:
+    """The channel page (design 7), drawn from latest.json and what its checked newest version's entry
+    loads. Its one script is the kit's (by hash); it never runs the version's scripts."""
+    pid = latest["latest"]
+    if not relations.PUBLICATION_ID.fullmatch(pid):
+        raise ValueError("a channel page points only to a publication_id")
+    entries = [h for h in latest["history"] if isinstance(h.get("publication_id"), str)
+               and relations.PUBLICATION_ID.fullmatch(h["publication_id"])]
+    history = sorted(entries, key=lambda h: str(h.get("latest_since") or ""), reverse=True)
+    pointed = next((h for h in entries if h["publication_id"] == pid), {})
+    newest_build = max((h for h in entries if isinstance(h.get("build_seq"), int)
                         and h.get("project_id") == pointed.get("project_id")),
                        key=lambda h: h["build_seq"], default=None)
+
+    def href(publication_id):
+        return f"../../{target.PUBLICATIONS}/{publication_id}/index.html"
+
     rows = []
-    for entry in history:
-        pid = entry["publication_id"]
-        current = " (latest)" if pid == latest["latest"] else ""
-        rows.append(f'<li><a href="../../publications/{html.escape(pid)}/index.html">{html.escape(pid)}</a>{current}'
-                    f' · built {html.escape(entry.get("built_at") or "unknown")}'
-                    f' · latest since {html.escape(entry.get("latest_since") or "unknown")}</li>')
-    previous = next((h for h in history if h["publication_id"] != latest["latest"]), None)
-    older = newest_build is not None and newest_build["publication_id"] != latest["latest"]
+    for at, entry in enumerate(history):
+        other = entry["publication_id"]
+        rows.append(f'<li><a href="{href(other)}">{html.escape(other)}</a>{" (latest)" if other == pid else ""}'
+                    f' · built {html.escape(str(entry.get("built_at") or "unknown"))}'
+                    f' · latest since {html.escape(str(entry.get("latest_since") or "unknown"))}'
+                    + (" · same content as the version below" if _same_content(entry, (history[at + 1:] or [None])[0])
+                       else "") + "</li>")
+    previous = next((h for h in history if h["publication_id"] != pid), None)
+    older = newest_build is not None and newest_build["publication_id"] != pid
     title = latest.get("project_title") or "Untitled project"
+    check = {"entry": href(pid), "seconds": ARRIVAL_SECONDS, "check": arrival}
     parts = [
         "<!doctype html>", '<html lang="en">', "<head>", '<meta charset="utf-8">',
         '<meta name="viewport" content="width=device-width, initial-scale=1">',
-        '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:">',
+        f'<meta http-equiv="Content-Security-Policy" content="{html.escape(PAGE_POLICY)}">',
+        '<meta name="referrer" content="no-referrer">', '<meta name="robots" content="noindex">',
         '<link rel="icon" href="data:,">',
-        f'<meta name="analytics-latest" content="{html.escape(latest["latest"])}">',
+        f'<meta name="analytics-latest" content="{html.escape(pid)}">',
+        f'<noscript><meta http-equiv="refresh" content="0; url={href(pid)}"></noscript>',
         f'<title lang="">{html.escape(title)}</title>', "</head>", "<body>",
         f'<h1 lang="">{html.escape(title)}</h1>',
-        f'<p>Latest version: <a href="../../publications/{html.escape(latest["latest"])}/index.html">'
-        f'{html.escape(latest["latest"])}</a></p>',
+        f'<div id="arrival" data-check="{html.escape(json.dumps(check, sort_keys=True))}">',
+        '<p id="arrival-checking">Opening the newest version once its files are on this device…</p>',
+        f'<p id="arrival-failed" hidden>{NOT_ARRIVED} Open it anyway, or open the previous version.</p>',
+        "</div>",
+        f'<p>Latest version: <a href="{href(pid)}">{html.escape(pid)}</a></p>',
     ]
     if previous:
-        parts.append(f'<p>Previous version: <a href="../../publications/{html.escape(previous["publication_id"])}/index.html">'
+        parts.append(f'<p>Previous version: <a href="{href(previous["publication_id"])}">'
                      f'{html.escape(previous["publication_id"])}</a></p>')
     if older:
         parts.append("<p>This channel points to an older build, chosen by switching.</p>")
-    parts += [f"<p>{ACCESS_SENTENCE}</p>", "<h2>Versions</h2>", "<ul>", *rows, "</ul>", "</body>", "</html>", ""]
+    parts += [f"<p>{ACCESS_SENTENCE}</p>", "<h2>Versions</h2>", "<ul>", *rows, "</ul>",
+              f"<script>{ARRIVAL_SCRIPT}</script>", "</body>", "</html>", ""]
     return "\n".join(parts).encode("utf-8")
 
 
@@ -251,33 +349,53 @@ def _latest_of(path: Path):
 def publish(project, publication_id, folder, *, origin, channel=None, reassign=False, target_name=None):
     """Publish a bound build to a folder (design 4). Returns the result the CLI prints; a refusal
     before the start record (the folder's judgment, no binding) raises and records nothing."""
+    return _run(project, publication_id, folder, origin=origin, channel=channel, reassign=reassign,
+                target_name=target_name, action="publish")
+
+
+def switch(project, publication_id, folder, *, origin, channel=None, target_name=None):
+    """Point a channel at a version already on the target (`--switch-to`, design 8): no transfer; the
+    version is checked where it lies, by this project's binding or else the channel history's hash,
+    and the build order is not compared. A refusal before the start record records nothing."""
+    return _run(project, publication_id, folder, origin=origin, channel=channel, reassign=False,
+                target_name=target_name, action="switch")
+
+
+def _run(project, publication_id, folder, *, origin, channel, reassign, target_name, action):
     w = core.writer_for(project, origin)
     w.admit(OPERATION)
     if channel is not None:
         target.channel_name(channel)
     view = target.judge(folder, project.root)
-    event, build_folder, journal = binding(project, publication_id)
-    details = event["details"]
     marker = core.read_json(project.marker, {})
     project_id = marker.get("project_id") if isinstance(marker, dict) else None
     title = marker.get("title") if isinstance(marker, dict) else None
+    if action == "publish":
+        event, build_folder, journal = binding(project, publication_id)
+        details, entry = event["details"], None
+    else:
+        event, entry, journal = _switch_source(project, view, publication_id, channel, project_id, title)
+        details, build_folder = (event["details"] if event else None), None
+    digest = details["package_sha256"] if details else entry["package_sha256"]
     attempt_id = target.new_attempt_id()
     started_at = _now()
     record_target = {"name": target_name, "path": os.fspath(view.given), "resolved": os.fspath(view.resolved)}
-    ref = _reference(publication_id, details["package_sha256"])  # the receipt's refs too (design 6.2)
+    ref = _reference(publication_id, digest, observed=details is not None)  # the receipt's refs too (6.2)
     with w.locked(OPERATION) as held:
-        held.append("publish_attempt", f"Publishing {publication_id} to {target_name or view.resolved.name}",
+        held.append("publish_attempt", f"{'Publishing' if action == 'publish' else 'Switching to'} {publication_id}"
+                    f" {'to' if action == 'publish' else 'on'} {target_name or view.resolved.name}",
                     refs=[ref], details={"attempt_id": attempt_id, "publication_id": publication_id,
-                                         "action": "publish", "target": record_target, "channel": channel,
+                                         "action": action, "target": record_target, "channel": channel,
                                          "started_at": started_at},
                     requires=relations.PUBLISH_WRITER_SINCE)
     state = {
-        "attempt_id": attempt_id, "publication_id": publication_id, "action": "publish", "outcome": "failed",
-        "binding": "project_record", "package_sha256": None, "target": {**record_target, "marker_created": False},
+        "attempt_id": attempt_id, "publication_id": publication_id, "action": action, "outcome": "failed",
+        "binding": "project_record" if details else "channel_history", "package_sha256": None,
+        "target": {**record_target, "marker_created": False},
         "started_at": started_at, "steps": dict.fromkeys(relations.PUBLISH_STEPS, "not_started"),
         "lock": {"state": "not_started"}, "reports": None,
         "observations": {"metadata": [], "kept": [], "removed": [], "unrecorded_attempts": [], "remote_links": None},
-        "_ref": ref, "_shown": target_name or view.resolved.name,
+        "_ref": ref, "_shown": target_name or view.resolved.name, "_entry": entry,
     }
     root = view.resolved
     staging = root / target.STAGING / attempt_id
@@ -385,6 +503,9 @@ def _attempt(project, w, stack, state, view, build_folder, details, event, journ
         view = target.judge(root, project.root)
     except PublicationError as exc:
         raise _Stop("init", exc.code, exc.message, reason=exc.details.get("reason")) from exc
+    if view.marker is None and state["action"] == "switch":
+        raise _Stop("init", "target_refused", "the folder is no publish target, so it holds no version to switch to",
+                    reason="no_marker", paths=[root])
     if view.marker is None:
         try:
             method = target.create_marker(root, platform.files, created_at=_now())
@@ -402,8 +523,11 @@ def _attempt(project, w, stack, state, view, build_folder, details, event, journ
     state["_addresses"] = {"version": (versions / state["publication_id"] / "index.html").as_uri(),
                            "latest": (channel_dir / target.CHANNEL_PAGE).as_uri()}
     state["_at"] = "init"
-    state["observations"]["unrecorded_attempts"] = _traces(journal, w, state, root)
-    _transfer_and_commit(project, state, build_folder, details, versions / state["publication_id"], staging, owner)
+    state["observations"]["unrecorded_attempts"] = _traces(w, state, root, project_id)
+    if state["action"] == "publish":
+        _transfer_and_commit(project, state, build_folder, details, versions / state["publication_id"], staging, owner)
+    else:
+        _check_in_place(state, versions / state["publication_id"], details)
     _switch(project, state, channel_dir, initial, event, details, project_id, title)
     state["addresses"] = state["_addresses"]
     state["_at"] = "cleanup"
@@ -411,29 +535,34 @@ def _attempt(project, w, stack, state, view, build_folder, details, event, journ
     _clean_others(project, state, root, channel_dir)
 
 
-def _channel(projects, project_id, title, channel, reassign, state):
-    """Which channel, and whether this project may write it (design 9.1)."""
+def _channel_folder(projects, project_id, title, channel):
+    """Which channel folder (design 9.1): the given name, else this project's own, else the default
+    name. Only reads; raises PublicationError (channel_ambiguous, target_refused)."""
     keys = target.channels(projects)
     if channel is None:
-        own = []
-        for names in keys.values():
-            for name in names:
-                if target.channel_state(projects / name, project_id).state == "own":
-                    own.append(name)
+        # A channel this kit cannot read may be this project's: it stops the attempt (target_unsupported).
+        own = [name for names in keys.values() for name in names
+               if target.channel_state(projects / name, project_id).state == "own"]
         if len(own) > 1:
-            raise _Stop("channel", "channel_ambiguous", "this project has more than one channel here; give --channel",
-                        paths=[projects / n for n in own])
+            raise PublicationError("channel_ambiguous", "this project has more than one channel here; give --channel",
+                                   details={"paths": [os.fspath(projects / n) for n in own]})
         name = own[0] if own else target.channel_name(target.default_channel(title, project_id))
     else:
-        try:
-            name = target.channel_name(channel)
-        except PublicationError as exc:
-            raise _Stop("channel", "target_refused", exc.message, reason="channel_name") from exc
+        name = target.channel_name(channel)
     found = keys.get(target.channel_key(name), [])
     if len(found) > 1:
-        raise _Stop("channel", "channel_ambiguous", "two channel folders differ only by case or normalization",
-                    paths=[projects / n for n in found])
-    folder = projects / (found[0] if found else name)
+        raise PublicationError("channel_ambiguous", "two channel folders differ only by case or normalization",
+                               details={"paths": [os.fspath(projects / n) for n in found]})
+    return projects / (found[0] if found else name)
+
+
+def _channel(projects, project_id, title, channel, reassign, state):
+    """Which channel, and whether this project may write it (design 9.1)."""
+    try:
+        folder = _channel_folder(projects, project_id, title, channel)
+    except PublicationError as exc:
+        raise _Stop("channel", exc.code, exc.message, paths=exc.details.get("paths", ()),
+                    reason=exc.details.get("reason")) from exc
     current = target.channel_state(folder, project_id)
     state["channel"] = {"name": folder.name, "reassigned_from": None, "previous_latest": None}
     if current.state == "foreign":
@@ -451,8 +580,58 @@ def _channel(projects, project_id, title, channel, reassign, state):
     return folder, state["_initial"]
 
 
-def _traces(journal, w, state, root):
-    """Earlier attempts of this project on this target with no receipt, not yet reported (6.3)."""
+def _switch_source(project, view, publication_id, channel, project_id, title):
+    """What a switch may point to (design 8), read before the start record: a version in this
+    project's channel history, or one this project bound that the target holds. Only reads; a refusal
+    records nothing. Returns the binding (or None), the history entry (or None) and the journal."""
+    journal = relations.Journal(writer._journal_bytes(project.journal))
+    found, _reason, _candidates, event = relations.publication_record(journal, publication_id)
+    event = event if found == "resolved" else None
+    entry, committed = None, False
+    if view.marker is not None:
+        root = view.resolved
+        try:
+            current = target.channel_state(_channel_folder(root / target.PROJECTS, project_id, title, channel),
+                                           project_id)
+        except PublicationError:
+            if event is None:
+                raise
+            current = None  # the attempt meets it again after the lock, with a receipt
+        if current is not None and current.state == "own":
+            entry = next((h for h in current.latest["history"] if h.get("publication_id") == publication_id), None)
+        committed = os.path.isdir(root / target.PUBLICATIONS / publication_id)
+    hashed = (entry or {}).get("package_sha256")
+    if event is None and entry is None:
+        raise PublicationError("not_bound", "neither this project's builds nor this channel's history name that publication_id",
+                               details={"publication_id": publication_id})
+    if event is None and not (isinstance(hashed, str) and re.fullmatch(r"[0-9a-f]{64}", hashed)):
+        raise PublicationError("not_bound", "the channel's history holds no hash to check that version by",
+                               details={"publication_id": publication_id})
+    if entry is None and not committed:
+        raise PublicationError("not_on_target", "the target holds no version of that publication_id; publish it with --build",
+                               details={"publication_id": publication_id, "target": os.fspath(view.resolved)})
+    if event is not None and isinstance(hashed, str) and hashed != event["details"]["package_sha256"]:
+        raise PublicationError("version_differs", "this project's build and the channel's history name two versions under that ID",
+                               details={"publication_id": publication_id})
+    return event, entry, journal
+
+
+def _own_channels(projects: Path, project_id) -> list[str]:
+    """The channels of this target whose latest.json this kit reads as this project's; only reads,
+    for an observation (a channel it cannot read is left out)."""
+    own = []
+    for names in target.channels(projects).values():
+        for name in names:
+            with contextlib.suppress(PublicationError, OSError):
+                if target.channel_state(projects / name, project_id).state == "own":
+                    own.append(name)
+    return own
+
+
+def _traces(w, state, root, project_id):
+    """Earlier attempts of this project on this target with no receipt, not yet reported (6.3). An
+    attempt's pointer is looked for in the channel its start record names, else (it named none, the
+    project's own channel then) in each of this project's channels here."""
     reported = set()
     now = relations.Journal(writer._journal_bytes(w.journal))
     attempts = relations.publish_attempts(now)
@@ -472,12 +651,18 @@ def _traces(journal, w, state, root):
                 or attempt["target"].get("resolved") != state["target"]["resolved"]):
             continue
         aid, pid = attempt["attempt_id"], attempt["publication_id"]
-        latest, read = _latest_of(root / target.PROJECTS / (state.get("channel") or {}).get("name", "") / target.LATEST)
+        projects = root / target.PROJECTS
+        try:
+            names = ([target.channel_name(attempt["channel"])] if isinstance(attempt.get("channel"), str)
+                     else _own_channels(projects, project_id))
+        except PublicationError:
+            names = []  # a hand-edited start record's channel names no folder here
+        pointed = [n for n in names if ((_latest_of(projects / n / target.LATEST)[0] or {}).get("latest") == pid)]
         out.append({"attempt_id": aid, "publication_id": pid,
                     "owner_record": os.path.lexists(root / target.STAGING / f"{aid}.json"),
                     "staging": os.path.lexists(root / target.STAGING / aid),
                     "version": os.path.lexists(root / target.PUBLICATIONS / pid) if isinstance(pid, str) else False,
-                    "latest_is_its_version": bool(latest and latest.get("latest") == pid)})
+                    "latest_is_its_version": bool(pointed)})
     return out
 
 
@@ -614,6 +799,49 @@ def _observed(state, verified):
     state["_manifest"] = manifest
 
 
+def _check_in_place(state, version, details):
+    """A switch's version checked where it lies (design 8): by this project's binding when there is
+    one, else by the channel history's package_sha256 and the manifest's ID."""
+    pid, steps, entry = state["publication_id"], state["steps"], state["_entry"]
+    _boundary(state, "final_check")
+    steps["final_check"] = "interrupted"
+    target.managed_child(version)
+    try:
+        _version_folder(version)
+        if details is not None:
+            verified = _verify(version, pid, details)
+        else:
+            verified = checks.verify_package(version)
+            if verified["manifest"]["publication_id"] != pid or verified["package_sha256"] != entry["package_sha256"]:
+                raise PublicationError("version_mismatch", "the version there is not the one the channel's history names",
+                                       details={"path": os.fspath(version)})
+    except FileNotFoundError as exc:
+        steps["final_check"] = "failed"
+        raise _Stop("final_check", "not_on_target", "the target holds no version of that publication_id",
+                    paths=[version]) from exc
+    except PublicationError as exc:
+        steps["final_check"] = "failed"
+        raise _Stop("final_check", "version_mismatch", exc.message, paths=_mismatched(version, exc)) from exc
+    except OSError as exc:
+        steps["final_check"] = "unknown"
+        raise _Stop("final_check", "unknown", f"the version there cannot be read: {exc}", paths=[version]) from exc
+    steps["final_check"] = "done"
+    _observed(state, verified)
+
+
+def _history_entry(state, event, details, project_id):
+    """This version's channel history entry (design 2): from the binding, else (a switch with none
+    here) the entry the history holds; with when it became latest and by which attempt."""
+    if event is None:
+        fields = dict(state["_entry"])
+    else:
+        manifest = state.get("_manifest") or {}
+        fields = {"publication_id": state["publication_id"], "package_sha256": details["package_sha256"],
+                  "content_sha256": details["content_sha256"], "renderer": manifest.get("renderer"),
+                  "build_seq": event["seq"], "built_at": manifest.get("built_at"), "project_id": project_id}
+    return {**fields, "latest_since": _now(), "attempt_id": state["attempt_id"]}
+
+
 def _switch(project, state, channel_dir, initial, event, details, project_id, title):
     pid, files, steps = state["publication_id"], project.platform.files, state["steps"]
     latest_path, page_path = channel_dir / target.LATEST, channel_dir / target.CHANNEL_PAGE
@@ -642,8 +870,9 @@ def _switch(project, state, channel_dir, initial, event, details, project_id, ti
                              "channel_page": _page_state(state, page_path)}
         state["outcome"] = "superseded"
         return
-    # Only a publish that takes another project's channel over skips the order (ADR-0009 decision 5).
-    if current is not None and not state["channel"]["reassigned_from"]:
+    # Only a publish that takes another project's channel over, and a switch (a person's choice),
+    # skip the build order (ADR-0009 decision 5; design 8).
+    if current is not None and state["action"] == "publish" and not state["channel"]["reassigned_from"]:
         entry = next((h for h in current["history"] if h.get("publication_id") == now_latest), None)
         newer = (entry is not None and entry.get("project_id") == project_id and isinstance(entry.get("build_seq"), int)
                  and event["seq"] > entry["build_seq"])
@@ -653,12 +882,8 @@ def _switch(project, state, channel_dir, initial, event, details, project_id, ti
             _repair_page(project, state, page_path, current)
             state["pointers"] = {"latest_json": "old", "channel_page": _page_state(state, page_path)}
             return
-    manifest = state.get("_manifest") or {}
     history = [h for h in (current or {}).get("history", []) if h.get("publication_id") != pid]
-    history.append({"publication_id": pid, "package_sha256": details["package_sha256"],
-                    "content_sha256": details["content_sha256"], "renderer": manifest.get("renderer"),
-                    "build_seq": event["seq"], "built_at": manifest.get("built_at"), "latest_since": _now(),
-                    "attempt_id": state["attempt_id"], "project_id": project_id})
+    history.append(_history_entry(state, event, details, project_id))
     latest = {"schema": target.CHANNEL_SCHEMA, "channel": channel_dir.name, "project_id": project_id,
               "project_title": title, "latest": pid, "history": history}
     try:
@@ -685,11 +910,13 @@ def _switch(project, state, channel_dir, initial, event, details, project_id, ti
     state["outcome"] = "published"
 
 
-def _write_page(files, page_path, latest, attempt_id):
+def _write_page(files, page_path, latest, attempt_id, manifest):
+    """The channel page for latest.json, whose newest version was just checked (`manifest` is its)."""
+    version = page_path.parent.parent.parent / target.PUBLICATIONS / latest["latest"]
     temporary = page_path.with_name(f".{attempt_id}.{target.CHANNEL_PAGE}.tmp")
     try:
         with open(temporary, "wb") as fh:
-            fh.write(channel_page(latest))
+            fh.write(channel_page(latest, arrival_resources(version, manifest)))
         files.replace(temporary, page_path)
     except OSError:
         with contextlib.suppress(OSError):
@@ -701,7 +928,7 @@ def _page(files, page_path, latest, state, initial):
     """The channel page from a latest.json naming this attempt's checked version; a failed write
     ends the attempt with what the page holds (design 8)."""
     try:
-        _write_page(files, page_path, latest, state["attempt_id"])
+        _write_page(files, page_path, latest, state["attempt_id"], state.get("_manifest") or {})
     except OSError as exc:
         state["pointers"]["channel_page"] = _page_state(state, page_path)
         state["steps"]["switch"] = "unknown" if state["pointers"]["channel_page"] == "unknown" else "failed"
@@ -720,6 +947,8 @@ def _repair_page(project, state, page_path, current):
         return
     repair = state["observations"]["channel_page_repair"] = {"publication_id": other, "state": "not_verified",
                                                               "basis": None}
+    if not isinstance(other, str) or not relations.PUBLICATION_ID.fullmatch(other):
+        return  # a hand-edited latest.json names no version folder
     version = page_path.parent.parent.parent / target.PUBLICATIONS / other
     found, _reason, _candidates, event = relations.publication_record(
         relations.Journal(writer._journal_bytes(project.journal)), other)
@@ -729,7 +958,7 @@ def _repair_page(project, state, page_path, current):
         _version_folder(version)
         if found == "resolved":
             repair["basis"] = "project_record"
-            _verify(version, other, event["details"])
+            verified = _verify(version, other, event["details"])
             if entry.get("package_sha256") not in (None, event["details"]["package_sha256"]):
                 return
         elif isinstance(entry.get("package_sha256"), str):
@@ -742,7 +971,7 @@ def _repair_page(project, state, page_path, current):
     except (PublicationError, OSError):
         return
     try:
-        _write_page(project.platform.files, page_path, current, state["attempt_id"])
+        _write_page(project.platform.files, page_path, current, state["attempt_id"], verified["manifest"])
     except OSError as exc:
         repair["state"], repair["error"] = "failed", str(exc)[:512]
         return
@@ -750,25 +979,34 @@ def _repair_page(project, state, page_path, current):
 
 
 def _access(root: Path, version: Path):
-    """What the publishing account observed of who else may read (design 9.2); nothing is changed."""
+    """What the publishing account observed of who else may read (design 9.2): the search bit of each
+    folder down to the version, and the read bit (and search bit, for a folder) under it, for other
+    accounts and for the group. Nothing is changed; Windows ACLs are not read."""
     if os.name == "nt":
         return {"reread": "done", "posix": None, "windows_acl": "not_checked"}
-    blocked = []
-    for folder in (*reversed(root.parents), root, version.parent, version):
-        try:
-            if not os.stat(folder).st_mode & stat.S_IXOTH:
-                blocked.append(os.fspath(folder))
-        except OSError:
-            blocked.append(os.fspath(folder))
-    for path in version.rglob("*"):
+    blocked = {"other": [], "group": []}
+    bits = {"other": (stat.S_IROTH, stat.S_IXOTH), "group": (stat.S_IRGRP, stat.S_IXGRP)}
+
+    def look(path, *, inside):
         try:
             mode = os.stat(path).st_mode
         except OSError:
-            continue
-        if not mode & stat.S_IROTH or (stat.S_ISDIR(mode) and not mode & stat.S_IXOTH):
-            blocked.append(os.fspath(path))
-    return {"reread": "done", "posix": {"others_can_read": not blocked, "blocked": blocked[:20],
-                                        "blocked_count": len(blocked)}, "windows_acl": "not_checked"}
+            if inside:
+                return
+            mode = 0
+        for who, (read, search) in bits.items():
+            folder = stat.S_ISDIR(mode) or not inside
+            if (folder and not mode & search) or (inside and not mode & read):
+                blocked[who].append(os.fspath(path))
+
+    for folder in (*reversed(root.parents), root, version.parent, version):
+        look(folder, inside=False)
+    for path in version.rglob("*"):
+        look(path, inside=True)
+    return {"reread": "done", "windows_acl": "not_checked",
+            "posix": {"others_can_read": not blocked["other"], "blocked": blocked["other"][:20],
+                      "blocked_count": len(blocked["other"]), "group_can_read": not blocked["group"],
+                      "group_blocked": blocked["group"][:20], "group_blocked_count": len(blocked["group"])}}
 
 
 def _clean_own(state, staging, owner):
@@ -846,7 +1084,7 @@ def _bounded(details: dict) -> dict:
     then the failure message to 2,048 characters; the result never shrinks (design 6.2)."""
     lists = [("failure", "paths"), ("observations", "metadata"), ("observations", "kept"),
              ("observations", "removed"), ("observations", "unrecorded_attempts"), ("access", "posix", "blocked"),
-             ("reports",)]
+             ("access", "posix", "group_blocked"), ("reports",)]
 
     def size(value):
         return len(json.dumps(value, ensure_ascii=False).encode("utf-8"))
@@ -895,13 +1133,72 @@ def _receipt(w, state):
                            "details": {"attempt_id": details["attempt_id"]}}
     if result.get("addresses"):
         result["access_note"] = ACCESS_SENTENCE.replace("this folder", details["target"]["resolved"])
+    posix = (details.get("access") or {}).get("posix") or {}
+    if posix.get("others_can_read") is False:
+        # Design 9.2: a warning only; the folder's permissions are the person's to change.
+        result["warnings"] = [{
+            "code": "others_cannot_read",
+            "message": "Other accounts on this computer may not be able to read this version"
+                       + (" (its group can)" if posix.get("group_can_read") else "")
+                       + "; nothing was changed. The blocked folders or files are in the receipt.",
+            "paths": posix.get("blocked", [])[:5]}]
     return result
 
 
-def attempts(project) -> dict:
-    """This project's publish attempts and their results (`analytics publish --list`)."""
+def attempts(project, folder=None, *, target_name=None) -> dict:
+    """This project's publish attempts and their results, its saved targets, and with a folder that
+    target's channels and their history (`analytics publish --list`). Nothing is changed."""
     journal = relations.Journal(writer._journal_bytes(project.journal))
     rows = relations.publish_attempts(journal)
     for row in rows:
         row.pop("line", None)
-    return {"ok": True, "attempts": rows}
+    out = {"ok": True, "attempts": rows, "saved_targets": target.saved_targets(project.root)}
+    if folder is not None:
+        out["target"] = _listing(project, Path(folder), target_name)
+    return out
+
+
+def _listing(project, folder: Path, name):
+    """A target's channels as their latest.json gives them; read only, like the judgment."""
+    resolved = folder.resolve(strict=False)
+    out = {"name": name, "path": os.fspath(folder.absolute()), "resolved": os.fspath(resolved),
+           "is_target": os.path.lexists(resolved / target.MARKER), "channels": []}
+    if not out["is_target"]:
+        return out
+    marker = core.read_json(project.marker, {})
+    project_id = marker.get("project_id") if isinstance(marker, dict) else None
+    projects = resolved / target.PROJECTS
+    for names in target.channels(projects).values():
+        for channel in names:
+            row = {"name": channel}
+            try:
+                current = target.channel_state(projects / channel, project_id)
+                row["state"] = current.state
+                if current.latest is not None:
+                    row.update(project_id=current.latest["project_id"], project_title=current.latest.get("project_title"),
+                               latest=current.latest["latest"], history=current.latest["history"])
+            except PublicationError as exc:
+                row.update(state="unreadable", code=exc.code)
+            out["channels"].append(row)
+    return out
+
+
+def save_target(project, name, folder, *, origin) -> dict:
+    """`analytics publish --save-target NAME --to FOLDER` (design 9.3): the folder's judgment only,
+    nothing made there; saved in the project only when its .gitignore keeps the file out of git."""
+    target.target_name(name)
+    w = core.writer_for(project, origin)
+    w.admit(OPERATION)
+    view = target.judge(folder, project.root)
+    if not target.ignores_saved_targets(project.root):
+        raise PublicationError("targets_not_ignored",
+                               f"saved targets stay out of git: add the line {target.SAVED_TARGETS} to the project's "
+                               ".gitignore, then save again", details={"line": target.SAVED_TARGETS})
+    with w.locked(OPERATION):  # one writer of the file at a time; no record is written
+        saved = target.saved_targets(project.root)
+        previous = saved.get(name)
+        saved[name] = os.fspath(view.given)
+        target.write_saved_targets(project.root, saved, project.platform.files)
+    return {"ok": True, "saved": {"name": name, "path": os.fspath(view.given), "resolved": os.fspath(view.resolved),
+                                  "is_target": view.marker is not None},
+            "replaced": previous if previous not in (None, os.fspath(view.given)) else None}

@@ -68,7 +68,9 @@ def test_a_first_publish_makes_the_target_and_switches_both_pointers(project, tm
     assert len(start) == len(receipt) == 1 and start[0]["seq"] < receipt[0]["seq"]
     assert start[0]["details"]["attempt_id"] == receipt[0]["details"]["attempt_id"]
     assert receipt[0]["refs"][0]["digest"]["sha256"] == receipt[0]["details"]["package_sha256"]
-    assert core.read_json(project.marker, {})["min_writer_version"] == relations.PUBLISH_WRITER_SINCE
+    # The floor is at least the publish records' (a new project's is this kit's own version).
+    floor = core.read_json(project.marker, {})["min_writer_version"]
+    assert relations.version_key(floor) >= relations.version_key(relations.PUBLISH_WRITER_SINCE)
     assert result["access_note"].startswith("Anyone who can open")
 
 

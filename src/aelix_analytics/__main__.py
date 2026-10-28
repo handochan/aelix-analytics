@@ -317,11 +317,16 @@ def _command(argv) -> int:
     p.add_argument("--allow-withdrawn", action="store_true")
 
     p = sub.add_parser("publish", allow_abbrev=False,
-                       help="publish a built publication to a folder, or list this project's publish attempts")
+                       help="publish a built publication to a folder, switch its channel back to a version there, "
+                            "save a target, or list this project's publish attempts")
     mode = p.add_mutually_exclusive_group(required=True)
     mode.add_argument("--build", metavar="PUBLICATION_ID")
+    mode.add_argument("--switch-to", metavar="PUBLICATION_ID", dest="switch_to")
+    mode.add_argument("--save-target", metavar="NAME", dest="save_target")
     mode.add_argument("--list", action="store_true", dest="list_attempts")
-    p.add_argument("--to", metavar="FOLDER")
+    where = p.add_mutually_exclusive_group()
+    where.add_argument("--to", metavar="FOLDER")
+    where.add_argument("--target", metavar="NAME")
     p.add_argument("--channel", metavar="NAME")
     p.add_argument("--reassign-channel", action="store_true")
 
@@ -599,29 +604,45 @@ def _publication_command(args):
 
 
 def _publish_command(args):
-    from .publishing import publish
+    from .publishing import publish, target
     from .publishing.model import PublicationError
 
     project = _project(args)
-    if args.list_attempts:
-        if args.to or args.channel or args.reassign_channel:
-            raise core.AnalyticsError("publish_input_invalid", "--list takes no target or channel")
-        core.readable(project, "inspect publish attempts")
-        _emit(publish.attempts(project))
-        return 0
-    if not args.to:
-        raise core.AnalyticsError("publish_input_invalid", "--build needs --to FOLDER")
-    core.admit(project, "publish")
+    if args.list_attempts and (args.channel or args.reassign_channel):
+        raise core.AnalyticsError("publish_input_invalid", "--list takes no channel")
+    if args.save_target and (not args.to or args.channel or args.reassign_channel):
+        raise core.AnalyticsError("publish_input_invalid", "--save-target NAME takes --to FOLDER and nothing else")
     try:
-        folder = Path(args.to).expanduser()
+        folder = Path(args.to).expanduser() if args.to else None
     except RuntimeError as exc:  # "~typo/dir"
         raise core.AnalyticsError("publish_input_invalid", f"--to cannot be read: {exc}") from exc
     try:
-        result = publish.publish(project, args.build, folder, origin=_origin(), channel=args.channel,
-                                 reassign=args.reassign_channel)
+        if args.target:
+            folder = target.saved_target(project.root, args.target)
+        if args.list_attempts:
+            core.readable(project, "inspect publish attempts")
+            _emit(publish.attempts(project, folder, target_name=args.target))
+            return 0
+        if args.save_target:
+            core.admit(project, "publish")
+            _emit(publish.save_target(project, args.save_target, folder, origin=_origin()))
+            return 0
+        if folder is None:
+            raise core.AnalyticsError("publish_input_invalid", "give --to FOLDER or --target NAME")
+        core.admit(project, "publish")
+        if args.switch_to:
+            if args.reassign_channel:
+                raise core.AnalyticsError("publish_input_invalid", "--switch-to moves only this project's channel")
+            result = publish.switch(project, args.switch_to, folder, origin=_origin(), channel=args.channel,
+                                    target_name=args.target)
+        else:
+            result = publish.publish(project, args.build, folder, origin=_origin(), channel=args.channel,
+                                     reassign=args.reassign_channel, target_name=args.target)
     except PublicationError as exc:
         raise core.AnalyticsError(exc.code, exc.message, details=exc.details) from exc
     _emit(result)
+    for warning in result.get("warnings") or ():
+        print(f"analytics: {warning['message']}", file=sys.stderr)
     if result.get("access_note"):
         print(result["access_note"], file=sys.stderr)
     return 130 if result.get("outcome") == "interrupted" else 0 if result.get("ok") else 1

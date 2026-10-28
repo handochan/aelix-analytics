@@ -7,6 +7,8 @@ __pycache__/
 .analytics/migration.lock
 .analytics/adhoc/
 .analytics/publications/
+# Saved publish targets (analytics publish --save-target) are this computer's folders.
+.analytics/publish-targets.json
 # Generated from runs/, journal.jsonl and CONTEXT.md; rebuild with `analytics render`.
 workspace/
 # Data may be private. Remove these lines only for data you are allowed to commit.

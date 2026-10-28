@@ -32,6 +32,10 @@ MANAGED = (MARKER, LOCK, PUBLICATIONS, PROJECTS, STAGING)
 MARKER_SCHEMA = "analytics.publish_target/1"
 CHANNEL_SCHEMA = "analytics.publish_channel/1"
 STAGING_SCHEMA = "analytics.publish_staging/1"
+# Saved targets live in the project, in a file git ignores (design 9.3, OQ2).
+SAVED_TARGETS = ".analytics/publish-targets.json"
+SAVED_TARGETS_SCHEMA = "analytics.publish_targets/1"
+TARGET_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
 
 ATTEMPT_ID = re.compile(r"att-[0-9a-hjkmnp-tv-z]{26}\Z")
 # A publisher's own temporary file in a channel directory names its attempt (design 8).
@@ -314,3 +318,64 @@ def channel_state(folder: Path, project_id: str) -> ChannelState:
         return ChannelState("free", None)
     latest = read_channel(folder / LATEST)
     return ChannelState("own" if latest["project_id"] == project_id else "other", latest)
+
+
+# --- saved targets (design 9.3) ------------------------------------------------------------------------
+
+def target_name(name) -> str:
+    """A saved target's name: a short word of letters, digits, `.`, `_` and `-`."""
+    if not isinstance(name, str) or not TARGET_NAME.fullmatch(name):
+        raise PublicationError("publish_input_invalid", "a target name is up to 64 letters, digits, '.', '_' or '-', "
+                               "starting with a letter or digit", details={"name": name})
+    return name
+
+
+def ignores_saved_targets(project_root) -> bool:
+    """Whether the project's .gitignore has the saved targets' line (the template's since kit 0.31.0).
+    Only that line counts: a project without it (an older one, a migrated one) saves no target."""
+    try:
+        lines = (Path(project_root) / ".gitignore").read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError):
+        return False
+    return any(line.strip() in (SAVED_TARGETS, "/" + SAVED_TARGETS) for line in lines)
+
+
+def saved_targets(project_root) -> dict[str, str]:
+    """The project's saved targets, name → folder; none when the file is not there."""
+    path = Path(project_root) / SAVED_TARGETS
+    if not os.path.lexists(path):
+        return {}
+    try:
+        st = os.lstat(path)
+        value = json.loads(path.read_bytes().decode("utf-8")) if stat.S_ISREG(st.st_mode) and not _platform.is_link(st) else None
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise PublicationError("saved_targets_invalid", "the saved targets file cannot be read",
+                               details={"path": os.fspath(path), "cause": type(exc).__name__}) from exc
+    targets = value.get("targets") if isinstance(value, dict) and value.get("schema") == SAVED_TARGETS_SCHEMA else None
+    if not isinstance(targets, dict) or not all(isinstance(k, str) and TARGET_NAME.fullmatch(k) and isinstance(v, str) and v
+                                                for k, v in targets.items()):
+        raise PublicationError("saved_targets_invalid", "the saved targets file is not the kit's",
+                               details={"path": os.fspath(path)})
+    return dict(targets)
+
+
+def saved_target(project_root, name: str) -> Path:
+    """The folder saved under `name` (`--target`), or target_unknown."""
+    folder = saved_targets(project_root).get(target_name(name))
+    if folder is None:
+        raise PublicationError("target_unknown", "no target is saved under that name; save one with --save-target NAME --to FOLDER",
+                               details={"name": name})
+    return Path(folder)
+
+
+def write_saved_targets(project_root, targets: dict[str, str], files) -> None:
+    """The saved targets file, replaced as a whole (UTF-8, LF, keys sorted)."""
+    path = Path(project_root) / SAVED_TARGETS
+    temporary = path.with_name(f".{path.name}.{new_attempt_id()}.tmp")
+    try:
+        with open(temporary, "xb") as fh:
+            fh.write(canonical({"schema": SAVED_TARGETS_SCHEMA, "targets": dict(sorted(targets.items()))}))
+        files.replace(temporary, path)
+    finally:
+        if os.path.lexists(temporary):
+            os.unlink(temporary)

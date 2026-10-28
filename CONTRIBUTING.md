@@ -299,7 +299,7 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 | 작업 | 언제 | 무엇 | artifact (90일) |
 |---|---|---|---|
 | `lint` | 모든 PR, main push, 수동·주간 실행 | ruff, 문서 검사 | 문서 검사 결과, 실행 맥락 |
-| `platform` | Linux(`ubuntu-24.04`)·Windows(`windows-2025`)·macOS(`macos-26`), `lint`와 같은 때 | 플랫폼 스모크(`tools/platform_smoke.py --gate required`), 저장소 시험(`AELIX_ANALYTICS_TEST_INSTALL=1`, 배포본 end-to-end 포함), aelix 0.1.0b2 통합(CPython 3.12·3.11, [위의 다섯 시험 파일](#현재-개발-검증)), 사용량 보고서(`tools/usage_report.py`, CPython 3.12, 판정 없이 보고만), 런처 시험(CPython 3.11). Linux는 `browser` 의존성 그룹(Playwright)과 Chromium으로 저장한 공유본의 브라우저 E2E(`tests/test_publication_browser.py`, `AELIX_ANALYTICS_TEST_BROWSER=chromium`, #20 PR5)를 돌립니다. Windows는 저장소 시험 뒤에 네이티브 콘솔 시험(`tests/test_windows_console.py`, 단계 따로)을, 시험 레그의 마지막에 LongPathsEnabled를 0으로 바꾸고 긴 경로 시험(`tests/test_windows_long_paths.py`)을 새 프로세스로 한 번 더 돌립니다 | 레그별 JUnit, 스모크 JSON(러너 설정 포함), 사용량 보고서(`usage/`: JSON·MD·`texts/`), 시험이 관찰해 남긴 것(`evidence/`, `evidence-long-paths-off/`, aelix 통합 레그의 `evidence-aelix-py3.12/`·`evidence-aelix-py3.11/`; 콘솔 사례는 단언하는 것까지 모두), 인터프리터, aelix 환경의 배포판 목록, 실행 맥락 |
+| `platform` | Linux(`ubuntu-24.04`)·Windows(`windows-2025`)·macOS(`macos-26`), `lint`와 같은 때 | 플랫폼 스모크(`tools/platform_smoke.py --gate required`), 저장소 시험(`AELIX_ANALYTICS_TEST_INSTALL=1`, 배포본 end-to-end 포함), aelix 0.1.0b2 통합(CPython 3.12·3.11, [위의 다섯 시험 파일](#현재-개발-검증)), 사용량 보고서(`tools/usage_report.py`, CPython 3.12, 판정 없이 보고만), 런처 시험(CPython 3.11). Linux는 `browser` 의존성 그룹(Playwright)과 Chromium으로 저장한 공유본과 게시 대상 channel 페이지의 브라우저 E2E(`tests/test_publication_browser.py`·`tests/test_publish_browser.py`, `AELIX_ANALYTICS_TEST_BROWSER=chromium`, #20 PR5·#21 PR-3)를 돌립니다. 세 OS 모두 다른 계정이 게시 대상을 읽는지 봅니다(`tools/publish_access_check.py --account`, #21 PR-3). Linux에서는 필수이고, macOS·Windows에서 러너가 계정을 만들지 못하거나 그 계정으로 프로세스를 띄우지 못하면 `not_run`으로 적습니다. Windows는 루프백 SMB 공유에도 게시합니다(`--smb`). Windows는 저장소 시험 뒤에 네이티브 콘솔 시험(`tests/test_windows_console.py`, 단계 따로)을, 시험 레그의 마지막에 LongPathsEnabled를 0으로 바꾸고 긴 경로 시험(`tests/test_windows_long_paths.py`)을 새 프로세스로 한 번 더 돌립니다 | 레그별 JUnit, 스모크 JSON(러너 설정 포함), 사용량 보고서(`usage/`: JSON·MD·`texts/`), 시험이 관찰해 남긴 것(`evidence/`, `evidence-long-paths-off/`, aelix 통합 레그의 `evidence-aelix-py3.12/`·`evidence-aelix-py3.11/`; 콘솔 사례는 단언하는 것까지 모두), 다른 계정의 읽기(`publish-access.json`), 인터프리터, aelix 환경의 배포판 목록, 실행 맥락 |
 | `floor` | `platform`과 같은 OS | `actions/setup-python`의 CPython 3.11에서 표준 라이브러리만으로 플랫폼 스모크(`--stdlib-only`) | 스모크 JSON, 실행 맥락 |
 
 - 세 OS를 모든 PR·main push·수동 실행(`workflow_dispatch`)·매주 월요일 03:17 UTC 실행에서 돌립니다(2026-10-21 소유자 결정, #22).
@@ -313,7 +313,7 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 - 시험 레그 하나가 실패해도 다음 레그는 돌고 작업은 실패로 끝납니다. 개발 환경의 sync가 실패하면 `platform`의 시험 레그는 돌지
   않고 작업이 실패합니다. 플랫폼별 작업은 서로 취소하지 않습니다(`fail-fast: false`). 시험·기록 단계마다 제한 시간이 있고, 작업의
   제한 시간은 그 합보다 깁니다(artifact 올리기에는 작업의 제한 시간만 있습니다). 저장소 전체 시험 단계는 45분,
-  각 시험은 600초, `platform` 작업은 150분입니다. 단계나 개별 시험의 제한에 걸리면 JUnit이 없거나 일부 사례만
+  각 시험은 600초, `platform` 작업은 185분입니다. 단계나 개별 시험의 제한에 걸리면 JUnit이 없거나 일부 사례만
   담길 수 있습니다. 중단된 일부 JUnit은 전체 시험 완료·통과와 구별합니다.
 - PR 실행은 GitHub가 만드는 병합 커밋이 아니라 PR 헤드를 체크아웃해 측정합니다. 워크플로 파일은 그 병합 커밋의 것이 쓰이므로,
   실행 맥락(`tools/ci_context.py`)에 `GITHUB_WORKFLOW_SHA`도 남깁니다. aelix 환경의 배포판 목록은 같은 요구 사항을 시험 레그들

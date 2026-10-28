@@ -73,9 +73,9 @@ jobs:
   platform:
     name: platform · ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    # Longer than the step limits below added up (173 minutes), so a hung leg is ended by its own
+    # Longer than the step limits below added up (183 minutes), so a hung leg is ended by its own
     # limit and the later legs and the upload still run. A step added below raises this too.
-    timeout-minutes: 175
+    timeout-minutes: 185
     strategy:
       fail-fast: false
       matrix:
@@ -161,12 +161,21 @@ jobs:
         # Not --with-deps: the runner image ships Chrome and its system libraries, and apt mirrors made
         # that step outlast its limit (run 40352383852).
         run: uv sync --locked --python 3.12 --group browser && uv run --locked --group browser playwright install chromium
-      - name: Browser E2E — every page of a saved copy over file:// and an HTTP subpath, Linux
+      # A target's channel page too (#21 PR-3): it opens the newest version only once its files load.
+      - name: Browser E2E — every page of a saved copy and a target's channel page over file:// and an HTTP subpath, Linux
         if: ${{ !cancelled() && steps.browser.outcome == 'success' && matrix.os == 'ubuntu-24.04' }}
         timeout-minutes: 15
         env:
           AELIX_ANALYTICS_TEST_BROWSER: chromium
-        run: uv run --locked --group browser pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --junitxml "${{ runner.temp }}/ci/browser.xml" tests/test_publication_browser.py
+        run: uv run --locked --group browser pytest -q -ra -p no:cacheprovider --timeout 600 --timeout-method=thread --junitxml "${{ runner.temp }}/ci/browser.xml" tests/test_publication_browser.py tests/test_publish_browser.py
+      # Another account reads a publish target (#21 PR-3, ADR-0009 checks 1 and 2): required on Linux;
+      # tried on macOS and Windows, where a runner that does not make the account or start a process as
+      # it is recorded as not_run (design OQ6). On Windows also a publish over a loopback SMB share
+      # (checks 8 and 9). Before the long-path leg, which changes the machine.
+      - name: A publish target read by another account
+        if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        timeout-minutes: 10
+        run: uv run --locked python tools/publish_access_check.py --account ${{ runner.os == 'Linux' && '--require-account' || '' }} ${{ runner.os == 'Windows' && '--smb' || '' }} --output "${{ runner.temp }}/ci/publish-access.json"
       - name: What the aelix environments resolved to
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
         timeout-minutes: 6

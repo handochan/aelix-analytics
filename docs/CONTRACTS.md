@@ -2264,7 +2264,7 @@ D2의 미리보기와 D3의 build가 같은 경로를 씁니다.
 ### D6. 폴더 게시 (kit 0.30.0, #21 PR-2)
 
 [폴더 게시 설계](design/PUBLISH-FOLDER.md) §4·§6·§8의 구현입니다. 결정은 [ADR-0009](decisions/0009-first-publish-target.md)이고, 대상의 판정·표식·channel 규칙과
-포트 확장은 kit 0.29.0(PR-1)입니다. channel 페이지의 도착 확인, `--switch-to`, 저장한 대상(`--target`)은 아직 없습니다(PR-3).
+포트 확장은 kit 0.29.0(PR-1)입니다. channel 페이지의 도착 확인, `--switch-to`, 저장한 대상(`--target`)은 kit 0.31.0의 [D7](#d7-channel-페이지되돌리기저장한-대상-kit-0310-21-pr-3)입니다.
 
 - **명령**: `analytics publish --build <publication_id> --to <폴더> [--channel <이름>] [--reassign-channel]`, `analytics publish --list`. 분석 라이브러리를
   쓰지 않으므로 런처의 Python으로 돕니다(`build --list`와 같음). 출력은 JSON이고 끝에 "Anyone who can open <폴더> can read every version in it."을 stderr에
@@ -2280,7 +2280,7 @@ D2의 미리보기와 D3의 build가 같은 경로를 씁니다.
   `latest.json` → channel 페이지 순서로 교체하고 각 포인터의 상태(`old`·`new`·`other`·`missing`·`unknown`)를 receipt에 적습니다. 교체 뒤 다시 읽은
   `latest.json`이 다른 게시의 버전이면 그 버전을 페이지에 그리지 않고 `superseded`입니다. 두 포인터가 다르면(앞 시도가 그 사이에 멈춤) `not_newer`로 끝나는
   다음 게시가 `latest.json`이 가리키는 버전을 이 프로젝트의 결박(없으면 history의 `package_sha256`)으로 대조한 뒤에만 페이지를 다시 그리고 그 결과를
-  `observations.channel_page_repair`에 적습니다. 지금의 channel 페이지는 최신·이전 버전 링크와 버전 목록, 접근 범위 문구만 있는 정적 페이지입니다.
+  `observations.channel_page_repair`에 적습니다. channel 페이지가 최신 버전으로 옮기는 규칙은 D7입니다.
 - **build 읽기**: build 폴더 아래 어느 단계의 링크도 따라가지 않습니다(POSIX는 디렉터리 기준 열기, Windows는 단계마다 확인). receipt의 `refs`는 시작 기록과
   같습니다. 줄 상한을 넘으면 목록(`failure.paths`·`observations`의 목록·`access.posix.blocked`·`reports`)을 20 → 5 → 0개로 줄이고 처음 개수를 남깁니다.
 - **channel**: 지정하지 않으면 이 프로젝트의 channel, 없으면 제목의 slug(없으면 `project-<project_id 앞 8자>`)입니다. 다른 프로젝트의 channel은
@@ -2300,3 +2300,36 @@ D2의 미리보기와 D3의 build가 같은 경로를 씁니다.
   더 오래된 build는 `not_newer`입니다. 잘못된 `--channel` 이름은 시작 기록 전에 거절합니다.
 - **한계**: 동시 게시의 순서, 네트워크 잠금, 동기화 폴더의 전파는 보장하지 않습니다(G). 링크·플래그 있는 rename이 둘 다 없는 볼륨(exFAT 등)에는 새 대상을
   만들지 못합니다. 실제 다른 독자의 열람은 #24입니다.
+
+### D7. channel 페이지·되돌리기·저장한 대상 (kit 0.31.0, #21 PR-3)
+
+[폴더 게시 설계](design/PUBLISH-FOLDER.md) §7·§8·§9.2·§9.3의 구현입니다. 게시의 단계·기록은 D6 그대로입니다.
+
+- **명령**: `analytics publish --switch-to <publication_id> (--to <폴더> | --target <이름>) [--channel <이름>]`,
+  `analytics publish --save-target <이름> --to <폴더>`, `analytics publish --list [--to <폴더> | --target <이름>]`. `--build`도 `--to` 대신
+  `--target`을 받습니다. `--switch-to`는 `--reassign-channel`을 받지 않습니다(`publish_input_invalid`).
+- **channel 페이지**: kit이 그리는 정적 HTML이고 스크립트는 kit의 것 하나뿐입니다(CSP의 `script-src`가 그 해시). 최신 버전의 entry(`index.html`)가 직접
+  불러오는 스타일시트와 이미지 가운데 그 버전의 manifest에 있는 파일을 불러 보고(스타일시트는 `media="not all"`이라 이 페이지에 적용되지 않음), 모두
+  `load`이면 `location.replace`로 그 버전에 옮깁니다. 하나라도 `error`이거나 15초 안에 답이 없거나 그런 파일이 없으면 옮기지 않고 "The newest
+  version may not have fully arrived on this device."와 이전 버전 링크를 보입니다. 최신 버전의 스크립트를 이 페이지에서 실행하지 않고 네트워크 API를
+  쓰지 않습니다. 스크립트가 꺼진 독자는 `<noscript>`의 meta refresh로 옮깁니다. 버전 목록은 이웃 버전과 `renderer`·`content_sha256`이 같으면
+  "same content"라고 적고, 가리키는 버전이 가장 새 build가 아니면 "This channel points to an older build, chosen by switching."을 보입니다.
+  확인하는 자원 종류는 Chromium·Firefox·WebKit × `file://`·HTTP 하위 경로에서 잰 것입니다(파일이 있으면 `load`, 없으면 `error`). 파일이 있는지만 보고
+  내용이 다 왔는지는 보지 않습니다(G).
+- **되돌리기**: `--switch-to`는 파일을 옮기지 않고 대상에 있는 그 버전을 그 자리에서 대조한 뒤 전환만 합니다. 이 프로젝트에 그 build의 결박이 있으면
+  결박으로, 없으면(다른 기기의 사본) channel history의 `package_sha256`과 manifest의 ID로 대조합니다(receipt `binding: channel_history`, 참조
+  `basis: declared`). 둘 다 있는데 다르면 시작 기록 전에 거절합니다(`version_differs`). 고를 수 있는 것은 이 프로젝트 channel의 history에 있는 버전이나
+  결박이 있고 대상에 확정된 버전이고, 그 밖은 시작 기록 전에 `not_bound`·`not_on_target`입니다. build 순서는 비교하지 않고, 시작한 뒤 다른 게시가 최신을
+  바꿨으면 `superseded`입니다. receipt는 `action: switch`이고 `transfer`·`check`·`commit`은 `not_started`, `final_check`가 그 대조입니다. 그 뒤
+  더 새 build를 게시하면 channel은 다시 앞으로 갑니다(되돌리기는 고정이 아님).
+- **저장한 대상**: `--save-target`은 폴더를 판정만 하고(대상에 아무것도 만들지 않음) `.analytics/publish-targets.json`(`analytics.publish_targets/1`,
+  `targets`: 이름 → 폴더)에 적습니다. 프로젝트의 `.gitignore`에 `.analytics/publish-targets.json` 줄이 없으면 저장하지 않습니다(`targets_not_ignored`).
+  kit 0.31.0이 만든 프로젝트에는 그 줄이 있고, 이전 프로젝트와 전환한 프로젝트에는 사람이 더합니다. 이름은 영문자·숫자로 시작하는 64자까지의
+  영문자·숫자·`.`·`_`·`-`입니다. 없는 이름은 `target_unknown`, 읽을 수 없는 파일은 `saved_targets_invalid`입니다. 저장한 폴더는 뒤의 build가 쓰지
+  않은 것도 공유 사본의 금지 값입니다.
+- **다른 계정의 읽기(설계 9.2)**: receipt의 `access.posix`는 대상까지의 폴더와 버전 아래의 group·other 권한 비트를 관찰합니다(`others_can_read`·
+  `blocked`, `group_can_read`·`group_blocked`). other가 읽지 못해 보이면 결과에 경고 `others_cannot_read`를 더하고 stderr에 적습니다. 권한을 바꾸지
+  않고, Windows의 ACL은 읽지 않습니다(`windows_acl: not_checked`).
+- **목록**: `--list`는 저장한 대상(`saved_targets`)과, 폴더나 이름을 주면 그 대상의 channel(이름·소유 상태·`latest`·history)을 함께 보입니다. 대상을
+  바꾸지 않습니다. 시도의 행에는 시작 기록의 `channel`이 있습니다.
+- **결과가 기록되지 않은 시도의 흔적**: 그 시도의 포인터는 시작 기록이 적은 channel에서, 적지 않았으면 이 프로젝트의 channel마다 찾습니다.
