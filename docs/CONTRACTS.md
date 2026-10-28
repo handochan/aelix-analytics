@@ -1764,7 +1764,14 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
 - 게시 대상의 파일 시스템(#21, kit 0.29.0의 측정). macOS 26.6.2의 exFAT 디스크 이미지에서 잠금은 잡혔습니다. 이름을 바꾸지 않는 rename(`renamex_np`)은
   빈 이름에 ENOTSUP이라 디렉터리 확정(`rename_dir_new`)은 `rename(2)`로 옮겼고, 내용이 있는 디렉터리·파일 위로는 거절하며 양쪽을 보존했습니다. 링크도
   없어 대상 표식을 만들 수 없었습니다(`no_exclusive_rename`). 그래서 이런 볼륨에는 새 게시 대상을 만들 수 없습니다. 바이트만 쓴 사본에도 macOS가
-  AppleDouble 파일(`._*`)을 만들었습니다. SMB·NFS 마운트와 Windows의 실제 공유는 재지 않았습니다.
+  AppleDouble 파일(`._*`)을 만들었습니다. kit 0.31.0의 CI(#21 PR-3)는 Windows Server 2025의 루프백 SMB 공유(`\\localhost\<이름>`)에 두 build를
+  게시했습니다. 잠금이 잡혔고 버전은 `rename_new`로 확정됐으며, 다시 읽은 버전이 대조를 통과했습니다. 다른 기기의 SMB·NFS 마운트와 네트워크 너머의
+  잠금은 재지 않았습니다.
+- 다른 계정의 열람(#21, kit 0.31.0의 CI 측정). CI는 세 OS에서 두 번째 OS 계정(Linux `useradd`, macOS `sysadminctl`, Windows `net user`)을 만들고,
+  모든 계정이 열 수 있는 폴더에 게시한 버전을 그 계정으로 읽었습니다(`latest.json`, channel 페이지, manifest의 모든 파일을 해시로). 게시한 계정만
+  여는 폴더(POSIX `0700`, Windows는 사용자 임시 폴더)에서는 거절됐고, POSIX에서는 게시가 `others_cannot_read`를 경고했습니다. Windows에서는
+  ACL을 읽지 않으므로 경고하지 않습니다. Windows의 두 번째 계정은 그 계정의 로그온 토큰으로 읽었고, 루프백 SMB 공유로도 읽었습니다. 이것은
+  같은 기기의 다른 계정이 파일을 읽는지입니다. 다른 기기의 독자가 브라우저로 여는 것은 #24에서 소유자가 확인합니다.
 - 무결성. 해시 체인·서명이 없고 불변성은 규약입니다.
 - 표식 판정의 틈. 판정은 잠금 없이 두 표식을 읽습니다. 판정과 첫 부수 효과 사이에 다른 프로세스가 표식을 바꾸는 틈은 남습니다. journal 쓰기는
   잠금 안에서 다시 판정해 그 틈을 줄이지만, run이 시작한 뒤의 코드 스냅샷·스크립트가 직접 쓰는 파일은 run이 시작할 때의 판정을 따릅니다(run

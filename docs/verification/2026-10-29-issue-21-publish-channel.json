@@ -1,0 +1,2164 @@
+{
+ "record_kind": "aelix-analytics-publish-verification",
+ "observed_at": "2026-10-28T17:53:09+00:00",
+ "issue": "https://github.com/handochan/aelix-analytics/issues/21",
+ "pull_request": "https://github.com/handochan/aelix-analytics/pull/138",
+ "run_id": "9b131123-f7df-467b-8775-740f3bd0c665",
+ "measured_source": {
+  "head": "72861828a203981ab16e33d31df70f81e5b74092",
+  "tracked_dirty": false,
+  "kit_version": "0.31.0",
+  "sha256": {
+   "src/aelix_analytics/publishing/publish.py": "770c5fe66fda812c1c54b483eb083b3f2fc6db19098ad0648da17d362944177e",
+   "src/aelix_analytics/publishing/target.py": "b461f5f1b1859aeb6dcecac247499d2fc069430c91ab1c22fad128771627d391",
+   "src/aelix_analytics/publishing/snapshot.py": "f40a6a69e9ff6be32afbb4934d220142ce68dd20d30599db0b8bc83d0577ff1e",
+   "src/aelix_analytics/relations.py": "d3ae7282566042e21c724236eb20b20ee8b2921821f807226f7ee18eb58aa3a4",
+   "src/aelix_analytics/__main__.py": "3d5c83821edc4cc46aa7b812f9b88b0d3f1b4fe4e18b43e828fb6d73c6a53674",
+   "src/aelix_analytics/cli.py": "4d5fbb84e45444a181f6fa4ef69eaf4eea897889f107822817838f21a0ec233f",
+   "src/aelix_analytics/core.py": "b68b268867f48adea2c6ebfc16ec494b5fe44bbbe294dcfedd8260e3eb963978",
+   "src/aelix_analytics/template/gitignore": "c3c57341ef79ae4e0d4010661251423c97a94b1ec33c36e11ee8a37c3b259898",
+   "bin/analytics": "0edfb81935505896eb3bf5e22c2b6fa26106431bbf0aa7f9910befe22578698c",
+   "extension/aelix_analytics.py": "78f9011636bf51b5a9cfa4b09a6d8d238cc90c36b0657d53b6a2cc854e9c8b36",
+   "tests/test_publish_channel.py": "36c39c976c1796f8ee56f03b4863d3816a67c5c68f9ab5a772f1f335db76819d",
+   "tests/test_publish_browser.py": "bc388c0b42c0799aa8c3d1d1d5069942ea0b744442ca761e9430bda970136592",
+   "tests/test_publish_access_tool.py": "7dd36c7622c4baba7c1634348598d674eb8173a0badd065ed63f6336876ac106",
+   "tools/publish_eval.py": "e49f0e5007bb02e56f3e5f2e5ca155055c13280da80fdeb0faa16bcd8dd5f102",
+   "tools/channel_arrival_eval.py": "75ec23d7f9c5802136354c208690f9cff2b317613e62196614c65ee8ceeffec0",
+   "tools/publish_access_check.py": "4c1cce5d279267b09d6151301d77d07102b6018911dc075ea2b3bb7570806caf",
+   ".github/workflows/ci.yml": "19047271843c8bce22ffe99ea6a8b29a2fed7be1c3dbcbd37e55681da982b62c"
+  },
+  "note": "publish_eval, channel_arrival_eval, the browser tests in three engines, the access check without an account and the full suite ran at this commit. The CI access results are from f5825e4, whose tools/publish_access_check.py and tests/test_publish_access_tool.py are those of this commit; this commit adds a test, the usage lines and documents."
+ },
+ "environment": {
+  "schema": "aelix-analytics.eval-environment/1",
+  "recorded_at": "2026-10-28T17:30:42+00:00",
+  "machine": {
+   "system": "Darwin",
+   "release": "25.6.0",
+   "version": "Darwin Kernel Version 25.6.0: Fri Jul 31 19:19:08 PDT 2026; root:xnu-12377.161.14~5/RELEASE_ARM64_T6050",
+   "machine": "arm64",
+   "processor": "arm",
+   "cpu_count": 18,
+   "memory_bytes": 68719476736
+  },
+  "disk": {
+   "path": "<scratch>",
+   "total_bytes": 994610155520,
+   "free_bytes": 323579793408,
+   "device": {
+    "status": "not_measured",
+    "reason": "the standard library has no portable way to name the device or its kind (SSD, HDD, network)"
+   },
+   "filesystem": {
+    "status": "not_measured",
+    "reason": "the standard library has no portable way to read it"
+   }
+  },
+  "python": {
+   "version": "3.12.13",
+   "implementation": "CPython",
+   "executable": "~/dev/aelix-extensions/.worktrees/aelix-analytics-issue-21-pr3/.venv/bin/python3"
+  },
+  "sqlite": {
+   "version": "3.53.1",
+   "fts5": true,
+   "json": true,
+   "compile_options": [
+    "ATOMIC_INTRINSICS=1",
+    "COMPILER=clang-22.1.3",
+    "DEFAULT_AUTOVACUUM",
+    "DEFAULT_CACHE_SIZE=-2000",
+    "DEFAULT_FILE_FORMAT=4",
+    "DEFAULT_JOURNAL_SIZE_LIMIT=-1",
+    "DEFAULT_MMAP_SIZE=0",
+    "DEFAULT_PAGE_SIZE=4096",
+    "DEFAULT_PCACHE_INITSZ=20",
+    "DEFAULT_RECURSIVE_TRIGGERS",
+    "DEFAULT_SECTOR_SIZE=4096",
+    "DEFAULT_SYNCHRONOUS=2",
+    "DEFAULT_WAL_AUTOCHECKPOINT=1000",
+    "DEFAULT_WAL_SYNCHRONOUS=2",
+    "DEFAULT_WORKER_THREADS=0",
+    "DIRECT_OVERFLOW_READ",
+    "ENABLE_DBSTAT_VTAB",
+    "ENABLE_FTS3",
+    "ENABLE_FTS3_PARENTHESIS",
+    "ENABLE_FTS4",
+    "ENABLE_FTS5",
+    "ENABLE_GEOPOLY",
+    "ENABLE_MATH_FUNCTIONS",
+    "ENABLE_PERCENTILE",
+    "ENABLE_RTREE",
+    "MALLOC_SOFT_LIMIT=1024",
+    "MAX_ATTACHED=10",
+    "MAX_COLUMN=2000",
+    "MAX_COMPOUND_SELECT=500",
+    "MAX_DEFAULT_PAGE_SIZE=8192",
+    "MAX_EXPR_DEPTH=1000",
+    "MAX_FUNCTION_ARG=1000",
+    "MAX_LENGTH=1000000000",
+    "MAX_LIKE_PATTERN_LENGTH=50000",
+    "MAX_MMAP_SIZE=0x7fff0000",
+    "MAX_PAGE_COUNT=0xfffffffe",
+    "MAX_PAGE_SIZE=65536",
+    "MAX_SQL_LENGTH=1000000000",
+    "MAX_TRIGGER_DEPTH=1000",
+    "MAX_VARIABLE_NUMBER=32766",
+    "MAX_VDBE_OP=250000000",
+    "MAX_WORKER_THREADS=8",
+    "MUTEX_PTHREADS",
+    "SYSTEM_MALLOC",
+    "TEMP_STORE=1",
+    "THREADSAFE=1"
+   ]
+  },
+  "browser": {
+   "name": "chromium 156.0.8078.4, firefox 157.0, webkit 27.2 (Playwright)",
+   "version": null
+  },
+  "libraries": {
+   "duckdb": "1.5.5",
+   "polars": "1.44.2",
+   "pyarrow": "25.0.1",
+   "numpy": "2.5.3",
+   "plotly": "6.9.0",
+   "matplotlib": "3.11.2",
+   "markdown-it-py": "4.2.0",
+   "pygments": "2.21.0",
+   "jsonschema": "4.26.0"
+  },
+  "kit": {
+   "version": "0.31.0",
+   "sha256": "44202dcc27d52992b2d0f9bb9bd7a02eb390898474a6060d39858e99881b6a78"
+  },
+  "threads": {
+   "polars": 1,
+   "note": "the generator runs Polars on one thread (POLARS_MAX_THREADS=1) so its results' bits are the seed's; a measurement records the threads it ran with"
+  },
+  "cache_state": {
+   "measurement": "warm",
+   "kit_caches": "warm",
+   "os_file_cache": "unknown",
+   "definition": "cold: the kit's caches (.lab/cache/, report/) are absent, the first read; warm: a repeat in the same process and machine after one full read. The OS file cache is not dropped (that needs privileges)."
+  }
+ },
+ "tests": {
+  "full_suite": {
+   "command": "uv run --locked pytest -q -p no:cacheprovider",
+   "head": "7286182",
+   "result": "3051 passed, 140 skipped",
+   "seconds": 611.09
+  },
+  "browser_three_engines": {
+   "command": "AELIX_ANALYTICS_TEST_BROWSER=chromium,firefox,webkit uv run --locked --group browser pytest -q -p no:cacheprovider tests/test_publish_browser.py",
+   "head": "7286182",
+   "result": "18 passed",
+   "seconds": 4.41
+  },
+  "earlier": [
+   {
+    "head": "7823374",
+    "result": "3041 passed, 3 failed",
+    "cause": "the template rules test, the CONTRACTS version sentence, a subprocess without an encoding; fixed in d96776a"
+   }
+  ]
+ },
+ "ci": [
+  {
+   "run": 40713376229,
+   "head": "7823374",
+   "conclusion": "failure",
+   "detail": "the three platform legs: the three tests above; Windows also the access tool test (its own read) and `net user /add` stopped at a yes/no question (a password over 14 characters). Linux and macOS second accounts pass; Windows loopback SMB publish pass"
+  },
+  {
+   "run": 40721743265,
+   "head": "86cff5f",
+   "conclusion": "failure",
+   "detail": "Windows: the account was made, Start-Process -Credential did not end in 180 seconds in any case (not_run); this account's read failed, Get-FileHash was not autoloaded by Windows PowerShell 5.1 under PowerShell 7. Linux and macOS success"
+  },
+  {
+   "run": 40732331281,
+   "head": "f5825e4",
+   "conclusion": "success",
+   "detail": "suite: Linux 3059 passed 110 skipped, macOS 3060 passed 109 skipped, Windows 2862 passed 338 skipped; Linux browser 13 passed; the second account read on all three, Windows also over the loopback share"
+  }
+ ],
+ "access_check": {
+  "command": "uv run --locked python tools/publish_access_check.py --account [--require-account on Linux] [--smb on Windows] --output <runner temp>/ci/publish-access.json",
+  "ci_run": 40732331281,
+  "results": {
+   "ubuntu-24.04": {
+    "kit_version": "0.31.0",
+    "platform": "linux",
+    "python": "3.12.3",
+    "account": {
+     "name": "analytics-reader",
+     "made": "useradd",
+     "uid": 1002
+    },
+    "cases": {
+     "open": {
+      "folder": "/tmp/analytics-access-7pxhmt1a/share",
+      "outcomes": [
+       "published",
+       "published"
+      ],
+      "warnings": [],
+      "lock": {
+       "state": "held"
+      },
+      "steps": {
+       "transfer": "done",
+       "check": "done",
+       "commit": "done",
+       "final_check": "done",
+       "switch": "done"
+      },
+      "pointers": {
+       "latest_json": "new",
+       "channel_page": "new"
+      },
+      "commit_method": "rename_new",
+      "reader": {
+       "files": 8,
+       "bytes": 14124,
+       "errors": [],
+       "uid": 1002,
+       "latest": "pub-01m61rxq5cfjpqvgr54t5ckq5r",
+       "page_names_latest": true
+      },
+      "result": "pass"
+     },
+     "shut": {
+      "folder": "/tmp/analytics-access-7pxhmt1a/shut/share",
+      "outcomes": [
+       "published",
+       "published"
+      ],
+      "warnings": [
+       "others_cannot_read"
+      ],
+      "lock": {
+       "state": "held"
+      },
+      "steps": {
+       "transfer": "done",
+       "check": "done",
+       "commit": "done",
+       "final_check": "done",
+       "switch": "done"
+      },
+      "pointers": {
+       "latest_json": "new",
+       "channel_page": "new"
+      },
+      "commit_method": "rename_new",
+      "reader": {
+       "files": 0,
+       "bytes": 0,
+       "errors": [
+        {
+         "path": "/tmp/analytics-access-7pxhmt1a/shut/share/projects/access-check/latest.json",
+         "error": "PermissionError",
+         "winerror": null
+        }
+       ],
+       "uid": 1002
+      },
+      "result": "pass"
+     }
+    },
+    "failed": false
+   },
+   "macos-26": {
+    "kit_version": "0.31.0",
+    "platform": "darwin",
+    "python": "3.12.10",
+    "account": {
+     "name": "analyticsreader",
+     "made": "sysadminctl",
+     "uid": 502
+    },
+    "cases": {
+     "open": {
+      "folder": "/tmp/analytics-access-2l3om65c/share",
+      "outcomes": [
+       "published",
+       "published"
+      ],
+      "warnings": [],
+      "lock": {
+       "state": "held"
+      },
+      "steps": {
+       "transfer": "done",
+       "check": "done",
+       "commit": "done",
+       "final_check": "done",
+       "switch": "done"
+      },
+      "pointers": {
+       "latest_json": "new",
+       "channel_page": "new"
+      },
+      "commit_method": "rename_new",
+      "reader": {
+       "files": 8,
+       "bytes": 14124,
+       "errors": [],
+       "uid": 502,
+       "latest": "pub-01m61s2q95y852ypf2k9stbb9v",
+       "page_names_latest": true
+      },
+      "result": "pass"
+     },
+     "shut": {
+      "folder": "/tmp/analytics-access-2l3om65c/shut/share",
+      "outcomes": [
+       "published",
+       "published"
+      ],
+      "warnings": [
+       "others_cannot_read"
+      ],
+      "lock": {
+       "state": "held"
+      },
+      "steps": {
+       "transfer": "done",
+       "check": "done",
+       "commit": "done",
+       "final_check": "done",
+       "switch": "done"
+      },
+      "pointers": {
+       "latest_json": "new",
+       "channel_page": "new"
+      },
+      "commit_method": "rename_new",
+      "reader": {
+       "files": 0,
+       "bytes": 0,
+       "errors": [
+        {
+         "path": "/tmp/analytics-access-2l3om65c/shut/share/projects/access-check/latest.json",
+         "error": "PermissionError",
+         "winerror": null
+        }
+       ],
+       "uid": 502
+      },
+      "result": "pass"
+     }
+    },
+    "failed": false
+   },
+   "windows-2025": {
+    "kit_version": "0.31.0",
+    "platform": "win32",
+    "python": "3.12.10",
+    "account": {
+     "name": "analytics-reader",
+     "made": "net user"
+    },
+    "cases": {
+     "open": {
+      "folder": "C:\\analytics-access-33522f1acdec\\share",
+      "outcomes": [
+       "published",
+       "published"
+      ],
+      "warnings": [],
+      "lock": {
+       "state": "held"
+      },
+      "steps": {
+       "transfer": "done",
+       "check": "done",
+       "commit": "done",
+       "final_check": "done",
+       "switch": "done"
+      },
+      "pointers": {
+       "latest_json": "new",
+       "channel_page": "new"
+      },
+      "commit_method": "rename_new",
+      "reader": {
+       "files": 8,
+       "bytes": 14124,
+       "errors": [],
+       "logon_type": 2,
+       "account": "analytics-reader",
+       "latest": "pub-01m61t1mnkfn5hc79av6xtjzrg",
+       "page_names_latest": true
+      },
+      "result": "pass"
+     },
+     "shut": {
+      "folder": "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\analytics-access-project-xg3_b8ot\\share",
+      "outcomes": [
+       "published",
+       "published"
+      ],
+      "warnings": [],
+      "lock": {
+       "state": "held"
+      },
+      "steps": {
+       "transfer": "done",
+       "check": "done",
+       "commit": "done",
+       "final_check": "done",
+       "switch": "done"
+      },
+      "pointers": {
+       "latest_json": "new",
+       "channel_page": "new"
+      },
+      "commit_method": "rename_new",
+      "reader": {
+       "files": 0,
+       "bytes": 0,
+       "errors": [
+        {
+         "path": "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\analytics-access-project-xg3_b8ot\\share\\projects\\access-check\\latest.json",
+         "error": "PermissionError",
+         "winerror": null
+        }
+       ],
+       "logon_type": 2,
+       "account": "analytics-reader"
+      },
+      "result": "pass"
+     },
+     "smb": {
+      "folder": "\\\\localhost\\analytics-access-33522f1acdec\\target",
+      "outcomes": [
+       "published",
+       "published"
+      ],
+      "warnings": [],
+      "lock": {
+       "state": "held"
+      },
+      "steps": {
+       "transfer": "done",
+       "check": "done",
+       "commit": "done",
+       "final_check": "done",
+       "switch": "done"
+      },
+      "pointers": {
+       "latest_json": "new",
+       "channel_page": "new"
+      },
+      "commit_method": "rename_new",
+      "reread": "fa45b41989a8485be714202bdd1424f19f03476db8948475a8cb91b3344d9bb6",
+      "result": "pass",
+      "second_account": {
+       "files": 8,
+       "bytes": 14124,
+       "errors": [],
+       "logon_type": 2,
+       "account": "analytics-reader",
+       "latest": "pub-01m61t1mnkfn5hc79av6xtjzrg",
+       "page_names_latest": true
+      }
+     }
+    },
+    "failed": false
+   }
+  },
+  "local_without_account": {
+   "kit_version": "0.31.0",
+   "platform": "darwin",
+   "python": "3.12.13",
+   "account": {
+    "name": null,
+    "made": "none: this account reads"
+   },
+   "cases": {
+    "open": {
+     "folder": "/tmp/analytics-access-1pmslrt_/share",
+     "outcomes": [
+      "published",
+      "published"
+     ],
+     "warnings": [],
+     "lock": {
+      "state": "held"
+     },
+     "steps": {
+      "transfer": "done",
+      "check": "done",
+      "commit": "done",
+      "final_check": "done",
+      "switch": "done"
+     },
+     "pointers": {
+      "latest_json": "new",
+      "channel_page": "new"
+     },
+     "commit_method": "rename_new",
+     "reader": {
+      "files": 8,
+      "bytes": 14124,
+      "errors": [],
+      "uid": 501,
+      "latest": "pub-01m61rd4xawepw18xmyn84gmq1",
+      "page_names_latest": true
+     },
+     "result": "pass"
+    },
+    "shut": {
+     "folder": "/tmp/analytics-access-1pmslrt_/shut/share",
+     "outcomes": [
+      "published",
+      "published"
+     ],
+     "warnings": [
+      "others_cannot_read"
+     ],
+     "lock": {
+      "state": "held"
+     },
+     "steps": {
+      "transfer": "done",
+      "check": "done",
+      "commit": "done",
+      "final_check": "done",
+      "switch": "done"
+     },
+     "pointers": {
+      "latest_json": "new",
+      "channel_page": "new"
+     },
+     "commit_method": "rename_new",
+     "reader": {
+      "files": 8,
+      "bytes": 14124,
+      "errors": [],
+      "uid": 501,
+      "latest": "pub-01m61rd4xawepw18xmyn84gmq1",
+      "page_names_latest": true
+     },
+     "result": "pass"
+    }
+   },
+   "failed": false
+  }
+ },
+ "publish_eval": {
+  "command": "uv run --locked python tools/publish_eval.py --work <scratch>/pe-work --out <scratch>/publish-eval.json --m-project <scratch>/pr5/scale/m6 --volume /Volumes/PUBEXFAT",
+  "seconds": 60.25,
+  "max_rss_bytes": 309755904,
+  "result": {
+   "kit_version": "0.31.0",
+   "python": "3.12.13",
+   "platform": "darwin",
+   "small": {
+    "first": {
+     "median_seconds": 0.0371,
+     "max_seconds": 0.0391,
+     "results": [
+      [
+       "published",
+       "done",
+       "done"
+      ]
+     ]
+    },
+    "again": {
+     "median_seconds": 0.0176,
+     "max_seconds": 0.0183,
+     "results": [
+      [
+       "published",
+       "reused",
+       "already"
+      ]
+     ]
+    },
+    "newer": {
+     "median_seconds": 0.0355,
+     "max_seconds": 0.0429,
+     "results": [
+      [
+       "published",
+       "done",
+       "done"
+      ]
+     ]
+    },
+    "older": {
+     "median_seconds": 0.0185,
+     "max_seconds": 0.021,
+     "results": [
+      [
+       "not_newer",
+       "reused",
+       "not_newer"
+      ]
+     ]
+    },
+    "switch": {
+     "median_seconds": 0.0186,
+     "max_seconds": 0.0195,
+     "results": [
+      [
+       "published",
+       "not_started",
+       "done"
+      ]
+     ]
+    },
+    "files_per_version": 9
+   },
+   "boundaries": [
+    {
+     "first": true,
+     "step": "init",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "missing",
+     "channel_page": "missing",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "done",
+      "done"
+     ]
+    },
+    {
+     "first": true,
+     "step": "lock",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "missing",
+     "channel_page": "missing",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "done",
+      "done"
+     ]
+    },
+    {
+     "first": true,
+     "step": "transfer",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "missing",
+     "channel_page": "missing",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "done",
+      "done"
+     ]
+    },
+    {
+     "first": true,
+     "step": "check",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "missing",
+     "channel_page": "missing",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "done",
+      "done"
+     ]
+    },
+    {
+     "first": true,
+     "step": "commit",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "missing",
+     "channel_page": "missing",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "done",
+      "done"
+     ]
+    },
+    {
+     "first": true,
+     "step": "final_check",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "missing",
+     "channel_page": "missing",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "reused",
+      "done"
+     ]
+    },
+    {
+     "first": true,
+     "step": "switch",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "missing",
+     "channel_page": "missing",
+     "receipt_pointers": null,
+     "final_check": "done",
+     "rerun": [
+      "published",
+      "reused",
+      "done"
+     ]
+    },
+    {
+     "first": true,
+     "step": "channel_page",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "new",
+     "channel_page": "missing",
+     "receipt_pointers": {
+      "latest_json": "new",
+      "channel_page": "missing"
+     },
+     "final_check": "done",
+     "rerun": [
+      "published",
+      "reused",
+      "already"
+     ]
+    },
+    {
+     "first": false,
+     "step": "init",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "old",
+     "channel_page": "old",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "done",
+      "done"
+     ]
+    },
+    {
+     "first": false,
+     "step": "lock",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "old",
+     "channel_page": "old",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "done",
+      "done"
+     ]
+    },
+    {
+     "first": false,
+     "step": "transfer",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "old",
+     "channel_page": "old",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "done",
+      "done"
+     ]
+    },
+    {
+     "first": false,
+     "step": "check",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "old",
+     "channel_page": "old",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "done",
+      "done"
+     ]
+    },
+    {
+     "first": false,
+     "step": "commit",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "old",
+     "channel_page": "old",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "done",
+      "done"
+     ]
+    },
+    {
+     "first": false,
+     "step": "final_check",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "old",
+     "channel_page": "old",
+     "receipt_pointers": null,
+     "final_check": "not_started",
+     "rerun": [
+      "published",
+      "reused",
+      "done"
+     ]
+    },
+    {
+     "first": false,
+     "step": "switch",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "old",
+     "channel_page": "old",
+     "receipt_pointers": null,
+     "final_check": "done",
+     "rerun": [
+      "published",
+      "reused",
+      "done"
+     ]
+    },
+    {
+     "first": false,
+     "step": "channel_page",
+     "outcome": "interrupted",
+     "receipt": true,
+     "latest_json": "new",
+     "channel_page": "old",
+     "receipt_pointers": {
+      "latest_json": "new",
+      "channel_page": "old"
+     },
+     "final_check": "done",
+     "rerun": [
+      "published",
+      "reused",
+      "already"
+     ]
+    }
+   ],
+   "pairs": {
+    "held": [
+     {
+      "older": [
+       "not_newer",
+       "True",
+       "0.0942",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0388",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0391",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.099",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0402",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0998",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0403",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0981",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0388",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0953",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "not_newer",
+       "True",
+       "0.0908",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0385",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "not_newer",
+       "True",
+       "0.0908",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.04",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "not_newer",
+       "True",
+       "0.0991",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0387",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0391",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0954",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0405",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0965",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0393",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.1012",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "not_newer",
+       "True",
+       "0.0893",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0398",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0388",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0977",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "not_newer",
+       "True",
+       "0.0892",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0406",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "not_newer",
+       "True",
+       "0.0878",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0395",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0409",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0895",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0393",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.1094",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0397",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0984",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "not_newer",
+       "True",
+       "0.0923",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0388",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0436",
+       "held"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0996",
+       "held"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     }
+    ],
+    "unsupported": [
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0479",
+       "unsupported"
+      ],
+      "newer": [
+       "superseded",
+       "True",
+       "0.0452",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "older",
+      "page": "older",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0478",
+       "unsupported"
+      ],
+      "newer": [
+       "superseded",
+       "True",
+       "0.0463",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "older",
+      "page": "older",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0506",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0506",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "older",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0456",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0477",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0468",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0493",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "older",
+      "page": "older",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0482",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0479",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0514",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.051",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "older",
+      "page": "older",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0545",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0543",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0494",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0495",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "older",
+      "page": "older",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "superseded",
+       "True",
+       "0.0455",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0479",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.047",
+       "unsupported"
+      ],
+      "newer": [
+       "superseded",
+       "True",
+       "0.0442",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "older",
+      "page": "older",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0495",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0503",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0485",
+       "unsupported"
+      ],
+      "newer": [
+       "superseded",
+       "True",
+       "0.0492",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "older",
+      "page": "older",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0452",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0483",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "older",
+      "page": "older",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0474",
+       "unsupported"
+      ],
+      "newer": [
+       "superseded",
+       "True",
+       "0.0479",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "older",
+      "page": "older",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0464",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0447",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0492",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0482",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "older",
+      "page": "older",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0513",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0519",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "newer",
+      "page": "newer",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0582",
+       "unsupported"
+      ],
+      "newer": [
+       "published",
+       "True",
+       "0.0556",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "older",
+      "page": "older",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     },
+     {
+      "older": [
+       "published",
+       "True",
+       "0.0497",
+       "unsupported"
+      ],
+      "newer": [
+       "superseded",
+       "True",
+       "0.0484",
+       "unsupported"
+      ],
+      "codes": [
+       0,
+       0
+      ],
+      "stderr_tail": [],
+      "latest": "older",
+      "page": "older",
+      "recording": [
+       "complete",
+       "complete"
+      ],
+      "staging_left": 0
+     }
+    ]
+   },
+   "m": [
+    {
+     "case": "first",
+     "seconds": 2.8196,
+     "outcome": "published",
+     "transfer": "done",
+     "switch": "done",
+     "receipt_bytes": 3313
+    },
+    {
+     "case": "second",
+     "seconds": 5.1156,
+     "outcome": "published",
+     "transfer": "done",
+     "switch": "done",
+     "receipt_bytes": 3342
+    },
+    {
+     "case": "first_again",
+     "seconds": 1.4491,
+     "outcome": "not_newer",
+     "transfer": "reused",
+     "switch": "not_newer",
+     "receipt_bytes": 3139
+    },
+    {
+     "case": "switch_to_first",
+     "seconds": 1.4915,
+     "outcome": "published",
+     "transfer": "not_started",
+     "switch": "done",
+     "receipt_bytes": 3126
+    },
+    {
+     "publication": "pub-01m5y0w2zg6a4az78h5pdrcqdw",
+     "files": 426,
+     "bytes": 12839471
+    },
+    {
+     "publication": "pub-01m5y0xk5k24dtf8gvrwxzyh3n",
+     "files": 1612,
+     "bytes": 20589469
+    }
+   ],
+   "volume": [
+    {
+     "attempt": "first",
+     "outcome": "failed",
+     "failure": {
+      "step": "init",
+      "code": "no_exclusive_rename",
+      "message": "this folder's file system can neither link nor rename without replacing, so no marker can be made",
+      "paths": []
+     },
+     "receipt": true,
+     "lock": {
+      "state": "held"
+     },
+     "left": [
+      "._.analytics-target.lock",
+      ".analytics-target.lock"
+     ]
+    },
+    {
+     "attempt": "again",
+     "outcome": "failed",
+     "failure": {
+      "step": "init",
+      "code": "no_exclusive_rename",
+      "message": "this folder's file system can neither link nor rename without replacing, so no marker can be made",
+      "paths": []
+     },
+     "receipt": true,
+     "lock": {
+      "state": "held"
+     },
+     "left": [
+      "._.analytics-target.lock",
+      ".analytics-target.lock"
+     ]
+    }
+   ]
+  }
+ },
+ "channel_arrival_eval": {
+  "command": "uv run --locked --group browser python tools/channel_arrival_eval.py --out <scratch>/channel-arrival.json",
+  "result": {
+   "kit_version": "0.31.0",
+   "platform": "darwin",
+   "arrival_seconds": 15,
+   "events": {
+    "chromium/file": {
+     "stylesheet_not_all": "load",
+     "stylesheet_print": "load",
+     "stylesheet_not_all_missing": "error",
+     "image": "load",
+     "image_missing": "error",
+     "stylesheet_applied": false
+    },
+    "chromium/http": {
+     "image_missing": "error",
+     "image": "load",
+     "stylesheet_print": "load",
+     "stylesheet_not_all": "load",
+     "stylesheet_not_all_missing": "error",
+     "stylesheet_applied": false
+    },
+    "firefox/file": {
+     "image_missing": "error",
+     "image": "load",
+     "stylesheet_not_all": "load",
+     "stylesheet_print": "load",
+     "stylesheet_not_all_missing": "error",
+     "stylesheet_applied": false
+    },
+    "firefox/http": {
+     "image_missing": "error",
+     "stylesheet_not_all": "load",
+     "stylesheet_print": "load",
+     "image": "load",
+     "stylesheet_not_all_missing": "error",
+     "stylesheet_applied": false
+    },
+    "webkit/file": {
+     "stylesheet_not_all_missing": "error",
+     "image_missing": "error",
+     "image": "load",
+     "stylesheet_print": "load",
+     "stylesheet_not_all": "load",
+     "stylesheet_applied": false
+    },
+    "webkit/http": {
+     "stylesheet_print": "load",
+     "stylesheet_not_all": "load",
+     "image": "load",
+     "image_missing": "error",
+     "stylesheet_not_all_missing": "error",
+     "stylesheet_applied": false
+    }
+   },
+   "page": {
+    "chromium/file": {
+     "complete": {
+      "moved": true,
+      "seconds": 0.021
+     },
+     "missing_stylesheet": {
+      "moved": false,
+      "notice": true
+     },
+     "no_script": {
+      "moved": true
+     }
+    },
+    "chromium/http": {
+     "complete": {
+      "moved": true,
+      "seconds": 0.017
+     },
+     "missing_stylesheet": {
+      "moved": false,
+      "notice": true
+     },
+     "no_script": {
+      "moved": true
+     }
+    },
+    "firefox/file": {
+     "complete": {
+      "moved": true,
+      "seconds": 0.079
+     },
+     "missing_stylesheet": {
+      "moved": false,
+      "notice": true
+     },
+     "no_script": {
+      "moved": true
+     }
+    },
+    "firefox/http": {
+     "complete": {
+      "moved": true,
+      "seconds": 0.025
+     },
+     "missing_stylesheet": {
+      "moved": false,
+      "notice": true
+     },
+     "no_script": {
+      "moved": true
+     }
+    },
+    "webkit/file": {
+     "complete": {
+      "moved": true,
+      "seconds": 0.062
+     },
+     "missing_stylesheet": {
+      "moved": false,
+      "notice": true
+     },
+     "no_script": {
+      "moved": true
+     }
+    },
+    "webkit/http": {
+     "complete": {
+      "moved": true,
+      "seconds": 0.014
+     },
+     "missing_stylesheet": {
+      "moved": false,
+      "notice": true
+     },
+     "no_script": {
+      "moved": true
+     }
+    }
+   },
+   "browser_versions": {
+    "chromium": "156.0.8078.4",
+    "firefox": "157.0",
+    "webkit": "27.2"
+   }
+  }
+ },
+ "reviews": {
+  "frozen": "7823374",
+  "independent": "2 must-fix, 5 minor, 6 follow-up: a refusal's single path lost from the receipt (a regression), a cap of 20 resources the document did not state; the trace's channel key, the tool's failure marking, empty arguments, the switch's receipt text, the notice without a previous version; all fixed in 86cff5f",
+  "codex": "7 must-fix, 3 minor (gpt-6.1-sol, xhigh): six of them were already fixed in d96776a and 86cff5f; a switch back to another project's version then not_newer, a saved targets file the kit cannot read, the .gitignore check's reach, and the usage of --reassign-channel were wording, fixed in 7286182",
+  "fixes": [
+   "d96776a",
+   "86cff5f",
+   "7286182"
+  ],
+  "ci_fixes": [
+   "86cff5f",
+   "f5825e4"
+  ],
+  "re_review": "none (review budget of a general PR)"
+ },
+ "not_run": [
+  "a reader on another device opening the published channel in a browser (#24, the owner)",
+  "an SMB or NFS mount on another machine, a sync folder (OneDrive, Dropbox) and its arrival delay",
+  "Safari and mobile browsers; CI runs the browser E2E in Linux Chromium only, Firefox and WebKit ran on this Mac",
+  "publish_eval and channel_arrival_eval on Linux and Windows",
+  "/analytics publish --switch-to inside aelix and the installed launcher; bin/analytics ran from this checkout",
+  "the Windows ACL (windows_acl: not_checked), so no others_cannot_read on Windows",
+  "repeated runs for p50/p95; the M cases ran once each",
+  "two devices publishing at the same moment"
+ ]
+}

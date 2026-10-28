@@ -383,6 +383,7 @@ PR에는 문제를 재현하는 입력, 변경 후 행동, 바뀐 계약, 비교
 | Q17-a 사람의 사용성 | not_run | — | — | — | 같음 | 소유자 결정으로 갈음(#39를 좁힘) |
 | Q17-b | pass | 같음, aelix 0.1.0b2 | gpt-6.1-sol, Qwen3.8 27B(OpenRouter) | 에이전트 세션 + 소유자 검토 | 같음 | 세션은 터미널 없이 에이전트가 띄움. OpenRouter 서빙 미고정 |
 | Q14의 #20 몫(받은 사본) | pass(측정 범위). Q14 자체는 not_run | kit 0.28.0 `ad509b2`(시험·CI `5b8114c`) | macOS 26.6.2 로컬(Chromium·Firefox·WebKit), CI 세 OS와 Linux Chromium | 에이전트 | [2026-10-27-issue-20-reader](verification/2026-10-27-issue-20-reader.md) | P1 게시(#21), 다른 기기의 열람(#24), OS 보관 도구, Safari·모바일, M의 Linux·Windows는 not_run |
+| Q14의 #21 몫(폴더 게시) | pass(측정 범위). Q14 자체는 not_run | kit 0.31.0 `7286182`(접근·CI `f5825e4`) | macOS 26.6.2 로컬(Chromium·Firefox·WebKit, exFAT 이미지), CI 세 OS의 두 번째 OS 계정, Windows 루프백 SMB, Linux Chromium | 에이전트 | [2026-10-29-issue-21-publish-channel](verification/2026-10-29-issue-21-publish-channel.md), [PR-2](verification/2026-10-27-issue-21-publish-steps.md) | 다른 기기의 열람(#24), 다른 기기의 공유·동기화 폴더, Safari·모바일, Windows ACL, 측정 도구의 Linux·Windows는 not_run |
 
 필수 게이트 실패·미실행, 설명되지 않은 기록 유실, 잘못된 버전 연결, 실제 문맥 한계로 과제를 진행하지 못하는 문제,
 설치물 누락은 출시 보류 사유다. 알려진 복구·멱등성 한계는 지원 범위를 제한해 공개하되, 그것을 구현 완료로 표시하지 않는다.
