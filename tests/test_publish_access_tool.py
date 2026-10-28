@@ -18,7 +18,7 @@ def test_the_reader_reads_both_targets_as_this_account(tmp_path):
     env = {**os.environ}
     env.pop("GITHUB_ACTIONS", None)
     done = subprocess.run([sys.executable, str(ROOT / "tools/publish_access_check.py"), "--output", str(out)],
-                          capture_output=True, text=True, timeout=300, env=env)
+                          capture_output=True, text=True, encoding="utf-8", timeout=300, env=env)
     assert done.returncode == 0, done.stderr[-2000:]
     report = json.loads(out.read_text(encoding="utf-8"))
     assert report["failed"] is False and report["account"]["name"] is None
@@ -28,5 +28,5 @@ def test_the_reader_reads_both_targets_as_this_account(tmp_path):
     if os.name != "nt":
         assert report["cases"]["shut"]["result"] == "pass" and "others_cannot_read" in report["cases"]["shut"]["warnings"]
     refused = subprocess.run([sys.executable, str(ROOT / "tools/publish_access_check.py"), "--output", str(out),
-                              "--account"], capture_output=True, text=True, timeout=60, env=env)
+                              "--account"], capture_output=True, text=True, encoding="utf-8", timeout=60, env=env)
     assert refused.returncode == 2 and "change this machine" in refused.stderr
