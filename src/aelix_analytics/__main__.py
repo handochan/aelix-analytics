@@ -608,6 +608,10 @@ def _publish_command(args):
     from .publishing.model import PublicationError
 
     project = _project(args)
+    for option, value in (("--build", args.build), ("--switch-to", args.switch_to), ("--save-target", args.save_target),
+                          ("--to", args.to), ("--target", args.target), ("--channel", args.channel)):
+        if value is not None and not value.strip():
+            raise core.AnalyticsError("publish_input_invalid", f"{option} takes a value, not an empty one")
     if args.list_attempts and (args.channel or args.reassign_channel):
         raise core.AnalyticsError("publish_input_invalid", "--list takes no channel")
     if args.save_target and (not args.to or args.channel or args.reassign_channel):

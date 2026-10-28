@@ -187,7 +187,6 @@ def _verify(folder: Path, publication_id, details):
 # gives "load" for a file that is there and "error" for one that is not, and 'self' admits the
 # version's files over file:// too. One that answers neither in ARRIVAL_SECONDS counts as not arrived.
 ARRIVAL_SECONDS = 15
-ARRIVAL_LIMIT = 20
 ARRIVAL_SCRIPT = (
     '(function(){var box=document.getElementById("arrival");if(!box)return;var data=null;'
     'try{data=JSON.parse(box.getAttribute("data-check"));}catch(e){}'
@@ -245,7 +244,7 @@ def arrival_resources(version: Path, manifest: dict) -> list[dict]:
             continue
         seen.add(name)
         out.append({"kind": kind, "href": f"../../{target.PUBLICATIONS}/{version.name}/{parts.path}"})
-    return out[:ARRIVAL_LIMIT]
+    return out  # every one: a version is opened only once all it loads itself has come
 
 
 def _same_content(a: dict, b: dict | None) -> bool:
@@ -295,7 +294,8 @@ def channel_page(latest: dict, arrival: list[dict]) -> bytes:
         f'<h1 lang="">{html.escape(title)}</h1>',
         f'<div id="arrival" data-check="{html.escape(json.dumps(check, sort_keys=True))}">',
         '<p id="arrival-checking">Opening the newest version once its files are on this device…</p>',
-        f'<p id="arrival-failed" hidden>{NOT_ARRIVED} Open it anyway, or open the previous version.</p>',
+        f'<p id="arrival-failed" hidden>{NOT_ARRIVED} Open it anyway'
+        + (", or open the previous version.</p>" if previous else ", or come back later.</p>"),
         "</div>",
         f'<p>Latest version: <a href="{href(pid)}">{html.escape(pid)}</a></p>',
     ]
@@ -357,6 +357,9 @@ def switch(project, publication_id, folder, *, origin, channel=None, target_name
     """Point a channel at a version already on the target (`--switch-to`, design 8): no transfer; the
     version is checked where it lies, by this project's binding or else the channel history's hash,
     and the build order is not compared. A refusal before the start record records nothing."""
+    if not isinstance(publication_id, str) or not relations.PUBLICATION_ID.fullmatch(publication_id):
+        raise PublicationError("publish_input_invalid", "--switch-to takes a publication_id (pub- and 26 letters)",
+                               details={"publication_id": publication_id})
     return _run(project, publication_id, folder, origin=origin, channel=channel, reassign=False,
                 target_name=target_name, action="switch")
 
@@ -382,8 +385,9 @@ def _run(project, publication_id, folder, *, origin, channel, reassign, target_n
     record_target = {"name": target_name, "path": os.fspath(view.given), "resolved": os.fspath(view.resolved)}
     ref = _reference(publication_id, digest, observed=details is not None)  # the receipt's refs too (6.2)
     with w.locked(OPERATION) as held:
-        held.append("publish_attempt", f"{'Publishing' if action == 'publish' else 'Switching to'} {publication_id}"
-                    f" {'to' if action == 'publish' else 'on'} {target_name or view.resolved.name}",
+        shown = target_name or view.resolved.name
+        held.append("publish_attempt", f"Publishing {publication_id} to {shown}" if action == "publish"
+                    else f"Switching {shown} to {publication_id}",
                     refs=[ref], details={"attempt_id": attempt_id, "publication_id": publication_id,
                                          "action": action, "target": record_target, "channel": channel,
                                          "started_at": started_at},
@@ -561,8 +565,8 @@ def _channel(projects, project_id, title, channel, reassign, state):
     try:
         folder = _channel_folder(projects, project_id, title, channel)
     except PublicationError as exc:
-        raise _Stop("channel", exc.code, exc.message, paths=exc.details.get("paths", ()),
-                    reason=exc.details.get("reason")) from exc
+        found = exc.details.get("paths") or ([exc.details["path"]] if exc.details.get("path") else [])
+        raise _Stop("channel", exc.code, exc.message, paths=found, reason=exc.details.get("reason")) from exc
     current = target.channel_state(folder, project_id)
     state["channel"] = {"name": folder.name, "reassigned_from": None, "previous_latest": None}
     if current.state == "foreign":
@@ -653,9 +657,10 @@ def _traces(w, state, root, project_id):
         aid, pid = attempt["attempt_id"], attempt["publication_id"]
         projects = root / target.PROJECTS
         try:
-            names = ([target.channel_name(attempt["channel"])] if isinstance(attempt.get("channel"), str)
-                     else _own_channels(projects, project_id))
-        except PublicationError:
+            # The start record keeps the name as given; the folder is the one its key finds (design 9.1).
+            names = (target.channels(projects).get(target.channel_key(target.channel_name(attempt["channel"])), [])
+                     if isinstance(attempt.get("channel"), str) else _own_channels(projects, project_id))
+        except (PublicationError, OSError):
             names = []  # a hand-edited start record's channel names no folder here
         pointed = [n for n in names if ((_latest_of(projects / n / target.LATEST)[0] or {}).get("latest") == pid)]
         out.append({"attempt_id": aid, "publication_id": pid,
@@ -1113,8 +1118,9 @@ def _receipt(w, state):
     details = _bounded(details)
     outcome = details["outcome"]
     shown = state["_shown"]
-    summary = (f"Published {details['publication_id']} to {shown}" if outcome == "published" else
-               f"Publish of {details['publication_id']} to {shown} {outcome}" + (
+    pid, switched = details["publication_id"], details["action"] == "switch"
+    summary = ((f"Switched {shown} to {pid}" if switched else f"Published {pid} to {shown}") if outcome == "published" else
+               (f"Switch of {shown} to {pid} {outcome}" if switched else f"Publish of {pid} to {shown} {outcome}") + (
                    f" at {details['failure']['step']}: {details['failure']['code']}" if details.get("failure") else ""))
     ref = state["_ref"]
     result = {"ok": outcome in ("published", "not_newer", "superseded"), **{k: details.get(k) for k in (
@@ -1152,7 +1158,12 @@ def attempts(project, folder=None, *, target_name=None) -> dict:
     rows = relations.publish_attempts(journal)
     for row in rows:
         row.pop("line", None)
-    out = {"ok": True, "attempts": rows, "saved_targets": target.saved_targets(project.root)}
+    out = {"ok": True, "attempts": rows}
+    try:
+        out["saved_targets"] = target.saved_targets(project.root)
+    except PublicationError as exc:
+        out["saved_targets"], out["saved_targets_error"] = None, {"code": exc.code, "message": exc.message,
+                                                                    "details": exc.details}
     if folder is not None:
         out["target"] = _listing(project, Path(folder), target_name)
     return out

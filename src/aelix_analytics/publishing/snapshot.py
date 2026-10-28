@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from collections import Counter
 from pathlib import PureWindowsPath
 
@@ -346,7 +347,8 @@ def capture_snapshot(project, *, reader=core.read_model, validate_reference=rela
     # A publish's records leave the projection (ADR-0014 decision 2), but the folders and file:// URLs
     # they name stay forbidden in a copy (BUILD 11.4, PUBLISH-FOLDER 6.4).
     try:  # and so do the folders saved as targets, used or not (PUBLISH-FOLDER 9.3)
-        saved = set(target.saved_targets(project.root).values())
+        saved = {value for folder in target.saved_targets(project.root).values()
+                 for value in (folder, os.path.realpath(folder))}
     except PublicationError:
         saved = set()  # a saved targets file the kit cannot read names no folder it can forbid
     private_values += tuple(sorted({value for event in model.journal.in_order() if event.kind in PUBLICATION_KINDS

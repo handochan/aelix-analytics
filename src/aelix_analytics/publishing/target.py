@@ -334,10 +334,12 @@ def ignores_saved_targets(project_root) -> bool:
     """Whether the project's .gitignore has the saved targets' line (the template's since kit 0.31.0).
     Only that line counts: a project without it (an older one, a migrated one) saves no target."""
     try:
-        lines = (Path(project_root) / ".gitignore").read_text(encoding="utf-8").splitlines()
+        lines = [line.strip() for line in (Path(project_root) / ".gitignore").read_text(encoding="utf-8").splitlines()]
     except (OSError, UnicodeError):
         return False
-    return any(line.strip() in (SAVED_TARGETS, "/" + SAVED_TARGETS) for line in lines)
+    named = [at for at, line in enumerate(lines) if line in (SAVED_TARGETS, "/" + SAVED_TARGETS)]
+    undone = [at for at, line in enumerate(lines) if line.startswith("!") and line.rstrip("/").endswith("publish-targets.json")]
+    return bool(named) and max(named) > max(undone, default=-1)  # a later "!" line keeps it in git
 
 
 def saved_targets(project_root) -> dict[str, str]:
@@ -352,8 +354,8 @@ def saved_targets(project_root) -> dict[str, str]:
         raise PublicationError("saved_targets_invalid", "the saved targets file cannot be read",
                                details={"path": os.fspath(path), "cause": type(exc).__name__}) from exc
     targets = value.get("targets") if isinstance(value, dict) and value.get("schema") == SAVED_TARGETS_SCHEMA else None
-    if not isinstance(targets, dict) or not all(isinstance(k, str) and TARGET_NAME.fullmatch(k) and isinstance(v, str) and v
-                                                for k, v in targets.items()):
+    if not isinstance(targets, dict) or not all(isinstance(k, str) and TARGET_NAME.fullmatch(k) and isinstance(v, str)
+                                                and (os.path.isabs(v) or PurePath(v).anchor) for k, v in targets.items()):
         raise PublicationError("saved_targets_invalid", "the saved targets file is not the kit's",
                                details={"path": os.fspath(path)})
     return dict(targets)

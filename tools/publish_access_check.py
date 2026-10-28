@@ -72,6 +72,8 @@ print(json.dumps(out))
 
 WINDOWS_READER = r'''
 param([string]$Root, [string]$Channel, [string]$Out)
+# Windows PowerShell 5.1 writes some arrays as {"value": [...], "Count": n} through this type data.
+Remove-TypeData System.Array -ErrorAction SilentlyContinue
 $r = [ordered]@{account = [Environment]::UserName; files = 0; bytes = 0; errors = @()}
 try {
     $folder = Join-Path (Join-Path $Root "projects") $Channel
@@ -95,7 +97,11 @@ $r | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $Out -Encoding UTF8
 
 
 def run(argv, **kwargs):
-    done = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180, **kwargs)
+    """A command's code and output; a command that does not end in 180 seconds gives code None."""
+    try:
+        done = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180, **kwargs)
+    except subprocess.TimeoutExpired:
+        return None, "", "it did not end in 180 seconds"
     return done.returncode, (done.stdout or "")[-2000:], (done.stderr or "")[-2000:]
 
 
@@ -109,7 +115,8 @@ def powershell(script, env=None):
 def make_account():
     """A second OS account; returns (how to read as it, what happened) or (None, the reason)."""
     if os.name == "nt":
-        logon = "Aa1!" + "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(20))
+        # 14 characters at most: above that `net user` asks a yes/no question no one answers here.
+        logon = "Aa1!" + "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10))
         code, out, err = run(["net", "user", ACCOUNT, logon, "/add"])
         if code != 0 and "already" not in (out + err).lower():
             return None, {"step": "net user /add", "code": code, "stderr": err or out}
@@ -163,7 +170,13 @@ def read_as(account, root: Path, work: Path):
                      "READER_OUT": str(out)})
         if not out.exists():
             return None, {"step": "start the reader", "code": code, "stderr": err or stdout}
-        return json.loads(out.read_text(encoding="utf-8-sig")), None
+        read = json.loads(out.read_text(encoding="utf-8-sig"))
+        for key in ("errors",):  # the 5.1 shape, should the type data have stayed
+            if isinstance(read.get(key), dict) and "value" in read[key]:
+                read[key] = read[key]["value"]
+        errors = read.get("errors")
+        read["errors"] = errors if isinstance(errors, list) else [] if errors is None else [errors]
+        return read, None
     script = work / "reader.py"
     script.write_text(POSIX_READER, encoding="utf-8")
     os.chmod(script, 0o644)
@@ -188,14 +201,19 @@ def publish_both(project, ids, folder):
             "commit_method": receipt["details"].get("commit_method")}
 
 
+REFUSED = frozenset({"PermissionError", "UnauthorizedAccessException"})
+
+
 def judged(case, read, why, *, expect_read):
-    """A case passes when the reader got what it should: all files by hash, or (expect_read False) none."""
+    """A case passes when the reader got what it should: every file by its hash, or (expect_read
+    False) a refusal of access and nothing else."""
     if read is None:
         case.update(reader="not_run", reader_reason=why, result="not_run")
         return
     case["reader"] = read
     whole = not read["errors"] and read["files"] > 0 and read.get("page_names_latest") is True
-    case["result"] = "pass" if whole == expect_read and (expect_read or read["errors"]) else "fail"
+    refused = bool(read["errors"]) and all(e.get("error") in REFUSED for e in read["errors"])
+    case["result"] = "pass" if (whole if expect_read else refused) else "fail"
 
 
 def main():
@@ -221,65 +239,12 @@ def main():
            "account": None, "cases": {}}
     failed = False
     try:
-        if os.name != "nt":
-            os.chmod(base, 0o755)
-        work = base / "reader"
-        work.mkdir()
-        if os.name != "nt":
-            os.chmod(work, 0o755)
-        project = core.init_project(private / "project", title="Access check", origin=ORIGIN)
-        ids = [build.build_publication(project, origin=ORIGIN)["publication_id"] for _ in range(2)]
-        account, made = (make_account() if args.account else (None, {"made": "none: this account reads"}))
-        out["account"] = {"name": account["name"] if account else None, **(made or {})}
-        if args.account and account is None:
-            out["account"]["state"] = "not_run"
-            failed |= args.require_account
-        cases = {"open": base / "share"}
-        if os.name != "nt":
-            shut = base / "shut"
-            shut.mkdir(mode=0o700)
-            os.chmod(shut, 0o700)
-            cases["shut"] = shut / "share"
-        elif account is not None:
-            cases["shut"] = private / "share"  # the publisher's own profile folder
-        for name, folder in cases.items():
-            case = out["cases"][name] = {"folder": os.fspath(folder), **publish_both(project, ids, folder)}
-            if case["outcomes"] != ["published", "published"]:
-                case["result"] = "fail"
-            elif args.account and account is None:
-                case.update(reader="not_run", result="not_run")
-            else:
-                read, why = read_as(account, folder, work)
-                judged(case, read, why, expect_read=name == "open" or account is None)
-                if name == "shut" and os.name != "nt" and "others_cannot_read" not in case["warnings"]:
-                    case["result"] = "fail"  # design 9.2: the publish says others may not read it
-            if case["result"] == "fail" or (case["result"] == "not_run" and args.require_account):
-                failed = True
-        if args.smb:
-            out["cases"]["smb"] = smb = {}
-            share_name = base.name
-            folder = base / "smb"
-            folder.mkdir()
-            code, stdout, err = powershell(f"New-SmbShare -Name '{share_name}' -Path '{folder}' -FullAccess 'Everyone' | Out-Null")
-            if code != 0:
-                smb.update(result="not_run", reason={"step": "New-SmbShare", "code": code, "stderr": err or stdout})
-            else:
-                unc = Path(f"\\\\localhost\\{share_name}\\target")
-                try:
-                    smb.update(folder=os.fspath(unc), **publish_both(project, ids, unc))
-                    version = unc / "publications" / ids[-1]
-                    smb["reread"] = checks.verify_package(version)["package_sha256"]
-                    smb["result"] = "pass" if smb["outcomes"] == ["published", "published"] else "fail"
-                    if account is not None and smb["result"] == "pass":
-                        read, why = read_as(account, unc, work)
-                        smb["second_account"] = read if read is not None else {"state": "not_run", "reason": why}
-                        if read is not None and (read["errors"] or not read["files"]):
-                            smb["result"] = "fail"
-                except Exception as exc:  # noqa: BLE001 - what a share does is the measurement
-                    smb.update(result="fail", error=f"{type(exc).__name__}: {exc}")
-                finally:
-                    powershell(f"Remove-SmbShare -Name '{share_name}' -Force")
-            failed |= smb["result"] == "fail"
+        failed = cases(args, out, base, private)
+    except Exception as exc:  # noqa: BLE001 - the evidence says how the check itself ended
+        import traceback
+
+        out["error"] = {"type": type(exc).__name__, "message": str(exc), "traceback": traceback.format_exc()[-4000:]}
+        failed = True
     finally:
         if old_umask is not None:
             os.umask(old_umask)
@@ -288,9 +253,76 @@ def main():
         args.output.write_text(json.dumps(out, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
         for folder in (base, private):
             shutil.rmtree(folder, ignore_errors=True)
-    print(json.dumps({"ok": not failed, "output": str(args.output),
+    print(json.dumps({"ok": not failed, "output": str(args.output), "error": out.get("error", {}).get("message"),
                       "cases": {k: v.get("result") for k, v in out["cases"].items()}}))
     return 1 if failed else 0
+
+
+def cases(args, out, base: Path, private: Path) -> bool:
+    """Every case; True when one ran and did not give what it should (or a required one did not run)."""
+    failed = False
+    if os.name != "nt":
+        os.chmod(base, 0o755)
+    work = base / "reader"
+    work.mkdir()
+    if os.name != "nt":
+        os.chmod(work, 0o755)
+    project = core.init_project(private / "project", title="Access check", origin=ORIGIN)
+    ids = [build.build_publication(project, origin=ORIGIN)["publication_id"] for _ in range(2)]
+    account, made = (make_account() if args.account else (None, {"made": "none: this account reads"}))
+    out["account"] = {"name": account["name"] if account else None, **(made or {})}
+    if args.account and account is None:
+        out["account"]["state"] = "not_run"
+        failed |= args.require_account
+    folders = {"open": base / "share"}
+    if os.name != "nt":
+        shut = base / "shut"
+        shut.mkdir(mode=0o700)
+        os.chmod(shut, 0o700)
+        folders["shut"] = shut / "share"
+    elif account is not None:
+        folders["shut"] = private / "share"  # the publisher's own profile folder
+    for name, folder in folders.items():
+        case = out["cases"][name] = {"folder": os.fspath(folder), **publish_both(project, ids, folder)}
+        if case["outcomes"] != ["published", "published"]:
+            case["result"] = "fail"
+        elif args.account and account is None:
+            # What this account reads still says whether the reader works here (not judged).
+            self_read, why = read_as(None, folder, work)
+            case.update(reader="not_run", result="not_run", self_reader=self_read if self_read is not None else why)
+        else:
+            read, why = read_as(account, folder, work)
+            judged(case, read, why, expect_read=name == "open" or account is None)
+            if name == "shut" and os.name != "nt" and "others_cannot_read" not in case["warnings"]:
+                case["result"] = "fail"  # design 9.2: the publish says others may not read it
+        if case["result"] == "fail" or (case["result"] == "not_run" and args.require_account):
+            failed = True
+    if args.smb:
+        out["cases"]["smb"] = smb = {}
+        share_name = base.name
+        folder = base / "smb"
+        folder.mkdir()
+        code, stdout, err = powershell(f"New-SmbShare -Name '{share_name}' -Path '{folder}' -FullAccess 'Everyone' | Out-Null")
+        if code != 0:
+            smb.update(result="not_run", reason={"step": "New-SmbShare", "code": code, "stderr": err or stdout})
+        else:
+            unc = Path(f"\\\\localhost\\{share_name}\\target")
+            try:
+                smb.update(folder=os.fspath(unc), **publish_both(project, ids, unc))
+                version = unc / "publications" / ids[-1]
+                smb["reread"] = checks.verify_package(version)["package_sha256"]
+                smb["result"] = "pass" if smb["outcomes"] == ["published", "published"] else "fail"
+                if account is not None and smb["result"] == "pass":
+                    read, why = read_as(account, unc, work)
+                    smb["second_account"] = read if read is not None else {"state": "not_run", "reason": why}
+                    if read is not None and (read["errors"] or not read["files"]):
+                        smb["result"] = "fail"
+            except Exception as exc:  # noqa: BLE001 - what a share does is the measurement
+                smb.update(result="fail", error=f"{type(exc).__name__}: {exc}")
+            finally:
+                powershell(f"Remove-SmbShare -Name '{share_name}' -Force")
+        failed |= smb["result"] == "fail"
+    return failed
 
 
 if __name__ == "__main__":

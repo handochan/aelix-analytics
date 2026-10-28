@@ -1756,6 +1756,11 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
   - 다른 OS가 기록한 절대 경로는 이 기계에서 파일이 없어 `missing`/`file_absent`로, 그 입력의 생산자는 이 기계의 기록과 경로가 맞지 않아 `none`으로 보입니다(Freshness의 전과 같습니다). 옛 kit 경로의 추론(E)은 이 기계의 지금 루트·링크 대상 아래 경로와 파일 시스템이 같은 항목으로 여는 철자만 대응시킵니다. 그래서 다른 OS·옮긴 프로젝트의 절대 경로, 대소문자·정규화를 구별하는 파일 시스템에서 다른 철자로 기록된 상대 경로는 대응하지 않습니다(글자를 접어 맞추지 않습니다).
   - 옛 kit 경로의 추론은 오늘의 링크·이름으로 판정합니다. 그 run 뒤에 링크를 바꿨거나 파일을 옮겼으면 다른 파일로 대응할 수 있어 확정 연결로 세지 않습니다. 표시는 그 판정 자리마다입니다: stale을 따라가는 길의 중간(후보의 후보)에서 쓴 추론은 그 차트에 표시하지 않고, 직접 입력의 후보만 표시합니다. 맥락 블록(journal만 읽음)은 경로를 읽지 않습니다. kit 버전이 없는 이벤트의 `refs.charts` 글자는 어떤 옛 run이 그 키를 기록했을 때만 그 대응을 따르고, `refs.data`는 대응하지 않습니다. 대응이 지금 있는 항목인지는 읽는 프로세스가 열 수 있는 경로로 봅니다(Windows에서 LongPathsEnabled가 0이면 260자를 넘는 경로는 없는 것으로 보아 대응하지 않을 수 있습니다).
   - 비용(측정은 이 PR의 기록). 맥락 블록은 프롬프트마다 journal만 읽어 줄마다 기록을 판정하므로 줄 수에 비례하고, `analytics_status`는 run.json을 한 번, 기준 파일들을 두 번 stat합니다. Workspace는 타임라인의 모든 참조를 판정합니다. 이벤트를 쓸 때도 잠금 안에서 journal 전체를 읽어 seq를 정하므로 쓰기 한 번이 줄 수에 비례합니다(#49의 PR이 macOS arm64에서 잰 값: 10,000줄·2.6 MB journal에 쓰기 한 번 약 30 ms. 그 전에는 끝 64 KiB만 읽어 0.2 ms 미만). kit 0.8.0의 공통 writer는 기록 하나에 journal 전체를 두 번 파싱합니다: 잠금 밖(결박과 줄 크기)과 잠금 안(재판정과 상태 재생). 다른 기록의 상태를 바꾸는 참조(`resolves`·`supersedes`)가 있으면 덧붙인 뒤 한 번 더 파싱합니다(응답의 `targets`). 이름으로 준 참조가 있으면 읽기 모델도 읽고, kit CLI `record`·`analytics_record`는 맥락 동기화 전에 잠금 밖 판정을 한 번 더 합니다(C1). #13의 셋째 PR이 macOS arm64에서 잰 값(10,000줄 journal, 20회의 p50, [측정 기록](verification/2026-10-09-issue-13-writer.md)의 `writer_latency`, 리뷰 수정 뒤): 보통 기록 69 ms(그 전 kit의 `/1` writer 33 ms), 참조 넷을 결박하는 기록 124 ms(32 ms), 질문을 닫는 기록 129 ms(65 ms), `record_update` 91 ms. 영속 인덱스는 없습니다(#15).
+- channel 페이지의 도착 확인(#21, kit 0.31.0). 최신 버전의 entry가 직접 불러오는 스타일시트·이미지 파일이 이 기기에서 열리는지만 봅니다. 그 파일의
+  내용이 다 왔는지, entry(`index.html`) 자체나 그 밖의 파일(스크립트, 다른 페이지)이 왔는지는 보지 않습니다. 그래서 동기화 프로그램이 그 파일들을 먼저
+  가져왔으면 아직 다 오지 않은 버전으로 옮길 수 있습니다. 그때 entry가 없으면 브라우저가 파일을 찾지 못했다고 보이고, entry는 있지만 스타일시트나
+  `assets/publication.js`가 없으면 그 버전의 페이지가 자기 안내("This page could not load its files")를 보입니다. 15초 안에 답이 없는
+  파일은 오지 않은 것으로 봅니다. 버전 전체를 독자 기기에서 대조하는 수단은 #48입니다.
 - 게시 대상의 파일 시스템(#21, kit 0.29.0의 측정). macOS 26.6.2의 exFAT 디스크 이미지에서 잠금은 잡혔습니다. 이름을 바꾸지 않는 rename(`renamex_np`)은
   빈 이름에 ENOTSUP이라 디렉터리 확정(`rename_dir_new`)은 `rename(2)`로 옮겼고, 내용이 있는 디렉터리·파일 위로는 거절하며 양쪽을 보존했습니다. 링크도
   없어 대상 표식을 만들 수 없었습니다(`no_exclusive_rename`). 그래서 이런 볼륨에는 새 게시 대상을 만들 수 없습니다. 바이트만 쓴 사본에도 macOS가
@@ -2316,17 +2321,18 @@ D2의 미리보기와 D3의 build가 같은 경로를 씁니다.
   "same content"라고 적고, 가리키는 버전이 가장 새 build가 아니면 "This channel points to an older build, chosen by switching."을 보입니다.
   확인하는 자원 종류는 Chromium·Firefox·WebKit × `file://`·HTTP 하위 경로에서 잰 것입니다(파일이 있으면 `load`, 없으면 `error`). 파일이 있는지만 보고
   내용이 다 왔는지는 보지 않습니다(G).
-- **되돌리기**: `--switch-to`는 파일을 옮기지 않고 대상에 있는 그 버전을 그 자리에서 대조한 뒤 전환만 합니다. 이 프로젝트에 그 build의 결박이 있으면
+- **되돌리기**: `--switch-to`(값은 `publication_id` 형식이어야 함)는 파일을 옮기지 않고 대상에 있는 그 버전을 그 자리에서 대조한 뒤 전환만 합니다. 이 프로젝트에 그 build의 결박이 있으면
   결박으로, 없으면(다른 기기의 사본) channel history의 `package_sha256`과 manifest의 ID로 대조합니다(receipt `binding: channel_history`, 참조
   `basis: declared`). 둘 다 있는데 다르면 시작 기록 전에 거절합니다(`version_differs`). 고를 수 있는 것은 이 프로젝트 channel의 history에 있는 버전이나
   결박이 있고 대상에 확정된 버전이고, 그 밖은 시작 기록 전에 `not_bound`·`not_on_target`입니다. build 순서는 비교하지 않고, 시작한 뒤 다른 게시가 최신을
-  바꿨으면 `superseded`입니다. receipt는 `action: switch`이고 `transfer`·`check`·`commit`은 `not_started`, `final_check`가 그 대조입니다. 그 뒤
+  바꿨으면 `superseded`입니다. receipt는 `action: switch`이고(글은 "Switched <대상> to <id>"), `transfer`·`check`·`commit`은 `not_started`, `final_check`가 그 대조입니다. 그 뒤
   더 새 build를 게시하면 channel은 다시 앞으로 갑니다(되돌리기는 고정이 아님).
 - **저장한 대상**: `--save-target`은 폴더를 판정만 하고(대상에 아무것도 만들지 않음) `.analytics/publish-targets.json`(`analytics.publish_targets/1`,
-  `targets`: 이름 → 폴더)에 적습니다. 프로젝트의 `.gitignore`에 `.analytics/publish-targets.json` 줄이 없으면 저장하지 않습니다(`targets_not_ignored`).
+  `targets`: 이름 → 절대 경로)에 적습니다. 프로젝트의 `.gitignore`에 `.analytics/publish-targets.json` 줄이 없으면 저장하지 않습니다(`targets_not_ignored`).
   kit 0.31.0이 만든 프로젝트에는 그 줄이 있고, 이전 프로젝트와 전환한 프로젝트에는 사람이 더합니다. 이름은 영문자·숫자로 시작하는 64자까지의
-  영문자·숫자·`.`·`_`·`-`입니다. 없는 이름은 `target_unknown`, 읽을 수 없는 파일은 `saved_targets_invalid`입니다. 저장한 폴더는 뒤의 build가 쓰지
-  않은 것도 공유 사본의 금지 값입니다.
+  영문자·숫자·`.`·`_`·`-`입니다. 그 줄 뒤에 `!`로 되돌리는 줄이 있으면 저장하지 않습니다. 없는 이름은 `target_unknown`, 읽을 수 없는 파일은
+  `saved_targets_invalid`입니다(`--list`는 시도를 보이고 그 오류를 `saved_targets_error`에 적습니다). 저장한 폴더와 그 실제 위치(링크를 푼 것)는
+  게시에 쓰지 않았어도 뒤의 build가 공유 사본의 금지 값으로 씁니다.
 - **다른 계정의 읽기(설계 9.2)**: receipt의 `access.posix`는 대상까지의 폴더와 버전 아래의 group·other 권한 비트를 관찰합니다(`others_can_read`·
   `blocked`, `group_can_read`·`group_blocked`). other가 읽지 못해 보이면 결과에 경고 `others_cannot_read`를 더하고 stderr에 적습니다. 권한을 바꾸지
   않고, Windows의 ACL은 읽지 않습니다(`windows_acl: not_checked`).

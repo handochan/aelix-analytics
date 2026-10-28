@@ -19,8 +19,8 @@ def test_the_reader_reads_both_targets_as_this_account(tmp_path):
     env.pop("GITHUB_ACTIONS", None)
     done = subprocess.run([sys.executable, str(ROOT / "tools/publish_access_check.py"), "--output", str(out)],
                           capture_output=True, text=True, encoding="utf-8", timeout=300, env=env)
-    assert done.returncode == 0, done.stderr[-2000:]
-    report = json.loads(out.read_text(encoding="utf-8"))
+    report = json.loads(out.read_text(encoding="utf-8")) if out.exists() else None
+    assert done.returncode == 0, (done.stderr[-2000:], json.dumps(report)[-3000:])
     assert report["failed"] is False and report["account"]["name"] is None
     opened = report["cases"]["open"]
     assert opened["result"] == "pass" and opened["outcomes"] == ["published", "published"]
