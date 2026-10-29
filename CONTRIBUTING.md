@@ -218,23 +218,26 @@ macOS의 `sandbox-exec`와 unified log를 씁니다.
 
 평가에 쓰는 fixture — Q9의 S/M 규모, Q10의 분석 검사 예제, Q13의 참고 세션 재현 — 는 `tools/eval_fixtures.py`가 만듭니다(#41,
 [평가 fixture 안내](tools/eval_fixtures_data/README.md)). 저장소에 커밋하지 않고 측정할 때 같은 seed로 다시 만듭니다. `--out`은 새
-디렉터리나 빈 디렉터리여야 합니다. fixture는 `lab.*/1` 기록이라 kit 0.8.0 전의 kit이 씁니다: `--kit-root`에 그 kit의 실행 루트를
-줍니다(`tools/eval_fixtures.py`의 `V1_KIT_COMMIT`, 시험과 CI도 그 커밋을 씀).
+디렉터리나 빈 디렉터리여야 합니다. 같은 계획을 두 형식으로 씁니다. 기본인 `--format v1`은 `lab.*/1` 기록이라 kit 0.8.0 전의 kit이
+씁니다: `--kit-root`에 그 kit의 실행 루트를 줍니다(`tools/eval_fixtures.py`의 `V1_KIT_COMMIT`, 시험과 CI도 그 커밋을 씀).
+`--format v2`는 `analytics.event/2` 기록이라 이 체크아웃의 kit이 씁니다. 정정·철회처럼 형식마다 다르게 읽히는 사례의 판정은
+manifest에 형식별로 적힙니다.
 
 ```sh
 git worktree add --detach <kit> ebd10b644e8cb8550ccf6446b134666db6bb9386   # V1_KIT_COMMIT
 uv run --locked python tools/eval_fixtures.py scale --scale S --seed 0 --kit-root <kit>/src --out <dir>   # M은 --scale M
 uv run --locked python tools/eval_fixtures.py q10 --seed 0 --kit-root <kit>/src --out <dir>
 uv run --locked python tools/eval_fixtures.py q13 --seed 0 --kit-root <kit>/src --out <dir>
+uv run --locked python tools/eval_fixtures.py scale --scale S --seed 0 --format v2 --out <dir>   # q10·q13도 --format v2
 uv run --locked python tools/eval_fixtures.py check <dir>
 uv run --locked python tools/eval_fixtures.py environment --out <file> --disk <dir> --cache-state cold
 ```
 
 같은 seed는 같은 환경에서 같은 바이트를 만듭니다(실행한 run의 시간·환경, 원본 경로 같은 선언된 휘발 필드 제외. 같은 `--out`이면 실행한
 run의 시간만 다릅니다). `manifest.json`의 `digest`로 비교하고, `check`가 digest·개수·사례의 판정·기대 판정 파일을 다시 확인한 뒤
-fixture를 cold로 둡니다. `tests/test_eval_fixtures.py`가 S·Q10·Q13을 기본 시험에서 확인합니다. M(fixture 하나에 원본과 `input/`을
-합쳐 약 440 MB, 두 번 만듦)은 `AELIX_ANALYTICS_TEST_SCALE_M=1`일 때만 돕니다. 생성기를 바꾸면 `GENERATOR_VERSION`을 올리고 그
-시험도 실행하세요.
+fixture를 cold로 둡니다. `tests/test_eval_fixtures.py`가 두 형식의 S·Q10·Q13을 기본 시험에서 확인합니다. M(fixture 하나에 원본과
+`input/`을 합쳐 약 440 MB, 형식마다 두 번 만듦)은 `AELIX_ANALYTICS_TEST_SCALE_M=1`일 때만 돕니다. 생성기가 만드는 내용(계획·사례·데이터)을
+바꾸면 `GENERATOR_VERSION`을 올리고 그 시험도 실행하세요.
 
 제한 조회의 결정적 S/M 측정(#15)은 생성기의 fixture를 명시적으로 전환한 합성 사본에서 합니다. 원본 fixture를 고치지 않습니다.
 `tools/retrieval_eval.py --fixture <fixture> --project <전환 사본> --out <새 결과 dir> --repeats 10`은 같은 사례의 cold/warm/재구축/직접 읽기,

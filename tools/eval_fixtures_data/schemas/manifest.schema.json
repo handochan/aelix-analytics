@@ -17,7 +17,7 @@
     "kind": {"enum": ["scale", "q10", "q13"]},
     "scale": {"enum": ["S", "M", null]},
     "seed": {"type": "integer"},
-    "format": {"enum": ["v1"]},
+    "format": {"enum": ["v1", "v2"]},
     "kit_version": {"type": "string", "minLength": 1},
     "kit_commit": {"type": ["string", "null"],
                    "description": "The git commit of the runtime root whose kit wrote the records, null where git cannot tell it (an archive)."},
@@ -57,7 +57,7 @@
         "required": ["name", "path", "rows", "bytes", "source"],
         "properties": {
           "name": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
-          "path": {"type": "string", "pattern": "^data/raw/[a-z][a-z0-9_]*\\.parquet$"},
+          "path": {"type": "string", "pattern": "^data/(raw|imported)/[a-z][a-z0-9_]*\\.parquet$"},
           "rows": {"type": "integer", "minimum": 0},
           "bytes": {"type": "integer", "minimum": 0},
           "source": {"enum": ["csv", "parquet"]}
@@ -76,17 +76,28 @@
       "if": {"properties": {"kind": {"const": "scale"}}},
       "then": {"properties": {"scale": {"enum": ["S", "M"]}, "cases": {"minItems": 6}}, "required": ["sizes", "datasets"]},
       "else": {"properties": {"scale": {"const": null}}, "required": ["inputs"]}
+    },
+    {
+      "description": "A case describes how its records look in the fixture's format (its v1 or v2 text), and an import is under the format's directory (data/raw/ or data/imported/).",
+      "if": {"properties": {"format": {"const": "v2"}}},
+      "then": {"properties": {
+        "cases": {"items": {"required": ["v2"], "not": {"required": ["v1"]}}},
+        "datasets": {"items": {"properties": {"path": {"pattern": "^data/imported/"}}}}}},
+      "else": {"properties": {
+        "cases": {"items": {"required": ["v1"], "not": {"required": ["v2"]}}},
+        "datasets": {"items": {"properties": {"path": {"pattern": "^data/raw/"}}}}}}
     }
   ],
   "$defs": {
     "run_id": {"type": "string", "pattern": "^\\d{8}-\\d{6}-[a-z0-9][a-z0-9-]{0,60}$"},
     "case": {
       "type": "object",
-      "required": ["id", "required", "v1", "records", "checks"],
+      "required": ["id", "required", "records", "checks"],
       "properties": {
         "id": {"type": "string", "pattern": "^[a-z_]+$"},
         "required": {"type": "boolean"},
         "v1": {"type": "string", "minLength": 1},
+        "v2": {"type": "string", "minLength": 1},
         "records": {"type": "object"},
         "checks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/check"}}
       },
@@ -97,7 +108,7 @@
       "required": ["type"],
       "properties": {
         "type": {"enum": ["reference", "record_state", "kit_resolved", "not_in_status", "upstream_cycle", "producer",
-                          "observation", "code_state", "visualization_versions", "event_text", "event_refs",
+                          "observation", "visualization", "code_state", "visualization_versions", "event_text", "event_refs",
                           "context_omitted", "run_status", "run_title"]}
       }
     }

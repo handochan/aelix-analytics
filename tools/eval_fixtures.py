@@ -1,8 +1,9 @@
 """Generate the evaluation fixtures once, deterministically (Issue #41).
 
     python tools/eval_fixtures.py scale --scale S|M [--seed N] [--format v1] --kit-root KIT --out DIR
-    python tools/eval_fixtures.py q10 [--seed N] [--format v1] --kit-root KIT --out DIR
-    python tools/eval_fixtures.py q13 [--seed N] [--format v1] --kit-root KIT --out DIR
+    python tools/eval_fixtures.py scale --scale S|M [--seed N] --format v2 [--kit-root KIT] --out DIR
+    python tools/eval_fixtures.py q10 [--seed N] [--format v1|v2] [--kit-root KIT] --out DIR
+    python tools/eval_fixtures.py q13 [--seed N] [--format v1|v2] [--kit-root KIT] --out DIR
     python tools/eval_fixtures.py check DIR
     python tools/eval_fixtures.py environment --out FILE [--disk PATH] [--cache-state cold|warm|unknown]
         [--browser NAME=VERSION]
@@ -12,9 +13,9 @@ analysis libraries the kit runs scripts with.
 
 What it makes (docs/BETA-QUALITY-GATES.md §2-§4, tools/eval_fixtures_data/README.md):
 
-- `scale`: a lab.json project of the S or M size of BETA §4 (SCALES), holding the cases every fixture of §4
+- `scale`: a project of the S or M size of BETA §4 (SCALES), holding the cases every fixture of §4
   has: corrections, withdrawals, data no longer preserved, a repeated chart id, reference cycles and long
-  Korean content (CASES, with the judgments a reader of ADR-0006 gives them), and the imported files in
+  Korean content (scale_cases, with the judgments a reader of ADR-0006 gives them), and the imported files in
   input/.
 - `q10`: the Q10 analysis-check examples (aggregation key, unit, denominator, period), a flawed and a sound
   analysis of each, with the expected verdicts in expected.json.
@@ -22,35 +23,45 @@ What it makes (docs/BETA-QUALITY-GATES.md §2-§4, tools/eval_fixtures_data/READ
   EDA -> step profile -> per-time scores -> every sensor's band chart, two failed runs among six, with the
   expected judgments in expected.json and the source data in input/.
 
-How the records are written: a kit's own /1 writer does it — the kit of a runtime root before the new
-record format (kit 0.8.0, Issue #13 PR 3, whose kit writes analytics.event/2 only), given as --kit-root (design
-OQ7): V1_KIT_COMMIT names the commit the tests and the CI take it from (`git archive V1_KIT_COMMIT src`), and the
-manifest records the kit's version and, where git can tell it, its commit. Without --kit-root a v1 fixture is a
-usage error that says so; `check` and `environment` read with this checkout's kit. A project is made with
-core.init_project, data
-is imported with data.import_file, every run of q10 and q13 and three runs of each scale fixture are executed
-by runner.execute, and every journal record is written by core.add_note or core.append_event. The other runs
-of a scale fixture (S 27, M 297) are not executed (each executed run rebuilds the Workspace): their files and
-their run record are made here and written with core.write_json, the record's outputs described by
-runner.parquet_info and its warnings by runner.run_warnings, and their completion event with
-core.append_event, in the key order runner._execute_locked and runner._finalize give (the tests compare them
-with the executed runs' records). Their code (analysis_code) reads the record's inputs, saves its outputs
-and visualizes its charts, but their output bytes come from the seed: running that code does not give them.
+The formats (FORMATS): one plan — which runs, records and cases, in which order — is written in either.
 
-Determinism: the seed drives random.Random and the data; the kit's clock (core.now) is a planned clock while
-the fixture is written, so no wall-clock time reaches a record. The same seed in the same environment gives
-the same bytes but for the fields VOLATILE declares; `tree_digest` hashes the tree with those fields masked,
-and manifest.json holds the digest. Generated at the same --out, only the executed runs' duration_s differs.
-The kit's derived files (`.lab/cache/`, `report/`) are emptied at the end of a generation and of a `check`
-(the fixture is cold for the kit) and are not part of the digest.
+- `v1`: a lab.json project of lab.*/1 records, written by a kit's own /1 writer — the kit of a runtime root
+  before the new record format (kit 0.8.0, Issue #13 PR 3, whose kit writes analytics.event/2 only), given as
+  --kit-root (design OQ7): V1_KIT_COMMIT names the commit the tests and the CI take it from (`git archive
+  V1_KIT_COMMIT src`). Without --kit-root a v1 fixture is a usage error that says so.
+- `v2`: an analytics.json project of analytics.*/2 records, written by the common writer of this checkout's kit
+  (or of --kit-root, a kit of 0.8.0 or later). A correction supersedes the finding and a withdrawal is a
+  record_update (ADR-0006 6), so some cases read otherwise than in v1 and their judgments are the format's
+  (scale_cases).
+
+The manifest records the kit's version and, where git can tell it, its commit; `check` and `environment`
+read with this checkout's kit. A project is made with core.init_project, data is imported with
+data.import_file, every run of q10 and q13 and three runs of each scale fixture are executed by
+runner.execute, and every journal record is written by the kit (v1: core.add_note or core.append_event; v2:
+core.record, the Writer's record and update). The other runs of a scale fixture (S 27, M 297) are not
+executed (each executed run rebuilds the Workspace): their files and their run record are made here and
+written as the runner writes them (v1: core.write_json; v2: the Writer's write_run), the record's outputs
+described by runner.parquet_info and its warnings by runner.run_warnings, and their completion event after
+it, in the key order runner._execute_locked and runner._finalize give (the tests compare them with the
+executed runs' records). Their code (analysis_code) reads the record's inputs, saves its outputs and
+visualizes its charts, but their output bytes come from the seed: running that code does not give them.
+
+Determinism: the seed drives random.Random and the data; the kit's clock (core.now, which the v2 Writer looks
+up too) is a planned clock while the fixture is written, so no wall-clock time reaches a record, and a v2
+project's project_id is the fixture's (fixture_project_id), not a random one. The same seed in the same environment
+gives the same bytes but for the fields VOLATILE declares; `tree_digest` hashes the tree with those fields
+masked, and manifest.json holds the digest. Generated at the same --out, only the executed runs' duration_s
+differs. The kit's derived files (the hash cache and the Workspace: `.lab/cache/` and `report/`, or
+`.analytics/cache/` and `workspace/`) are emptied at the end of a generation and of a `check` (the fixture is
+cold for the kit) and are not part of the digest.
 
 While it writes, AELIX_ANALYTICS_TRUST_FILE and AELIX_ANALYTICS_UV point into a temporary directory and the
 kit's other variables (and their names before kit 0.3.0) are unset, so no trust list of the user's is
 touched; they come back afterwards.
 
 Exit status: 0 done, 1 the kit failed or `check` found a problem, 2 a usage error (an output directory that
-is not new or empty, a format not available yet, a kit that does not write it). A generation that fails removes
-what it wrote, so the same --out can be given again.
+is not new or empty, an unknown format, a kit that does not write it). A generation that fails removes what
+it wrote, so the same --out can be given again.
 """
 
 from __future__ import annotations
@@ -91,11 +102,28 @@ GENERATOR_VERSION = 1
 MANIFEST_SCHEMA = "aelix-analytics.eval-manifest/1"
 EXPECTED_SCHEMA = "aelix-analytics.eval-expected/1"
 ENVIRONMENT_SCHEMA = "aelix-analytics.eval-environment/1"
-FORMATS = ("v1",)
-# A format the plan may be written in later (design §8): the analytics.event/2 writer of Issue #13 exists
-# (kit 0.8.0), and the plan is not written in its format yet.
-LATER_FORMATS = {"v2": "the plan is written in v1 only; writing it with the analytics.event/2 writer of "
-                       "Issue #13 is a later change"}
+FORMATS = ("v1", "v2")
+
+
+@dataclass(frozen=True)
+class Layout:
+    """The stored names of a format's project (the kit's writer.LEGACY_LAYOUT and writer.LAYOUT, which a test
+    compares): its marker and event schema, the kit's managed directory, the Workspace, the imports and a
+    run's Visualizations."""
+    marker: str
+    event: str
+    state_dir: str
+    workspace_dir: str
+    imported_dir: str
+    visualizations_dir: str
+
+
+LAYOUTS = {
+    "v1": Layout(marker="lab.json", event="lab.event/1", state_dir=".lab", workspace_dir="report",
+                 imported_dir="data/raw", visualizations_dir="charts"),
+    "v2": Layout(marker="analytics.json", event="analytics.event/2", state_dir=".analytics",
+                 workspace_dir="workspace", imported_dir="data/imported", visualizations_dir="visualizations"),
+}
 # The commit whose kit writes the v1 fixtures (design OQ7): the last before the new writer — PR #82's head (Issue
 # #13 PR 2). PR #82 is merged as 0f3f09f, whose src/ is this commit's, and this commit is reachable from main, so
 # it stays named. The tests and the CI make --kit-root from it with git archive.
@@ -127,25 +155,30 @@ SCALES = {
 # The upper bound BETA §4 gives M's data.
 M_DATA_LIMIT = 1 << 30
 
-# Fields whose value is not the seed's to decide. `tree_digest` reads them as "<volatile>"; in a file `text`
-# names, a traceback's path up to the project directory (File "…/project/ or File "…\project\) reads as
-# File "<project>/, so a fixture moved or copied elsewhere has the same digest.
-VOLATILE = [
-    {"files": "project/runs/*/run.json", "fields": ["duration_s", "env"],
-     "why": "duration_s of an executed run is its measured time; env holds the Python executable's path, the "
-            "platform and the library versions"},
-    {"files": "project/data/raw/*.meta.json", "fields": ["source.path", "source.modified_at"],
-     "why": "the source is the fixture's own input/ file named by its absolute path (the same --out gives the "
-            "same path), and its modification time, the planned time, is written in the machine's time zone"},
-    {"files": "project/runs/*/stderr.txt", "text": "project_path",
-     "why": "a failed run's traceback names the script by its absolute path, which holds where the fixture "
-            "was generated"},
-]
+def _volatile(layout: Layout) -> list[dict]:
+    return [
+        {"files": "project/runs/*/run.json", "fields": ["duration_s", "env"],
+         "why": "duration_s of an executed run is its measured time; env holds the Python executable's path, the "
+                "platform and the library versions"},
+        {"files": f"project/{layout.imported_dir}/*.meta.json", "fields": ["source.path", "source.modified_at"],
+         "why": "the source is the fixture's own input/ file named by its absolute path (the same --out gives the "
+                "same path), and its modification time, the planned time, is written in the machine's time zone"},
+        {"files": "project/runs/*/stderr.txt", "text": "project_path",
+         "why": "a failed run's traceback names the script by its absolute path, which holds where the fixture "
+                "was generated"},
+    ]
+
+
+# Fields whose value is not the seed's to decide, by format. `tree_digest` reads them as "<volatile>"; in a
+# file `text` names, a traceback's path up to the project directory (File "…/project/ or File "…\project\)
+# reads as File "<project>/, so a fixture moved or copied elsewhere has the same digest.
+VOLATILE = {fmt: _volatile(layout) for fmt, layout in LAYOUTS.items()}
 # A traceback's frame line, up to and including the project directory, with either separator.
 TRACEBACK_PROJECT = re.compile(rb'File "[^"\r\n]*[\\/]' + PROJECT_DIR.encode() + rb'[\\/]')
-# Not hashed: the two files about the generation itself, and the kit's derived files, which a read of the
-# project may rebuild (the hash cache, the Workspace).
-NOT_DIGESTED = ["manifest.json", "environment.json", "project/.lab/cache/*", "project/report/*"]
+# Not hashed, by format: the two files about the generation itself, and the kit's derived files, which a read
+# of the project may rebuild (the hash cache, the Workspace).
+NOT_DIGESTED = {fmt: ["manifest.json", "environment.json", f"project/{layout.state_dir}/cache/*",
+                      f"project/{layout.workspace_dir}/*"] for fmt, layout in LAYOUTS.items()}
 
 # The variables the kit reads, and their names before kit 0.3.0 (core.RENAMED_ENV).
 ISOLATED_KEYS = ("AELIX_ANALYTICS_TRUST_FILE", "AELIX_ANALYTICS_UV", "AELIX_ANALYTICS_PROJECT",
@@ -190,7 +223,9 @@ def load_kit() -> SimpleNamespace:
     if _KIT_ROOT is not None and Path(core.__file__).resolve().parents[1] != _KIT_ROOT:
         raise UsageError(f"this process runs the kit of {Path(core.__file__).resolve().parents[1]}, not "
                          f"--kit-root {_KIT_ROOT}: run tools/eval_fixtures.py as a command")
-    return SimpleNamespace(core=core, data=data, relations=relations, runner=runner)
+    # The common writer (Issue #13, kit 0.8.0): None in a kit before it.
+    writer = getattr(core, "writer", None)
+    return SimpleNamespace(core=core, data=data, relations=relations, runner=runner, writer=writer)
 
 
 def kit_commit() -> str | None:
@@ -232,13 +267,22 @@ class PlanClock:
         return self.t
 
 
+def fixture_project_id(label: str) -> str:
+    """The project_id of the fixture `label` (its kind, scale and seed): an analytics.json project's id is
+    random (writer.new_project_id), and a fixture's is the seed's, in the same form."""
+    return "prj_" + sha256_bytes(f"eval-fixtures/{label}".encode())[:16]
+
+
 @contextlib.contextmanager
-def kit_session(scratch: Path, start: datetime):
-    """The kit with a planned clock, a trust list and a missing uv inside `scratch`; the variables, the
-    clock and the working directory come back afterwards."""
+def kit_session(scratch: Path, start: datetime, label: str = ""):
+    """The kit with a planned clock (core.now, which the common writer also looks up when it writes a
+    record: core.writer_for), the fixture's project_id, a trust list and a missing uv inside `scratch`; the
+    variables, the clock and the working directory come back afterwards."""
     kit = load_kit()
     saved = {key: os.environ.get(key) for key in ISOLATED_KEYS}
     saved_now, cwd = kit.core.now, os.getcwd()
+    # The common writer's random project_id (a kit before kit 0.8.0 has none).
+    saved_id = getattr(kit.writer, "new_project_id", None)
     clock = PlanClock(start)
     try:
         for key in ISOLATED_KEYS:
@@ -246,9 +290,13 @@ def kit_session(scratch: Path, start: datetime):
         os.environ["AELIX_ANALYTICS_TRUST_FILE"] = str(scratch / "trust" / "lab-projects.json")
         os.environ["AELIX_ANALYTICS_UV"] = str(scratch / "no-uv" / "uv")
         kit.core.now = clock
+        if saved_id is not None:
+            kit.writer.new_project_id = lambda: fixture_project_id(label)
         yield kit, clock
     finally:
         kit.core.now = saved_now
+        if saved_id is not None:
+            kit.writer.new_project_id = saved_id
         os.chdir(cwd)
         for key, value in saved.items():
             if value is None:
@@ -345,17 +393,20 @@ def require_deterministic_process() -> None:
 
 def check_format(fmt: str) -> None:
     """A format this generator writes, with a kit that writes it: v1 needs a kit before the new writer
-    (its core writes lab.event/1), which --kit-root gives (design OQ7)."""
-    if fmt in LATER_FORMATS:
-        raise UsageError(f"format {fmt}: {LATER_FORMATS[fmt]}")
+    (its core writes lab.event/1), which --kit-root gives (design OQ7); v2 a kit of the new writer
+    (analytics.event/2), this checkout's unless --kit-root gives another."""
     if fmt not in FORMATS:
         raise UsageError(f"unknown format {fmt!r}; known: {', '.join(FORMATS)}")
     kit = load_kit()
-    if getattr(kit.core, "SCHEMA_EVENT", None) != "lab.event/1":
-        raise UsageError(f"format {fmt}: the kit of {Path(kit.core.__file__).resolve().parents[1]} (kit "
-                         f"{kit.core.KIT_VERSION}) writes the new record format, not lab.*/1: give --kit-root, the "
+    if getattr(kit.core, "SCHEMA_EVENT", None) == LAYOUTS[fmt].event:
+        return
+    where = f"the kit of {Path(kit.core.__file__).resolve().parents[1]} (kit {kit.core.KIT_VERSION})"
+    if fmt == "v1":
+        raise UsageError(f"format v1: {where} writes the new record format, not lab.*/1: give --kit-root, the "
                          f"runtime root of a kit before kit 0.8.0 (git archive {V1_KIT_COMMIT} src | tar -x "
                          "-C DIR, then --kit-root DIR/src)")
+    raise UsageError(f"format v2: {where} writes lab.*/1, not analytics.event/2: give no --kit-root (this "
+                     "checkout's kit) or the runtime root of a kit of 0.8.0 or later")
 
 
 # --- the digest ---------------------------------------------------------------------------------------
@@ -370,8 +421,8 @@ def _tree_files(root: Path) -> list[tuple[str, Path]]:
     return sorted(found)
 
 
-def _digested(rel: str) -> bool:
-    return not any(fnmatch.fnmatchcase(rel, pattern) for pattern in NOT_DIGESTED)
+def _digested(rel: str, fmt: str = "v1") -> bool:
+    return not any(fnmatch.fnmatchcase(rel, pattern) for pattern in NOT_DIGESTED[fmt])
 
 
 def _mask(value: dict, dotted: str) -> None:
@@ -382,9 +433,9 @@ def _mask(value: dict, dotted: str) -> None:
         value[last] = "<volatile>"
 
 
-def masked_bytes(rel: str, data: bytes) -> bytes:
-    """A file's bytes as the digest reads them: VOLATILE's fields masked."""
-    for rule in VOLATILE:
+def masked_bytes(rel: str, data: bytes, fmt: str = "v1") -> bytes:
+    """A file's bytes as the digest reads them: the format's VOLATILE fields masked."""
+    for rule in VOLATILE[fmt]:
         if not fnmatch.fnmatchcase(rel, rule["files"]):
             continue
         if "fields" in rule:
@@ -396,14 +447,27 @@ def masked_bytes(rel: str, data: bytes) -> bytes:
     return data
 
 
-def tree_digest(out) -> str:
-    """sha256 over (path, sha256 of the masked bytes) of every digested file, in path order."""
+def manifest_format(out) -> str:
+    """The format manifest.json under `out` names (v1 when it names none: a fixture of before v2)."""
+    try:
+        fmt = json.loads((Path(out) / "manifest.json").read_text(encoding="utf-8")).get("format", "v1")
+    except (OSError, ValueError, AttributeError) as exc:
+        raise FixtureError(f"{out}: no manifest.json to tell the fixture's format ({exc})") from exc
+    if fmt not in FORMATS:
+        raise FixtureError(f"{out}: manifest.json names the unknown format {fmt!r}")
+    return fmt
+
+
+def tree_digest(out, fmt: str | None = None) -> str:
+    """sha256 over (path, sha256 of the masked bytes) of every digested file of the fixture under `out`, in
+    path order. `fmt`: its format, else the one its manifest.json names."""
     out = Path(out)
+    fmt = fmt or manifest_format(out)
     digest = hashlib.sha256()
     for rel, path in _tree_files(out):
-        if not _digested(rel):
+        if not _digested(rel, fmt):
             continue
-        content = masked_bytes(rel, path.read_bytes())
+        content = masked_bytes(rel, path.read_bytes(), fmt)
         digest.update(f"{rel}\0{sha256_bytes(content)}\n".encode())
     return "sha256:" + digest.hexdigest()
 
@@ -606,6 +670,10 @@ class V1Writer:
     through core.add_note and core.append_event, and the records of runs not executed through
     core.write_json in the runner's key order."""
 
+    fmt = "v1"
+    # How the runner records a read through the SDK (an input's `via`).
+    READ_VIA = ("lab.read", "polars.read_parquet")
+
     def __init__(self, kit: SimpleNamespace, clock: PlanClock, root: Path) -> None:
         self.kit = kit
         self.clock = clock
@@ -682,12 +750,20 @@ class V1Writer:
         event = self.kit.core.add_note(self.project, kind, text, refs=list(refs), resolves=resolves, origin=self.kit.core.Origin(actor, "sdk"))
         return event["id"]
 
+    def correct(self, original: str, kind: str, text: str) -> str:
+        """A record correcting `original`: /1 has no supersedes, so it cites and resolves it."""
+        return self.note(kind, text, refs=[original], resolves=original)
+
+    def withdraw(self, target: str, text: str, actor: str = "agent") -> str:
+        """A record withdrawing `target`: /1 has no record_update, so a kind=resolve record resolves it."""
+        return self.note("resolve", text, resolves=target, actor=actor)
+
     # runs not executed
     def input_entry(self, path: str, digest: bool = True) -> dict:
         """An input as the runner records it: path, the hash and size of the bytes read, how, external. The
         code reads it with analytics.read (analysis_code): a dataset by its name, a derived table by its path,
         a literal the runner's static scan of the code also finds ("scan")."""
-        via = ["lab.read", "polars.read_parquet"] + (["scan"] if path.startswith("data/derived/") else [])
+        via = [*self.READ_VIA] + (["scan"] if path.startswith("data/derived/") else [])
         known = {d["path"]: (d["sha256"], d["bytes"]) for d in self.datasets.values()}
         if path in known:
             sha, size = known[path]
@@ -776,6 +852,121 @@ class V1Writer:
         return run_id, event["id"]
 
 
+class V2Writer(V1Writer):
+    """A project written by the kit's common writer (analytics.event/2, Issue #13): init, import and execute
+    through the kit, journal records through core.record and the Writer's update, and the records of runs not
+    executed through the Writer's write_run in the runner's key order, their completion event after it."""
+
+    fmt = "v2"
+    READ_VIA = ("analytics.read", "polars.read_parquet")
+
+    def note(self, kind: str, text: str, refs=(), resolves: str | None = None, actor: str = "agent") -> str:
+        # A kind the plan names by its /1 name (gap) is written by its new name (writer.RENAMED_KINDS).
+        kind = self.kit.writer.RENAMED_KINDS.get(kind, kind)
+        written = self.kit.core.record(self.project, kind, text, refs=list(refs), resolves=resolves,
+                                       origin=self.kit.core.Origin(actor, "sdk"))
+        return written.event["id"]
+
+    def correct(self, original: str, kind: str, text: str) -> str:
+        """A record that supersedes `original` (ADR-0006 6): the original is then `superseded`."""
+        return self.note(kind, text, refs=[{"type": "event", "event_id": original, "relation": "supersedes"}])
+
+    def withdraw(self, target: str, text: str, actor: str = "agent") -> str:
+        """A record_update that withdraws `target` (ADR-0006 6): it is then `withdrawn`."""
+        writer = self.kit.core.writer_for(self.project, self.kit.core.Origin(actor, "sdk"))
+        return writer.update(target, expected="current", new="withdrawn", text=text).event["id"]
+
+    def _analysis_focus(self) -> dict:
+        """The run's analysis_focus as runner.execute records it when the run starts."""
+        core = self.kit.core
+        focus = core.metric_records(self.project)
+        purpose = {"state": focus["focus_state"], "as_of_seq": focus["as_of_seq"], "refs": []}
+        if focus["current_focus"] is not None:
+            purpose["refs"] = [core.writer.typed_reference({"type": "analysis_focus",
+                                                            "event_id": focus["current_focus"]["event_id"],
+                                                            "relation": "about"})]
+        return purpose
+
+    def written_run(self, *, script_rel: str, code: str, title: str, started: datetime, duration: float,
+                    status: str = "ok", inputs=(), outputs=(), charts=(), error: dict | None = None,
+                    stdout: str = "", stderr: str = "", actor: str = "agent", notes=()) -> tuple[str, str]:
+        """A run the kit did not execute, recorded as the runner records one (V1Writer.written_run), in
+        analytics.run/2: its Visualizations under visualizations/ with the sha256 of the bytes written."""
+        core, runner, project = self.kit.core, self.kit.runner, self.project
+        origin = core.Origin(actor, "sdk")
+        code_bytes = code.encode("utf-8")
+        script = project.root / script_rel
+        script.parent.mkdir(parents=True, exist_ok=True)
+        script.write_bytes(code_bytes)
+        self.at(started)
+        focus = self._analysis_focus()
+        run_id = core.new_run_dir(project, Path(script_rel).stem)
+        run_dir = project.runs / run_id
+        snapshot = run_dir / "code" / script_rel
+        snapshot.parent.mkdir(parents=True, exist_ok=True)
+        snapshot.write_bytes(code_bytes)
+        # The planned instants, not the clock's: two runs of a cycle start at the same one.
+        started_at = started.isoformat(timespec="milliseconds")
+        ended = started + timedelta(seconds=duration)
+        visualizations = []
+        for chart in charts:
+            directory = run_dir / LAYOUTS[self.fmt].visualizations_dir
+            directory.mkdir(parents=True, exist_ok=True)
+            figure = directory / f"{chart['id']}.plotly.json"
+            core.write_text(figure, json.dumps(chart["figure"], ensure_ascii=False, separators=(",", ":")))
+            entry = {"visualization_id": chart["id"], "kind": "plotly", "title": chart["title"],
+                     "caption": chart.get("caption"), "via": "analytics.visualize",
+                     "files": {"plotly": project.rel(figure)}, "line": chart["line"], "sha256": sha256_file(figure)}
+            frame = chart.get("data")
+            if frame is not None:
+                attached = directory / f"{chart['id']}.data.parquet"
+                attached.write_bytes(parquet_bytes(frame))
+                entry.update(data=project.rel(attached), data_rows=frame.height, data_columns=frame.columns[:60],
+                             data_sha256=sha256_file(attached))
+            visualizations.append(entry)
+        output_records = []
+        for path, content in sorted(outputs):
+            file = project.root / path
+            change = "modified" if file.exists() else "created"
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_bytes(content)
+            entry = {"path": path, "change": change, "bytes": len(content), "sha256": sha256_bytes(content)}
+            if path.endswith(".parquet"):
+                entry.update(runner.parquet_info(file))
+            entry["via"] = "analytics.save"
+            output_records.append(entry)
+            if status == "ok":
+                self.derived[path] = (entry["sha256"], entry["bytes"])
+        stdout_path, stderr_path = run_dir / "stdout.txt", run_dir / "stderr.txt"
+        core.write_text(stdout_path, stdout)
+        core.write_text(stderr_path, stderr)
+        self.at(ended)
+        record = {"schema": core.SCHEMA_RUN, "id": run_id, "title": title, "status": status,
+                  "started_at": started_at, "actor": origin.actor, "actor_basis": origin.actor_basis,
+                  "means": origin.means, "session": origin.session, "analysis_focus": focus, "rerun_of": None,
+                  "script": {"path": script_rel, "sha256": sha256_bytes(code_bytes),
+                             "snapshot": project.rel(snapshot)},
+                  "ended_at": ended.isoformat(timespec="milliseconds"), "duration_s": round(duration, 3),
+                  "modules": [],
+                  "inputs": sorted(inputs, key=lambda entry: entry["path"]), "outputs": output_records,
+                  "visualizations": visualizations, "error": error, "stdout": project.rel(stdout_path),
+                  "stderr": project.rel(stderr_path), "env": self.env}
+        record["warnings"] = runner.run_warnings(record, project)
+        writer = core.writer_for(project, origin)
+        writer.write_run(run_dir, record)
+        text = f"{core.writer.excerpt(title)} — {status}"
+        if error:
+            text += f" ({error['summary']})"
+        event = writer.record("run", text, refs=[core.kit_reference("run", run_id=run_id), *focus["refs"]]).event
+        for kind, note_text in notes:
+            self.note(kind, note_text, refs=[run_id], actor=actor)
+        self._remember(record)
+        return run_id, event["id"]
+
+
+WRITERS = {"v1": V1Writer, "v2": V2Writer}
+
+
 # --- the scale fixtures -------------------------------------------------------------------------------
 
 TOPICS = ["region_trend", "channel_mix", "sensor_daily", "anomaly_scan", "cohort_view", "funnel_check",
@@ -828,14 +1019,16 @@ def _script_lines(code: str, needle: str) -> int:
 
 
 class ScaleFixture:
-    """The plan of a scale fixture and its execution through V1Writer (design §3 and §5)."""
+    """The plan of a scale fixture and its execution through the format's writer (design §3, §5 and §8)."""
 
-    def __init__(self, scale: str, seed: int, out: Path, scratch: Path) -> None:
+    def __init__(self, scale: str, seed: int, out: Path, scratch: Path, fmt: str = "v1") -> None:
         self.scale_name = scale
         self.spec = SCALES[scale]
         self.seed = seed
         self.out = out
         self.scratch = scratch
+        self.fmt = fmt
+        self.layout = LAYOUTS[fmt]
         self.rng = random.Random(f"eval-fixtures/scale/{scale}/{seed}")
         self.start = datetime(2026, 8, 3, 9, 0, tzinfo=KST)
         self.when = self.start
@@ -876,9 +1069,9 @@ class ScaleFixture:
         sources = self.make_sources()
         self.timings["sources"] = time.perf_counter() - clock_start
         phase = time.perf_counter()
-        with kit_session(self.scratch, self.start) as (kit, clock):
+        with kit_session(self.scratch, self.start, f"scale/{self.scale_name}/{self.seed}") as (kit, clock):
             self.kit = kit
-            self.w = V1Writer(kit, clock, self.out / PROJECT_DIR)
+            self.w = WRITERS[self.fmt](kit, clock, self.out / PROJECT_DIR)
             self.w.init(f"평가 fixture {self.scale_name} (seed {self.seed})",
                         "지역·채널·센서 지표의 변화를 설명한다")
             self.step()
@@ -1104,8 +1297,7 @@ class ScaleFixture:
         original = self.case("correction")["records"]["original"]
         text = (f"정정: 세종 지역의 3분기 성장률은 9.8%다(중복 주문을 지운 뒤 다시 계산). 앞선 발견 {original}의 "
                 "12.4%를 대체한다. 데이터 기간은 그대로 2025-07-01–2025-09-30이다.")
-        self.case("correction")["records"]["correction"] = self.w.note("finding", text, refs=[original],
-                                                                       resolves=original)
+        self.case("correction")["records"]["correction"] = self.w.correct(original, "finding", text)
 
     def withdrawal_original(self) -> None:
         text = "결정: 지역 비교는 2025년 연간 합계로 한다."
@@ -1114,8 +1306,7 @@ class ScaleFixture:
     def withdrawal(self) -> None:
         decision = self.case("withdrawal")["records"]["decision"]
         text = f"철회: {decision}의 결정(연간 합계로 비교)을 철회한다. 9월 데이터가 부분 월이라 같은 기간끼리 비교해야 한다."
-        self.case("withdrawal")["records"]["withdrawal"] = self.w.note("resolve", text, resolves=decision,
-                                                                       actor="human")
+        self.case("withdrawal")["records"]["withdrawal"] = self.w.withdraw(decision, text, actor="human")
 
     def question_open(self) -> None:
         self.case("question_closed")["records"]["question"] = self.w.note(
@@ -1188,7 +1379,9 @@ class ScaleFixture:
     def bare_name_note(self) -> None:
         records = self.case("same_chart_id")["records"]
         records["bare_note"] = self.w.note("note", "region-total 차트를 다음 보고서에 넣는다.", refs=["region-total"])
-        records["bare_bound_to"] = "scripts/case_region_total.py::region-total"
+        if self.fmt == "v1":
+            # The /1 writer binds a bare name to the newest key that has it; the common writer keeps the token.
+            records["bare_bound_to"] = "scripts/case_region_total.py::region-total"
 
     def unpreserved_run(self, kind: str, n: int) -> None:
         w = self.w
@@ -1281,7 +1474,7 @@ class ScaleFixture:
         w = self.w
         records = self.case("unpreserved_data")["records"]
         (w.project.root / records["deleted_path"]).unlink()
-        gone = w.project.runs / records["chart_gone_run_1"] / "charts"
+        gone = w.project.runs / records["chart_gone_run_1"] / self.layout.visualizations_dir
         for path in sorted(gone.iterdir()):
             path.unlink()
         script = w.project.root / records["code_changed_script"]
@@ -1291,15 +1484,15 @@ class ScaleFixture:
     def finish(self) -> dict:
         w = self.w
         root = w.project.root
-        clear_derived(root)
+        clear_derived(root, self.fmt)
         runs = sorted(d.name for d in (root / "runs").iterdir() if (d / "run.json").is_file())
         events = (root / "journal.jsonl").read_bytes().count(b"\n")
-        raw = sorted((root / "data" / "raw").glob("*.parquet"))
+        raw = sorted((root / self.layout.imported_dir).glob("*.parquet"))
         derived = sorted((root / "data" / "derived").glob("*.parquet"))
         counts = {"runs": len(runs), "runs_executed": len(w.kit_runs), "runs_written": len(runs) - len(w.kit_runs),
                   "events": events, "datasets": len(raw), "derived_tables": len(derived),
                   "charts": sum(len(r["charts"]) for r in w.runs),
-                  "context_versions": len(list((root / ".lab" / "context").glob("*.md")))}
+                  "context_versions": len(list((root / self.layout.state_dir / "context").glob("*.md")))}
         expected = {"runs": self.spec.runs, "events": self.spec.events, "datasets": self.spec.datasets}
         for key, value in expected.items():
             if counts[key] != value:
@@ -1307,7 +1500,7 @@ class ScaleFixture:
         sizes = {"raw_parquet_bytes": sum(p.stat().st_size for p in raw),
                  "derived_parquet_bytes": sum(p.stat().st_size for p in derived),
                  "journal_bytes": (root / "journal.jsonl").stat().st_size}
-        manifest = base_manifest("scale", self.scale_name, self.seed, self.start)
+        manifest = base_manifest("scale", self.scale_name, self.seed, self.start, self.fmt)
         manifest.update(counts=counts, sizes=sizes, datasets=[
             {k: d[k] for k in ("name", "path", "rows", "bytes", "source")} for d in sorted(w.datasets.values(),
                                                                                         key=lambda d: d["name"])],
@@ -1317,7 +1510,9 @@ class ScaleFixture:
 
 
 def scale_cases(fixture: ScaleFixture) -> list[dict]:
-    """The cases of a scale fixture with the judgments a reader gives them (design §5)."""
+    """The cases of a scale fixture with the judgments a reader gives them in its format (design §5, §8)."""
+    if fixture.fmt == "v2":
+        return scale_cases_v2(fixture)
     c = {name: case["records"] for name, case in fixture.cases.items()}
     w = fixture.w
     k01, _, k03 = w.kit_runs
@@ -1325,8 +1520,7 @@ def scale_cases(fixture: ScaleFixture) -> list[dict]:
     same = c["same_chart_id"]
     cycle = c["reference_cycle"]
     amb = c["ambiguous_producer"]
-    busiest = max((s for s in fixture.scripts), key=lambda s: sum(1 for r in w.runs if r["script"] == s["path"]
-                                                                  and r["status"] == "ok"))
+    busiest = busiest_script(fixture)
     return [
         {"id": "correction", "required": True,
          "v1": "an earlier finding, and much later a finding whose refs.resolves and refs.events name it "
@@ -1428,9 +1622,131 @@ def scale_cases(fixture: ScaleFixture) -> list[dict]:
     ]
 
 
-def clear_derived(project_root: Path) -> None:
-    """Empty the kit's derived directories (they stay): the hash cache and the Workspace."""
-    for name in (".lab/cache", "report"):
+def busiest_script(fixture: ScaleFixture) -> dict:
+    """The generic script with the most successful runs: its chart has the most versions."""
+    return max((s for s in fixture.scripts), key=lambda s: sum(1 for r in fixture.w.runs if r["script"] == s["path"]
+                                                               and r["status"] == "ok"))
+
+
+def _event_ref(source: str, relation: str, target: str, **judged) -> dict:
+    """A reference check of an analytics.event/2 record: the reference of `source` with `relation` to the
+    event `target`, judged as `judged` says."""
+    return {"type": "reference", "from": source, "relation": relation, "target": {"event_id": target}, **judged}
+
+
+def scale_cases_v2(fixture: ScaleFixture) -> list[dict]:
+    """The cases of a v2 scale fixture: the same records as v1's (scale_cases), written by the common
+    writer, so that a correction supersedes, a withdrawal is a record_update, a reference names its target
+    by type, a name is bound as it is written, and a run's Visualizations are judged by their own hash."""
+    c = {name: case["records"] for name, case in fixture.cases.items()}
+    w = fixture.w
+    k01, _, k03 = w.kit_runs
+    up = c["unpreserved_data"]
+    same = c["same_chart_id"]
+    cycle = c["reference_cycle"]
+    amb = c["ambiguous_producer"]
+    busiest = busiest_script(fixture)
+    correction, withdrawal, closed = c["correction"], c["withdrawal"], c["question_closed"]
+    return [
+        {"id": "correction", "required": True,
+         "v2": "an earlier finding, and much later a finding that supersedes it (text 정정: …)",
+         "records": correction,
+         "checks": [
+             _event_ref(correction["correction"], "supersedes", correction["original"], state="resolved",
+                        confirmed=True),
+             {"type": "record_state", "record": correction["original"], "state": "superseded"},
+             {"type": "record_state", "record": correction["correction"], "state": "current"}]},
+        {"id": "withdrawal", "required": True,
+         "v2": "a decision, and later a record_update that withdraws it (text 철회: …)",
+         "records": withdrawal,
+         "checks": [
+             _event_ref(withdrawal["withdrawal"], "updates", withdrawal["decision"], state="resolved",
+                        confirmed=True),
+             {"type": "record_state", "record": withdrawal["decision"], "state": "withdrawn"}]},
+        {"id": "unpreserved_data", "required": True,
+         "v2": "a derived table another run overwrote with other bytes, a derived table deleted after it was "
+               "recorded and the run that read it, a run whose Visualization files were deleted, an input "
+               "recorded without a hash, a script edited after its run",
+         "records": up,
+         "checks": [
+             {"type": "observation", "run": up["overwritten_run_1"], "role": "output", "path": up["overwritten_path"],
+              "state": "content_changed"},
+             {"type": "observation", "run": up["overwritten_run_2"], "role": "output", "path": up["overwritten_path"],
+              "state": "resolved"},
+             {"type": "observation", "run": up["deleted_run_1"], "role": "output", "path": up["deleted_path"],
+              "state": "missing", "reason": "file_absent"},
+             {"type": "observation", "run": up["deleted_reader"], "role": "input", "path": up["deleted_path"],
+              "state": "missing", "reason": "file_absent"},
+             {"type": "visualization", "run": up["chart_gone_run_1"], "id": "chart-gone", "state": "missing",
+              "reason": "file_absent"},
+             {"type": "observation", "run": up["no_digest_run_1"], "role": "input",
+              "path": w.datasets["sensor_01"]["path"], "state": "unknown", "reason": "no_digest"},
+             {"type": "code_state", "run": up["code_changed_run_1"], "state": "changed"}]},
+        {"id": "same_chart_id", "required": True,
+         "v2": "one script's chart id in several runs (versions); the id trend in two scripts; a record citing a "
+               "key without a version, which the writer binds to the newest version then; a record citing the "
+               "bare name region-total, which two scripts have, kept as written",
+         "records": same,
+         "checks": [
+             {"type": "visualization_versions", "key": f"{busiest['path']}::{busiest['chart']}", "min": 2},
+             {"type": "visualization_versions", "key": "scripts/case_trend.py::trend", "min": 2},
+             {"type": "visualization_versions", "key": "scripts/k02_sensor_profile.py::trend", "min": 1},
+             {"type": "reference", "from": same["key_note"], "relation": "cites",
+              "target": {"run_id": same["trend_run_2"], "visualization_id": "trend",
+                         "token": "scripts/case_trend.py::trend"},
+              "state": "resolved", "version_binding": "inferred"},
+             {"type": "visualization_versions", "key": "scripts/k01_region_summary.py::region-total", "min": 1},
+             {"type": "visualization_versions", "key": "scripts/case_region_total.py::region-total", "min": 1},
+             {"type": "reference", "from": same["bare_note"], "relation": "cites", "target": {"token": "region-total"},
+              "state": "ambiguous", "version_binding": "none", "min_candidates": 2}]},
+        {"id": "reference_cycle", "required": True,
+         "v2": "two runs that started at the same instant and read each other's output; a record citing the "
+               "record after it by id, which cites it back",
+         "records": cycle,
+         "checks": [
+             {"type": "upstream_cycle", "run": cycle["cycle_runs"][0], "cycle": True},
+             {"type": "upstream_cycle", "run": cycle["cycle_runs"][1], "cycle": True},
+             _event_ref(cycle["forward_note"], "cites", cycle["back_note"], state="missing", reason="record_absent"),
+             _event_ref(cycle["back_note"], "cites", cycle["forward_note"], state="resolved", confirmed=True)]},
+        {"id": "long_korean", "required": True,
+         "v2": f"a Korean record of {c['long_korean']['original_chars']:,} characters (kept whole: the writer "
+               "refuses a text over its limit, it does not cut one), a long Korean CONTEXT.md with more sections "
+               "than the prompt budget, Korean run and chart titles and Korean column names",
+         "records": c["long_korean"],
+         "checks": [
+             {"type": "event_text", "id": c["long_korean"]["note"], "chars": c["long_korean"]["original_chars"]},
+             {"type": "context_omitted", "min": 1},
+             {"type": "run_title", "run": k01, "title": "지역별 매출 요약"}]},
+        {"id": "display_safety", "required": False,
+         "v2": "a record whose text looks like HTML, script, a path or a template (Q10's display boundary)",
+         "records": {"note": c["display_safety"]["note"]},
+         "checks": [{"type": "event_text", "id": c["display_safety"]["note"], "text": c["display_safety"]["text"]}]},
+        {"id": "old_finding", "required": False,
+         "v2": "an important finding near the start of the journal, far outside the recent list",
+         "records": c["old_finding"],
+         "checks": [{"type": "record_state", "record": c["old_finding"]["finding"], "state": "current"},
+                    {"type": "not_in_status", "list": "recent", "id": c["old_finding"]["finding"]}]},
+        {"id": "question_closed", "required": False,
+         "v2": "a question, and a finding that resolves it",
+         "records": closed,
+         "checks": [{"type": "record_state", "record": closed["question"], "state": "resolved"},
+                    _event_ref(closed["answer"], "resolves", closed["question"], state="resolved", confirmed=True)]},
+        {"id": "failed_run", "required": False, "v2": "a run the kit executed that failed",
+         "records": {"run": k03},
+         "checks": [{"type": "run_status", "run": k03, "execution_status": "error", "recording_status": "complete"}]},
+        {"id": "ambiguous_producer", "required": False,
+         "v2": "two successful runs that wrote the same bytes to one path, and a run that read them",
+         "records": amb,
+         "checks": [{"type": "producer", "run": amb["consumer"], "path": amb["path"], "producer": "ambiguous",
+                     "candidates": sorted([amb["producer_1"], amb["producer_2"]])}]},
+    ]
+
+
+def clear_derived(project_root: Path, fmt: str = "v1") -> None:
+    """Empty the kit's derived directories of the format's project (they stay): the hash cache and the
+    Workspace."""
+    layout = LAYOUTS[fmt]
+    for name in (f"{layout.state_dir}/cache", layout.workspace_dir):
         directory = project_root / name
         if directory.is_dir():
             for child in sorted(directory.iterdir()):
@@ -1440,19 +1756,19 @@ def clear_derived(project_root: Path) -> None:
                     child.unlink()
 
 
-def base_manifest(kind: str, scale: str | None, seed: int, start: datetime) -> dict:
+def base_manifest(kind: str, scale: str | None, seed: int, start: datetime, fmt: str) -> dict:
     kit = load_kit()
     return {"schema": MANIFEST_SCHEMA, "generator": {"path": GENERATOR, "version": GENERATOR_VERSION},
-            "kind": kind, "scale": scale, "seed": seed, "format": "v1", "kit_version": kit.core.KIT_VERSION,
+            "kind": kind, "scale": scale, "seed": seed, "format": fmt, "kit_version": kit.core.KIT_VERSION,
             "kit_commit": kit_commit(),
             "project": PROJECT_DIR, "clock": {"start": start.isoformat(), "timezone": "+09:00"},
-            "volatile": VOLATILE, "not_digested": NOT_DIGESTED}
+            "volatile": VOLATILE[fmt], "not_digested": NOT_DIGESTED[fmt]}
 
 
 def write_outputs(out: Path, manifest: dict, kind: str, scale: str | None, seed: int, timings: dict,
                   started: float) -> dict:
-    clear_derived(out / PROJECT_DIR)
-    manifest["digest"] = tree_digest(out)
+    clear_derived(out / PROJECT_DIR, manifest["format"])
+    manifest["digest"] = tree_digest(out, manifest["format"])
     phase = time.perf_counter()
     problems = check(out, manifest=manifest)  # leaves the project cold
     timings["self_check"] = time.perf_counter() - phase
@@ -1474,13 +1790,13 @@ def generate_scale(out, scale: str = "S", seed: int = 0, fmt: str = "v1") -> dic
     check_format(fmt)
     require_deterministic_process()
     with output_directory(out) as prepared:
-        return _write_scale(prepared, scale, seed)
+        return _write_scale(prepared, scale, seed, fmt)
 
 
-def _write_scale(out: Path, scale: str, seed: int) -> dict:
+def _write_scale(out: Path, scale: str, seed: int, fmt: str) -> dict:
     started = time.perf_counter()
     with tempfile.TemporaryDirectory(prefix="eval-fixtures-") as scratch:
-        fixture = ScaleFixture(scale, seed, out, Path(scratch))
+        fixture = ScaleFixture(scale, seed, out, Path(scratch), fmt)
         manifest = fixture.run()
     return write_outputs(out, manifest, "scale", scale, seed, fixture.timings, started)
 
@@ -1587,10 +1903,10 @@ def _quoted(path: Path) -> str:
     return "'" + str(path).replace("'", "''") + "'"
 
 
-def q10_project_tables(project_root: Path) -> dict[str, str]:
-    """The imported Q10 tables as DuckDB reads them: name -> table expression."""
-    return {name: f"read_parquet({_quoted(project_root / 'data' / 'raw' / f'{name}.parquet')})"
-            for name in Q10_TABLES}
+def q10_project_tables(project_root: Path, fmt: str = "v1") -> dict[str, str]:
+    """The imported Q10 tables of the format's project as DuckDB reads them: name -> table expression."""
+    imported = project_root / LAYOUTS[fmt].imported_dir
+    return {name: f"read_parquet({_quoted(imported / f'{name}.parquet')})" for name in Q10_TABLES}
 
 
 def q10_source_tables(directory: Path) -> dict[str, str]:
@@ -1678,17 +1994,17 @@ def generate_q10(out, seed: int = 0, fmt: str = "v1") -> dict:
     check_format(fmt)
     require_deterministic_process()
     with output_directory(out) as prepared:
-        return _write_q10(prepared, seed)
+        return _write_q10(prepared, seed, fmt)
 
 
-def _write_q10(out: Path, seed: int) -> dict:
+def _write_q10(out: Path, seed: int, fmt: str) -> dict:
     started = time.perf_counter()
     timings: dict[str, float] = {}
     start = datetime(2026, 9, 21, 10, 0, tzinfo=KST)
     sources = write_q10_sources(out / "input", seed)
     with tempfile.TemporaryDirectory(prefix="eval-fixtures-") as scratch, \
-            kit_session(Path(scratch), start) as (kit, clock):
-        w = V1Writer(kit, clock, out / PROJECT_DIR)
+            kit_session(Path(scratch), start, f"q10/{seed}") as (kit, clock):
+        w = WRITERS[fmt](kit, clock, out / PROJECT_DIR)
         when = start
         w.init("Q10 분석 검사 예제", "집계 키·단위·분모·기간을 잘못 다룬 분석과 바르게 다룬 분석을 구별한다")
         descriptions = {"orders": "주문(2026-08-01–09-20, 합성)", "order_items": "주문 품목(합성)",
@@ -1715,7 +2031,7 @@ def _write_q10(out: Path, seed: int) -> dict:
                              "why": why})
         timings["kit_runs"] = time.perf_counter() - phase
         root = w.project.root
-        numbers = q10_numbers(q10_project_tables(root))
+        numbers = q10_numbers(q10_project_tables(root, fmt))
         evidence, claims = q10_evidence(numbers), q10_claims(numbers)
         for example in examples:
             example["evidence"] = evidence[example["check"]]
@@ -1729,20 +2045,21 @@ def _write_q10(out: Path, seed: int) -> dict:
                                  "pass": "the computation supports the claim"},
                     "examples": examples}
         write_lf(out / "expected.json", json_text(expected))
-        manifest = base_manifest("q10", None, seed, start)
-        manifest.update(counts=project_counts(root), runs_executed=list(w.kit_runs), cases=[],
+        manifest = base_manifest("q10", None, seed, start, fmt)
+        manifest.update(counts=project_counts(root, fmt), runs_executed=list(w.kit_runs), cases=[],
                         inputs=sorted(f"input/{p.name}" for p in sources.values()))
-        clear_derived(root)
+        clear_derived(root, fmt)
     return write_outputs(out, manifest, "q10", None, seed, timings, started)
 
 
-def project_counts(root: Path) -> dict:
+def project_counts(root: Path, fmt: str) -> dict:
+    layout = LAYOUTS[fmt]
     runs = [d for d in (root / "runs").iterdir() if (d / "run.json").is_file()]
     return {"runs": len(runs), "runs_executed": len(runs), "runs_written": 0,
             "events": (root / "journal.jsonl").read_bytes().count(b"\n"),
-            "datasets": len(list((root / "data" / "raw").glob("*.parquet"))),
+            "datasets": len(list((root / layout.imported_dir).glob("*.parquet"))),
             "derived_tables": len(list((root / "data" / "derived").glob("*.parquet"))),
-            "context_versions": len(list((root / ".lab" / "context").glob("*.md")))}
+            "context_versions": len(list((root / layout.state_dir / "context").glob("*.md")))}
 
 
 # --- Q13: the reference session, reproduced -----------------------------------------------------------
@@ -1826,14 +2143,14 @@ def write_q13_source(path: Path, values: dict) -> None:
             writer.writerow([context, sensor, step, rel, (step - 1) * Q13_POINTS + rel, f"{value:.4f}"])
 
 
-def q13_facts(project_root: Path) -> dict:
+def q13_facts(project_root: Path, fmt: str = "v1") -> dict:
     """The facts of the reproduction from its preserved tables (DuckDB over the project's Parquet)."""
     import duckdb
 
     def table(rel: str) -> str:
         return "read_parquet('" + str(project_root / rel).replace("'", "''") + "')"
 
-    traces = table("data/raw/traces.parquet")
+    traces = table(f"{LAYOUTS[fmt].imported_dir}/traces.parquet")
     connection = duckdb.connect()
     try:
         connection.execute("SET threads = 1")
@@ -1941,10 +2258,10 @@ def generate_q13(out, seed: int = 0, fmt: str = "v1") -> dict:
     check_format(fmt)
     require_deterministic_process()
     with output_directory(out) as prepared:
-        return _write_q13(prepared, seed)
+        return _write_q13(prepared, seed, fmt)
 
 
-def _write_q13(out: Path, seed: int) -> dict:
+def _write_q13(out: Path, seed: int, fmt: str) -> dict:
     started = time.perf_counter()
     timings: dict[str, float] = {}
     rng = random.Random(f"eval-fixtures/q13/{seed}")
@@ -1954,8 +2271,8 @@ def _write_q13(out: Path, seed: int) -> dict:
     write_q13_source(source, values)
     scripts = SCRIPTS / "q13"
     with tempfile.TemporaryDirectory(prefix="eval-fixtures-") as scratch, \
-            kit_session(Path(scratch), start) as (kit, clock):
-        w = V1Writer(kit, clock, out / PROJECT_DIR)
+            kit_session(Path(scratch), start, f"q13/{seed}") as (kit, clock):
+        w = WRITERS[fmt](kit, clock, out / PROJECT_DIR)
         when = start
 
         def later(minutes: int) -> None:
@@ -1970,8 +2287,12 @@ def _write_q13(out: Path, seed: int) -> dict:
         w.import_dataset(source, "traces", "장비 트레이스(합성: 80 컨텍스트 × 4 센서 × 4 스텝 × 15 시점)", when)
         phase = time.perf_counter()
         runs = {}
+        # The first EDA passes the record tool's refs to the script API, which the /1 kit's did not take (the
+        # reference session's record API error); the script API of the new writer takes them, so in v2 that
+        # attempt succeeds and the session has one failed run, not two.
+        first_eda = "eda_failed" if fmt == "v1" else "eda_first"
         for key, script, title, minutes in (
-                ("eda_failed", "01_eda_training_traces.broken.py", "학습 트레이스 EDA", 4),
+                (first_eda, "01_eda_training_traces.broken.py", "학습 트레이스 EDA", 4),
                 ("eda", "01_eda_training_traces.py", "학습 트레이스 EDA", 3),
                 ("step_profiles", "02_step_profiles.py", "스텝 프로파일과 점수", 6)):
             later(minutes)
@@ -1999,7 +2320,7 @@ def _write_q13(out: Path, seed: int) -> dict:
         claim_band = w.note("finding", band_text, refs=[runs["bands"]["id"]])
         timings["kit_runs"] = time.perf_counter() - phase
         root = w.project.root
-        facts = q13_facts(root)
+        facts = q13_facts(root, fmt)
         problems = []
         if facts["displayed_out_of_band"] != dict.fromkeys(sorted(Q13_SENSORS), 1):
             problems.append(f"displayed trace out of band: {facts['displayed_out_of_band']}")
@@ -2031,15 +2352,15 @@ def _write_q13(out: Path, seed: int) -> dict:
                  "why": f"표시한 트레이스({Q13_DISPLAY})의 센서마다 밴드 밖 샘플이 1개씩 있다(facts.displayed_out_of_band). "
                         "그림의 인상과 저장된 수치가 다르다."},
             ],
-            "records": q13_records(kit, root, runs, decision, question),
+            "records": q13_records(kit, root, runs, decision, question, fmt),
             "metrics": Q13_METRICS,
             "session": Q13_SESSION,
         }
         write_lf(out / "expected.json", json_text(expected))
-        manifest = base_manifest("q13", None, seed, start)
-        manifest.update(counts=project_counts(root), runs_executed=list(w.kit_runs), cases=[],
+        manifest = base_manifest("q13", None, seed, start, fmt)
+        manifest.update(counts=project_counts(root, fmt), runs_executed=list(w.kit_runs), cases=[],
                         inputs=["input/traces.csv"])
-        clear_derived(root)
+        clear_derived(root, fmt)
     return write_outputs(out, manifest, "q13", None, seed, timings, started)
 
 
@@ -2060,7 +2381,7 @@ Q13_CONTEXT_1 = """# 장비 트레이스 이상 탐지
 
 
 
-def q13_records(kit: SimpleNamespace, root: Path, runs: dict, decision: str, question: str) -> dict:
+def q13_records(kit: SimpleNamespace, root: Path, runs: dict, decision: str, question: str, fmt: str) -> dict:
     model = kit.relations.read(root, alive=lambda pid: False, sha=lambda p: sha256_file(p) if p.is_file() else None)
     failed, fixed = runs["scores_failed"], runs["scores"]
     partial = sorted(o["path"] for o in failed["outputs"] if o.get("change") != "deleted")
@@ -2086,7 +2407,7 @@ def q13_records(kit: SimpleNamespace, root: Path, runs: dict, decision: str, que
              "data_rows": band_chart["data_rows"], "data_columns": band_chart["data_columns"], "scope": "partial",
              "why": "관측값과 프로파일 평균만 있다. 밴드 상·하한은 입력 data/derived/timepoint_profile.parquet의 mean·std에 있다."},
         ],
-        "context_versions": len(list((root / ".lab" / "context").glob("*.md"))),
+        "context_versions": len(list((root / LAYOUTS[fmt].state_dir / "context").glob("*.md"))),
         "decision": decision, "open_question": question,
     }
 
@@ -2112,12 +2433,20 @@ def evaluate_case_check(kit, project, model, status, fresh, item: dict) -> str |
     """None when the judgment `item` names holds, else what differs."""
     kind = item["type"]
     if kind == "reference":
-        found = [j for j in model.references(item["from"])
-                 if j["ref"].get("field") == item["field"] and j["ref"].get("value") == item["value"]]
+        if "field" in item:
+            # A lab.event/1 reference: refs.<field> holding the value.
+            found = [j for j in model.references(item["from"])
+                     if j["ref"].get("field") == item["field"] and j["ref"].get("value") == item["value"]]
+            named = f"{item['field']}={item['value']}"
+        else:
+            # An analytics.event/2 reference: its relation, and a target holding item's target fields.
+            found = [j for j in model.references(item["from"]) if j.get("relation") == item["relation"]
+                     and all((j.get("target") or {}).get(k) == v for k, v in item["target"].items())]
+            named = f"{item['relation']} {item['target']}"
         if len(found) != 1:
-            return f"{len(found)} references {item['field']}={item['value']} from {item['from']}"
+            return f"{len(found)} references {named} from {item['from']}"
         judged = found[0]
-        for key in ("state", "confirmed", "reason"):
+        for key in ("state", "confirmed", "reason", "version_binding"):
             if key in item and judged.get(key) != item[key]:
                 return f"{key} {judged.get(key)!r}, expected {item[key]!r}"
         if "min_candidates" in item and len(judged.get("candidates") or []) < item["min_candidates"]:
@@ -2150,6 +2479,16 @@ def evaluate_case_check(kit, project, model, status, fresh, item: dict) -> str |
         for key in ("state", "reason"):
             if key in item and judged.get(key) != item[key]:
                 return f"{key} {judged.get(key)!r}, expected {item[key]!r}"
+        return None
+    if kind == "visualization":
+        # One Visualization of a run, judged as a reference to it would be (an analytics.run/2 one by the
+        # sha256 its record keeps).
+        state, reason, _ = model._resolve({"type": "visualization_version", "run_id": item["run"],
+                                           "visualization_id": item["id"]})
+        judged = {"state": state, "reason": reason}
+        for key in ("state", "reason"):
+            if key in item and judged[key] != item[key]:
+                return f"{key} {judged[key]!r}, expected {item[key]!r}"
         return None
     if kind == "code_state":
         state = fresh.code_state(model.run(item["run"]) or {})
@@ -2202,17 +2541,23 @@ def check(out, *, manifest: dict | None = None, verify_digest: bool = True) -> l
     problems = _validate(manifest, "manifest.schema.json", "manifest.json")
     if problems:
         return problems
-    if verify_digest and manifest.get("digest") != tree_digest(out):
+    fmt = manifest["format"]
+    if verify_digest and manifest.get("digest") != tree_digest(out, fmt):
         problems.append("the tree's digest is not the manifest's (a file changed since it was generated)")
     root = out / manifest["project"]
     try:
         return _check_records(out, root, manifest, problems)
     finally:
-        clear_derived(root)
+        clear_derived(root, fmt)
 
 
 def _check_records(out: Path, root: Path, manifest: dict, problems: list[str]) -> list[str]:
     kit = load_kit()
+    fmt = manifest["format"]
+    marker = LAYOUTS[fmt].marker
+    if not (root / marker).is_file():
+        # Nothing of the project is where a fixture of this format keeps it.
+        return [*problems, f"the project is not a {fmt} fixture's: it has no {marker}"]
     project = kit.core.Project(root)
     model = kit.relations.read(root, alive=project.platform.processes.alive,
                                sha=lambda p: sha256_file(p) if Path(p).is_file() else None)
@@ -2220,9 +2565,12 @@ def _check_records(out: Path, root: Path, manifest: dict, problems: list[str]) -
     if journal.damaged or model.damaged_files or model.unsupported:
         problems.append(f"the read found damaged lines {journal.damaged}, damaged files {model.damaged_files} or "
                         f"unsupported records {model.unsupported}")
+    schemas = sorted({e.value.get("schema") for e in journal.events})
+    if schemas != [LAYOUTS[fmt].event]:
+        problems.append(f"the journal's records are {schemas}, a {fmt} fixture's are {LAYOUTS[fmt].event}")
     counts = manifest["counts"]
     actual = {"runs": len(model.runs()), "events": journal.lines,
-              "datasets": len(list((root / "data" / "raw").glob("*.parquet")))}
+              "datasets": len(list((root / LAYOUTS[fmt].imported_dir).glob("*.parquet")))}
     for key, value in actual.items():
         if counts.get(key) != value:
             problems.append(f"{key}: the project has {value}, the manifest says {counts.get(key)}")
@@ -2244,17 +2592,17 @@ def _check_records(out: Path, root: Path, manifest: dict, problems: list[str]) -
         except (OSError, ValueError) as exc:
             return [*problems, f"expected.json: {exc}"]
         problems += _validate(expected, "expected.schema.json", "expected.json")
-        problems += check_expected(kit, root, model, expected)
+        problems += check_expected(kit, root, model, expected, fmt)
     return problems
 
 
-def check_expected(kit, root: Path, model, expected: dict) -> list[str]:
+def check_expected(kit, root: Path, model, expected: dict, fmt: str = "v1") -> list[str]:
     """The expected file's ids name the records they say, and its numbers are the data's."""
     problems = []
     texts = {e.id: e.value.get("text") for e in model.journal.events}
     runs = {r["run_id"]: r for r in model.runs()}
     if expected["fixture"] == "q10":
-        evidence = q10_evidence(q10_numbers(q10_project_tables(root)))
+        evidence = q10_evidence(q10_numbers(q10_project_tables(root, fmt)))
         for example in expected["examples"]:
             if texts.get(example["claim_event"]) != example["claim"]:
                 problems.append(f"{example['id']}: the claim is not the text of {example['claim_event']}")
@@ -2263,7 +2611,7 @@ def check_expected(kit, root: Path, model, expected: dict) -> list[str]:
             if example["evidence"] != evidence[example["check"]]:
                 problems.append(f"{example['id']}: the evidence is not the data's")
     else:
-        facts = q13_facts(root)
+        facts = q13_facts(root, fmt)
         if expected["facts"] != facts:
             problems.append("q13: the facts are not the data's")
         for claim in expected["claims"]:
@@ -2293,9 +2641,10 @@ def main(argv=None) -> int:
     for name in ("scale", "q10", "q13"):
         command = sub.choices[name]
         command.add_argument("--seed", type=int, default=0)
-        command.add_argument("--format", default="v1", dest="fmt")
+        command.add_argument("--format", default="v1", dest="fmt", help=f"one of {', '.join(FORMATS)} (default v1)")
         command.add_argument("--kit-root", help="the runtime root of the kit that writes the format (v1: a kit "
-                                                f"before 0.8.0, such as src/ of {V1_KIT_COMMIT[:12]})")
+                                                f"before 0.8.0, such as src/ of {V1_KIT_COMMIT[:12]}; v2: this "
+                                                "checkout's kit when not given)")
         command.add_argument("--out", required=True)
     checked = sub.add_parser("check", help="check a generated fixture")
     checked.add_argument("fixture")
