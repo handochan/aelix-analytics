@@ -74,11 +74,13 @@ schema는 [`schemas/`](schemas/)에 있다: [manifest](schemas/manifest.schema.j
 | | runs | events(journal 줄) | datasets(가져온 원본) | 원본 크기(seed 0) | 생성 시간(참고) |
 |---|---|---|---|---|---|
 | S | 30 (kit이 실행 3) | 300 | 5 | 2.4 MB | `v1` 약 1초, `v2` 약 2초 |
-| M | 300 (kit이 실행 3) | 10,000 | 20 (4,000,000행 4개) | 217 MB(1 GB 이내) | `v1` 약 8초, `v2` 약 13분 |
+| M | 300 (kit이 실행 3) | 10,000 | 20 (4,000,000행 4개) | 217 MB(1 GB 이내) | `v1` 약 3분, `v2` 약 12–13분 |
 
 생성 시간은 macOS arm64(Apple Silicon)·로컬 SSD에서 잰 값이며 보장이 아니다. 실제 값은 각 fixture의 `environment.json`에 있다.
-`v2`의 M이 오래 걸리는 것은 공통 writer가 기록마다 그때까지의 journal을 읽고 판정하기 때문이다(10,000줄 가까이에서 기록 하나에 약
-70 ms, 2026-10-30 측정: 801초 가운데 796초가 kit이 실행하지 않은 run과 기록을 쓰는 단계, 최대 메모리 629 MB). 파생 표(`data/derived/`)는 datasets에 세지 않는다(`core.status`의 `counts.datasets`는 둘을 합친다). 원본 크기는 프로젝트의
+M은 거의 모두 kit이 실행하지 않은 run과 기록을 쓰는 단계에서 걸린다(2026-10-30 측정: `v1` 187–197초 가운데 183–193초, `v2`
+689–801초 가운데 684–796초, `v2`의 최대 메모리 629 MB). `v2`의 공통 writer는 기록마다 그때까지의 journal을 읽고 판정해서 기록
+하나의 비용이 journal 길이에 비례한다(10,000줄 가까이에서 기록 하나에 약 70 ms). `v1`은 #69 때 약 8초였다. 그때는 체크아웃 자신의
+kit이 썼고, 지금은 `V1_KIT_COMMIT`의 kit이 쓴다(main의 생성기로도 같은 시간과 같은 digest). 파생 표(`data/derived/`)는 datasets에 세지 않는다(`core.status`의 `counts.datasets`는 둘을 합친다). 원본 크기는 프로젝트의
 `data/raw/`(`v2`는 `data/imported/`)이고, 같은 크기의 원본 파일이 `input/`에 한 번 더 있다(M의 fixture 전체는 약 440 MB).
 
 ## 기록을 만드는 방법
