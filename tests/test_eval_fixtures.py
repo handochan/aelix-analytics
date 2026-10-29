@@ -345,8 +345,10 @@ def test_every_v2_case_reads_as_the_common_writer_wrote_it(fixtures_v2):
     assert model.run(first)["started_at"] == model.run(second)["started_at"]
     assert model.upstream(first)["cycle"] and model.upstream(second)["cycle"]
     long_note = cases["long_korean"]["records"]
-    # The common writer keeps a text whole up to its limit (32 KiB of UTF-8); 6,000 Korean characters are 18,000 bytes.
-    assert len(events[long_note["note"]]["text"]) == long_note["original_chars"] == 6000
+    # The common writer keeps a text whole up to its limit (32 KiB of UTF-8; 6,000 Korean characters are about
+    # 18,000 bytes) but for the white space around it, where the cut of the text may have ended.
+    assert long_note["original_chars"] == 6000 and long_note["original_chars"] - long_note["stored_chars"] in (0, 1)
+    assert len(events[long_note["note"]]["text"]) == long_note["stored_chars"]
     assert re.search(r"[가-힣]{2}", events[long_note["note"]]["text"])
     unpreserved = cases["unpreserved_data"]["records"]
     assert not (out / "project" / unpreserved["deleted_path"]).exists()
@@ -408,6 +410,17 @@ def test_check_finds_records_of_the_other_format(fixtures_v2, tmp_path):
                  b'"text": "added", "refs": {}}\n')
     problems = tool.check(copy)
     assert any("analytics.event/2" in p and "lab.event/1" in p for p in problems), problems
+
+
+def test_a_check_of_a_record_that_is_not_there_fails(fixtures_v2):
+    """No judgment holds for an id the journal does not have (not_in_status included)."""
+    manifest = read_json(fixtures_v2["s0a"] / "manifest.json")
+    [case] = [case for case in manifest["cases"] if case["id"] == "old_finding"]
+    for item in case["checks"]:
+        item.update({k: "e99999" for k in ("id", "record") if k in item})
+    problems = tool.check(fixtures_v2["s0a"], manifest=manifest, verify_digest=False)
+    assert sorted(problems) == ["case old_finding: not_in_status: no record e99999",
+                                "case old_finding: record_state: state None, expected 'current'"]
 
 
 def test_check_leaves_the_fixture_cold(generated, tmp_path):
@@ -767,8 +780,8 @@ def test_usage_errors_write_nothing(tmp_path, v1_kit):
     done = run_tool("q10", "--kit-root", v1_kit, "--out", busy, env=env)
     assert done.returncode == 2 and "not empty" in done.stderr
     assert sorted(p.name for p in busy.iterdir()) == ["keep.txt"]
-    # v2 with a kit before the new writer, and a format there is none of.
-    for fmt, says in (("v2", "writes lab.*/1"), ("v9", "unknown format")):
+    # v2 with --kit-root (this checkout's kit writes it), and a format there is none of.
+    for fmt, says in (("v2", "give no --kit-root"), ("v9", "unknown format")):
         target = tmp_path / f"format-{fmt}"
         done = run_tool("scale", "--scale", "S", "--format", fmt, "--kit-root", v1_kit, "--out", target,
                         env=env)

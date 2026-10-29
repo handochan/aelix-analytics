@@ -102,6 +102,19 @@ def fixtures(tmp_path_factory, config):
     return root, made
 
 
+def test_a_v2_fixture_is_not_taken_for_the_v1_answers(tmp_path):
+    """The answers are written for the v1 fixtures: a v2 fixture of the same kind, seed and generator version
+    (tools/eval_fixtures.py --format v2, other ids and judgments) is refused, not scored against them."""
+    spec = {"kind": "q10"}
+    path = tmp_path / me.fixture_name(spec, 0)
+    path.mkdir()
+    (path / "manifest.json").write_text(json.dumps({"generator": {"version": me.FIXTURE_GENERATOR_VERSION},
+                                                    "seed": 0, "kind": "q10", "scale": None, "format": "v2"}),
+                                        encoding="utf-8")
+    with pytest.raises(me.HarnessError, match="format v2"):
+        me.ensure_fixture(spec, 0, tmp_path)
+
+
 # --- configuration --------------------------------------------------------------------------------
 
 def test_the_configuration_has_twelve_tasks_with_confirmed_answers_and_both_models(config):

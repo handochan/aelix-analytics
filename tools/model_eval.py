@@ -1686,11 +1686,13 @@ def ensure_fixture(spec: dict, seed: int, root: Path) -> Path:
                                f"{(done.stderr or done.stdout)[-1500:]}")
     data = read_json(manifest)
     generator = (data.get("generator") or {}).get("version")
+    # The answers are written for the v1 fixture (a v2 one has other ids and judgments).
     if generator != FIXTURE_GENERATOR_VERSION or data.get("seed") != seed or \
-            data.get("kind") != spec["kind"] or data.get("scale") != spec.get("scale"):
-        raise HarnessError(f"{path} is not the {fixture_name(spec, seed)} fixture of generator "
+            data.get("kind") != spec["kind"] or data.get("scale") != spec.get("scale") or \
+            data.get("format", "v1") != "v1":
+        raise HarnessError(f"{path} is not the {fixture_name(spec, seed)} v1 fixture of generator "
                            f"version {FIXTURE_GENERATOR_VERSION} (manifest: generator {generator}, "
-                           f"seed {data.get('seed')}, kind {data.get('kind')})")
+                           f"seed {data.get('seed')}, kind {data.get('kind')}, format {data.get('format')})")
     return path
 
 

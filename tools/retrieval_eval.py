@@ -59,6 +59,9 @@ def main(argv=None):
     manifest = json.loads((fixture / "manifest.json").read_text(encoding="utf-8"))
     if manifest.get("kind") != "scale" or manifest.get("seed") != 0:
         parser.error("use the generator's scale fixture with seed 0")
+    if manifest.get("format", "v1") != "v1":
+        # What this measures is the explicitly migrated copy of a v1 fixture (the report says so).
+        parser.error("use a v1 fixture (--format v1): this measures its explicitly migrated copy")
     original = fixture / manifest["project"] / "journal.jsonl"
     before = digest(original)
     p = core.Project(args.project)

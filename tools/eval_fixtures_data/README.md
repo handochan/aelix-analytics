@@ -10,8 +10,8 @@ Q9(S/M 규모), Q10(분석 검사 예제), Q13(참고 세션 재현)이 이 fixt
 
 | | `v1` | `v2` |
 |---|---|---|
-| 프로젝트 | `lab.json`, `lab.*/1` 기록 | `analytics.json`, `analytics.*/2` 기록 |
-| 쓰는 kit | `--kit-root`로 준 kit 0.8.0 이전의 실행 루트(`V1_KIT_COMMIT`) | 이 체크아웃의 kit(또는 `--kit-root`로 준 kit 0.8.0 이후) |
+| 프로젝트 | `lab.json`, `lab.*/1` 기록 | `analytics.json`(`analytics.project/2`), `analytics.event/2`·`analytics.run/2`·`analytics.dataset/1` 기록 |
+| 쓰는 kit | `--kit-root`로 준 kit 0.8.0 이전의 실행 루트(`V1_KIT_COMMIT`) | 이 체크아웃의 kit(`--kit-root`는 받지 않는다: 생성기가 이 kit의 runner·writer를 따라 쓴다) |
 | 배치 | `.lab/`, `report/`, `data/raw/`, `runs/<id>/charts/` | `.analytics/`, `workspace/`, `data/imported/`, `runs/<id>/visualizations/` |
 | 쓰는 곳 | 옛 프로젝트 읽기·전환(#13), #15·#18의 측정, `tools/model_eval.py`(전환한 사본) | 지금 kit이 새로 만드는 프로젝트의 측정 |
 
@@ -42,9 +42,9 @@ uv run --locked python tools/eval_fixtures.py environment --out FILE --disk DIR 
 ```
 
 `manifest.json`의 `kit_commit`은 기록을 쓴 kit의 커밋이다(실행 루트가 git 작업 트리 맨 위의 `src/`이고 바뀐 것이 없을 때만. 꺼낸
-사본처럼 알 수 없으면 null이고, kit의 번호는 늘 적는다). `--kit-root` 없이 `v1`을 부르거나 `/1`을 쓰는 kit으로 `v2`를 부르면 그것을
+사본처럼 알 수 없으면 null이고, kit의 번호는 늘 적는다). `--kit-root` 없이 `v1`을 부르거나 `--kit-root`와 함께 `v2`를 부르면 그것을
 알리는 사용법 오류다. `check`와 `environment`는 이 체크아웃의 kit으로 읽는다. 종료 코드는 0(성공), 1(kit 오류나 `check`가 찾은 문제),
-2(사용법 오류: 비어 있지 않은 `--out`, 모르는 형식, 그 형식을 쓰지 않는 kit)다. 생성기는 Polars를 한 스레드로
+2(사용법 오류: 비어 있지 않은 `--out`, 모르는 형식, 그 형식을 쓰지 않는 kit, `v2`와 `--kit-root`)다. 생성기는 Polars를 한 스레드로
 돌린다(`POLARS_MAX_THREADS=1`): 여러 스레드의 group_by는 부동소수 합의 순서가 실행마다 달라 마지막 비트가 바뀐다. Python
 API(`generate_scale`·`generate_q10`·`generate_q13`·`check`·`tree_digest`·`environment_record`)는 Polars를 여러 스레드로 이미 불러온
 프로세스에서는 생성을 거절한다. 생성 중에는 신뢰 목록과 uv를 임시 디렉터리로 돌려 사용자의 것을 건드리지 않는다. 생성이 실패하면
@@ -73,12 +73,12 @@ schema는 [`schemas/`](schemas/)에 있다: [manifest](schemas/manifest.schema.j
 
 | | runs | events(journal 줄) | datasets(가져온 원본) | 원본 크기(seed 0) | 생성 시간(참고) |
 |---|---|---|---|---|---|
-| S | 30 (kit이 실행 3) | 300 | 5 | 2.4 MB | `v1` 약 1초, `v2` 약 3초 |
-| M | 300 (kit이 실행 3) | 10,000 | 20 (4,000,000행 4개) | 217 MB(1 GB 이내) | `v1` 약 8초, `v2` 약 M_V2_TIME |
+| S | 30 (kit이 실행 3) | 300 | 5 | 2.4 MB | `v1` 약 1초, `v2` 약 2초 |
+| M | 300 (kit이 실행 3) | 10,000 | 20 (4,000,000행 4개) | 217 MB(1 GB 이내) | `v1` 약 8초, `v2` 약 13분 |
 
 생성 시간은 macOS arm64(Apple Silicon)·로컬 SSD에서 잰 값이며 보장이 아니다. 실제 값은 각 fixture의 `environment.json`에 있다.
 `v2`의 M이 오래 걸리는 것은 공통 writer가 기록마다 그때까지의 journal을 읽고 판정하기 때문이다(10,000줄 가까이에서 기록 하나에 약
-70 ms). 파생 표(`data/derived/`)는 datasets에 세지 않는다(`core.status`의 `counts.datasets`는 둘을 합친다). 원본 크기는 프로젝트의
+70 ms, 2026-10-30 측정: 801초 가운데 796초가 kit이 실행하지 않은 run과 기록을 쓰는 단계, 최대 메모리 629 MB). 파생 표(`data/derived/`)는 datasets에 세지 않는다(`core.status`의 `counts.datasets`는 둘을 합친다). 원본 크기는 프로젝트의
 `data/raw/`(`v2`는 `data/imported/`)이고, 같은 크기의 원본 파일이 `input/`에 한 번 더 있다(M의 fixture 전체는 약 440 MB).
 
 ## 기록을 만드는 방법
@@ -108,7 +108,7 @@ schema는 [`schemas/`](schemas/)에 있다: [manifest](schemas/manifest.schema.j
 | `unpreserved_data` | 예 | 덮어쓴 파생 표, 지운 파생 표와 그것을 읽은 run, 파일을 지운 차트, 해시 없는 입력, run 뒤 고친 스크립트. `content_changed`, `missing`(`file_absent`), `unknown`(`no_digest`), 코드 `changed`. 차트는 완료 이벤트의 `refs.charts`로 판정 | 같은 모습과 판정. 완료 이벤트는 run만 가리키므로 차트는 Visualization 자체를 판정(`missing`·`file_absent`) |
 | `same_chart_id` | 예 | 여러 run의 같은 차트 id, 두 스크립트의 `trend`, 버전 없는 key 인용(`version_unbound`), writer가 최신 key로 바꾼 이름 `region-total` | key별 버전은 같다. 버전 없는 key는 writer가 그때의 최신 버전에 결박(`version_binding: inferred`, `resolved`), 이름 `region-total`은 쓴 그대로 남아 `ambiguous`(후보 2개 이상) |
 | `reference_cycle` | 예 | 같은 시각에 시작해 서로의 출력을 읽은 두 run, 뒤 기록을 먼저 인용한 기록. 상류 탐색 `cycle`, 앞으로의 참조 `missing`(`record_absent`) | 같다 |
-| `long_korean` | 예 | 6,000자 기록(4,000자로 저장), 섹션이 많은 긴 CONTEXT, 한국어 제목·열 | 6,000자를 그대로 저장(writer는 32 KiB까지 받고 자르지 않는다), 나머지는 같다 |
+| `long_korean` | 예 | 6,000자 기록(4,000자로 저장), 섹션이 많은 긴 CONTEXT, 한국어 제목·열 | 6,000자를 앞뒤 공백만 빼고 그대로 저장(writer는 32 KiB까지 받고 자르지 않는다. 6,000자에서 자른 끝이 공백이면 5,999자), 나머지는 같다 |
 | `display_safety` | 아니오 | HTML·스크립트·경로·템플릿처럼 보이는 글 (Q10 표시). 글이 쓴 그대로 | 같다 |
 | `old_finding` | 아니오 | journal 앞쪽의 중요한 발견. 최근 목록 밖, `current` | 같다 |
 | `question_closed`·`failed_run`·`ambiguous_producer` | 아니오 | 닫힌 질문, kit의 오류 run, 같은 바이트의 두 생산자. `resolved`, `error`·`complete`, `ambiguous` | 같다 |
@@ -127,6 +127,8 @@ schema는 [`schemas/`](schemas/)에 있다: [manifest](schemas/manifest.schema.j
   정의의 집계 단위·기준 모집단), `session`(사용자 요청 3개와 단계별 기대 행동). 같은 코드·답을 요구하지 않는다.
   - `v1`은 성공 4·오류 2다. 첫 EDA가 모델 도구의 `refs`를 스크립트 API에 넘겨 실패한다(참고 세션의 기록 API 오류).
   - `v2`는 성공 5·오류 1이다. 새 writer의 스크립트 API는 `refs`를 받아서 그 시도가 성공한다(`records.runs`의 키는 `eda_first`).
+    그래서 "센서 4개, 트레이스 80개를 확인했다." 발견이 두 번 남는다. 그 스크립트(`01_eda_training_traces.broken.py`)의 설명은
+    참고 세션의 시도를 적은 것이라 "실패한다"고 쓰여 있지만, `v1`의 바이트를 지키려고 고치지 않았다.
     `facts`·`claims`·`metrics`·`session`은 두 형식이 같다(시험이 확인).
 
 ## 휘발 필드와 digest

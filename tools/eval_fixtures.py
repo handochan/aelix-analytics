@@ -1,9 +1,9 @@
 """Generate the evaluation fixtures once, deterministically (Issue #41).
 
     python tools/eval_fixtures.py scale --scale S|M [--seed N] [--format v1] --kit-root KIT --out DIR
-    python tools/eval_fixtures.py scale --scale S|M [--seed N] --format v2 [--kit-root KIT] --out DIR
-    python tools/eval_fixtures.py q10 [--seed N] [--format v1|v2] [--kit-root KIT] --out DIR
-    python tools/eval_fixtures.py q13 [--seed N] [--format v1|v2] [--kit-root KIT] --out DIR
+    python tools/eval_fixtures.py scale --scale S|M [--seed N] --format v2 --out DIR
+    python tools/eval_fixtures.py q10 [--seed N] [--format v1 --kit-root KIT | --format v2] --out DIR
+    python tools/eval_fixtures.py q13 [--seed N] [--format v1 --kit-root KIT | --format v2] --out DIR
     python tools/eval_fixtures.py check DIR
     python tools/eval_fixtures.py environment --out FILE [--disk PATH] [--cache-state cold|warm|unknown]
         [--browser NAME=VERSION]
@@ -20,8 +20,9 @@ What it makes (docs/BETA-QUALITY-GATES.md §2-§4, tools/eval_fixtures_data/READ
 - `q10`: the Q10 analysis-check examples (aggregation key, unit, denominator, period), a flawed and a sound
   analysis of each, with the expected verdicts in expected.json.
 - `q13`: a synthetic reproduction of the reference session (docs/REVIEW-REFERENCE-SESSION-2026-09-18.md):
-  EDA -> step profile -> per-time scores -> every sensor's band chart, two failed runs among six, with the
-  expected judgments in expected.json and the source data in input/.
+  EDA -> step profile -> per-time scores -> every sensor's band chart in six runs (two failed in v1, one in
+  v2: the script API of the new writer takes the refs whose refusal was the session's record API error), with
+  the expected judgments in expected.json and the source data in input/.
 
 The formats (FORMATS): one plan — which runs, records and cases, in which order — is written in either.
 
@@ -29,8 +30,9 @@ The formats (FORMATS): one plan — which runs, records and cases, in which orde
   before the new record format (kit 0.8.0, Issue #13 PR 3, whose kit writes analytics.event/2 only), given as
   --kit-root (design OQ7): V1_KIT_COMMIT names the commit the tests and the CI take it from (`git archive
   V1_KIT_COMMIT src`). Without --kit-root a v1 fixture is a usage error that says so.
-- `v2`: an analytics.json project of analytics.*/2 records, written by the common writer of this checkout's kit
-  (or of --kit-root, a kit of 0.8.0 or later). A correction supersedes the finding and a withdrawal is a
+- `v2`: an analytics.json project (analytics.project/2) of analytics.event/2, analytics.run/2 and
+  analytics.dataset/1 records, written by the common writer of this checkout's kit, whose runner V2Writer
+  follows; --kit-root is refused with it. A correction supersedes the finding and a withdrawal is a
   record_update (ADR-0006 6), so some cases read otherwise than in v1 and their judgments are the format's
   (scale_cases).
 
@@ -60,8 +62,8 @@ kit's other variables (and their names before kit 0.3.0) are unset, so no trust 
 touched; they come back afterwards.
 
 Exit status: 0 done, 1 the kit failed or `check` found a problem, 2 a usage error (an output directory that
-is not new or empty, an unknown format, a kit that does not write it). A generation that fails removes what
-it wrote, so the same --out can be given again.
+is not new or empty, an unknown format, a kit that does not write it, --kit-root with v2). A generation that
+fails removes what it wrote, so the same --out can be given again.
 """
 
 from __future__ import annotations
@@ -393,10 +395,13 @@ def require_deterministic_process() -> None:
 
 def check_format(fmt: str) -> None:
     """A format this generator writes, with a kit that writes it: v1 needs a kit before the new writer
-    (its core writes lab.event/1), which --kit-root gives (design OQ7); v2 a kit of the new writer
-    (analytics.event/2), this checkout's unless --kit-root gives another."""
+    (its core writes lab.event/1), which --kit-root gives (design OQ7); v2 this checkout's kit, whose runner
+    and writer V2Writer follows (another kit's may differ), so --kit-root is refused with it."""
     if fmt not in FORMATS:
         raise UsageError(f"unknown format {fmt!r}; known: {', '.join(FORMATS)}")
+    if fmt == "v2" and _KIT_ROOT is not None:
+        raise UsageError(f"format v2: written by this checkout's kit ({KIT}), whose runner and writer the "
+                         "generator follows; give no --kit-root (it is for v1)")
     kit = load_kit()
     if getattr(kit.core, "SCHEMA_EVENT", None) == LAYOUTS[fmt].event:
         return
@@ -405,8 +410,7 @@ def check_format(fmt: str) -> None:
         raise UsageError(f"format v1: {where} writes the new record format, not lab.*/1: give --kit-root, the "
                          f"runtime root of a kit before kit 0.8.0 (git archive {V1_KIT_COMMIT} src | tar -x "
                          "-C DIR, then --kit-root DIR/src)")
-    raise UsageError(f"format v2: {where} writes lab.*/1, not analytics.event/2: give no --kit-root (this "
-                     "checkout's kit) or the runtime root of a kit of 0.8.0 or later")
+    raise UsageError(f"format v2: {where} writes lab.*/1, not analytics.event/2")
 
 
 # --- the digest ---------------------------------------------------------------------------------------
@@ -560,7 +564,9 @@ def environment_record(disk_path, *, cache_state: str = "unknown", browser: str 
                             "are the seed's; a measurement records the threads it ran with"},
         "cache_state": {"measurement": cache_state, "kit_caches": "cold" if generation else cache_state,
                         "os_file_cache": "unknown",
-                        "definition": "cold: the kit's caches (.lab/cache/, report/) are absent, the first read; "
+                        "definition": "cold: the kit's caches (the hash cache and the Workspace: .lab/cache/ and "
+                                      "report/ in a lab.json project, .analytics/cache/ and workspace/ in an "
+                                      "analytics.json one) are absent, the first read; "
                                       "warm: a repeat in the same process and machine after one full read. "
                                       "The OS file cache is not dropped (that needs privileges)."},
     }
@@ -1323,6 +1329,9 @@ class ScaleFixture:
         record = self.case("long_korean")["records"]
         record["note"] = self.w.note("note", text)
         record["original_chars"] = len(text)
+        if self.fmt == "v2":
+            # The common writer keeps a text whole but for the white space around it (the cut may end on a space).
+            record["stored_chars"] = len(text.strip())
 
     def _case_script(self, stem: str, source: str = "sensor_01", save: str | None = None,
                      charts=()) -> tuple[str, str]:
@@ -1709,12 +1718,13 @@ def scale_cases_v2(fixture: ScaleFixture) -> list[dict]:
              _event_ref(cycle["forward_note"], "cites", cycle["back_note"], state="missing", reason="record_absent"),
              _event_ref(cycle["back_note"], "cites", cycle["forward_note"], state="resolved", confirmed=True)]},
         {"id": "long_korean", "required": True,
-         "v2": f"a Korean record of {c['long_korean']['original_chars']:,} characters (kept whole: the writer "
-               "refuses a text over its limit, it does not cut one), a long Korean CONTEXT.md with more sections "
-               "than the prompt budget, Korean run and chart titles and Korean column names",
+         "v2": f"a Korean record of {c['long_korean']['original_chars']:,} characters (kept whole but for the white "
+               "space around it: the writer refuses a text over its limit, it does not cut one), a long Korean "
+               "CONTEXT.md with more sections than the prompt budget, Korean run and chart titles and Korean column "
+               "names",
          "records": c["long_korean"],
          "checks": [
-             {"type": "event_text", "id": c["long_korean"]["note"], "chars": c["long_korean"]["original_chars"]},
+             {"type": "event_text", "id": c["long_korean"]["note"], "chars": c["long_korean"]["stored_chars"]},
              {"type": "context_omitted", "min": 1},
              {"type": "run_title", "run": k01, "title": "지역별 매출 요약"}]},
         {"id": "display_safety", "required": False,
@@ -2456,6 +2466,8 @@ def evaluate_case_check(kit, project, model, status, fresh, item: dict) -> str |
         state = (model.record_states().get(item["record"]) or {}).get("state")
         return None if state == item["state"] else f"state {state!r}, expected {item['state']!r}"
     if kind == "not_in_status":
+        if item["id"] not in model.journal.lines_of:
+            return f"no record {item['id']}"
         ids = [entry["id"] for entry in status[item["list"]]]
         return None if item["id"] not in ids else f"{item['id']} is in status {item['list']}"
     if kind == "kit_resolved":
@@ -2643,8 +2655,8 @@ def main(argv=None) -> int:
         command.add_argument("--seed", type=int, default=0)
         command.add_argument("--format", default="v1", dest="fmt", help=f"one of {', '.join(FORMATS)} (default v1)")
         command.add_argument("--kit-root", help="the runtime root of the kit that writes the format (v1: a kit "
-                                                f"before 0.8.0, such as src/ of {V1_KIT_COMMIT[:12]}; v2: this "
-                                                "checkout's kit when not given)")
+                                                f"before 0.8.0, such as src/ of {V1_KIT_COMMIT[:12]}; not with v2, "
+                                                "which this checkout's kit writes)")
         command.add_argument("--out", required=True)
     checked = sub.add_parser("check", help="check a generated fixture")
     checked.add_argument("fixture")
