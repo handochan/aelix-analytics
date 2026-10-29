@@ -1331,6 +1331,7 @@ def publish_attempts(journal) -> list[dict]:
             "publication_id": details.get("publication_id"),
             "action": details.get("action"),
             "target": details.get("target"),
+            "channel": (start.get("details") or {}).get("channel") if start else None,
             "start": {"id": start.get("id"), "seq": start.get("seq")} if start else None,
             "receipt": {"id": receipt.get("id"), "seq": receipt.get("seq"),
                         "outcome": (receipt.get("details") or {}).get("outcome")} if receipt else None,

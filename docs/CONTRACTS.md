@@ -1399,7 +1399,7 @@ leak_found로 멈추고 모델 필드 또는 사본 ItemKey/역할을 짚습니�
 | 파일명 — 차트 | kit이 저장하는 차트 파일(`analytics.visualize`의 이미지·plotly JSON·플롯 데이터)만 이식 가능한 이름으로 바꿉니다(`con` → `con_.png`). 정체성 `script::id`는 생성된 id까지 그대로입니다. 이 대응은 단사입니다 — 차트 id는 slug이라 `_`를 포함할 수 없으므로 `con-file` 같은 보통 id와 충돌하지 않습니다. 스크립트가 차트 id 본래 이름에 쓴 파일(차트 `con`의 `charts/con.png`, 대소문자를 구별하지 않는 파일 시스템에서는 `charts/CON.png`도)은 이전 구현이 그 차트를 쓰거나 덮어쓴 파일이므로 따로 차트로 기록하지도 경고하지도 않고, 그 차트가 버려지면 함께 지웁니다. 그 밖에 스크립트가 run 디렉터리에 직접 쓴 파일(`register_loose_files`)은 스크립트가 정한 이름 그대로 차트가 되며 위 경고로만 알립니다 |
 | 경로·인코딩 | 리포트의 절대 경로 링크는 기록한 플랫폼 기준으로 해석한 `file://` URL입니다(`C:\…` → `file:///C:/…`, `\\server\share\…` → `file://server/share/…`). 그래서 POSIX에서 이름이 `X:\`나 `\\`로 시작하는 프로젝트 파일은 그 Windows 경로로 링크되거나, 공유 이름이 없으면 링크되지 않습니다. CLI는 인자를 읽기 전에 표준 스트림을 UTF-8(`errors='replace'`)로 고정하고, 텍스트를 읽는 파일·자식 프로세스 호출은 인코딩을 명시합니다. run 로그도 UTF-8이며 인코딩할 수 없는 문자(짝 없는 surrogate)는 `?`로 씁니다. kit이 쓰는 텍스트 파일(B)은 `core.open_text`·`core.write_text`로만 쓰며(UTF-8, `_platform.TEXT_NEWLINE` = LF, 번역 없음; `tests/test_line_endings.py`의 가드가 확인), run 로그를 감싸는 스트림도 줄 끝을 번역하지 않습니다(kit 0.4.0부터). run 동안 stdout·stderr는 파일 기술자와 Python 스트림을 함께 바꾸고, 출력은 이전처럼 블록 단위로 버퍼링됩니다. 이렇게 해서 콘솔 전용 스트림이 파일에 쓰지 못하는 문제를 피합니다. Windows에서는 설치본 `analytics`를 의사 콘솔(ConPTY)에서 실행해 확인했습니다(측정): run의 stdout 로그에 스크립트의 한국어 출력이 남았고, 콘솔 코드 페이지 437과 949에서 한국어 제목이 콘솔에 그대로 보였습니다. 이것은 Python의 콘솔 경로로 쓴 kit의 출력(결과 줄의 한국어 제목)에 대한 결과입니다. 런처의 글도 같은 경로로 쓰인다고 봅니다(코드에서 읽음, 실행하지 않았습니다). 콘솔 파일 기술자에 바이트를 직접 쓰는 출력과, 출력 파이프가 없는 고전 콘솔의 글 순서·인코딩은 실행하지 않았습니다(`not_run`) |
 | 사람용 진입점 | 체크아웃의 `bin/analytics`(POSIX 셸, kit 0.3.0 전 `bin/lab`)과 설치본의 `analytics`(stdlib Python 런처, 모든 플랫폼; Windows에서는 `analytics.exe`)입니다. `bin/analytics`는 wheel로 설치하지 않습니다. 하위 명령은 둘 다 `record`·`render` 등이고 옛 `note`·`report`는 usage와 2입니다. 둘은 같은 명령·인자·usage(바이트까지)·종료 코드와 옛 환경 변수의 오류(D)를 지키고 kit의 출력을 바이트 그대로 넘기며, POSIX에서 같은 stand-in uv로 동등성을 시험합니다. 런처는 자식을 같은 process group·콘솔에서 표준 스트림을 물려준 채 기다리고 SIGINT·SIGBREAK를 기록만 하므로, 터미널의 Ctrl+C를 런처는 다시 보내지 않고 kit의 기록을 기다려 kit의 종료 코드로 끝납니다. uv는 자기 표준 입력이 터미널이 아니면 200 ms 뒤 kit에 한 번 더 보냅니다(`bin/analytics`에서도 같습니다). 런처가 무시된 SIGINT를 물려받으면(셸의 백그라운드 작업) 그대로 두어 kit도 무시한 채 시작합니다. 자식을 시작하는 순간에 온 Ctrl+C는 자식이 뜬 뒤 한 번 더 보냅니다(POSIX). 그 순간 터미널의 Ctrl+C를 이미 받은 자식에게는 두 번 갑니다. Windows에서는 다시 보내지 않습니다 — 한 프로세스에 SIGINT를 보낼 방법이 없고, 시험이 이를 고정합니다. 같은 콘솔의 자식은 콘솔의 Ctrl+C를 직접 받습니다. Windows 콘솔의 Ctrl+C도 런처가 다시 보내지 않고 kit의 기록을 기다려 kit의 종료 코드로 끝납니다(측정: 의사 콘솔과 고전 콘솔에서 런처가 `cancelled` 기록 뒤 3으로 끝났고 남은 프로세스가 없었습니다. Ctrl+Break는 G). 두 번 오더라도 kit은 run을 구간마다 한 번만 중단합니다(D1). 런처와 `bin/analytics`의 차이: 런처만 받은 SIGTERM은 kit의 `run`에만 전하고(run이 `cancelled`로 기록), 그 밖의 단계(init·migrate·sync·status·context·import·query·record·render·demo와 `analytics open`의 문서 열기)는 끝까지 두고 다음 단계를 시작하지 않은 채 143으로 끝납니다(`bin/analytics`의 셸은 그 자식을 남기고 곧바로 끝납니다). 이 SIGTERM은 POSIX의 것입니다 — Windows에서는 다른 프로세스가 처리기에 SIGTERM을 보낼 수 없고 `os.kill`·`taskkill /F`가 런처를 곧바로 끝냅니다(강제 종료, D1). 런처가 Ctrl+C나 SIGTERM을 기록한 뒤에는 다음 단계를 — `analytics open`의 문서 열기도 — 시작하지 않습니다. 단계를 시작하는 그 짧은 순간 온 신호는 그 단계를 막지 못할 수 있습니다. 그러면 Ctrl+C는 그 단계에 다시 보내고 SIGTERM은 kit의 `run`에만 보내며, 문서를 여는 프로그램에는 어느 것도 보내지 않으므로 리포트가 열릴 수 있습니다. uv가 없으면 런처는 자기 문구로 127입니다(`bin/analytics`은 셸의 오류로 끝나며, macOS의 sh는 없는 경로에 1). 런처는 macOS에서만 `open`을 씁니다(`bin/analytics`은 `open`이 있으면 어디서나). dash로 도는 `bin/analytics`은 Ctrl+C 뒤 SIGINT로 끝납니다. 측정한 경계 사례의 차이: 빈 첫 인자(`analytics ""`)는 `bin/analytics`에서 status, 런처에서 usage와 2입니다. 실행할 수 없는 uv(디렉터리이거나 실행 권한이 없는 파일인 `AELIX_ANALYTICS_UV`, PATH에서 실행 권한이 없는 `uv` 파일)는 `bin/analytics`에서 셸의 오류와 셸·플랫폼에 따른 종료 코드(126·127·1), 런처에서 uv를 찾지 못했다는 문구와 127입니다. 찾았지만 시작할 수 없는 uv(없는 인터프리터를 가리키는 스크립트)는 `bin/analytics`에서 셸의 오류와 126(macOS의 sh)·127(dash), 런처에서 시작할 수 없다는 문구와 127입니다. 문서를 여는 프로그램이 없으면 둘 다 127이고, 런처는 자기 문구를, `bin/analytics`은 셸의 오류를 냅니다. 작업 디렉터리가 지워졌으면 런처는 읽을 수 없다는 문구와 1로 끝나고, `bin/analytics`은 macOS의 sh에서 셸의 오류와 1로 끝나지만 dash에서는 프로젝트를 찾는 반복이 끝나지 않습니다(kit 0.3.0 전의 `bin/lab`과 같습니다). `AELIX_ANALYTICS_UV`의 `~`와 끝의 `/`는 런처만 풀어 uv를 실행합니다(`bin/analytics`은 dash 127, macOS의 sh 1). 런처 자신의 글을 닫힌 파이프에 쓰면 `bin/analytics`은 141, 런처는 `BrokenPipeError`와 120이고, 표준 출력을 닫은 채(`>&-`) `--help`를 부르면 `bin/analytics`은 2, 런처는 traceback과 1입니다. symlink로 들어온 작업 디렉터리에서 `init ../DIR`은 `bin/analytics`에서 kit이 프로젝트를 만든 뒤 실패하고(셸에 따라 1이나 2), 런처에서는 끝까지 진행합니다. 런처 자신의 글(usage, 안내)은 로캘과 상관없이 UTF-8 바이트입니다. 그 안의 경로·값은 Python의 파일 시스템 인코딩이 글자로 읽은 부분을 그 글자의 UTF-8로, 읽지 못한 바이트를 받은 그대로 씁니다. 그 인코딩이 UTF-8이면(macOS; Linux의 UTF-8 로캘과, Python이 기본으로 UTF-8 모드로 도는 C 로캘) 모든 경로·값이 받은 바이트 그대로이고, 그 인코딩이 Latin-1·EUC-KR 같은 것이면(그런 로캘의 Linux) UTF-8인 이름도 바뀝니다(`bin/analytics`은 늘 받은 바이트). 런처는 `AELIX_ANALYTICS_RUNTIME_PATH`를 따르지 않고 자기 kit을 씁니다 |
-| 배포 형태 | wheel 하나를 hatchling이 체크아웃에서 만듭니다(`uv build`): package `aelix_analytics` — kit 전체(체크아웃의 `src/aelix_analytics`: 템플릿·assets·데모 스크립트 포함, 런처 `cli.py`, 실행 루트 위치 `_install.py`, manifest)와 확장 `extension.py`(체크아웃의 `extension/aelix_analytics.py`) — 와, 같은 소스의 사본 `aelix_analytics/kit/aelix_analytics`(실행 루트 `aelix_analytics/kit`). 자식은 실행 루트만 `PYTHONPATH`로 받고 사본에는 `extension.py`가 없습니다. 버전은 0.30.0입니다(`KIT_VERSION`, manifest와 같음). 의존성은 없고, 분석 라이브러리는 프로젝트 환경에만 설치됩니다. aelix 연동은 이 wheel을 aelix의 환경에 설치하는 것이며 extra는 없습니다. 개발 환경은 `package = false`로 프로젝트를 설치하지 않습니다. 라이선스는 Apache-2.0입니다(`LICENSE`; wheel의 `License-Expression`과 manifest의 `license`). 관리자는 GitHub 핸들 `handochan`이고 이메일은 적지 않습니다(wheel의 `Author`·`Maintainer`, manifest의 `authors`). 배포 이름은 `aelix-analytics`입니다(2026-10-17 소유자 결정, #24). 이 wheel은 어디에도 게시하지 않았습니다 |
+| 배포 형태 | wheel 하나를 hatchling이 체크아웃에서 만듭니다(`uv build`): package `aelix_analytics` — kit 전체(체크아웃의 `src/aelix_analytics`: 템플릿·assets·데모 스크립트 포함, 런처 `cli.py`, 실행 루트 위치 `_install.py`, manifest)와 확장 `extension.py`(체크아웃의 `extension/aelix_analytics.py`) — 와, 같은 소스의 사본 `aelix_analytics/kit/aelix_analytics`(실행 루트 `aelix_analytics/kit`). 자식은 실행 루트만 `PYTHONPATH`로 받고 사본에는 `extension.py`가 없습니다. 버전은 0.31.0입니다(`KIT_VERSION`, manifest와 같음). 의존성은 없고, 분석 라이브러리는 프로젝트 환경에만 설치됩니다. aelix 연동은 이 wheel을 aelix의 환경에 설치하는 것이며 extra는 없습니다. 개발 환경은 `package = false`로 프로젝트를 설치하지 않습니다. 라이선스는 Apache-2.0입니다(`LICENSE`; wheel의 `License-Expression`과 manifest의 `license`). 관리자는 GitHub 핸들 `handochan`이고 이메일은 적지 않습니다(wheel의 `Author`·`Maintainer`, manifest의 `authors`). 배포 이름은 `aelix-analytics`입니다(2026-10-17 소유자 결정, #24). 이 wheel은 어디에도 게시하지 않았습니다 |
 
 ### F1. 이전 구현(`48b79cc`)과 달라진 POSIX 동작
 
@@ -1756,10 +1756,22 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
   - 다른 OS가 기록한 절대 경로는 이 기계에서 파일이 없어 `missing`/`file_absent`로, 그 입력의 생산자는 이 기계의 기록과 경로가 맞지 않아 `none`으로 보입니다(Freshness의 전과 같습니다). 옛 kit 경로의 추론(E)은 이 기계의 지금 루트·링크 대상 아래 경로와 파일 시스템이 같은 항목으로 여는 철자만 대응시킵니다. 그래서 다른 OS·옮긴 프로젝트의 절대 경로, 대소문자·정규화를 구별하는 파일 시스템에서 다른 철자로 기록된 상대 경로는 대응하지 않습니다(글자를 접어 맞추지 않습니다).
   - 옛 kit 경로의 추론은 오늘의 링크·이름으로 판정합니다. 그 run 뒤에 링크를 바꿨거나 파일을 옮겼으면 다른 파일로 대응할 수 있어 확정 연결로 세지 않습니다. 표시는 그 판정 자리마다입니다: stale을 따라가는 길의 중간(후보의 후보)에서 쓴 추론은 그 차트에 표시하지 않고, 직접 입력의 후보만 표시합니다. 맥락 블록(journal만 읽음)은 경로를 읽지 않습니다. kit 버전이 없는 이벤트의 `refs.charts` 글자는 어떤 옛 run이 그 키를 기록했을 때만 그 대응을 따르고, `refs.data`는 대응하지 않습니다. 대응이 지금 있는 항목인지는 읽는 프로세스가 열 수 있는 경로로 봅니다(Windows에서 LongPathsEnabled가 0이면 260자를 넘는 경로는 없는 것으로 보아 대응하지 않을 수 있습니다).
   - 비용(측정은 이 PR의 기록). 맥락 블록은 프롬프트마다 journal만 읽어 줄마다 기록을 판정하므로 줄 수에 비례하고, `analytics_status`는 run.json을 한 번, 기준 파일들을 두 번 stat합니다. Workspace는 타임라인의 모든 참조를 판정합니다. 이벤트를 쓸 때도 잠금 안에서 journal 전체를 읽어 seq를 정하므로 쓰기 한 번이 줄 수에 비례합니다(#49의 PR이 macOS arm64에서 잰 값: 10,000줄·2.6 MB journal에 쓰기 한 번 약 30 ms. 그 전에는 끝 64 KiB만 읽어 0.2 ms 미만). kit 0.8.0의 공통 writer는 기록 하나에 journal 전체를 두 번 파싱합니다: 잠금 밖(결박과 줄 크기)과 잠금 안(재판정과 상태 재생). 다른 기록의 상태를 바꾸는 참조(`resolves`·`supersedes`)가 있으면 덧붙인 뒤 한 번 더 파싱합니다(응답의 `targets`). 이름으로 준 참조가 있으면 읽기 모델도 읽고, kit CLI `record`·`analytics_record`는 맥락 동기화 전에 잠금 밖 판정을 한 번 더 합니다(C1). #13의 셋째 PR이 macOS arm64에서 잰 값(10,000줄 journal, 20회의 p50, [측정 기록](verification/2026-10-09-issue-13-writer.md)의 `writer_latency`, 리뷰 수정 뒤): 보통 기록 69 ms(그 전 kit의 `/1` writer 33 ms), 참조 넷을 결박하는 기록 124 ms(32 ms), 질문을 닫는 기록 129 ms(65 ms), `record_update` 91 ms. 영속 인덱스는 없습니다(#15).
+- channel 페이지의 도착 확인(#21, kit 0.31.0). 최신 버전의 entry가 직접 불러오는 스타일시트·이미지 파일이 이 기기에서 열리는지만 봅니다. 그 파일의
+  내용이 다 왔는지, entry(`index.html`) 자체나 그 밖의 파일(스크립트, 다른 페이지)이 왔는지는 보지 않습니다. 그래서 동기화 프로그램이 그 파일들을 먼저
+  가져왔으면 아직 다 오지 않은 버전으로 옮길 수 있습니다. 그때 entry가 없으면 브라우저가 파일을 찾지 못했다고 보이고, entry는 있지만 스타일시트나
+  `assets/publication.js`가 없으면 그 버전의 페이지가 자기 안내("This page could not load its files")를 보입니다. 15초 안에 답이 없는
+  파일은 오지 않은 것으로 봅니다. 버전 전체를 독자 기기에서 대조하는 수단은 #48입니다.
 - 게시 대상의 파일 시스템(#21, kit 0.29.0의 측정). macOS 26.6.2의 exFAT 디스크 이미지에서 잠금은 잡혔습니다. 이름을 바꾸지 않는 rename(`renamex_np`)은
   빈 이름에 ENOTSUP이라 디렉터리 확정(`rename_dir_new`)은 `rename(2)`로 옮겼고, 내용이 있는 디렉터리·파일 위로는 거절하며 양쪽을 보존했습니다. 링크도
   없어 대상 표식을 만들 수 없었습니다(`no_exclusive_rename`). 그래서 이런 볼륨에는 새 게시 대상을 만들 수 없습니다. 바이트만 쓴 사본에도 macOS가
-  AppleDouble 파일(`._*`)을 만들었습니다. SMB·NFS 마운트와 Windows의 실제 공유는 재지 않았습니다.
+  AppleDouble 파일(`._*`)을 만들었습니다. kit 0.31.0의 CI(#21 PR-3)는 Windows Server 2025의 루프백 SMB 공유(`\\localhost\<이름>`)에 두 build를
+  게시했습니다. 잠금이 잡혔고 버전은 `rename_new`로 확정됐으며, 다시 읽은 버전이 대조를 통과했습니다. 다른 기기의 SMB·NFS 마운트와 네트워크 너머의
+  잠금은 재지 않았습니다.
+- 다른 계정의 열람(#21, kit 0.31.0의 CI 측정). CI는 세 OS에서 두 번째 OS 계정(Linux `useradd`, macOS `sysadminctl`, Windows `net user`)을 만들고,
+  모든 계정이 열 수 있는 폴더에 게시한 버전을 그 계정으로 읽었습니다(`latest.json`, channel 페이지, manifest의 모든 파일을 해시로). 게시한 계정만
+  여는 폴더(POSIX `0700`, Windows는 사용자 임시 폴더)에서는 거절됐고, POSIX에서는 게시가 `others_cannot_read`를 경고했습니다. Windows에서는
+  ACL을 읽지 않으므로 경고하지 않습니다. Windows의 두 번째 계정은 그 계정의 로그온 토큰으로 읽었고, 루프백 SMB 공유로도 읽었습니다. 이것은
+  같은 기기의 다른 계정이 파일을 읽는지입니다. 다른 기기의 독자가 브라우저로 여는 것은 #24에서 소유자가 확인합니다.
 - 무결성. 해시 체인·서명이 없고 불변성은 규약입니다.
 - 표식 판정의 틈. 판정은 잠금 없이 두 표식을 읽습니다. 판정과 첫 부수 효과 사이에 다른 프로세스가 표식을 바꾸는 틈은 남습니다. journal 쓰기는
   잠금 안에서 다시 판정해 그 틈을 줄이지만, run이 시작한 뒤의 코드 스냅샷·스크립트가 직접 쓰는 파일은 run이 시작할 때의 판정을 따릅니다(run
@@ -2264,7 +2276,7 @@ D2의 미리보기와 D3의 build가 같은 경로를 씁니다.
 ### D6. 폴더 게시 (kit 0.30.0, #21 PR-2)
 
 [폴더 게시 설계](design/PUBLISH-FOLDER.md) §4·§6·§8의 구현입니다. 결정은 [ADR-0009](decisions/0009-first-publish-target.md)이고, 대상의 판정·표식·channel 규칙과
-포트 확장은 kit 0.29.0(PR-1)입니다. channel 페이지의 도착 확인, `--switch-to`, 저장한 대상(`--target`)은 아직 없습니다(PR-3).
+포트 확장은 kit 0.29.0(PR-1)입니다. channel 페이지의 도착 확인, `--switch-to`, 저장한 대상(`--target`)은 kit 0.31.0의 [D7](#d7-channel-페이지되돌리기저장한-대상-kit-0310-21-pr-3)입니다.
 
 - **명령**: `analytics publish --build <publication_id> --to <폴더> [--channel <이름>] [--reassign-channel]`, `analytics publish --list`. 분석 라이브러리를
   쓰지 않으므로 런처의 Python으로 돕니다(`build --list`와 같음). 출력은 JSON이고 끝에 "Anyone who can open <폴더> can read every version in it."을 stderr에
@@ -2280,7 +2292,7 @@ D2의 미리보기와 D3의 build가 같은 경로를 씁니다.
   `latest.json` → channel 페이지 순서로 교체하고 각 포인터의 상태(`old`·`new`·`other`·`missing`·`unknown`)를 receipt에 적습니다. 교체 뒤 다시 읽은
   `latest.json`이 다른 게시의 버전이면 그 버전을 페이지에 그리지 않고 `superseded`입니다. 두 포인터가 다르면(앞 시도가 그 사이에 멈춤) `not_newer`로 끝나는
   다음 게시가 `latest.json`이 가리키는 버전을 이 프로젝트의 결박(없으면 history의 `package_sha256`)으로 대조한 뒤에만 페이지를 다시 그리고 그 결과를
-  `observations.channel_page_repair`에 적습니다. 지금의 channel 페이지는 최신·이전 버전 링크와 버전 목록, 접근 범위 문구만 있는 정적 페이지입니다.
+  `observations.channel_page_repair`에 적습니다. channel 페이지가 최신 버전으로 옮기는 규칙은 D7입니다.
 - **build 읽기**: build 폴더 아래 어느 단계의 링크도 따라가지 않습니다(POSIX는 디렉터리 기준 열기, Windows는 단계마다 확인). receipt의 `refs`는 시작 기록과
   같습니다. 줄 상한을 넘으면 목록(`failure.paths`·`observations`의 목록·`access.posix.blocked`·`reports`)을 20 → 5 → 0개로 줄이고 처음 개수를 남깁니다.
 - **channel**: 지정하지 않으면 이 프로젝트의 channel, 없으면 제목의 slug(없으면 `project-<project_id 앞 8자>`)입니다. 다른 프로젝트의 channel은
@@ -2300,3 +2312,39 @@ D2의 미리보기와 D3의 build가 같은 경로를 씁니다.
   더 오래된 build는 `not_newer`입니다. 잘못된 `--channel` 이름은 시작 기록 전에 거절합니다.
 - **한계**: 동시 게시의 순서, 네트워크 잠금, 동기화 폴더의 전파는 보장하지 않습니다(G). 링크·플래그 있는 rename이 둘 다 없는 볼륨(exFAT 등)에는 새 대상을
   만들지 못합니다. 실제 다른 독자의 열람은 #24입니다.
+
+### D7. channel 페이지·되돌리기·저장한 대상 (kit 0.31.0, #21 PR-3)
+
+[폴더 게시 설계](design/PUBLISH-FOLDER.md) §7·§8·§9.2·§9.3의 구현입니다. 게시의 단계·기록은 D6 그대로입니다.
+
+- **명령**: `analytics publish --switch-to <publication_id> (--to <폴더> | --target <이름>) [--channel <이름>]`,
+  `analytics publish --save-target <이름> --to <폴더>`, `analytics publish --list [--to <폴더> | --target <이름>]`. `--build`도 `--to` 대신
+  `--target`을 받습니다. `--switch-to`는 `--reassign-channel`을 받지 않습니다(`publish_input_invalid`).
+- **channel 페이지**: kit이 그리는 정적 HTML이고 스크립트는 kit의 것 하나뿐입니다(CSP의 `script-src`가 그 해시). 최신 버전의 entry(`index.html`)가 직접
+  불러오는 스타일시트와 이미지 가운데 그 버전의 manifest에 있는 파일을 불러 보고(스타일시트는 `media="not all"`이라 이 페이지에 적용되지 않음), 모두
+  `load`이면 `location.replace`로 그 버전에 옮깁니다. 하나라도 `error`이거나 15초 안에 답이 없거나 그런 파일이 없으면 옮기지 않고 "The newest
+  version may not have fully arrived on this device."와 이전 버전 링크를 보입니다. 최신 버전의 스크립트를 이 페이지에서 실행하지 않고 네트워크 API를
+  쓰지 않습니다. 스크립트가 꺼진 독자는 `<noscript>`의 meta refresh로 옮깁니다. 버전 목록은 이웃 버전과 `renderer`·`content_sha256`이 같으면
+  "same content"라고 적고, 가리키는 버전이 가장 새 build가 아니면 "This channel points to an older build, chosen by switching."을 보입니다.
+  확인하는 자원 종류는 Chromium·Firefox·WebKit × `file://`·HTTP 하위 경로에서 잰 것입니다(파일이 있으면 `load`, 없으면 `error`). 파일이 있는지만 보고
+  내용이 다 왔는지는 보지 않습니다(G).
+- **되돌리기**: `--switch-to`(값은 `publication_id` 형식이어야 함)는 파일을 옮기지 않고 대상에 있는 그 버전을 그 자리에서 대조한 뒤 전환만 합니다. 이 프로젝트에 그 build의 결박이 있으면
+  결박으로, 없으면(다른 기기의 사본) channel history의 `package_sha256`과 manifest의 ID로 대조합니다(receipt `binding: channel_history`, 참조
+  `basis: declared`). 둘 다 있는데 다르면 시작 기록 전에 거절합니다(`version_differs`). 고를 수 있는 것은 이 프로젝트 channel의 history에 있는 버전이나
+  결박이 있고 대상에 확정된 버전이고, 그 밖은 시작 기록 전에 `not_bound`·`not_on_target`입니다. build 순서는 비교하지 않고, 시작한 뒤 다른 게시가 최신을
+  바꿨으면 `superseded`입니다. receipt는 `action: switch`이고(글은 "Switched <대상> to <id>"), `transfer`·`check`·`commit`은 `not_started`, `final_check`가 그 대조입니다. 그 뒤
+  이 프로젝트의 더 새 build를 게시하면 channel은 다시 앞으로 갑니다(되돌리기는 고정이 아님). 넘겨받은 channel에서 history에 남은 다른 프로젝트의
+  버전으로 되돌렸다면 build 순서를 비교할 수 없어 다음 게시는 `not_newer`입니다(설계 8절). 그때는 이 프로젝트의 버전으로 먼저 되돌립니다.
+- **저장한 대상**: `--save-target`은 폴더를 판정만 하고(대상에 아무것도 만들지 않음) `.analytics/publish-targets.json`(`analytics.publish_targets/1`,
+  `targets`: 이름 → 절대 경로)에 적습니다. 프로젝트의 `.gitignore`에 `.analytics/publish-targets.json` 줄이 없으면 저장하지 않습니다(`targets_not_ignored`).
+  kit 0.31.0이 만든 프로젝트에는 그 줄이 있고, 이전 프로젝트와 전환한 프로젝트에는 사람이 더합니다. 이름은 영문자·숫자로 시작하는 64자까지의
+  영문자·숫자·`.`·`_`·`-`입니다. 그 줄 뒤에 `!`로 되돌리는 줄이 있으면 저장하지 않습니다. 없는 이름은 `target_unknown`, 읽을 수 없는 파일은
+  `saved_targets_invalid`입니다(`--list`는 시도를 보이고 그 오류를 `saved_targets_error`에 적습니다). 저장한 폴더와 그 실제 위치(링크를 푼 것)는
+  게시에 쓰지 않았어도 뒤의 build가 공유 사본의 금지 값으로 씁니다. 그 파일을 읽을 수 없으면 build는 멈추지 않고 저장한 폴더를 금지 값에 넣지
+  않습니다(게시한 폴더는 게시 기록에서 따로 금지 값이 됩니다).
+- **다른 계정의 읽기(설계 9.2)**: receipt의 `access.posix`는 대상까지의 폴더와 버전 아래의 group·other 권한 비트를 관찰합니다(`others_can_read`·
+  `blocked`, `group_can_read`·`group_blocked`). other가 읽지 못해 보이면 결과에 경고 `others_cannot_read`를 더하고 stderr에 적습니다. 권한을 바꾸지
+  않고, Windows의 ACL은 읽지 않습니다(`windows_acl: not_checked`).
+- **목록**: `--list`는 저장한 대상(`saved_targets`)과, 폴더나 이름을 주면 그 대상의 channel(이름·소유 상태·`latest`·history)을 함께 보입니다. 대상을
+  바꾸지 않습니다. 시도의 행에는 시작 기록의 `channel`이 있습니다.
+- **결과가 기록되지 않은 시도의 흔적**: 그 시도의 포인터는 시작 기록이 적은 channel에서, 적지 않았으면 이 프로젝트의 channel마다 찾습니다.

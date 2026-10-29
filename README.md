@@ -93,9 +93,9 @@ aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역
 배포본은 아직 어디에도 게시하지 않았으므로 체크아웃에서 직접 만듭니다.
 
 ```sh
-cd $PACK && uv build                                   # dist/aelix_analytics-0.30.0-py3-none-any.whl
-uv tool install --python 3.12 dist/aelix_analytics-0.30.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
-uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.30.0-py3-none-any.whl   # aelix와 함께
+cd $PACK && uv build                                   # dist/aelix_analytics-0.31.0-py3-none-any.whl
+uv tool install --python 3.12 dist/aelix_analytics-0.31.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
+uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.31.0-py3-none-any.whl   # aelix와 함께
 ```
 
 - `analytics`는 체크아웃의 `bin/analytics`와 같은 명령·인자·usage(바이트까지 같음)를 쓰고 kit의 출력을 바이트 그대로 넘깁니다
@@ -505,7 +505,11 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
   `analytics publish --build ID --to FOLDER`는 결박된 build를 지정한 폴더(로컬·마운트한 공유·동기화 폴더)에 전달합니다. 옮긴 곳에서 결박과 다시 대조한 버전만
   최신 주소(`projects/<channel>/index.html`)가 됩니다. 전환 전에 멈추면 이전 최신이 그대로이고, 전환 중에 멈추면 receipt가 두 포인터(`latest.json`·channel 페이지)가
   무엇을 가리키는지 적습니다. 다시 실행하면 재사용과 전환으로 끝납니다. 그 폴더를 열 수 있는 사람은 그 안의 모든 버전을 읽을 수 있습니다
-  ("팀 전용"이 아님). 시도마다 시작 기록과 receipt가 남고 `--list`로 봅니다. 도착 확인 뒤 옮기는 channel 페이지와 `--switch-to`, 저장한 대상은 아직입니다.
+  ("팀 전용"이 아님). 다른 계정이 읽지 못해 보이면(POSIX 권한) 경고만 하고 권한을 바꾸지 않습니다. 시도마다 시작 기록과 receipt가 남고 `--list`로 봅니다.
+  channel 페이지는 최신 버전이 스스로 불러오는 스타일시트·이미지가 이 기기에서 열린 뒤에만 그 버전으로 옮기고, 아직 다 오지 않았으면 안내와 이전 버전
+  링크를 보입니다(동기화 폴더). `--switch-to ID`는 그 폴더에 있는 버전을 다시 대조한 뒤 최신 주소만 되돌립니다. 이 프로젝트의 build 기록이 없는 기기에서는
+  channel history의 해시로 대조합니다. 같은 폴더는 `--save-target NAME --to FOLDER`로 저장해 `--target NAME`으로 부를 수 있습니다. 저장한 대상은
+  `.analytics/publish-targets.json`에 있고, 이 파일을 무시하는 `.gitignore` 줄(kit 0.31.0의 새 프로젝트에 있음)이 없으면 저장하지 않습니다.
   받은 사본은 세 OS CI에서 원본 없는 경로·HTTP 하위 경로·ZIP 풀기로, Linux CI에서 Chromium으로 엽니다([D5](docs/CONTRACTS.md#d5-독자-환경과-브라우저-kit-0280-20-pr5)).
   다른 독자·OS 보관 도구·Safari·모바일의 수용은 별도 검증이며, 검사는 분석 결론이나 비밀 탐지 인증이 아닙니다.
 

@@ -510,7 +510,10 @@ def test_the_template_ignores_the_new_names_a_migration_adds():
     added = [new for _old, new in migration.GITIGNORE_RENAMED] + list(migration.GITIGNORE_ALWAYS)
     assert set(added) <= set(lines), set(added) - set(lines)
     rules = [line for line in lines if line and not line.startswith("#")]
-    assert set(rules) == {".venv/", "__pycache__/", "data/", *added}, rules
+    # Beside them, the saved publish targets' line: new projects only, the migration leaves a copy's
+    # .gitignore without it (PUBLISH-FOLDER 9.3), and such a project saves no target.
+    assert set(rules) == {".venv/", "__pycache__/", "data/", *added, ".analytics/publish-targets.json"}, rules
+    assert ".analytics/publish-targets.json" not in added
     assert not [line for line in rules if line.startswith((".lab", "report")) or "/charts/" in line]
 
 

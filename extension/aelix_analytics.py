@@ -1790,6 +1790,7 @@ HELP = """/analytics — Aelix Analytics project
   /analytics build [--preview]  build privately or inspect a sharing preview
   /analytics build --list | --verify PATH | --zip-of ID --zip PATH
   /analytics publish --build ID --to FOLDER | --list  publish a build to a folder
+  /analytics publish --switch-to ID --to FOLDER       point its channel back to a version there
   /analytics record KIND TEXT   journal entry as a human (finding, decision, question, ...);
                                 KIND workflow_feedback: something this analysis workflow lacked
                                 or made awkward

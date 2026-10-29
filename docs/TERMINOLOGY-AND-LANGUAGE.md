@@ -355,7 +355,7 @@ kit 0.21.0은 개별 버전 저장·조회·철회/복원·prepared 정리의 CL
 ### #21 채택한 공개 이름
 
 [ADR-0009](decisions/0009-first-publish-target.md)와 [폴더 게시 설계](design/PUBLISH-FOLDER.md)(2026-10-27 채택)의 이름이다. kit 0.29.0은 대상 폴더의 판정·형식·channel 규칙과
-포트 확장만 구현하고, `analytics publish` 명령·게시 기록은 후속 PR이다.
+포트 확장을, kit 0.30.0은 `analytics publish`와 게시 기록을, kit 0.31.0은 channel 페이지의 도착 확인·되돌리기·저장한 대상을 구현했다.
 
 | 이름 | 범위와 기존 개념과의 차이 |
 |---|---|
@@ -370,6 +370,10 @@ kit 0.21.0은 개별 버전 저장·조회·철회/복원·prepared 정리의 CL
 | `publish_attempt` | 게시 시도의 시작 기록 kind(kit 0.30.0). 대상을 바꾸기 전에 씀. receipt 없는 시도는 결과가 기록되지 않은 시도이며 성공이 아님 |
 | `analytics publish` | 고정 build를 지정한 폴더에 전달·확인하고 최신 주소를 바꾸는 명령. build(`analytics build`)와 별개이며 분석을 다시 실행하지 않음 |
 | `not_newer` / `superseded` | 게시는 끝났으나 최신 주소를 바꾸지 않은 결과: 더 새 build가 아님 / 시작한 뒤 다른 게시가 최신을 바꿈 |
+| 도착 확인(arrival check) | channel 페이지가 최신 버전의 entry가 직접 불러오는 스타일시트·이미지를 불러 본 뒤에만 그 버전으로 옮기는 일(kit 0.31.0). 파일이 있는지만 보며 내용 전체의 대조(#48)가 아님 |
+| 되돌리기 `--switch-to` | 대상에 이미 있는 버전을 그 자리에서 대조한 뒤 최신 주소만 그 버전으로 옮기는 일. receipt의 `action: switch`. 고정(pin)이 아니라 더 새 build의 게시가 다시 앞으로 옮김. `not_on_target`: 고를 버전이 그 대상에 없음 |
+| 저장한 대상(saved target) | `--save-target NAME --to FOLDER`로 프로젝트의 `.analytics/publish-targets.json`(`analytics.publish_targets/1`)에 적은 이름과 폴더. `--target NAME`으로 부름. git이 무시하는 줄이 없으면 저장하지 않음(`targets_not_ignored`). 오류 `target_unknown`·`saved_targets_invalid` |
+| `others_cannot_read` | 게시한 계정이 본 POSIX 권한으로는 다른 계정이 그 버전을 읽지 못해 보인다는 경고. 권한을 바꾸지 않으며 팀 범위의 판정이 아님 |
 
 명칭·영어 기본화는 새 공개 표면에서 한 번에 일관되게 제공한다. 구현 PR은 현재 코드·예제·오류 안내·실제 설치물을 함께 갱신한다.
 옛 도구를 기본 노출 목록에 남기거나 사용자를 두 가지 용어 체계로 안내하지 않는다.

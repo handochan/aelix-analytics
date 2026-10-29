@@ -4,13 +4,14 @@
 
 DIR is an empty scratch folder this tool fills with small projects and publish targets. It records:
 - a small project's publish times, five times over: first, the same build again (reuse), a newer
-  build, the older one again (not_newer);
+  build, the older one again (not_newer), and a switch back to the older one (`--switch-to`, PR-3);
 - the interruption at each of the eight step boundaries, for a first and a later publish: what the
   receipt says each pointer holds against what the files hold, and the rerun's result;
 - N pairs of processes publishing an older and a newer build to one target at the same moment, with
   the target's lock and with a lock the file system does not have (injected), and how each ended;
 - with --m-project (a current-format project with two completed builds, for instance the #20 PR5 M
-  copy), the time to publish the first, the second, and the first again, with files and bytes;
+  copy), the time to publish the first, the second, the first again, and to switch back to the
+  first, with files and bytes;
 - with --volume (a mounted folder, for instance an exFAT image), two publishes to a new folder there.
 It is a record of what was measured, not a gate; one run is not p50/p95.
 """
@@ -75,15 +76,16 @@ def page_of(share):
 
 
 def small(work):
-    rows = {"first": [], "again": [], "newer": [], "older": []}
+    rows = {"first": [], "again": [], "newer": [], "older": [], "switch": []}
     files = None
     for rep in range(5):
         p = core.init_project(work / f"small{rep}", title="Weekly sales", origin=ORIGIN)
         a = build.build_publication(p, origin=ORIGIN)["publication_id"]
         b = build.build_publication(p, origin=ORIGIN)["publication_id"]
         share = work / f"share{rep}"
-        for key, pid in (("first", a), ("again", a), ("newer", b), ("older", a)):
-            result, seconds = timed(lambda p=p, pid=pid, share=share: publish.publish(p, pid, share, origin=ORIGIN))
+        for key, pid in (("first", a), ("again", a), ("newer", b), ("older", a), ("switch", a)):
+            call = publish.switch if key == "switch" else publish.publish
+            result, seconds = timed(lambda p=p, pid=pid, share=share, call=call: call(p, pid, share, origin=ORIGIN))
             rows[key].append({"seconds": seconds, "outcome": result["outcome"], "transfer": result["steps"]["transfer"],
                               "switch": result["steps"]["switch"]})
         files = sum(1 for f in (share / "publications" / a).rglob("*") if f.is_file())
@@ -158,8 +160,9 @@ def m_scale(work, source):
     pubs = sorted(d.name for d in (m / ".analytics/publications").iterdir() if d.name.startswith("pub-"))
     share = work / "m-share"
     rows = []
-    for case, pid in (("first", pubs[0]), ("second", pubs[1]), ("first_again", pubs[0])):
-        result, seconds = timed(lambda pid=pid: publish.publish(project, pid, share, origin=ORIGIN))
+    for case, pid in (("first", pubs[0]), ("second", pubs[1]), ("first_again", pubs[0]), ("switch_to_first", pubs[0])):
+        call = publish.switch if case.startswith("switch") else publish.publish
+        result, seconds = timed(lambda pid=pid, call=call: call(project, pid, share, origin=ORIGIN))
         receipt = [json.loads(line) for line in project.journal.read_text(encoding="utf-8").splitlines() if line.strip()][-1]
         rows.append({"case": case, "seconds": seconds, "outcome": result["outcome"], "transfer": result["steps"]["transfer"],
                      "switch": result["steps"]["switch"], "receipt_bytes": len(json.dumps(receipt, ensure_ascii=False).encode())})

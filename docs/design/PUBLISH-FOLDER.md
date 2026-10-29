@@ -1,8 +1,10 @@
 # 폴더 게시 설계 — 고정 build의 전달·확인·최신 주소 전환
 
-- 상태: **설계 채택·단계별 구현 중.** PR-1(kit 0.29.0)은 포트 확장 셋(5절)·build 잠금 대기 상한·대상 판정·표식·channel 규칙(2·3·9.1절)을 구현했다.
-  PR-2(kit 0.30.0)는 게시 단계(4절)·기록(6절)·`analytics publish --build`/`--list`·누출 금지 값(6.4)과 정적 channel 페이지를 구현했다. channel 페이지의
-  도착 확인(7절)·`--switch-to`(8절)·저장한 대상(9.3)은 PR-3이다. 채택한 결정은 [ADR-0009](../decisions/0009-first-publish-target.md)(첫 대상: 사용자가 지정한 폴더)이고,
+- 상태: **설계 채택·구현됨.** PR-1(kit 0.29.0)은 포트 확장 셋(5절)·build 잠금 대기 상한·대상 판정·표식·channel 규칙(2·3·9.1절)을 구현했다.
+  PR-2(kit 0.30.0)는 게시 단계(4절)·기록(6절)·`analytics publish --build`/`--list`·누출 금지 값(6.4)과 정적 channel 페이지를 구현했다. PR-3(kit 0.31.0)은
+  channel 페이지의 도착 확인(7절)·`--switch-to`(8절)·접근 경고(9.2)·저장한 대상(9.3)·`--list`의 대상을 구현했다. 구현에서 정한 것: 도착 확인 자원은
+  대조를 마친 최신 버전의 entry에서 그릴 때 읽고, 15초 안에 답이 없는 자원은 도착하지 않은 것으로 본다. 되돌리기에서 고를 버전이 없으면 `not_on_target`,
+  저장한 대상의 오류는 `target_unknown`·`targets_not_ignored`·`saved_targets_invalid`다. 채택한 결정은 [ADR-0009](../decisions/0009-first-publish-target.md)(첫 대상: 사용자가 지정한 폴더)이고,
   이 문서는 그 결정이 "구현 PR이 정한다"로 남긴 것을 정하고 구현을 PR로 나눈다. 현재 공개 동작은 [현재 계약](../CONTRACTS.md)이 설명한다.
 - 작업: [#21](https://github.com/handochan/aelix-analytics/issues/21) `[B4-s/P1]`. 완료 조건 1(첫 대상·접근 범위·실패/재시도 계약의 기록)은 ADR-0009로 채웠다.
   선행인 [#20](https://github.com/handochan/aelix-analytics/issues/20)(P0 독립 build)은 2026-10-27에 끝났다(kit 0.28.0).
@@ -277,7 +279,8 @@ ADR-0009는 확정 연산과 잠금 대기 상한을 기존 `AtomicFiles`·`File
 - `--target <이름>`은 git이 무시하는 로컬 설정의 이름이다. `.analytics/publish-targets.json`(`analytics.publish_targets/1`, `{name: path}`).
 - 만들기는 `analytics publish --save-target <이름> --to <폴더>`다. 3절 판정만 하고 대상에 아무것도 만들지 않는다.
 - PR-3은 템플릿 `.gitignore`에 그 줄을 더한다. 전환(`migration.py`)은 바꾸지 않는다. 그 줄이 없는 프로젝트(이전 프로젝트, 전환한 프로젝트)에서는 저장하지 않고
-  줄을 더하라고 안내한다. 그래서 저장한 대상은 언제나 git이 무시하는 곳에 있다.
+  줄을 더하라고 안내한다. 그래서 저장한 대상은 프로젝트 `.gitignore`가 무시하는 곳에 있다. 검사는 그 파일에 줄이 있고 뒤에 `!`로 되돌리는 줄이
+  없는지만 본다. 이미 git이 추적하는 파일, 하위 폴더의 `.gitignore`, 전역 제외 설정은 보지 않는다.
 
 ## 10. 명령과 출력
 
@@ -291,7 +294,8 @@ analytics publish --list [--to <폴더> | --target <이름>]
 - 출력은 build처럼 JSON 요약(`ok`, `outcome`, `steps`, `addresses`, receipt의 id·seq)이다. 사람용 한 줄 요약을 stderr에 함께 낸다.
 - `--list`: 이 프로젝트의 시도(시작 기록·receipt 짝)와 결과, 대상을 주면 그 대상의 channel·history를 보인다. 대상을 바꾸지 않는다.
 - 오류 코드: `not_bound`, `build_changed`, `version_differs`, `target_refused`(이유), `target_unsupported`, `target_busy`, `no_exclusive_rename`, `channel_ambiguous`,
-  `channel_owned`, `receipt_not_recorded`. `not_newer`·`superseded`는 오류가 아니라 결과다.
+  `channel_owned`, `receipt_not_recorded`, PR-3의 `not_on_target`·`target_unknown`·`targets_not_ignored`·`saved_targets_invalid`. `not_newer`·`superseded`는
+  오류가 아니라 결과다.
 - `/analytics publish …`가 같은 CLI를 부른다. 상시 모델 도구는 없다(결정 2). 확장은 build처럼 하위 프로세스로 돌린다.
 
 ## 11. PR 나눔과 검증

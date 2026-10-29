@@ -15,6 +15,22 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
 
+## [0.31.0] - 2026-10-29
+
+### Added
+
+- #21 PR-3: `analytics publish --switch-to ID (--to FOLDER | --target NAME)`. 대상에 있는 버전을 그 자리에서 다시 대조한 뒤 최신 주소만 그 버전으로
+  되돌립니다. 이 프로젝트의 build 기록이 없는 기기에서는 channel history의 해시로 대조합니다. 현재 동작은 현재 계약 D7입니다.
+- 저장한 대상: `analytics publish --save-target NAME --to FOLDER`와 `--target NAME`. `.analytics/publish-targets.json`에 저장하며, 새 프로젝트의
+  `.gitignore`에 그 줄이 들어갑니다. 그 줄이 없는 프로젝트에서는 저장하지 않습니다.
+- `analytics publish --list --to FOLDER | --target NAME`이 그 대상의 channel과 history를 함께 보입니다.
+
+### Changed
+
+- channel 페이지는 최신 버전이 스스로 불러오는 스타일시트·이미지가 이 기기에서 열린 뒤에만 그 버전으로 옮깁니다. 아직 다 오지 않았으면 안내와
+  이전 버전 링크를 보입니다.
+- 다른 계정이 게시한 버전을 읽지 못해 보이면(POSIX 권한) 결과에 경고 `others_cannot_read`를 더합니다. receipt는 group 권한도 관찰합니다.
+
 ## [0.30.0] - 2026-10-27
 
 ### Added
