@@ -53,7 +53,9 @@ build-backend = "hatchling.build"
 
 # A package index shows the description, README, where a link relative to the checkout leads nowhere
 # (Issue #24). The build points each one at that document in this version's tag on GitHub; the
-# plugin puts in the version after the substitutions. Nothing else in README changes.
+# plugin puts in the version after the substitutions. Nothing else in README changes. The forms are
+# inline links (titled or not) and reference definitions, an anchor first; an HTML link is not
+# rewritten, and the packaging test fails on a relative one (tools/release_check.py's LINKS).
 [tool.hatch.metadata.hooks.fancy-pypi-readme]
 content-type = "text/markdown"
 
@@ -61,12 +63,20 @@ content-type = "text/markdown"
 path = "README.md"
 
 [[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
-pattern = '\]\(#([^)\s]+)\)'
-replacement = '](https://github.com/handochan/aelix-analytics/blob/v$HFPR_VERSION/README.md#\1)'
+pattern = '\]\((\s*<?)#'
+replacement = '](\1https://github.com/handochan/aelix-analytics/blob/v$HFPR_VERSION/README.md#'
 
 [[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
-pattern = '\]\((?!https?://)([^)\s]+)\)'
-replacement = '](https://github.com/handochan/aelix-analytics/blob/v$HFPR_VERSION/\1)'
+pattern = '\]\((\s*<?)(?![a-zA-Z][a-zA-Z0-9+.-]*:)(?=[^)\s>])'
+replacement = '](\1https://github.com/handochan/aelix-analytics/blob/v$HFPR_VERSION/'
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '(?m)^( {0,3}\[[^\]]+\]:\s*<?)#'
+replacement = '\1https://github.com/handochan/aelix-analytics/blob/v$HFPR_VERSION/README.md#'
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '(?m)^( {0,3}\[[^\]]+\]:\s*<?)(?![a-zA-Z][a-zA-Z0-9+.-]*:)(?=[^\s>])'
+replacement = '\1https://github.com/handochan/aelix-analytics/blob/v$HFPR_VERSION/'
 
 [tool.hatch.build.targets.wheel]
 only-include = ["src/aelix_analytics"]

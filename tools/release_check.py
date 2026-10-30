@@ -77,8 +77,21 @@ def check_version(tag: str | None, pack: Path = PACK) -> dict:
     return {"ok": not problems, "version": version, "tag": tag, "seen": seen, "problems": problems}
 
 
+# Where a Markdown text links: inline links and images (with or without a title or angle brackets),
+# reference definitions and HTML attributes. GitHub and PyPI follow all of them (Codex review of the
+# 0.32.0 candidate: a titled link got past the first form of this check).
+LINKS = (re.compile(r"\]\(\s*<?([^)\s>]+)"), re.compile(r"^ {0,3}\[[^\]]+\]:\s*<?([^\s>]+)", re.M),
+         re.compile(r"""\b(?:href|src)\s*=\s*["']([^"']+)""", re.I))
+FULL_URL = re.compile(r"[a-z][a-z0-9+.-]*:", re.I)
+
+
+def link_targets(text: str) -> list[str]:
+    return [target for form in LINKS for target in form.findall(text)]
+
+
 def relative_links(text: str) -> list[str]:
-    return [t for t in re.findall(r"\]\(([^)\s]+)\)", text) if not re.match(r"https?://", t)]
+    """The targets that lead somewhere only beside the checkout's files."""
+    return [target for target in link_targets(text) if not FULL_URL.match(target)]
 
 
 def notes(version: str, pack: Path = PACK) -> str | None:

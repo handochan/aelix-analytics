@@ -23,7 +23,8 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 ### Changed
 
 - #24: README는 이 버전의 PyPI 페이지에 남으므로 게시한 뒤에도 맞는 문장으로 바꿨습니다. 설치는 PyPI의 이름 또는 체크아웃에서 만든 wheel이고,
-  인사이트 화면·Reports 탭처럼 설계만 있는 것은 이 버전에 없다고 적습니다.
+  Evaluation 탭을 인사이트로 바꾸는 것처럼 설계만 있는 것은 이 버전에 없다고 적습니다. kit 0.25.0부터 있는 Reports 탭을 설계 단계로 적던
+  문장도 고쳤습니다.
 - #24: wheel의 설명(PyPI 페이지)에서 README의 상대 링크가 그 버전 tag의 GitHub 주소가 됩니다. 빌드가 바꾸며(hatch-fancy-pypi-readme 25.1.0),
   체크아웃의 README는 그대로입니다.
 
