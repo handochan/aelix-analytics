@@ -28,7 +28,7 @@ Aelix Analytics를 어떤 Python·운영체제·aelix·설치 경로에서 **실
 | 이름 | 무엇 | 검사한 코드 |
 |---|---|---|
 | CI-main | main push의 저장소 CI, [실행 37582037485](https://github.com/handochan/aelix-analytics/actions/runs/37582037485)(시도 1, 2026-10-07). `lint`와 `ubuntu-24.04`·`windows-2025`의 `platform`·`floor` 작업이 모두 성공했다 | `6c4c2cd`(#71의 병합). 그 뒤 main의 `384a168`(#73)은 문서만 바꿨고, #24의 B5 준비는 wheel의 메타데이터(`Author`·`Maintainer`, README에서 오는 설명)와 그 시험을 바꿨다. 둘 다 `src/`·`extension/`·`bin/`의 코드는 바꾸지 않았다 |
-| CI-PR1 | [#24](https://github.com/handochan/aelix-analytics/issues/24) PR-1의 CI(실행 번호는 CI가 끝난 뒤 적는다) | (PR-1의 head) |
+| CI-PR1 | [#24](https://github.com/handochan/aelix-analytics/issues/24) PR-1([#140](https://github.com/handochan/aelix-analytics/pull/140))의 CI, [실행 40990527927](https://github.com/handochan/aelix-analytics/actions/runs/40990527927)(시도 1, 2026-10-30). 필수 검사 일곱 개가 성공했다. 저장소 시험(설치 레그 포함): Linux 3,113 통과·112 건너뜀, Windows 2,916 통과·340 건너뜀, macOS 3,114 통과·111 건너뜀 | `cc8aa7b`(PR #140의 head, kit 0.31.0) |
 | R-42 | [줄 끝 측정 기록](verification/2026-10-06-issue-42-line-endings.md): Linux·Windows CI, `macos-26`의 라벨 실행([37411847760](https://github.com/handochan/aelix-analytics/actions/runs/37411847760)), macOS 개발 기기 | `d23ddb8`(PR #62의 head, kit 0.4.0) |
 | R-8w | [Windows 인벤토리 기록](verification/2026-10-02-issue-8-windows-inventory.md): 같은 세 플랫폼과 macOS 개발 기기의 3.13·3.14 | `4eb0955`(PR #35, kit 0.1.0) |
 
