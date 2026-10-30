@@ -354,12 +354,12 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 
 릴리스는 측정한 파일을 그대로 게시합니다. 게시한 뒤에는 다시 빌드하지 않습니다(2026-10-30 소유자 결정, #24).
 
-1. **후보를 고정합니다.** 번호를 올리는 PR을 main에 병합합니다. pyproject·`KIT_VERSION`·manifest·README의 wheel 이름이 한 번호이고, CHANGELOG에 날짜가 있는 그 번호의 절이 있어야 합니다(`tools/release_check.py version`). 그 commit의 wheel·sdist와 sha256이 후보입니다. 빌드는 재현됩니다: 같은 commit에서 다시 빌드하면 같은 바이트가 나옵니다.
+1. **후보를 고정합니다.** 번호를 올리는 PR을 main에 병합합니다. pyproject·`KIT_VERSION`·manifest·README의 wheel 이름이 한 번호이고, CHANGELOG에 날짜가 있는 그 번호의 절이 있어야 합니다(`tools/release_check.py version`). 그 commit의 wheel·sdist와 sha256이 후보입니다. 빌드는 재현됩니다: 같은 commit을 Linux·macOS에서 다시 빌드하면 같은 바이트가 나오고, Windows에서 빌드한 wheel은 zip 헤더의 '만든 시스템' 칸만 달라 멤버와 그 바이트가 같습니다. 게시하는 파일은 Linux에서 만듭니다.
 2. **후보로 측정합니다.** 출시 리허설(B6)의 결과표와 [지원 범위](docs/SUPPORT.md)를 후보의 sha256으로 채웁니다. 결과표·지원표·측정 기록은 배포본에 들어가지 않으므로 후보를 바꾸지 않습니다. 후보 뒤에 kit이나 README(wheel의 설명)가 바뀌면 번호를 다시 올리고, 영향을 받는 게이트를 다시 잽니다.
 3. **소유자가 출시를 승인하면** 그 commit에 `v<번호>` tag를 붙여 push합니다.
 4. **`.github/workflows/release.yml`이 돕니다.**
    1. `build`: 버전 확인(tag가 `v`와 그 번호인지), wheel·sdist를 한 번 빌드, `SHA256SUMS`(`tools/release_check.py sums`).
-   2. `verify`: Linux·Windows·macOS에서 그 파일을 설치·업그레이드·제거합니다(`tests/test_packaging.py`, `AELIX_ANALYTICS_TEST_INSTALL=1`, `AELIX_ANALYTICS_TEST_DIST`). 그 commit을 다시 빌드한 바이트가 같은지도 봅니다.
+   2. `verify`: Linux·Windows·macOS에서 그 파일을 설치·업그레이드·제거합니다(`tests/test_packaging.py`, `AELIX_ANALYTICS_TEST_INSTALL=1`, `AELIX_ANALYTICS_TEST_DIST`). 그 commit을 다시 빌드한 것이 같은 멤버와 바이트인지도 봅니다(macOS에서는 파일 바이트까지).
    3. `pypi`: 환경 `pypi`의 배포를 소유자가 승인하면 PyPI Trusted Publishing으로 올립니다. 저장한 토큰은 없습니다.
    4. `github-release`: 같은 파일을 `SHA256SUMS`로 대조한 뒤, 그 파일과 `SHA256SUMS`를 GitHub Release에 붙입니다. 노트는 CHANGELOG의 그 번호 절입니다.
 5. **게시 뒤에** README·SECURITY·지원 범위·CHANGELOG의 "아직 게시하지 않았다" 문장을 고치는 PR을 올립니다.

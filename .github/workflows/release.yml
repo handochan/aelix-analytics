@@ -94,7 +94,8 @@ jobs:
         timeout-minutes: 5
         run: uv sync --locked --python 3.12
       # The tests install these files, not a build of their own, and one test checks a build of this
-      # checkout makes the same bytes.
+      # checkout makes the same members with the same bytes (the same file bytes on macOS; a Windows
+      # build differs in the zip headers' system field only).
       - name: Install, upgrade and remove the release files
         timeout-minutes: 45
         env:

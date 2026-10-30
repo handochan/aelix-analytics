@@ -261,16 +261,37 @@ def test_the_readme_names_the_wheel_this_version_builds():
     assert set(versions) == {pyproject()["project"]["version"]}, versions
 
 
+def archive_content(path: Path) -> list[list[str]]:
+    """A wheel's or sdist's members in their order, each with the sha256 of its bytes: what the build
+    made, without the archive's own headers. Python's zipfile writes into each entry's header the
+    system that made it (0 on Windows, 3 elsewhere), so a wheel built on Windows is other bytes than
+    the same build on Linux or macOS while every member is the same."""
+    if path.suffix == ".whl":
+        with zipfile.ZipFile(path) as archive:
+            return [[i.filename, hashlib.sha256(archive.read(i)).hexdigest()] for i in archive.infolist()]
+    with tarfile.open(path) as archive:
+        return [[m.name, hashlib.sha256(archive.extractfile(m).read()).hexdigest()]
+                for m in archive.getmembers() if m.isfile()]
+
+
+def content_digest(path: Path) -> str:
+    return hashlib.sha256(json.dumps(archive_content(path)).encode("utf-8")).hexdigest()
+
+
 @pytest.mark.skipif(not GIVEN, reason="AELIX_ANALYTICS_TEST_DIST is not set: the tests build the files")
 def test_the_given_files_are_this_checkout_s_build(dist, tmp_path):
-    """The release publishes the files its build job made (the release workflow); a build of this
-    checkout makes the same bytes, so what the tests installed is the tagged commit's distribution."""
+    """The release publishes the files its build job made on Linux (the release workflow); a build of
+    this checkout makes the same members in the same order with the same bytes, so what the tests
+    installed is the tagged commit's distribution. On Linux and macOS the files are the same bytes;
+    a Windows build differs only in the zip headers' system field (archive_content)."""
     out = tmp_path / "again"
     ok([UV, "build", "--quiet", "-o", out, PACK], timeout=600)
     for kind, pattern in (("wheel", "*.whl"), ("sdist", "*.tar.gz")):
         [again] = out.glob(pattern)
         assert again.name == dist[kind].name
-        assert again.read_bytes() == dist[kind].read_bytes(), kind
+        assert archive_content(again) == archive_content(dist[kind]), kind
+        if POSIX:
+            assert again.read_bytes() == dist[kind].read_bytes(), kind
 
 
 def test_the_sdist_builds_the_same_wheel(dist, tmp_path):
@@ -799,12 +820,14 @@ def test_pip_installs_and_uninstalls_the_wheel_without_leftovers(dist, tmp_path)
 # --- what a release offers: an index, aelix's extension commands, upgrades, removal (Issue #24) -----
 
 # The wheel of kit 0.25.0 that Q17 measured and the owner installed (docs/verification/
-# 2026-10-22-issue-23-q17.md): its commit builds it byte for byte, so the upgrades below start from a
-# distribution a person had, not one made for the test. The platform job checks out the whole
-# history, which holds the commit.
+# 2026-10-22-issue-23-q17.md): its commit builds it byte for byte on Linux and macOS, and on Windows
+# with the same members and bytes (archive_content), so the upgrades below start from a distribution
+# a person had, not one made for the test. The platform job checks out the whole history, which holds
+# the commit.
 PREVIOUS_COMMIT = "b4e5b4ed93e2bcd15db61c3464442269f43d2bb0"
 PREVIOUS_VERSION = "0.25.0"
 PREVIOUS_WHEEL_SHA256 = "660beb63c24d1882c065579b933cf9eeb162d43d49234d7b0360c411eb36ab28"
+PREVIOUS_CONTENT_SHA256 = "0938bfc002247eef7692a5d90f1ab6916760009859cb19fafcac0da8a58918a5"
 LISTED = re.compile(r"aelix-analytics \[aelix-analytics ([^\]\s]+)\]")
 
 
@@ -821,7 +844,9 @@ def previous(tmp_path_factory) -> Path:
     ok([UV, "build", "--quiet", "-o", root / "dist", root / "src"], timeout=600)
     [wheel] = (root / "dist").glob("*.whl")
     assert wheel.name == f"aelix_analytics-{PREVIOUS_VERSION}-py3-none-any.whl"
-    assert hashlib.sha256(wheel.read_bytes()).hexdigest() == PREVIOUS_WHEEL_SHA256
+    assert content_digest(wheel) == PREVIOUS_CONTENT_SHA256
+    if POSIX:
+        assert hashlib.sha256(wheel.read_bytes()).hexdigest() == PREVIOUS_WHEEL_SHA256
     return wheel
 
 

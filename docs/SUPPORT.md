@@ -98,7 +98,7 @@ CI-main에서 확인한 것(이 실행의 artifact는 2027-01-05에 지워지므
 | 이름으로 `uv tool install aelix-analytics`·`uv tool upgrade aelix-analytics`·`uv tool uninstall aelix-analytics`(같은 색인) | `verified`(CI-PR1) | `verified`(CI-PR1) | `verified`(CI-PR1) | `test_the_command_installs_upgrades_and_uninstalls_from_an_index` |
 | 이름으로 `uv tool install aelix==0.1.0b2 --with aelix-analytics --with-executables-from aelix-analytics`·`uv tool upgrade aelix`·`uv tool uninstall aelix`(같은 색인을 먼저 묻는 색인으로) | `verified`(CI-PR1) | `verified`(CI-PR1) | `verified`(CI-PR1) | `test_aelix_takes_the_extension_and_its_command_from_an_index` |
 | `--with-executables-from aelix-analytics`를 wheel 경로로 | `expected`: 위의 이름 설치와 같은 uv 경로이고 wheel 경로로는 실행하지 않았다 | `expected` | `expected` | |
-| 이전 버전 위의 업그레이드: kit 0.25.0 wheel(`660beb63…`, Q17에서 쓴 것. 그 commit을 다시 빌드한 같은 바이트) → 이 버전. 같은 `uv tool install` 줄을 새 wheel로, 위의 색인과 aelix 경로. 이전 버전이 만든 프로젝트를 이어 씀 | `verified`(CI-PR1) | `verified`(CI-PR1) | `verified`(CI-PR1) | `test_a_newer_wheel_file_replaces_the_earlier_one`, 위의 네 시험 |
+| 이전 버전 위의 업그레이드: kit 0.25.0 wheel(`660beb63…`, Q17에서 쓴 것. 그 commit을 다시 빌드하면 Linux·macOS에서는 같은 바이트, Windows에서는 zip 헤더만 다르고 멤버와 내용이 같다) → 이 버전. 같은 `uv tool install` 줄을 새 wheel로, 위의 색인과 aelix 경로. 이전 버전이 만든 프로젝트를 이어 씀 | `verified`(CI-PR1) | `verified`(CI-PR1) | `verified`(CI-PR1) | `test_a_newer_wheel_file_replaces_the_earlier_one`, 위의 네 시험 |
 | 실제 PyPI에서 이름으로 설치 | `not run`(게시 전) | `not run` | `not run` | |
 
 macOS 열의 `verified`는 `d23ddb8`의 결과다. 그 뒤 main의 코드는 macOS에서 실행하지 않았다(Linux·Windows만 PR마다 돌고 macOS는
