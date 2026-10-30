@@ -16,7 +16,7 @@ Aelix Analytics를 어떤 Python·운영체제·aelix·설치 경로에서 **실
 
 | 표시 | 뜻 |
 |---|---|
-| `verified` | 인용한 증거에서 그 조합으로 설치·실행한 시험이 통과했다. 증거는 main의 CI 실행(실행 번호) 또는 [측정 기록](verification/)이고, 그 증거가 검사한 commit을 함께 적는다 |
+| `verified` | 인용한 증거에서 그 조합으로 설치·실행한 시험이 통과했다. 증거는 main의 CI 실행, PR head의 CI 실행(실행 번호) 또는 [측정 기록](verification/)이고, 그 증거가 검사한 commit을 함께 적는다 |
 | `expected` | 지원 목표 안이고 가까운 조합의 증거가 있지만, 그 조합으로는 실행하지 않았다. 통과로 세지 않는다 |
 | `not run` | 실행한 기록이 없다 |
 | 지원하지 않음 | 선언한 범위 밖이다 |
@@ -101,8 +101,8 @@ CI-main에서 확인한 것(이 실행의 artifact는 2027-01-05에 지워지므
 | 이전 버전 위의 업그레이드: kit 0.25.0 wheel(`660beb63…`, Q17에서 쓴 것. 그 commit을 다시 빌드하면 Linux·macOS에서는 같은 바이트, Windows에서는 zip 헤더만 다르고 멤버와 내용이 같다) → 이 버전. 같은 `uv tool install` 줄을 새 wheel로, 위의 색인과 aelix 경로. 이전 버전이 만든 프로젝트를 이어 씀 | `verified`(CI-PR1) | `verified`(CI-PR1) | `verified`(CI-PR1) | `test_a_newer_wheel_file_replaces_the_earlier_one`, 위의 네 시험 |
 | 실제 PyPI에서 이름으로 설치 | `not run`(게시 전) | `not run` | `not run` | |
 
-macOS 열의 `verified`는 `d23ddb8`의 결과다. 그 뒤 main의 코드는 macOS에서 실행하지 않았다(Linux·Windows만 PR마다 돌고 macOS는
-라벨·수동·주간 실행에서 돈다, [기여 가이드](../CONTRIBUTING.md#저장소-ci)).
+macOS 열에 `d23ddb8`로 적은 `verified`는 그 commit의 결과다. 그때는 macOS를 라벨·수동·주간 실행에서만 돌렸고, 2026-10-21(#22)부터는
+세 OS가 모든 PR과 main push에서 돈다([기여 가이드](../CONTRIBUTING.md#저장소-ci)). CI-PR1로 적은 칸은 그 실행의 결과다.
 
 ## 모델
 

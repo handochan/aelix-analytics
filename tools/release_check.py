@@ -2,12 +2,16 @@
 
     python tools/release_check.py version [--tag vX.Y.Z]     the numbers a release has to agree on
     python tools/release_check.py notes VERSION --output FILE    the changelog's section of that version
-    python tools/release_check.py sums DIR --output FILE      SHA256SUMS of the wheel and sdist in DIR
+    python tools/release_check.py sums DIR --output FILE [--expect FILE]   SHA256SUMS of the files in DIR
+    python tools/release_check.py pypi VERSION --sums FILE [--wait SECONDS]   PyPI holds those files
 
 `version` reads pyproject.toml, KIT_VERSION, the aelix manifest, README's wheel names and the changelog,
 and reports whether they name one version (and, with --tag, that the tag is `v` and that version). A
-release publishes the files the workflow built once and verified (CONTRIBUTING.md's release steps),
-so `sums` writes the hashes of those files and refuses a directory that holds anything else.
+release publishes the candidate the release rehearsal measured (CONTRIBUTING.md's release steps):
+`sums` writes the hashes of the wheel and sdist, refuses a directory that holds anything else, and
+with --expect (docs/releases/<version>.sha256, the candidate's SHA256SUMS) refuses other bytes. `pypi`
+reads PyPI's JSON API for the version until it lists exactly those files with those hashes, or the
+wait runs out.
 
 Prints one JSON object. Exit status: 0 everything agrees, 1 something does not (the object says what),
 2 a usage error. Stdlib only.
@@ -93,6 +97,41 @@ def sums(directory: Path, version: str) -> tuple[str | None, list[str]]:
     return "\n".join(lines) + "\n", []
 
 
+def pypi_files(version: str, url: str) -> dict[str, str]:
+    """What the index lists for the version: file name -> sha256."""
+    import urllib.request
+
+    with urllib.request.urlopen(url.format(version=version), timeout=60) as answer:
+        listed = json.load(answer)
+    return {f["filename"]: f["digests"]["sha256"] for f in listed.get("urls", [])}
+
+
+def check_pypi(version: str, sums_text: str, url: str, wait: float, every: float = 15.0) -> dict:
+    """Poll the index until it lists exactly the files of `sums_text`, by hash; PyPI's JSON API can
+    lag an upload by a minute or so."""
+    import time
+    import urllib.error
+
+    expected = {name: sha for sha, name in (line.split("  ", 1) for line in sums_text.splitlines())}
+    deadline = time.monotonic() + wait
+    while True:
+        try:
+            seen, error = pypi_files(version, url), None
+        except (OSError, ValueError, KeyError, urllib.error.URLError) as exc:
+            seen, error = {}, repr(exc)
+        if seen == expected or time.monotonic() >= deadline:
+            break
+        time.sleep(every)
+    problems = [] if seen == expected else [f"the index lists {seen or 'nothing'}, the release is {expected}"]
+    if error and problems:
+        problems.append(f"last read failed: {error}")
+    return {"ok": not problems, "version": version, "url": url.format(version=version), "files": seen,
+            "problems": problems}
+
+
+PYPI_JSON = "https://pypi.org/pypi/aelix-analytics/{version}/json"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check a release's version, notes and files.")
     sub = parser.add_subparsers(dest="what", required=True)
@@ -104,6 +143,12 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("sums", help="SHA256SUMS of the release files")
     s.add_argument("directory", type=Path)
     s.add_argument("--output", required=True, type=Path)
+    s.add_argument("--expect", type=Path, help="the candidate's SHA256SUMS: refuse other bytes")
+    q = sub.add_parser("pypi", help="the index lists exactly the release's files")
+    q.add_argument("version")
+    q.add_argument("--sums", required=True, type=Path)
+    q.add_argument("--wait", type=float, default=0.0, help="seconds to keep asking (default: once)")
+    q.add_argument("--url", default=PYPI_JSON, help="the JSON API's URL, {version} filled in")
     args = parser.parse_args(argv)
     if args.what == "version":
         result = check_version(args.tag)
@@ -114,11 +159,20 @@ def main(argv: list[str] | None = None) -> int:
             result["problems"] = [f"CHANGELOG.md has no section [{args.version}]"]
         else:
             args.output.write_text(body, encoding="utf-8", newline="\n")
+    elif args.what == "pypi":
+        result = check_pypi(args.version, args.sums.read_text(encoding="utf-8"), args.url, args.wait)
     else:
         version = versions()["pyproject"]
         text, problems = sums(args.directory, version)
+        if text is not None and args.expect is not None:
+            recorded = args.expect.read_text(encoding="utf-8") if args.expect.is_file() else None
+            if recorded is None:
+                problems = [f"no candidate recorded: {args.expect} does not exist"]
+            elif recorded != text:
+                problems = [f"not the candidate {args.expect} records: built {text.split()}, recorded "
+                            f"{recorded.split()}"]
         result = {"ok": not problems, "version": version, "output": str(args.output), "problems": problems}
-        if text is not None:
+        if text is not None and not problems:
             args.output.write_text(text, encoding="utf-8", newline="\n")
             result["files"] = [line.split("  ", 1)[1] for line in text.splitlines()]
     print(json.dumps(result, ensure_ascii=False))

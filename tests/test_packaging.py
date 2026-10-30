@@ -834,7 +834,9 @@ LISTED = re.compile(r"aelix-analytics \[aelix-analytics ([^\]\s]+)\]")
 @pytest.fixture(scope="session")
 def previous(tmp_path_factory) -> Path:
     if run(["git", "-C", PACK, "cat-file", "-e", f"{PREVIOUS_COMMIT}^{{commit}}"]).returncode != 0:
-        pytest.skip(f"the checkout does not hold {PREVIOUS_COMMIT[:12]}: a shallow clone")
+        # The install leg runs the routes SUPPORT.md cites: it fails, not skips, without the commit.
+        message = f"the checkout does not hold {PREVIOUS_COMMIT[:12]}: a shallow clone (fetch-depth: 0)"
+        pytest.fail(message) if E2E else pytest.skip(message)
     root = tmp_path_factory.mktemp("previous")
     archive = subprocess.run(["git", "-C", str(PACK), "-c", "core.autocrlf=false", "archive",
                               "--format=tar", PREVIOUS_COMMIT], capture_output=True, timeout=300,
@@ -927,18 +929,43 @@ def purelib(python: Path, env: dict) -> Path:
 
 
 def installed_files(site: Path) -> dict:
-    """What of this distribution is in an environment: the package's files (bytecode left out) and
-    the names of its dist-info directories."""
+    """What of this distribution is in an environment: the package's files by their sha256 (bytecode
+    left out) and the names of its dist-info directories. Equal to wheel_files of a wheel, the
+    environment holds that wheel's files and no other: none of an earlier version left beside them or
+    under their names. (Kit 0.25.0's wheel has no file this version's lacks, so against it what an
+    upgrade could leave shows in the dist-info and in the files' bytes.)"""
     package = site / "aelix_analytics"
-    return {"files": sorted(p.relative_to(site).as_posix() for p in package.rglob("*")
-                            if p.is_file() and "__pycache__" not in p.parts) if package.exists() else [],
-            "dist_info": sorted(p.name for p in site.glob("aelix_analytics-*.dist-info"))}
+    files = {p.relative_to(site).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+             for p in package.rglob("*") if p.is_file() and "__pycache__" not in p.parts} if package.exists() else {}
+    return {"files": files, "dist_info": sorted(p.name for p in site.glob("aelix_analytics-*.dist-info"))}
 
 
 def wheel_files(wheel: Path, version: str) -> dict:
     with zipfile.ZipFile(wheel) as archive:
-        files = sorted(n for n in archive.namelist() if n.startswith("aelix_analytics/"))
+        files = {n: hashlib.sha256(archive.read(n)).hexdigest() for n in archive.namelist()
+                 if n.startswith("aelix_analytics/")}
     return {"files": files, "dist_info": [f"aelix_analytics-{version}.dist-info"]}
+
+
+# What an upgraded kit may write in a project it carries on: the journal (appended to, checked
+# apart), the regenerable Workspace, the derived state under .analytics/, the analysis environment.
+REWRITTEN = ("workspace/", ".analytics/", ".venv/")
+
+
+def project_files(project: Path) -> dict[str, str]:
+    """Every file of a project but the ones the kit rewrites (REWRITTEN), by its sha256."""
+    return {rel: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(project.rglob("*"))
+            if p.is_file() and not (rel := p.relative_to(project).as_posix()).startswith(REWRITTEN)}
+
+
+def assert_carried_on(project: Path, before: dict[str, str], journal: bytes) -> None:
+    """The earlier kit's project is all there, byte for byte: every file it had (the journal only
+    grown), and nothing of it rewritten."""
+    after = project_files(project)
+    changed = sorted(rel for rel, sha in before.items() if rel != "journal.jsonl" and after.get(rel) != sha)
+    assert not changed, changed
+    grown = (project / "journal.jsonl").read_bytes()
+    assert grown.startswith(journal) and len(grown.splitlines()) > len(journal.splitlines())
 
 
 def listed_versions(text: str) -> list[str]:
@@ -970,7 +997,7 @@ def test_the_command_installs_upgrades_and_uninstalls_from_an_index(dist, previo
         analytics = tool_bin(tools, "analytics")
         ok([analytics, "init", "proj", "--title", "이전 버전의 프로젝트"], cwd=work, env=env)
         ok([analytics, "record", "finding", "이전 kit이 쓴 발견"], cwd=project, env=env)
-        before = (project / "journal.jsonl").read_bytes()
+        before, journal = project_files(project), (project / "journal.jsonl").read_bytes()
         index.add(dist["wheel"])
         ok([UV, "tool", "upgrade", "aelix-analytics"], cwd=tmp_path, env=indexed)
     assert installed_files(purelib(python, env)) == wheel_files(dist["wheel"], core.KIT_VERSION)
@@ -979,8 +1006,7 @@ def test_the_command_installs_upgrades_and_uninstalls_from_an_index(dist, previo
     done = ok([analytics, "run", "scripts/after.py", "--title", "업그레이드 뒤"], cwd=project, env=env)
     record = json.loads(done.stdout.splitlines()[-1])["run"]
     assert record["status"] == "ok" and record["env"]["kit_version"] == core.KIT_VERSION, record
-    after = (project / "journal.jsonl").read_bytes()
-    assert after.startswith(before) and len(after.splitlines()) > len(before.splitlines())
+    assert_carried_on(project, before, journal)
     ok([UV, "tool", "uninstall", "aelix-analytics"], cwd=tmp_path, env=env)
     assert not (Path(tools["UV_TOOL_DIR"]) / "aelix-analytics").exists()
     assert shutil.which("analytics", path=tools["UV_TOOL_BIN_DIR"]) is None
@@ -1088,10 +1114,9 @@ def test_aelix_s_extension_commands_upgrade_a_wheel_and_remove_it(dist, previous
                          env=env, timeout=1800).stdout.splitlines()[-1])
     assert not [name for name, answer in made.items() if answer["error"]], made
     project = work / "proj"
-    before = (project / "journal.jsonl").read_bytes()
+    before, journal = project_files(project), (project / "journal.jsonl").read_bytes()
     [first_run] = [p for p in (project / "runs").iterdir() if (p / "run.json").is_file()]
-    first_record = (first_run / "run.json").read_bytes()
-    assert json.loads(first_record)["env"]["kit_version"] == PREVIOUS_VERSION
+    assert json.loads((first_run / "run.json").read_bytes())["env"]["kit_version"] == PREVIOUS_VERSION
 
     extension("install", dist["wheel"], "--yes")
     verify = extension("verify", "aelix-analytics")
@@ -1103,9 +1128,7 @@ def test_aelix_s_extension_commands_upgrade_a_wheel_and_remove_it(dist, previous
                             timeout=1800).stdout.splitlines()[-1])
     assert not [name for name, answer in carried.items() if answer["error"]], carried
     assert carried["analytics_run"]["text"].startswith("analytics_run: ok"), carried
-    after = (project / "journal.jsonl").read_bytes()
-    assert after.startswith(before) and len(after.splitlines()) > len(before.splitlines())
-    assert (first_run / "run.json").read_bytes() == first_record
+    assert_carried_on(project, before, journal)
     kits = sorted(json.loads((p / "run.json").read_text(encoding="utf-8"))["env"]["kit_version"]
                   for p in (project / "runs").iterdir() if (p / "run.json").is_file())
     assert kits == sorted([PREVIOUS_VERSION, core.KIT_VERSION]), kits
@@ -1116,7 +1139,7 @@ def test_aelix_s_extension_commands_upgrade_a_wheel_and_remove_it(dist, previous
     assert listed_versions(extension("list")) == [core.KIT_VERSION]
     extension("remove", "aelix-analytics", "--yes")
     assert listed_versions(extension("list")) == []
-    assert installed_files(site) == {"files": [], "dist_info": []}
+    assert installed_files(site) == {"files": {}, "dist_info": []}
 
 
 @e2e
@@ -1144,4 +1167,4 @@ def test_aelix_installs_updates_and_removes_the_extension_by_name(dist, previous
     assert installed_files(site) == wheel_files(dist["wheel"], core.KIT_VERSION)
     extension("remove", "aelix-analytics", "--yes")
     assert listed_versions(extension("list")) == []
-    assert installed_files(site) == {"files": [], "dist_info": []}
+    assert installed_files(site) == {"files": {}, "dist_info": []}

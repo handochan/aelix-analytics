@@ -352,20 +352,22 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 
 ### 릴리스 절차
 
-릴리스는 측정한 파일을 그대로 게시합니다. 게시한 뒤에는 다시 빌드하지 않습니다(2026-10-30 소유자 결정, #24).
+릴리스는 측정한 파일을 그대로 게시합니다. 측정한 뒤에는 다시 빌드한 파일이 그 바이트인지 대조할 뿐, 다른 파일을 올리지 않습니다(2026-10-30 소유자 결정, #24).
 
-1. **후보를 고정합니다.** 번호를 올리는 PR을 main에 병합합니다. pyproject·`KIT_VERSION`·manifest·README의 wheel 이름이 한 번호이고, CHANGELOG에 날짜가 있는 그 번호의 절이 있어야 합니다(`tools/release_check.py version`). 그 commit의 wheel·sdist와 sha256이 후보입니다. 빌드는 재현됩니다: 같은 commit을 Linux·macOS에서 다시 빌드하면 같은 바이트가 나오고, Windows에서 빌드한 wheel은 zip 헤더의 '만든 시스템' 칸만 달라 멤버와 그 바이트가 같습니다. 게시하는 파일은 Linux에서 만듭니다.
-2. **후보로 측정합니다.** 출시 리허설(B6)의 결과표와 [지원 범위](docs/SUPPORT.md)를 후보의 sha256으로 채웁니다. 결과표·지원표·측정 기록은 배포본에 들어가지 않으므로 후보를 바꾸지 않습니다. 후보 뒤에 kit이나 README(wheel의 설명)가 바뀌면 번호를 다시 올리고, 영향을 받는 게이트를 다시 잽니다.
-3. **소유자가 출시를 승인하면** 그 commit에 `v<번호>` tag를 붙여 push합니다.
-4. **`.github/workflows/release.yml`이 돕니다.**
-   1. `build`: 버전 확인(tag가 `v`와 그 번호인지), wheel·sdist를 한 번 빌드, `SHA256SUMS`(`tools/release_check.py sums`).
+1. **후보를 고정합니다.** 번호를 올리는 PR을 main에 병합합니다. pyproject·`KIT_VERSION`·manifest·README의 wheel 이름이 한 번호이고, CHANGELOG에 날짜가 있는 그 번호의 절이 있어야 합니다(`tools/release_check.py version`). README는 wheel의 설명이 되어 그 버전의 PyPI 페이지에 남으므로, 이 PR에서 "아직 게시하지 않았다" 같은 시점의 문장을 게시한 뒤에도 맞는 문장으로 바꿉니다.
+2. **후보의 파일을 기록합니다.** 병합한 main에서 release workflow를 수동 실행(`workflow_dispatch`)하면 `build`가 Linux에서 wheel·sdist를 만들고 세 OS의 `verify`가 그 파일을 확인합니다. 그 실행의 `release-sums` artifact(`SHA256SUMS`)를 `docs/releases/<번호>.sha256`으로 커밋합니다. 이 파일들이 후보입니다. 빌드는 재현됩니다: 같은 commit을 Linux·macOS에서 다시 빌드하면 같은 바이트가 나오고, Windows에서 빌드한 wheel은 zip 헤더의 '만든 시스템' 칸만 달라 멤버와 그 바이트가 같습니다. 그래서 후보와 게시하는 파일은 Linux에서 만든 것입니다.
+3. **후보로 측정합니다.** 출시 리허설(B6)의 결과표와 [지원 범위](docs/SUPPORT.md)를 후보의 sha256으로 채웁니다. 결과표·지원표·측정 기록·`docs/releases/`는 배포본에 들어가지 않으므로 그 뒤의 commit도 같은 파일을 만듭니다. 후보 뒤에 kit이나 README가 바뀌면 번호를 다시 올리고 1단계부터 다시 하며, 영향을 받는 게이트를 다시 잽니다.
+4. **소유자가 출시를 승인하면** `docs/releases/<번호>.sha256`이 있는 main의 commit에 `v<번호>` tag를 붙여 push합니다.
+5. **`.github/workflows/release.yml`이 돕니다.**
+   1. `build`: tag가 main의 commit에 있고 `v`와 그 번호인지 확인하고, wheel·sdist를 한 번 빌드한 뒤 그 `SHA256SUMS`가 `docs/releases/<번호>.sha256`과 같은지 대조합니다(`tools/release_check.py sums --expect`). 다르면 아무것도 게시하지 않습니다.
    2. `verify`: Linux·Windows·macOS에서 그 파일을 설치·업그레이드·제거합니다(`tests/test_packaging.py`, `AELIX_ANALYTICS_TEST_INSTALL=1`, `AELIX_ANALYTICS_TEST_DIST`). 그 commit을 다시 빌드한 것이 같은 멤버와 바이트인지도 봅니다(macOS에서는 파일 바이트까지).
-   3. `pypi`: 환경 `pypi`의 배포를 소유자가 승인하면 PyPI Trusted Publishing으로 올립니다. 저장한 토큰은 없습니다.
+   3. `pypi`: 환경 `pypi`의 배포를 소유자가 승인하면 PyPI Trusted Publishing으로 올립니다. 저장한 토큰은 없습니다. 올린 뒤 PyPI의 JSON API가 정확히 그 파일과 sha256을 보일 때까지(최대 10분) 확인합니다(`tools/release_check.py pypi`).
    4. `github-release`: 같은 파일을 `SHA256SUMS`로 대조한 뒤, 그 파일과 `SHA256SUMS`를 GitHub Release에 붙입니다. 노트는 CHANGELOG의 그 번호 절입니다.
-5. **게시 뒤에** README·SECURITY·지원 범위·CHANGELOG의 "아직 게시하지 않았다" 문장을 고치는 PR을 올립니다.
+6. **게시 뒤에** SECURITY·지원 범위·CHANGELOG의 "아직 게시하지 않았다" 문장과 지원표를 고치는 PR을 올립니다(README는 1단계에서 고쳤습니다).
 
-수동 실행(`workflow_dispatch`)은 어느 branch에서든 `build`와 `verify`만 돌리고 아무것도 게시하지 않습니다. tag를 붙이기 전의 리허설입니다.
-PyPI에 올린 파일은 지울 수 없고(yank만 됩니다), 같은 번호를 다시 쓸 수 없습니다. 고친 배포는 새 번호로 냅니다.
+수동 실행은 어느 ref에서든, tag에서 돌려도 `build`와 `verify`만 돌리고 아무것도 게시하지 않습니다. 후보 기록(2단계)과 tag를 붙이기 전의 리허설입니다.
+업로드가 중간에 멈추면(예: wheel만 올라감) 같은 실행의 실패한 job을 다시 돌립니다. 같은 artifact를 쓰고, 이미 있는 파일은 건너뛰며(`skip-existing`), 마지막 확인이 PyPI의 파일이 그 바이트인지 봅니다. 다시 빌드하는 새 실행을 시작하지 않습니다.
+PyPI에서 파일이나 릴리스를 지울 수는 있지만, 지운 뒤에도 같은 번호·파일 이름을 다시 쓸 수 없습니다. 잘못 낸 배포는 yank하고 새 번호로 냅니다.
 
 처음 한 번은 소유자가 설정합니다. 둘 다 저장소 밖의 권한이라 이 저장소의 코드로 하지 않습니다.
 

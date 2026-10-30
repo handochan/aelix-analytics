@@ -52,9 +52,32 @@ def test_the_check_installs_the_built_files_on_three_systems():
     assert "dist/*.whl" in upload and "dist/*.tar.gz" in upload
 
 
+def test_a_failed_check_in_a_pipeline_stops_the_step():
+    """A `run: |` block that pipes a check into tee has to set pipefail, or tee's success hides the
+    check's failure (independent review of PR #140, M3)."""
+    blocks = re.findall(r"run: \|\n((?:\s{10}.*\n)+)", RELEASE)
+    assert blocks
+    for block in blocks:
+        assert block.lstrip().startswith("set -euo pipefail\n"), block
+
+
+def test_a_tag_publishes_the_measured_candidate_from_main():
+    build = JOBS["build"]
+    assert "fetch-depth: 0" in build
+    assert 'git merge-base --is-ancestor "$GITHUB_SHA" origin/main' in build
+    assert "release_check.py version --tag \"$TAG\"" in build
+    assert "format('docs/releases/{0}.sha256', steps.version.outputs.version)" in build
+    assert '--expect "$EXPECT"' in build
+    # A tag push sets both; a manual run on a tag ref sets neither.
+    assert build.count("github.event_name == 'push' &&") == 2
+
+
 def test_only_a_checked_tag_is_published_with_the_owner_s_approval():
     pypi, release = JOBS["pypi"], JOBS["github-release"]
-    assert "if: startsWith(github.ref, 'refs/tags/v')" in pypi
+    assert "if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')" in pypi
+    assert "skip-existing: true" in pypi
+    upload = pypi.index("pypa/gh-action-pypi-publish@")
+    assert pypi.index('release_check.py pypi "$VERSION" --sums SHA256SUMS') > upload
     assert "needs: [build, verify]" in pypi and "needs: [build, pypi]" in release
     assert "name: pypi\n" in pypi and "id-token: write" in pypi
     assert "contents: write" in release and "--verify-tag" in release

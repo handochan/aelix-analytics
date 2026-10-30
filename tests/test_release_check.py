@@ -130,3 +130,50 @@ def test_the_sums_refuse_a_directory_that_is_not_exactly_the_release(tmp_path, c
     code, result = tool("sums", str(dist), "--output", str(tmp_path / "SHA256SUMS"))
     assert code == 1 and result["problems"], result
     assert not (tmp_path / "SHA256SUMS").exists()
+
+
+@pytest.mark.parametrize("recorded", ["same", "other", "absent"])
+def test_a_tag_s_files_have_to_be_the_recorded_candidate(tmp_path, recorded):
+    files = release_files(tmp_path / "dist")
+    candidate = tmp_path / f"{VERSION}.sha256"
+    text = "".join(f"{hashlib.sha256(data).hexdigest()}  {name}\n" for name, data in sorted(files.items()))
+    if recorded == "same":
+        candidate.write_text(text, encoding="utf-8")
+    elif recorded == "other":
+        candidate.write_text(text.replace(text[:8], "00000000", 1), encoding="utf-8")
+    code, result = tool("sums", str(tmp_path / "dist"), "--output", str(tmp_path / "SHA256SUMS"),
+                        "--expect", str(candidate))
+    if recorded == "same":
+        assert code == 0 and (tmp_path / "SHA256SUMS").read_text(encoding="utf-8") == text, result
+    else:
+        assert code == 1 and result["problems"], result
+        assert not (tmp_path / "SHA256SUMS").exists()
+
+
+def pypi_answer(directory: Path, version: str, files: dict[str, str]) -> str:
+    """A JSON API answer on disk, read through a file: URL in the index's place."""
+    (directory / f"{version}.json").write_text(json.dumps(
+        {"urls": [{"filename": name, "digests": {"sha256": sha}} for name, sha in files.items()]}),
+        encoding="utf-8")
+    return (directory.as_uri() + "/{version}.json")
+
+
+@pytest.mark.parametrize("listed", ["same", "other_hash", "one_missing", "absent"])
+def test_pypi_has_to_list_exactly_the_release_s_files(tmp_path, listed):
+    files = {name: hashlib.sha256(data).hexdigest() for name, data in release_files(tmp_path / "dist").items()}
+    sums = tmp_path / "SHA256SUMS"
+    sums.write_text("".join(f"{sha}  {name}\n" for name, sha in sorted(files.items())), encoding="utf-8")
+    answer = tmp_path / "answer"
+    answer.mkdir()
+    if listed == "same":
+        url = pypi_answer(answer, VERSION, files)
+    elif listed == "other_hash":
+        url = pypi_answer(answer, VERSION, {**files, sorted(files)[0]: "0" * 64})
+    elif listed == "one_missing":
+        url = pypi_answer(answer, VERSION, dict(sorted(files.items())[:1]))
+    else:
+        url = answer.as_uri() + "/{version}.json"
+    code, result = tool("pypi", VERSION, "--sums", str(sums), "--url", url)
+    assert (code == 0) is (listed == "same"), result
+    if listed == "absent":
+        assert result["files"] == {} and result["problems"], result

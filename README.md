@@ -126,8 +126,8 @@ uv tool install --python 3.12 aelix-analytics                    # 사람용 `an
 uv tool install --python 3.12 aelix==0.1.0b2 --with aelix-analytics --with-executables-from aelix-analytics   # aelix와 함께, 같은 kit의 `analytics`
 ```
 
-- 업그레이드: `uv tool upgrade aelix-analytics`, aelix와 함께 설치했으면 `uv tool upgrade aelix`(aelix의 고정 버전은 그대로 두고
-  aelix-analytics만 올립니다). aelix 안에서 `aelix extension install aelix-analytics --yes`로 설치했으면
+- 업그레이드: `uv tool upgrade aelix-analytics`, aelix와 함께 설치했으면 `uv tool upgrade aelix`(aelix 0.1.0b2는 그대로 두고
+  aelix-analytics와, aelix가 범위로만 요구하는 의존성을 올립니다). aelix 안에서 `aelix extension install aelix-analytics --yes`로 설치했으면
   `aelix extension update aelix-analytics --yes`가 새 버전을 받습니다. 업그레이드한 뒤에는 aelix를 다시 시작하세요.
 - 제거: `uv tool uninstall aelix-analytics`, `uv tool uninstall aelix`(함께 넣은 확장과 `analytics`까지), 또는
   `aelix extension remove aelix-analytics --yes`.

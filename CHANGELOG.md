@@ -24,8 +24,9 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 - 저장한 대상: `analytics publish --save-target NAME --to FOLDER`와 `--target NAME`. `.analytics/publish-targets.json`에 저장하며, 새 프로젝트의
   `.gitignore`에 그 줄이 들어갑니다. 그 줄이 없는 프로젝트에서는 저장하지 않습니다.
 - `analytics publish --list --to FOLDER | --target NAME`이 그 대상의 channel과 history를 함께 보입니다.
-- #24 PR-1: 릴리스 workflow(`.github/workflows/release.yml`)와 `tools/release_check.py`. tag 하나가 wheel·sdist를 한 번 빌드하고, 세 OS에서 그 파일을
-  설치·업그레이드·제거한 뒤, 소유자가 승인하면 PyPI와 GitHub Release에 같은 파일을 올립니다([릴리스 절차](CONTRIBUTING.md#릴리스-절차)). 아직 게시한 버전은 없습니다.
+- #24 PR-1: 릴리스 workflow(`.github/workflows/release.yml`)와 `tools/release_check.py`. main의 tag 하나가 wheel·sdist를 한 번 빌드해 기록한 후보
+  (`docs/releases/<번호>.sha256`)와 같은 바이트인지 대조하고, 세 OS에서 그 파일을 설치·업그레이드·제거한 뒤, 소유자가 승인하면 PyPI와 GitHub
+  Release에 같은 파일을 올리고 PyPI가 그 바이트를 보이는지 확인합니다([릴리스 절차](CONTRIBUTING.md#릴리스-절차)). 아직 게시한 버전은 없습니다.
 - 배포본 메타데이터에 분류자(`Development Status :: 4 - Beta` 등)와 프로젝트 URL(Source·Issues·Changelog·Security)을 더했습니다.
 
 ### Changed
