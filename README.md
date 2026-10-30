@@ -86,6 +86,9 @@ aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역
 직접 분석에 필요한 것: [uv](https://docs.astral.sh/uv/)(PATH 또는 `AELIX_ANALYTICS_UV`). Aelix 연동에는 추가로 aelix 0.1.0b2 이상이 필요합니다.
 지원 플랫폼은 Linux·macOS·Windows를 목표로 합니다. 측정한 조합(Windows는 Windows Server 2025의 한 구성)과 Windows의 한계, 아직 실행하지 않은 것(사람이 누른 콘솔 키, Windows의 실제 aelix 세션, 문서를 실제로 여는 프로그램 등)은 [현재 계약](docs/CONTRACTS.md)의 F·G절에 있습니다. Python·운영체제·aelix·설치 경로별로 실제 설치·실행한 범위와 그 증거는 [지원 범위](docs/SUPPORT.md)에 있습니다. Windows 콘솔의 Ctrl+C·Ctrl+Break는 의사 콘솔과 고전 콘솔에서 측정했습니다. Windows에서 알아 둘 것은 [Windows에서 쓸 때](#windows에서-쓸-때)에 있습니다.
 분석 라이브러리는 **프로젝트마다 자기 uv 환경**에 설치되며 aelix 환경은 건드리지 않습니다.
+새 프로젝트의 템플릿은 보안 수정이 필요한 라이브러리에 하한을 둡니다(kit 0.32.0부터 `pillow>=13`, [#131](https://github.com/handochan/aelix-analytics/issues/131)).
+kit은 이미 만든 프로젝트의 `uv.lock`을 고치지 않으므로, 이전 kit이 만든 프로젝트에서는 그 디렉터리에서 `uv lock --upgrade-package pillow`를 실행하세요.
+다음 kit 명령이 환경을 그 lock에 맞춥니다.
 
 ## 설치본(wheel)으로 쓰기
 
@@ -94,9 +97,9 @@ aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역
 GitHub Release에 게시합니다([릴리스 절차](CONTRIBUTING.md#릴리스-절차), 아래 [게시된 배포본](#게시된-배포본)).
 
 ```sh
-cd $PACK && uv build                                   # dist/aelix_analytics-0.31.0-py3-none-any.whl
-uv tool install --python 3.12 dist/aelix_analytics-0.31.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
-uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.31.0-py3-none-any.whl   # aelix와 함께
+cd $PACK && uv build                                   # dist/aelix_analytics-0.32.0-py3-none-any.whl
+uv tool install --python 3.12 dist/aelix_analytics-0.32.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
+uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.32.0-py3-none-any.whl   # aelix와 함께
 ```
 
 새 wheel로 바꿀 때는 같은 줄을 새 파일로 다시 실행합니다. 이전 wheel의 파일은 남지 않습니다.

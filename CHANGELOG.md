@@ -15,6 +15,16 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#배포와-운영-결정)).
 
+## [0.32.0] - 2026-10-30
+
+### Security
+
+- #131: 새 프로젝트의 템플릿(`pyproject.toml`)이 Pillow에 하한 `pillow>=13`을 둡니다. matplotlib가 그림에 쓰는 Pillow는 12.3.0까지
+  GHSA-8g5g-8vmr-9782(critical)를 포함한 9건에 노출됩니다. 오프라인이고 uv 캐시에 Pillow 13 이상이 없으면 새 프로젝트의 환경을 만들지 못합니다
+  (전에는 캐시의 이전 Pillow로 만들었습니다). 저장소의 dev 환경도 같은 하한을 둡니다.
+- 이미 만든 프로젝트의 `uv.lock`은 kit이 고치지 않습니다. 그 프로젝트에서 `uv lock --upgrade-package pillow`를 실행하면 다음 kit 명령이 환경을
+  13 이상으로 맞춥니다([README](README.md#5분-시작)).
+
 ## [0.31.0] - 2026-10-29
 
 ### Added
