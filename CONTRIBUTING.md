@@ -360,7 +360,7 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 4. **소유자가 출시를 승인하면** `docs/releases/<번호>.sha256`이 있는 main의 commit에 `v<번호>` tag를 붙여 push합니다.
 5. **`.github/workflows/release.yml`이 돕니다.**
    1. `build`: tag가 main의 commit에 있고 `v`와 그 번호인지 확인하고, wheel·sdist를 한 번 빌드한 뒤 그 `SHA256SUMS`가 `docs/releases/<번호>.sha256`과 같은지 대조합니다(`tools/release_check.py sums --expect`). 다르면 아무것도 게시하지 않습니다.
-   2. `verify`: Linux·Windows·macOS에서 그 파일을 설치·업그레이드·제거합니다(`tests/test_packaging.py`, `AELIX_ANALYTICS_TEST_INSTALL=1`, `AELIX_ANALYTICS_TEST_DIST`). 그 commit을 다시 빌드한 것이 같은 멤버와 바이트인지도 봅니다(macOS에서는 파일 바이트까지).
+   2. `verify`: Linux·Windows·macOS에서 그 파일을 설치·업그레이드·제거합니다(`tests/test_packaging.py`, `AELIX_ANALYTICS_TEST_INSTALL=1`, `AELIX_ANALYTICS_TEST_DIST`). 그 commit과 그 sdist를 다시 빌드한 것이 같은 멤버와 그 바이트인지도 봅니다(Linux·macOS에서는 파일 바이트까지. Windows에서 만든 zip은 헤더가 다릅니다).
    3. `pypi`: 환경 `pypi`의 배포를 소유자가 승인하면 PyPI Trusted Publishing으로 올립니다. 저장한 토큰은 없습니다. 올린 뒤 PyPI의 JSON API가 정확히 그 파일과 sha256을 보일 때까지(최대 10분) 확인합니다(`tools/release_check.py pypi`).
    4. `github-release`: 같은 파일을 `SHA256SUMS`로 대조한 뒤, 그 파일과 `SHA256SUMS`를 GitHub Release에 붙입니다. 노트는 CHANGELOG의 그 번호 절입니다.
 6. **게시 뒤에** SECURITY·지원 범위·CHANGELOG의 "아직 게시하지 않았다" 문장과 지원표를 고치는 PR을 올립니다(README는 1단계에서 고쳤습니다).

@@ -314,7 +314,11 @@ def test_the_sdist_builds_the_same_wheel(dist, tmp_path):
     out = tmp_path / "from-sdist"
     ok([UV, "build", "--quiet", "--wheel", "-o", out, dist["sdist"]], timeout=600)
     [again] = out.glob("*.whl")
-    assert again.read_bytes() == dist["wheel"].read_bytes()
+    assert archive_content(again) == archive_content(dist["wheel"])
+    # The release's wheel was built on Linux; built again here on Windows, only the zip headers differ
+    # (archive_content). The release rehearsal's Windows check stopped on this (run 41007605467).
+    if POSIX or not GIVEN:
+        assert again.read_bytes() == dist["wheel"].read_bytes()
 
 
 def test_the_sdist_installs_the_same_package(dist, tmp_path):
