@@ -119,7 +119,7 @@ python3.11 tools/platform_smoke.py --stdlib-only --gate required --output .devst
 다시 체크아웃하세요(`git rm -r --cached -q . && git reset --hard`). CI는 매번 새로 체크아웃하므로 해당하지 않습니다.
 
 `tests/test_packaging.py`는 `uv build`로 wheel과 sdist를 만들어 체크아웃 밖의 새 환경에 설치합니다(wheel은 3.11·3.12, sdist는 3.12). 빌드
-backend(hatchling)는 네트워크나 uv 캐시에서 받습니다. 추적하지 않은 파일이 `src/aelix_analytics`에 있으면
+backend(hatchling)와 그 README plugin(hatch-fancy-pypi-readme)은 네트워크나 uv 캐시에서 받습니다. 추적하지 않은 파일이 `src/aelix_analytics`에 있으면
 wheel에(package와 실행 루트의 사본 두 곳에) 들어가 구성원 시험이 실패합니다. 소스 트리에서 wheel을 바로 만들면(`uv build --wheel`)
 Git이 무시하는 파일(`.demo/`, `__pycache__` 밖의 `*.pyc` 등)도 실행 루트의 사본에 들어갑니다. `force-include`는 `.gitignore`를 보지
 않기 때문입니다. 그래서 배포본은 깨끗한 체크아웃에서 빌드하고, 빌드 전에 `git clean -ndx src/aelix_analytics`가 `__pycache__/` 말고
@@ -354,7 +354,7 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 
 릴리스는 측정한 파일을 그대로 게시합니다. 측정한 뒤에는 다시 빌드한 파일이 그 바이트인지 대조할 뿐, 다른 파일을 올리지 않습니다(2026-10-30 소유자 결정, #24).
 
-1. **후보를 고정합니다.** 후보 PR을 main에 병합합니다. 후보의 번호는 아직 `docs/releases/`에 없는 번호입니다(이미 후보로 기록한 번호면 이 PR에서 올립니다). pyproject·`KIT_VERSION`·manifest·README의 wheel 이름이 한 번호이고, CHANGELOG에 날짜가 있는 그 번호의 절이 있어야 합니다. 그 절은 GitHub Release의 노트가 되므로 링크는 전체 주소로 적습니다(`tools/release_check.py version`). README는 wheel의 설명이 되어 그 버전의 PyPI 페이지에 남으므로, 이 PR에서 "아직 게시하지 않았다" 같은 시점의 문장을 게시한 뒤에도 맞는 문장으로 바꿉니다.
+1. **후보를 고정합니다.** 후보 PR을 main에 병합합니다. 후보의 번호는 아직 `docs/releases/`에 없는 번호입니다(이미 후보로 기록한 번호면 이 PR에서 올립니다). pyproject·`KIT_VERSION`·manifest·README의 wheel 이름이 한 번호이고, CHANGELOG에 날짜가 있는 그 번호의 절이 있어야 합니다. 그 절은 GitHub Release의 노트가 되므로 링크는 전체 주소로 적습니다(`tools/release_check.py version`). README는 wheel의 설명이 되어 그 버전의 PyPI 페이지에 남습니다. 빌드가 그 상대 링크를 그 버전 tag의 GitHub 주소로 바꾸고(`pyproject.toml`), 이 PR에서 "아직 게시하지 않았다" 같은 시점의 문장을 게시한 뒤에도 맞는 문장으로 바꿉니다.
 2. **후보의 파일을 기록합니다.** 병합한 main에서 release workflow를 수동 실행(`workflow_dispatch`)하면 `build`가 Linux에서 wheel·sdist를 만들고 세 OS의 `verify`가 그 파일을 확인합니다. 그 실행의 `release-sums` artifact(`SHA256SUMS`)를 `docs/releases/<번호>.sha256`으로 커밋합니다. 이 파일들이 후보입니다. 빌드는 재현됩니다: 같은 commit을 Linux·macOS에서 다시 빌드하면 같은 바이트가 나오고, Windows에서 빌드한 wheel은 zip 헤더의 '만든 시스템' 칸만 달라 멤버와 그 바이트가 같습니다. 그래서 후보와 게시하는 파일은 Linux에서 만든 것입니다.
 3. **후보로 측정합니다.** 출시 리허설(B6)의 결과표와 [지원 범위](docs/SUPPORT.md)를 후보의 sha256으로 채웁니다. 결과표·지원표·측정 기록·`docs/releases/`는 배포본에 들어가지 않으므로 그 뒤의 commit도 같은 파일을 만듭니다. 후보 뒤에 배포본에 들어가는 파일(kit·`extension/aelix_analytics.py`·README·`pyproject.toml`)이 바뀌면 번호를 다시 올리고 1단계부터 다시 하며, 영향을 받는 게이트를 다시 잽니다.
 4. **소유자가 출시를 승인하면** `docs/releases/<번호>.sha256`이 있는 main의 commit에 `v<번호>` tag를 붙여 push합니다.

@@ -230,6 +230,21 @@ def test_the_wheel_metadata(dist):
         f"Changelog, {repository}/blob/main/CHANGELOG.md", f"Security, {repository}/blob/main/SECURITY.md"]
 
 
+def test_the_index_page_links_this_version_s_documents(dist):
+    """A package index shows the description, README, where a link relative to the checkout leads
+    nowhere (Issue #24). The build points each one at this version's tag on GitHub and changes nothing
+    else: putting the relative links back gives README."""
+    meta, _ = wheel_metadata(dist["wheel"])
+    assert meta["Description-Content-Type"] == "text/markdown"
+    description = meta.get_payload()
+    links = re.findall(r"\]\(([^)\s]+)\)", description)
+    assert links and not [link for link in links if not re.match(r"https?://", link)]
+    tag = f"https://github.com/handochan/aelix-analytics/blob/v{pyproject()['project']['version']}/"
+    readme = (PACK / "README.md").read_text(encoding="utf-8")
+    assert f"]({tag}README.md#" not in readme and f"]({tag}" not in readme
+    assert description.replace(f"]({tag}README.md#", "](#").replace(f"]({tag}", "](") == readme
+
+
 def test_the_current_contract_names_the_kit_s_version():
     """The current contract's distribution row states the version (CONTRACTS E): kept equal to
     KIT_VERSION and pyproject.toml, which a version bump changes together (review of PR 3: one bump
