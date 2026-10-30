@@ -78,9 +78,9 @@ def check_version(tag: str | None, pack: Path = PACK) -> dict:
 
 
 # Where a Markdown text links: inline links and images (with or without a title or angle brackets),
-# reference definitions and HTML attributes. GitHub and PyPI follow all of them (Codex review of the
-# 0.32.0 candidate: a titled link got past the first form of this check).
-LINKS = (re.compile(r"\]\(\s*<?([^)\s>]+)"), re.compile(r"^ {0,3}\[[^\]]+\]:\s*<?([^\s>]+)", re.M),
+# reference definitions (not PowerShell's `[Console]::`) and HTML attributes. GitHub and PyPI follow all
+# of them (Codex review of the 0.32.0 candidate: a titled link got past the first form of this check).
+LINKS = (re.compile(r"\]\(\s*<?([^)\s>]+)"), re.compile(r"^ {0,3}\[[^\]]+\]:\s*<?([^\s>:][^\s>]*)", re.M),
          re.compile(r"""\b(?:href|src)\s*=\s*["']([^"']+)""", re.I))
 FULL_URL = re.compile(r"[a-z][a-z0-9+.-]*:", re.I)
 

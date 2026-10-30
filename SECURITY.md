@@ -6,8 +6,8 @@
 > and our assessment within 14 days. A fix ships in a new release with a GitHub security advisory
 > (a CVE when one applies, and credit if you want it). The rest of this policy is in Korean.
 
-Aelix Analytics는 첫 베타를 준비하고 있고 아직 어떤 버전도 게시하지 않았습니다. 패키지 색인의 패키지·버전 태그·GitHub 릴리스가
-없고, wheel은 체크아웃에서 빌드합니다([변경 이력](CHANGELOG.md)). 어떤 Python·운영체제·aelix·설치 경로에서 설치하고 실행했는지는
+Aelix Analytics는 kit 0.32.0부터 PyPI(`aelix-analytics`)와 GitHub Release에 게시합니다. 그 이전 번호는 게시하지 않았습니다
+([변경 이력](CHANGELOG.md)). 어떤 Python·운영체제·aelix·설치 경로에서 설치하고 실행했는지는
 [지원 범위](docs/SUPPORT.md)에 있습니다.
 
 ## 취약점 알리기
@@ -37,7 +37,7 @@ Issue·pull request·commit은 누구나 읽습니다. 저장소에는 secret sc
 ([#24](https://github.com/handochan/aelix-analytics/issues/24)). 관리자는 한 사람입니다.
 
 - **보안 수정을 받는 버전**: 가장 최근 릴리스 하나입니다. 베타 동안에는 이전 버전에 반영(backport)하지 않습니다. 고친 버전으로
-  업그레이드하세요([README](README.md#설치본wheel으로-쓰기)). 아직 게시한 버전이 없으므로 지금은 main의 체크아웃입니다.
+  업그레이드하세요([README](README.md#설치본wheel으로-쓰기)). 체크아웃에서 쓰면 main의 최신 commit으로 옮기세요.
 - **응답**: 신고를 받은 지 7일 안에 처음 답하고, 14일 안에 판단 결과(취약점인지, 영향 범위, 고칠 계획)를 알립니다. 더 필요한
   정보가 있으면 그 안에 묻습니다.
 - **고치는 동안**: 신고 내용과 고치는 작업은 비공개 advisory 안에서 다룹니다. 수정을 게시하기 전에는 공개 Issue·pull request·

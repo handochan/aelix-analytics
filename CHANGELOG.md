@@ -2,8 +2,8 @@
 
 Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따릅니다.
 
-**아직 어떤 버전도 게시하지 않았습니다.** 패키지 색인·버전 태그·GitHub 릴리스가 없고, wheel은 체크아웃에서 빌드합니다
-([README](README.md#설치본wheel으로-쓰기)). 아래의 버전은 kit 버전(`KIT_VERSION`; `pyproject.toml`·manifest와 같음)이며, 새 프로젝트의
+**0.32.0부터 PyPI(`aelix-analytics`)와 GitHub Release에 게시합니다.** 그 이전 번호는 게시하지 않았고, 그 wheel은 체크아웃에서
+빌드했습니다([README](README.md#설치본wheel으로-쓰기)). 아래의 버전은 kit 버전(`KIT_VERSION`; `pyproject.toml`·manifest와 같음)이며, 새 프로젝트의
 `lab.json`과 run의 `env.kit_version`에 남는 값입니다.
 
 한 버전의 절은 main이 그 번호를 달고 있던 동안 병합된 변경입니다: 번호를 붙인 PR과, 그 뒤 번호를 올리지 않고 병합된 PR.
@@ -24,9 +24,9 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 
 - #24: README는 이 버전의 PyPI 페이지에 남으므로 게시한 뒤에도 맞는 문장으로 바꿨습니다. 설치는 PyPI의 이름 또는 체크아웃에서 만든 wheel이고,
   Evaluation 탭을 인사이트로 바꾸는 것처럼 설계만 있는 것은 이 버전에 없다고 적습니다. kit 0.25.0부터 있는 Reports 탭을 설계 단계로 적던
-  문장도 고쳤습니다.
+  문장도 고쳤습니다. PyPI 페이지의 링크가 여는 그 tag의 SECURITY·변경 이력·지원 범위·현재 계약도 게시한 뒤에도 맞는 문장입니다.
 - #24: wheel의 설명(PyPI 페이지)에서 README의 상대 링크가 그 버전 tag의 GitHub 주소가 됩니다. 빌드가 바꾸며(hatch-fancy-pypi-readme 25.1.0),
-  체크아웃의 README는 그대로입니다.
+  체크아웃의 README는 그대로이고, 코드 블록과 인라인 코드는 바뀌지 않습니다.
 
 ### Fixed
 
@@ -53,7 +53,7 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 - `analytics publish --list --to FOLDER | --target NAME`이 그 대상의 channel과 history를 함께 보입니다.
 - #24 PR-1: 릴리스 workflow(`.github/workflows/release.yml`)와 `tools/release_check.py`. main의 tag 하나가 wheel·sdist를 한 번 빌드해 기록한 후보
   (`docs/releases/<번호>.sha256`)와 같은 바이트인지 대조하고, 세 OS에서 그 파일을 설치·업그레이드·제거한 뒤, 소유자가 승인하면 PyPI와 GitHub
-  Release에 같은 파일을 올리고 PyPI가 그 바이트를 보이는지 확인합니다([릴리스 절차](CONTRIBUTING.md#릴리스-절차)). 아직 게시한 버전은 없습니다.
+  Release에 같은 파일을 올리고 PyPI가 그 바이트를 보이는지 확인합니다([릴리스 절차](CONTRIBUTING.md#릴리스-절차)).
 - 배포본 메타데이터에 분류자(`Development Status :: 4 - Beta` 등)와 프로젝트 URL(Source·Issues·Changelog·Security)을 더했습니다.
 
 ### Changed

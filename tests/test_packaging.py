@@ -246,6 +246,15 @@ def test_the_index_page_links_this_version_s_documents(dist):
     readme = (PACK / "README.md").read_text(encoding="utf-8")
     assert tag not in readme
     assert description.replace(f"{tag}README.md#", "#").replace(tag, "") == readme
+    # The substitutions do not know code, so the commands a reader copies from the page are checked
+    # apart: PowerShell's `[Console]::OutputEncoding` once read as a reference definition.
+    assert code_of(description) == code_of(readme)
+
+
+def code_of(text: str) -> list[str]:
+    """The fenced blocks and the inline code spans outside them, in order."""
+    fence = re.compile(r"^(`{3,}|~{3,})[^\n]*\n.*?^\1[ \t]*$", re.M | re.S)
+    return [m[0] for m in fence.finditer(text)] + re.findall(r"`[^`\n]+`", fence.sub("", text))
 
 
 def test_the_index_page_rewrite_takes_every_markdown_link_form():
@@ -259,6 +268,7 @@ def test_the_index_page_rewrite_takes_every_markdown_link_form():
         [g]: #part
           [h]: <docs/H.md> "a title"
         <a href="docs/I.md">i</a>
+        [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
         """)
     for substitution in substitutions:
         text = re.sub(substitution["pattern"], substitution["replacement"], text)
@@ -267,6 +277,7 @@ def test_the_index_page_rewrite_takes_every_markdown_link_form():
         f"{tag}docs/A.md", f"{tag}README.md#part", f"{tag}docs/B.md#x", f"{tag}docs/C.md",
         "https://example.org/", f"{tag}docs/F.md", f"{tag}README.md#part", f"{tag}docs/H.md", "docs/I.md"]
     assert release_check.relative_links(text) == ["docs/I.md"]
+    assert text.endswith("\n[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()\n")
 
 
 def test_the_current_contract_names_the_kit_s_version():
