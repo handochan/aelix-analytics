@@ -16,7 +16,7 @@ Aelix Analytics를 어떤 Python·운영체제·aelix·설치 경로에서 **실
 
 | 표시 | 뜻 |
 |---|---|
-| `verified` | 인용한 증거에서 그 조합으로 설치·실행한 시험이 통과했다. 증거는 main의 CI 실행(실행 번호) 또는 [측정 기록](verification/)이고, 그 증거가 검사한 commit을 함께 적는다 |
+| `verified` | 인용한 증거에서 그 조합으로 설치·실행한 시험이 통과했다. 증거는 main의 CI 실행, PR head의 CI 실행(실행 번호) 또는 [측정 기록](verification/)이고, 그 증거가 검사한 commit을 함께 적는다 |
 | `expected` | 지원 목표 안이고 가까운 조합의 증거가 있지만, 그 조합으로는 실행하지 않았다. 통과로 세지 않는다 |
 | `not run` | 실행한 기록이 없다 |
 | 지원하지 않음 | 선언한 범위 밖이다 |
@@ -28,6 +28,7 @@ Aelix Analytics를 어떤 Python·운영체제·aelix·설치 경로에서 **실
 | 이름 | 무엇 | 검사한 코드 |
 |---|---|---|
 | CI-main | main push의 저장소 CI, [실행 37582037485](https://github.com/handochan/aelix-analytics/actions/runs/37582037485)(시도 1, 2026-10-07). `lint`와 `ubuntu-24.04`·`windows-2025`의 `platform`·`floor` 작업이 모두 성공했다 | `6c4c2cd`(#71의 병합). 그 뒤 main의 `384a168`(#73)은 문서만 바꿨고, #24의 B5 준비는 wheel의 메타데이터(`Author`·`Maintainer`, README에서 오는 설명)와 그 시험을 바꿨다. 둘 다 `src/`·`extension/`·`bin/`의 코드는 바꾸지 않았다 |
+| CI-PR1 | [#24](https://github.com/handochan/aelix-analytics/issues/24) PR-1([#140](https://github.com/handochan/aelix-analytics/pull/140))의 CI, [실행 40990527927](https://github.com/handochan/aelix-analytics/actions/runs/40990527927)(시도 1, 2026-10-30). 필수 검사 일곱 개가 성공했다. 저장소 시험(설치 레그 포함): Linux 3,113 통과·112 건너뜀, Windows 2,916 통과·340 건너뜀, macOS 3,114 통과·111 건너뜀 | `cc8aa7b`(PR #140의 head, kit 0.31.0) |
 | R-42 | [줄 끝 측정 기록](verification/2026-10-06-issue-42-line-endings.md): Linux·Windows CI, `macos-26`의 라벨 실행([37411847760](https://github.com/handochan/aelix-analytics/actions/runs/37411847760)), macOS 개발 기기 | `d23ddb8`(PR #62의 head, kit 0.4.0) |
 | R-8w | [Windows 인벤토리 기록](verification/2026-10-02-issue-8-windows-inventory.md): 같은 세 플랫폼과 macOS 개발 기기의 3.13·3.14 | `4eb0955`(PR #35, kit 0.1.0) |
 
@@ -91,13 +92,17 @@ CI-main에서 확인한 것(이 실행의 artifact는 2027-01-05에 지워지므
 | 체크아웃의 symlink를 wheel 옆에 둠(README) | `verified` | `verified`(파일 링크, 관리자·Developer Mode) | `verified`(`d23ddb8`) | `test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy` |
 | 체크아웃의 `bin/analytics` | `expected`: 인자·환경·작업 디렉터리·종료 코드의 계약만 stand-in uv로 확인했고, 실제 uv와 kit을 `bin/analytics`로 실행하지 않았다 | 지원하지 않음(POSIX 셸 스크립트, 설치본 `analytics`를 씀) | `expected`(같음, `d23ddb8`) | `tests/test_launcher.py`의 동등성 시험(stand-in uv), `tests/test_platform.py`의 `--help` |
 | 체크아웃의 확장 파일을 aelix에 줌(`aelix -e`) | `verified`(가짜 모델 서버의 비대화 실행) | `verified`(같음) | `expected`: 같은 파일을 aelix의 로더로 로드한 통합 시험만 인용할 수 있다(R-42) | `test_the_dry_run_goes_through_aelix_and_is_scored`, 위 'aelix' |
-| `aelix extension install <wheel>` | `not run` | `not run` | `not run` | README에만 있음 |
-| `uv tool install aelix==0.1.0b2 --with <wheel> --with-executables-from aelix-analytics` | `not run` | `not run` | `not run` | README에만 있음 |
-| 이전 버전 위에 새 wheel로 업그레이드 | `not run` | `not run` | `not run` | |
-| `uv tool uninstall` | `not run` | `not run` | `not run` | |
+| `aelix extension install <wheel> --yes`(aelix의 uv tool 환경, pip 없음), 새 wheel을 다시 install, `aelix extension remove` | `verified`(CI-PR1) | `verified`(CI-PR1) | `verified`(CI-PR1) | `test_aelix_s_extension_commands_upgrade_a_wheel_and_remove_it` |
+| `aelix extension update`로 경로 설치를 갱신 | 지원하지 않음: aelix 0.1.0b2는 처음 설치한 경로의 wheel을 다시 설치한다(이전 버전으로 돌아감). 새 wheel은 install로(README) | 같음 | 같음 | 같은 시험이 그 동작을 확인한다 |
+| 이름으로 `aelix extension install aelix-analytics`·`update`·`remove`(PyPI 자리의 loopback 색인을 uv의 기본 색인으로) | `verified`(CI-PR1) | `verified`(CI-PR1) | `verified`(CI-PR1) | `test_aelix_installs_updates_and_removes_the_extension_by_name` |
+| 이름으로 `uv tool install aelix-analytics`·`uv tool upgrade aelix-analytics`·`uv tool uninstall aelix-analytics`(같은 색인) | `verified`(CI-PR1) | `verified`(CI-PR1) | `verified`(CI-PR1) | `test_the_command_installs_upgrades_and_uninstalls_from_an_index` |
+| 이름으로 `uv tool install aelix==0.1.0b2 --with aelix-analytics --with-executables-from aelix-analytics`·`uv tool upgrade aelix`·`uv tool uninstall aelix`(같은 색인을 먼저 묻는 색인으로) | `verified`(CI-PR1) | `verified`(CI-PR1) | `verified`(CI-PR1) | `test_aelix_takes_the_extension_and_its_command_from_an_index` |
+| `--with-executables-from aelix-analytics`를 wheel 경로로 | `expected`: 위의 이름 설치와 같은 uv 경로이고 wheel 경로로는 실행하지 않았다 | `expected` | `expected` | |
+| 이전 버전 위의 업그레이드: kit 0.25.0 wheel(`660beb63…`, Q17에서 쓴 것. 그 commit을 다시 빌드하면 Linux·macOS에서는 같은 바이트, Windows에서는 zip 헤더만 다르고 멤버와 내용이 같다) → 이 버전. 같은 `uv tool install` 줄을 새 wheel로, 위의 색인과 aelix 경로. 이전 버전이 만든 프로젝트를 이어 씀 | `verified`(CI-PR1) | `verified`(CI-PR1) | `verified`(CI-PR1) | `test_a_newer_wheel_file_replaces_the_earlier_one`, 위의 네 시험 |
+| 실제 PyPI에서 이름으로 설치 | `not run`(게시 전) | `not run` | `not run` | |
 
-macOS 열의 `verified`는 `d23ddb8`의 결과다. 그 뒤 main의 코드는 macOS에서 실행하지 않았다(Linux·Windows만 PR마다 돌고 macOS는
-라벨·수동·주간 실행에서 돈다, [기여 가이드](../CONTRIBUTING.md#저장소-ci)).
+macOS 열에 `d23ddb8`로 적은 `verified`는 그 commit의 결과다. 그때는 macOS를 라벨·수동·주간 실행에서만 돌렸고, 2026-10-21(#22)부터는
+세 OS가 모든 PR과 main push에서 돈다([기여 가이드](../CONTRIBUTING.md#저장소-ci)). CI-PR1로 적은 칸은 그 실행의 결과다.
 
 ## 모델
 
@@ -127,11 +132,11 @@ macOS 열의 `verified`는 `d23ddb8`의 결과다. 그 뒤 main의 코드는 mac
 
 - 이 표는 commit마다 낡는다. 출시 후보에서는 출시할 그 artifact(wheel·sdist의 sha256)로 다시 채우고, 칸마다 그 commit의 실행을
   증거로 적는다([B5·B6](BETA-QUALITY-GATES.md#5-구현-순서)). 그 전의 `verified`를 출시 후보의 결과로 옮겨 적지 않는다.
-- B5에서 남은 확인: wheel·sdist·manifest·assets의 설치·제거·업그레이드(위 표의 `not run` 행 포함), Aelix 연동과 사람용 단독
-  설치를 구별한 깨끗한 환경의 E2E([Q1·Q17-a](BETA-QUALITY-GATES.md#2-첫-베타의-필수-게이트)).
+- B5에서 남은 확인: 출시 후보로 돌린 설치·제거·업그레이드(위 표의 행), Aelix 연동과 사람용 단독
+  설치를 구별한 깨끗한 환경의 E2E([Q1·Q17-a](BETA-QUALITY-GATES.md#2-첫-베타의-필수-게이트)). 실제 PyPI에서의 설치는 게시한 뒤에만 할 수 있다.
 - B6의 출시 리허설이 Q1–Q17 결과표를 채운다. 필수 게이트의 실패·미실행, 설치물 누락은 출시 보류 사유다
   ([§7](BETA-QUALITY-GATES.md#7-기여출시-기록의-형식)).
 - 베타는 지원 목표(세 플랫폼)를 공개하되, 지원표에는 출시 후보로 실행한 칸만 `verified`로 적고 나머지는 `expected`·`not run`
   그대로 공개한다(ADR-0002 결정 1).
-- 베타 전에는 wheel을 외부에 게시하지 않는다(2026-10-03 소유자 결정, #24). 배포 이름은 `aelix-analytics`(2026-10-17 소유자 결정)이고, 릴리스 절차는 첫 공개 전에 정한다
-  ([기여 가이드](../CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
+- 베타 전에는 wheel을 외부에 게시하지 않는다(2026-10-03 소유자 결정, #24). 배포 이름은 `aelix-analytics`(2026-10-17 소유자 결정)이고, 게시는 PyPI와
+  GitHub Release에 측정한 그 파일을 올린다([릴리스 절차](../CONTRIBUTING.md#릴리스-절차), 2026-10-30 소유자 결정).

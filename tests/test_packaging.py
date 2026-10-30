@@ -9,13 +9,21 @@ AELIX_ANALYTICS_TEST_INSTALL=1 adds the end-to-end leg: aelix 0.1.0b2 from PyPI 
 aelix's own verify, status and loader, README's `uv tool install` lines, and a project driven through
 the installed `analytics` by real uv — which syncs an analysis environment, so it needs the network or
 a warm cache. The repository CI
-(.github/workflows/ci.yml) runs it on Linux, Windows and macOS.
+(.github/workflows/ci.yml) runs it on Linux, Windows and macOS. That leg also installs, upgrades and
+removes the distribution the ways a release offers (Issue #24): from a package index on loopback that
+stands in for PyPI, through aelix's own extension commands, and over the wheel of an earlier kit that
+the checkout's history builds byte for byte.
+
+AELIX_ANALYTICS_TEST_DIST=DIR tests the wheel and sdist in DIR instead of building them: the release
+workflow (.github/workflows/release.yml) hands the files it will publish, and one test checks they are
+this checkout's build.
 """
 
 from __future__ import annotations
 
 import contextlib
 import hashlib
+import io
 import json
 import os
 import re
@@ -42,6 +50,7 @@ AELIX = "aelix==0.1.0b2"
 ANALYSIS = ("duckdb", "polars", "pyarrow", "numpy", "pandas", "matplotlib", "plotly", "pygments",
             "markdown_it")
 E2E = os.environ.get("AELIX_ANALYTICS_TEST_INSTALL") == "1"
+GIVEN = os.environ.get("AELIX_ANALYTICS_TEST_DIST")
 
 pytestmark = pytest.mark.skipif(UV is None and not E2E, reason="uv builds and installs the distribution")
 e2e = pytest.mark.skipif(not E2E, reason="set AELIX_ANALYTICS_TEST_INSTALL=1 (network: PyPI, "
@@ -76,8 +85,11 @@ def pyproject() -> dict:
 @pytest.fixture(scope="session")
 def dist(tmp_path_factory) -> dict:
     assert UV is not None, "AELIX_ANALYTICS_TEST_INSTALL=1 needs uv on PATH"
-    out = tmp_path_factory.mktemp("dist")
-    ok([UV, "build", "--quiet", "-o", out, PACK], timeout=600)
+    if GIVEN:
+        out = Path(GIVEN)
+    else:
+        out = tmp_path_factory.mktemp("dist")
+        ok([UV, "build", "--quiet", "-o", out, PACK], timeout=600)
     [wheel] = out.glob("*.whl")
     [sdist] = out.glob("*.tar.gz")
     return {"wheel": wheel, "sdist": sdist, "dir": out}
@@ -209,6 +221,13 @@ def test_the_wheel_metadata(dist):
         shipped = wheel.read(f"aelix_analytics-{version}.dist-info/licenses/LICENSE")
     assert shipped == (PACK / "LICENSE").read_bytes()
     assert "[aelix.extensions]\naelix-analytics = aelix_analytics.extension:setup" in points
+    # What a package index shows (Issue #24): a beta, and where its source, issues, changelog and
+    # security policy are.
+    assert "Development Status :: 4 - Beta" in meta.get_all("Classifier")
+    repository = "https://github.com/handochan/aelix-analytics"
+    assert meta.get_all("Project-URL") == [
+        f"Source, {repository}", f"Issues, {repository}/issues",
+        f"Changelog, {repository}/blob/main/CHANGELOG.md", f"Security, {repository}/blob/main/SECURITY.md"]
 
 
 def test_the_current_contract_names_the_kit_s_version():
@@ -240,6 +259,39 @@ def test_the_readme_names_the_wheel_this_version_builds():
     versions = re.findall(r"aelix_analytics-([^-\s]+)-py3-none-any\.whl", readme)
     assert versions, "README names no wheel"
     assert set(versions) == {pyproject()["project"]["version"]}, versions
+
+
+def archive_content(path: Path) -> list[list[str]]:
+    """A wheel's or sdist's members in their order, each with the sha256 of its bytes: what the build
+    made, without the archive's own headers. Python's zipfile writes into each entry's header the
+    system that made it (0 on Windows, 3 elsewhere), so a wheel built on Windows is other bytes than
+    the same build on Linux or macOS while every member is the same."""
+    if path.suffix == ".whl":
+        with zipfile.ZipFile(path) as archive:
+            return [[i.filename, hashlib.sha256(archive.read(i)).hexdigest()] for i in archive.infolist()]
+    with tarfile.open(path) as archive:
+        return [[m.name, hashlib.sha256(archive.extractfile(m).read()).hexdigest()]
+                for m in archive.getmembers() if m.isfile()]
+
+
+def content_digest(path: Path) -> str:
+    return hashlib.sha256(json.dumps(archive_content(path)).encode("utf-8")).hexdigest()
+
+
+@pytest.mark.skipif(not GIVEN, reason="AELIX_ANALYTICS_TEST_DIST is not set: the tests build the files")
+def test_the_given_files_are_this_checkout_s_build(dist, tmp_path):
+    """The release publishes the files its build job made on Linux (the release workflow); a build of
+    this checkout makes the same members in the same order with the same bytes, so what the tests
+    installed is the tagged commit's distribution. On Linux and macOS the files are the same bytes;
+    a Windows build differs only in the zip headers' system field (archive_content)."""
+    out = tmp_path / "again"
+    ok([UV, "build", "--quiet", "-o", out, PACK], timeout=600)
+    for kind, pattern in (("wheel", "*.whl"), ("sdist", "*.tar.gz")):
+        [again] = out.glob(pattern)
+        assert again.name == dist[kind].name
+        assert archive_content(again) == archive_content(dist[kind]), kind
+        if POSIX:
+            assert again.read_bytes() == dist[kind].read_bytes(), kind
 
 
 def test_the_sdist_builds_the_same_wheel(dist, tmp_path):
@@ -763,3 +815,356 @@ def test_pip_installs_and_uninstalls_the_wheel_without_leftovers(dist, tmp_path)
                    env=env).stdout.strip())
     assert not (site / "aelix_analytics").exists(), sorted(
         str(p.relative_to(site)) for p in (site / "aelix_analytics").rglob("*"))
+
+
+# --- what a release offers: an index, aelix's extension commands, upgrades, removal (Issue #24) -----
+
+# The wheel of kit 0.25.0 that Q17 measured and the owner installed (docs/verification/
+# 2026-10-22-issue-23-q17.md): its commit builds it byte for byte on Linux and macOS, and on Windows
+# with the same members and bytes (archive_content), so the upgrades below start from a distribution
+# a person had, not one made for the test. The platform job checks out the whole history, which holds
+# the commit.
+PREVIOUS_COMMIT = "b4e5b4ed93e2bcd15db61c3464442269f43d2bb0"
+PREVIOUS_VERSION = "0.25.0"
+PREVIOUS_WHEEL_SHA256 = "660beb63c24d1882c065579b933cf9eeb162d43d49234d7b0360c411eb36ab28"
+PREVIOUS_CONTENT_SHA256 = "0938bfc002247eef7692a5d90f1ab6916760009859cb19fafcac0da8a58918a5"
+LISTED = re.compile(r"aelix-analytics \[aelix-analytics ([^\]\s]+)\]")
+
+
+@pytest.fixture(scope="session")
+def previous(tmp_path_factory) -> Path:
+    if run(["git", "-C", PACK, "cat-file", "-e", f"{PREVIOUS_COMMIT}^{{commit}}"]).returncode != 0:
+        # The install leg runs the routes SUPPORT.md cites: it fails, not skips, without the commit.
+        message = f"the checkout does not hold {PREVIOUS_COMMIT[:12]}: a shallow clone (fetch-depth: 0)"
+        pytest.fail(message) if E2E else pytest.skip(message)
+    root = tmp_path_factory.mktemp("previous")
+    archive = subprocess.run(["git", "-C", str(PACK), "-c", "core.autocrlf=false", "archive",
+                              "--format=tar", PREVIOUS_COMMIT], capture_output=True, timeout=300,
+                             check=True).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
+        tar.extractall(root / "src", filter="data")
+    ok([UV, "build", "--quiet", "-o", root / "dist", root / "src"], timeout=600)
+    [wheel] = (root / "dist").glob("*.whl")
+    assert wheel.name == f"aelix_analytics-{PREVIOUS_VERSION}-py3-none-any.whl"
+    assert content_digest(wheel) == PREVIOUS_CONTENT_SHA256
+    if POSIX:
+        assert hashlib.sha256(wheel.read_bytes()).hexdigest() == PREVIOUS_WHEEL_SHA256
+    return wheel
+
+
+class PackageIndex:
+    """A PEP 503 simple index of one project on loopback, standing in for PyPI: uv and aelix resolve
+    `aelix-analytics` from it by name. As uv's default index (UV_DEFAULT_INDEX) it takes PyPI's
+    place, so README's commands run as written; where aelix itself has to come from PyPI, it is an
+    index uv asks first (UV_INDEX). Its pages say not to cache them, so a wheel added later is seen at
+    once (PyPI's are cached for minutes, which a person waits out)."""
+
+    def __init__(self, root: Path, port: int):
+        self.project = root / "simple" / "aelix-analytics"
+        self.project.mkdir(parents=True)
+        (root / "simple" / "index.html").write_text(
+            '<!DOCTYPE html><html><body><a href="aelix-analytics/">aelix-analytics</a></body></html>\n',
+            encoding="utf-8")
+        self.url = f"http://127.0.0.1:{port}/simple"
+
+    def add(self, wheel: Path) -> None:
+        shutil.copyfile(wheel, self.project / wheel.name)
+        links = "".join(f'<a href="{p.name}#sha256={hashlib.sha256(p.read_bytes()).hexdigest()}">'
+                        f"{p.name}</a>\n" for p in sorted(self.project.glob("*.whl")))
+        (self.project / "index.html").write_text(f"<!DOCTYPE html><html><body>\n{links}</body></html>\n",
+                                                 encoding="utf-8")
+
+
+@contextlib.contextmanager
+def package_index(root: Path, *wheels: Path):
+    import functools
+    import http.server
+    import threading
+
+    class Pages(http.server.SimpleHTTPRequestHandler):
+        def end_headers(self):
+            self.send_header("Cache-Control", "no-cache")
+            super().end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    root.mkdir(parents=True)
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Pages, directory=str(root)))
+    index = PackageIndex(root, server.server_address[1])
+    for wheel in wheels:
+        index.add(wheel)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield index
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=30)
+
+
+def tool_env(tmp_path: Path) -> tuple[dict, dict]:
+    """aelix_env, with uv's tools and their commands under the test's directory, and loopback
+    reached without a proxy."""
+    tools = {"UV_TOOL_DIR": str(tmp_path / "tools"), "UV_TOOL_BIN_DIR": str(tmp_path / "tool-bin")}
+    env = {**aelix_env(tmp_path), **tools}
+    env["NO_PROXY"] = env["no_proxy"] = "127.0.0.1,localhost"
+    return env, tools
+
+
+def tool_bin(tools: dict, name: str) -> str:
+    found = shutil.which(name, path=tools["UV_TOOL_BIN_DIR"])
+    assert found is not None, (name, sorted(os.listdir(tools["UV_TOOL_BIN_DIR"])))
+    return found
+
+
+def tool_python(tools: dict, name: str) -> Path:
+    return venv_python(Path(tools["UV_TOOL_DIR"]) / name)
+
+
+def purelib(python: Path, env: dict) -> Path:
+    return Path(ok([python, "-c", "import sysconfig; print(sysconfig.get_paths()['purelib'])"],
+                   env=env).stdout.strip())
+
+
+def installed_files(site: Path) -> dict:
+    """What of this distribution is in an environment: the package's files by their sha256 (bytecode
+    left out) and the names of its dist-info directories. Equal to wheel_files of a wheel, the
+    environment holds that wheel's files and no other: none of an earlier version left beside them or
+    under their names. (Kit 0.25.0's wheel has no file this version's lacks, so against it what an
+    upgrade could leave shows in the dist-info and in the files' bytes.)"""
+    package = site / "aelix_analytics"
+    files = {p.relative_to(site).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+             for p in package.rglob("*") if p.is_file() and "__pycache__" not in p.parts} if package.exists() else {}
+    return {"files": files, "dist_info": sorted(p.name for p in site.glob("aelix_analytics-*.dist-info"))}
+
+
+def wheel_files(wheel: Path, version: str) -> dict:
+    with zipfile.ZipFile(wheel) as archive:
+        files = {n: hashlib.sha256(archive.read(n)).hexdigest() for n in archive.namelist()
+                 if n.startswith("aelix_analytics/")}
+    return {"files": files, "dist_info": [f"aelix_analytics-{version}.dist-info"]}
+
+
+# What an upgraded kit may write in a project it carries on: the journal (appended to, checked
+# apart), the regenerable Workspace, the derived state under .analytics/, the analysis environment.
+REWRITTEN = ("workspace/", ".analytics/", ".venv/")
+
+
+def project_files(project: Path) -> dict[str, str]:
+    """Every file of a project but the ones the kit rewrites (REWRITTEN), by its sha256."""
+    return {rel: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(project.rglob("*"))
+            if p.is_file() and not (rel := p.relative_to(project).as_posix()).startswith(REWRITTEN)}
+
+
+def assert_carried_on(project: Path, before: dict[str, str], journal: bytes) -> None:
+    """The earlier kit's project is all there, byte for byte: every file it had (the journal only
+    grown), and nothing of it rewritten."""
+    after = project_files(project)
+    changed = sorted(rel for rel, sha in before.items() if rel != "journal.jsonl" and after.get(rel) != sha)
+    assert not changed, changed
+    grown = (project / "journal.jsonl").read_bytes()
+    assert grown.startswith(journal) and len(grown.splitlines()) > len(journal.splitlines())
+
+
+def listed_versions(text: str) -> list[str]:
+    return LISTED.findall(text)
+
+
+SCRIPT = ("import polars\n"
+          "import aelix_analytics as analytics\n"
+          "analytics.record('finding', 'a run after the upgrade')\n"
+          "print(polars.DataFrame({'n': [1, 2]}).height)\n")
+
+
+@e2e
+def test_the_command_installs_upgrades_and_uninstalls_from_an_index(dist, previous, tmp_path):
+    """README's `uv tool install aelix-analytics` once the release is on PyPI, with an index on
+    loopback in PyPI's place: the earlier kit makes a project, `uv tool upgrade` brings this
+    version, which carries the project on in the environment the earlier kit made, and `uv tool
+    uninstall` leaves nothing of it."""
+    env, tools = tool_env(tmp_path)
+    work = tmp_path / "work"
+    work.mkdir()
+    project = work / "proj"
+    with package_index(tmp_path / "index", previous) as index:
+        # Only uv's tool commands get the index: the kit's own uv syncs the project from PyPI.
+        indexed = {**env, "UV_DEFAULT_INDEX": index.url}
+        ok([UV, "tool", "install", "--python", CURRENT, "aelix-analytics"], cwd=tmp_path, env=indexed)
+        python = tool_python(tools, "aelix-analytics")
+        assert installed_files(purelib(python, env)) == wheel_files(previous, PREVIOUS_VERSION)
+        analytics = tool_bin(tools, "analytics")
+        ok([analytics, "init", "proj", "--title", "이전 버전의 프로젝트"], cwd=work, env=env)
+        ok([analytics, "record", "finding", "이전 kit이 쓴 발견"], cwd=project, env=env)
+        before, journal = project_files(project), (project / "journal.jsonl").read_bytes()
+        index.add(dist["wheel"])
+        ok([UV, "tool", "upgrade", "aelix-analytics"], cwd=tmp_path, env=indexed)
+    assert installed_files(purelib(python, env)) == wheel_files(dist["wheel"], core.KIT_VERSION)
+    ok([analytics, "status"], cwd=project, env=env)
+    (project / "scripts" / "after.py").write_bytes(SCRIPT.encode("utf-8"))
+    done = ok([analytics, "run", "scripts/after.py", "--title", "업그레이드 뒤"], cwd=project, env=env)
+    record = json.loads(done.stdout.splitlines()[-1])["run"]
+    assert record["status"] == "ok" and record["env"]["kit_version"] == core.KIT_VERSION, record
+    assert_carried_on(project, before, journal)
+    ok([UV, "tool", "uninstall", "aelix-analytics"], cwd=tmp_path, env=env)
+    assert not (Path(tools["UV_TOOL_DIR"]) / "aelix-analytics").exists()
+    assert shutil.which("analytics", path=tools["UV_TOOL_BIN_DIR"]) is None
+
+
+@e2e
+def test_aelix_takes_the_extension_and_its_command_from_an_index(dist, previous, tmp_path):
+    """README's aelix line once the release is on PyPI: aelix with aelix-analytics from the index and
+    its `analytics` from the same environment (one kit). `uv tool upgrade aelix` keeps aelix's pin
+    and brings this version of the extension; `uv tool uninstall aelix` removes both commands."""
+    env, tools = tool_env(tmp_path)
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    with package_index(tmp_path / "index", previous) as index:
+        indexed = {**env, "UV_INDEX": index.url}
+        ok([UV, "tool", "install", "--python", CURRENT, AELIX, "--with", "aelix-analytics",
+            "--with-executables-from", "aelix-analytics"], cwd=tmp_path, env=indexed)
+        aelix = tool_bin(tools, "aelix")
+        verify = ok([aelix, "extension", "verify", "aelix-analytics"], cwd=cwd, env=env).stdout
+        assert "BOUND" in verify and listed_versions(verify) == [PREVIOUS_VERSION], verify
+        index.add(dist["wheel"])
+        ok([UV, "tool", "upgrade", "aelix"], cwd=tmp_path, env=indexed)
+    verify = ok([aelix, "extension", "verify", "aelix-analytics"], cwd=cwd, env=env).stdout
+    assert "BOUND" in verify and listed_versions(verify) == [core.KIT_VERSION], verify
+    python = tool_python(tools, "aelix")
+    site = purelib(python, env)
+    assert installed_files(site) == wheel_files(dist["wheel"], core.KIT_VERSION)
+    assert "aelix==0.1.0b2" in ok([UV, "pip", "freeze", "--python", python], env=env).stdout
+    listed = ok([UV, "tool", "list"], cwd=tmp_path, env=env).stdout
+    assert re.search(r"^aelix v0\.1\.0b2\n- aelix\n- analytics$", listed, re.M), listed
+    tool_bin(tools, "analytics")
+    loaded = ok([python, "-c", LOAD_PROBE, cwd, env["AELIX_CODING_AGENT_DIR"]], cwd=cwd, env=env)
+    seen = json.loads(loaded.stdout.splitlines()[-1])
+    assert len(seen["copies"]) == 1 and seen["errors"] == [] and seen["analysis"] == [], seen
+    assert Path(seen["kit"]) == (site / "aelix_analytics" / "kit").resolve()
+    ok([UV, "tool", "uninstall", "aelix"], cwd=tmp_path, env=env)
+    assert not (Path(tools["UV_TOOL_DIR"]) / "aelix").exists()
+    for name in ("aelix", "analytics"):
+        assert shutil.which(name, path=tools["UV_TOOL_BIN_DIR"]) is None, name
+
+
+@e2e
+def test_a_newer_wheel_file_replaces_the_earlier_one(dist, previous, tmp_path):
+    """README: to change wheels, run the same `uv tool install` line with the new file. Over the
+    earlier kit's wheel, nothing of the earlier one is left, alone or beside aelix."""
+    env, tools = tool_env(tmp_path)
+    for name, line in (("aelix-analytics", []), ("aelix", [AELIX, "--with"])):
+        for wheel in (previous, dist["wheel"]):
+            ok([UV, "tool", "install", "--python", CURRENT, *line, wheel], cwd=tmp_path, env=env)
+        site = purelib(tool_python(tools, name), env)
+        assert installed_files(site) == wheel_files(dist["wheel"], core.KIT_VERSION), name
+
+
+# Carries on, in a new process, the project the earlier kit's tools made (TOOLS_PROBE), through the
+# extension aelix now loads.
+CONTINUE_PROBE = textwrap.dedent("""
+    import asyncio, json, sys
+    from pathlib import Path
+    from types import SimpleNamespace
+    import aelix_coding_agent.extensions.loader as loader
+    from aelix_ai.tools import ToolExecutionContext
+
+    async def main():
+        work = Path(sys.argv[1])
+        result = await loader.discover_and_load_extensions([], cwd=work, agent_dir=Path(sys.argv[2]))
+        [ext] = [e for e in result.extensions if "analytics_status" in e.tools]
+        ctx = ToolExecutionContext(tool_call_id="call", model=SimpleNamespace(input=["text"]))
+        answers = {}
+        async def call(name, args):
+            out = await ext.tools[name].execute(args, ctx)
+            answers[name] = {"error": out.is_error,
+                             "text": "\\n".join(c.text for c in out.content if hasattr(c, "text"))[:4000]}
+        await call("analytics_status", {})
+        await call("analytics_run", {"script": "scripts/after.py", "title": "업그레이드 뒤",
+                                     "attach_images": False})
+        await call("analytics_record", {"kind": "finding", "text": "after the upgrade"})
+        print(json.dumps(answers))
+
+    asyncio.run(main())
+""")
+
+
+@e2e
+def test_aelix_s_extension_commands_upgrade_a_wheel_and_remove_it(dist, previous, tmp_path):
+    """`aelix extension install <wheel>` (README) in aelix's uv tool environment, which has no pip:
+    the earlier wheel's tools make a project, installing this wheel replaces every file of the
+    earlier one, the extension carries the project on, and `aelix extension remove` leaves nothing.
+    aelix 0.1.0b2 records each wheel path as a source and names only the first, so `aelix extension
+    update` puts the earlier wheel back; README says to install the new file instead."""
+    env, tools = tool_env(tmp_path)
+    work = tmp_path / "work"
+    work.mkdir()
+    ok([UV, "tool", "install", "--python", CURRENT, AELIX], cwd=tmp_path, env=env)
+    aelix, python = tool_bin(tools, "aelix"), tool_python(tools, "aelix")
+    site = purelib(python, env)
+
+    def extension(*args) -> str:
+        return ok([aelix, "extension", *args], cwd=work, env=env).stdout
+
+    extension("install", previous, "--yes")
+    assert listed_versions(extension("verify", "aelix-analytics")) == [PREVIOUS_VERSION]
+    csv = tmp_path / "sales.csv"
+    csv.write_text("month,region,revenue\n2025-01,서울,100\n2025-02,부산,250\n", encoding="utf-8")
+    made = json.loads(ok([python, "-c", TOOLS_PROBE, work, env["AELIX_CODING_AGENT_DIR"], csv], cwd=work,
+                         env=env, timeout=1800).stdout.splitlines()[-1])
+    assert not [name for name, answer in made.items() if answer["error"]], made
+    project = work / "proj"
+    before, journal = project_files(project), (project / "journal.jsonl").read_bytes()
+    [first_run] = [p for p in (project / "runs").iterdir() if (p / "run.json").is_file()]
+    assert json.loads((first_run / "run.json").read_bytes())["env"]["kit_version"] == PREVIOUS_VERSION
+
+    extension("install", dist["wheel"], "--yes")
+    verify = extension("verify", "aelix-analytics")
+    assert "BOUND" in verify and listed_versions(verify) == [core.KIT_VERSION], verify
+    assert installed_files(site) == wheel_files(dist["wheel"], core.KIT_VERSION)
+    (project / "scripts" / "after.py").write_bytes(SCRIPT.encode("utf-8"))
+    carried = json.loads(ok([python, "-c", CONTINUE_PROBE, work, env["AELIX_CODING_AGENT_DIR"]], cwd=work,
+                            env={**env, "AELIX_ANALYTICS_PROJECT": str(project)},
+                            timeout=1800).stdout.splitlines()[-1])
+    assert not [name for name, answer in carried.items() if answer["error"]], carried
+    assert carried["analytics_run"]["text"].startswith("analytics_run: ok"), carried
+    assert_carried_on(project, before, journal)
+    kits = sorted(json.loads((p / "run.json").read_text(encoding="utf-8"))["env"]["kit_version"]
+                  for p in (project / "runs").iterdir() if (p / "run.json").is_file())
+    assert kits == sorted([PREVIOUS_VERSION, core.KIT_VERSION]), kits
+
+    extension("update", "aelix-analytics", "--yes")
+    assert listed_versions(extension("list")) == [PREVIOUS_VERSION]
+    extension("install", dist["wheel"], "--yes")
+    assert listed_versions(extension("list")) == [core.KIT_VERSION]
+    extension("remove", "aelix-analytics", "--yes")
+    assert listed_versions(extension("list")) == []
+    assert installed_files(site) == {"files": {}, "dist_info": []}
+
+
+@e2e
+def test_aelix_installs_updates_and_removes_the_extension_by_name(dist, previous, tmp_path):
+    """README's `aelix extension install aelix-analytics` by name, the index in PyPI's place, and
+    `aelix extension update` once a newer version is there: unlike a wheel path, the name moves on.
+    aelix's uv backend passes no index of its own, as it would for PyPI."""
+    env, tools = tool_env(tmp_path)
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    ok([UV, "tool", "install", "--python", CURRENT, AELIX], cwd=tmp_path, env=env)
+    aelix = tool_bin(tools, "aelix")
+    site = purelib(tool_python(tools, "aelix"), env)
+
+    def extension(*args, **extra) -> str:
+        return ok([aelix, "extension", *args], cwd=cwd, env={**env, **extra}).stdout
+
+    with package_index(tmp_path / "index", previous) as index:
+        extension("install", "aelix-analytics", "--yes", UV_DEFAULT_INDEX=index.url)
+        assert listed_versions(extension("verify", "aelix-analytics")) == [PREVIOUS_VERSION]
+        index.add(dist["wheel"])
+        extension("update", "aelix-analytics", "--yes", UV_DEFAULT_INDEX=index.url)
+    verify = extension("verify", "aelix-analytics")
+    assert "BOUND" in verify and listed_versions(verify) == [core.KIT_VERSION], verify
+    assert installed_files(site) == wheel_files(dist["wheel"], core.KIT_VERSION)
+    extension("remove", "aelix-analytics", "--yes")
+    assert listed_versions(extension("list")) == []
+    assert installed_files(site) == {"files": {}, "dist_info": []}

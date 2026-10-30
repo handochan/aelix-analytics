@@ -338,14 +338,38 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
   바꾸는 커밋은 측정 기록의 신선도를 따질 때 문서만의 변경이 아닙니다([문서만의 변경](#현재-개발-검증)).
 - CI에는 경로 필터가 없습니다. 문서만 바꾼 PR도 모든 작업을 돌리므로 필수 검사가 늘 보고됩니다(2026-10-21 결정, #22).
 
-## 첫 공개 전에 남은 운영 결정
+## 배포와 운영 결정
 
-배포 이름은 `aelix-analytics`입니다(2026-10-17 소유자 결정, [#24](https://github.com/handochan/aelix-analytics/issues/24)). 릴리스 절차는 확정해 공개해야 합니다.
+배포 이름은 `aelix-analytics`입니다(2026-10-17 소유자 결정, [#24](https://github.com/handochan/aelix-analytics/issues/24)). 게시 위치는 PyPI와 GitHub Release이고, 절차는 아래 [릴리스 절차](#릴리스-절차)입니다(2026-10-30 소유자 결정, #24). 아직 게시한 버전은 없습니다.
 관리자는 GitHub 핸들 [@handochan](https://github.com/handochan)이며 이메일은 적지 않습니다(2026-10-07 결정, `pyproject.toml`의 `authors`·`maintainers`).
-보안 취약점은 GitHub의 비공개 취약점 신고로 받고 공개 Issue로 받지 않습니다([SECURITY.md](SECURITY.md), 2026-10-07 결정). 저장소는 공개이고, 그 신고와 secret scanning·push protection·Dependabot 보안 알림을 켰습니다(2026-10-21, #22). 보안 수정을 받는 버전, 신고의 처리 절차와 공지는 아직 정하지 않았습니다([SECURITY.md](SECURITY.md#아직-정하지-않은-것)).
+보안 취약점은 GitHub의 비공개 취약점 신고로 받고 공개 Issue로 받지 않습니다([SECURITY.md](SECURITY.md), 2026-10-07 결정). 저장소는 공개이고, 그 신고와 secret scanning·push protection·Dependabot 보안 알림을 켰습니다(2026-10-21, #22). 보안 수정을 받는 버전, 응답 기한과 공지는 [SECURITY.md](SECURITY.md#지원하는-버전과-처리)에 있습니다(2026-10-30 결정, #24).
 라이선스는 Apache License 2.0입니다([LICENSE](LICENSE), 2026-09-30 결정).
 지원 플랫폼은 Linux·macOS·Windows이며 Python 하한과 패키징 경계는 [ADR-0002](docs/decisions/0002-python-support-and-platform-scope.md)로 채택했습니다. 채택은 구현 완료가 아니므로, 현재 코드의 상태는 [현재 계약](docs/CONTRACTS.md)의 실행 환경 절을 따릅니다.
 조합별로 실제 설치·실행한 범위는 [지원 범위](docs/SUPPORT.md)에 증거와 함께 적습니다. 실행하지 않은 조합을 `verified`로 적지 않고, 증거가 검사한 commit 뒤에 코드가 바뀌어도 그 칸을 넓히지 않습니다.
-변경 이력은 [CHANGELOG.md](CHANGELOG.md)에 kit 버전별로 적습니다. 사용자에게 보이는 동작·명령·기록·설치를 바꾸는 PR은 병합될 때의 kit 번호 절에 짧은 항목과 PR 링크를 더하고, kit 번호를 올리는 PR은 새 절을 엽니다. 아직 게시한 버전은 없습니다.
+변경 이력은 [CHANGELOG.md](CHANGELOG.md)에 kit 버전별로 적습니다. 사용자에게 보이는 동작·명령·기록·설치를 바꾸는 PR은 병합될 때의 kit 번호 절에 짧은 항목과 PR 링크를 더하고, kit 번호를 올리는 PR은 새 절을 엽니다.
 출시 여부는 [품질 게이트](docs/BETA-QUALITY-GATES.md)의 실제 증거로 판단합니다.
 작성·실행·기록·설치 경로를 바꾸면 [Q17](docs/BETA-QUALITY-GATES.md#사람의-직접-분석과-작성-주체-전환-검증)의 관련 사례를 검증합니다. 노트북에서 SDK를 import한 사실만으로 실행 기록 연동을 지원한다고 안내하지 않습니다.
+
+### 릴리스 절차
+
+릴리스는 측정한 파일을 그대로 게시합니다. 측정한 뒤에는 다시 빌드한 파일이 그 바이트인지 대조할 뿐, 다른 파일을 올리지 않습니다(2026-10-30 소유자 결정, #24).
+
+1. **후보를 고정합니다.** 번호를 올리는 PR을 main에 병합합니다. pyproject·`KIT_VERSION`·manifest·README의 wheel 이름이 한 번호이고, CHANGELOG에 날짜가 있는 그 번호의 절이 있어야 합니다(`tools/release_check.py version`). README는 wheel의 설명이 되어 그 버전의 PyPI 페이지에 남으므로, 이 PR에서 "아직 게시하지 않았다" 같은 시점의 문장을 게시한 뒤에도 맞는 문장으로 바꿉니다.
+2. **후보의 파일을 기록합니다.** 병합한 main에서 release workflow를 수동 실행(`workflow_dispatch`)하면 `build`가 Linux에서 wheel·sdist를 만들고 세 OS의 `verify`가 그 파일을 확인합니다. 그 실행의 `release-sums` artifact(`SHA256SUMS`)를 `docs/releases/<번호>.sha256`으로 커밋합니다. 이 파일들이 후보입니다. 빌드는 재현됩니다: 같은 commit을 Linux·macOS에서 다시 빌드하면 같은 바이트가 나오고, Windows에서 빌드한 wheel은 zip 헤더의 '만든 시스템' 칸만 달라 멤버와 그 바이트가 같습니다. 그래서 후보와 게시하는 파일은 Linux에서 만든 것입니다.
+3. **후보로 측정합니다.** 출시 리허설(B6)의 결과표와 [지원 범위](docs/SUPPORT.md)를 후보의 sha256으로 채웁니다. 결과표·지원표·측정 기록·`docs/releases/`는 배포본에 들어가지 않으므로 그 뒤의 commit도 같은 파일을 만듭니다. 후보 뒤에 kit이나 README가 바뀌면 번호를 다시 올리고 1단계부터 다시 하며, 영향을 받는 게이트를 다시 잽니다.
+4. **소유자가 출시를 승인하면** `docs/releases/<번호>.sha256`이 있는 main의 commit에 `v<번호>` tag를 붙여 push합니다.
+5. **`.github/workflows/release.yml`이 돕니다.**
+   1. `build`: tag가 main의 commit에 있고 `v`와 그 번호인지 확인하고, wheel·sdist를 한 번 빌드한 뒤 그 `SHA256SUMS`가 `docs/releases/<번호>.sha256`과 같은지 대조합니다(`tools/release_check.py sums --expect`). 다르면 아무것도 게시하지 않습니다.
+   2. `verify`: Linux·Windows·macOS에서 그 파일을 설치·업그레이드·제거합니다(`tests/test_packaging.py`, `AELIX_ANALYTICS_TEST_INSTALL=1`, `AELIX_ANALYTICS_TEST_DIST`). 그 commit을 다시 빌드한 것이 같은 멤버와 바이트인지도 봅니다(macOS에서는 파일 바이트까지).
+   3. `pypi`: 환경 `pypi`의 배포를 소유자가 승인하면 PyPI Trusted Publishing으로 올립니다. 저장한 토큰은 없습니다. 올린 뒤 PyPI의 JSON API가 정확히 그 파일과 sha256을 보일 때까지(최대 10분) 확인합니다(`tools/release_check.py pypi`).
+   4. `github-release`: 같은 파일을 `SHA256SUMS`로 대조한 뒤, 그 파일과 `SHA256SUMS`를 GitHub Release에 붙입니다. 노트는 CHANGELOG의 그 번호 절입니다.
+6. **게시 뒤에** SECURITY·지원 범위·CHANGELOG의 "아직 게시하지 않았다" 문장과 지원표를 고치는 PR을 올립니다(README는 1단계에서 고쳤습니다).
+
+수동 실행은 어느 ref에서든, tag에서 돌려도 `build`와 `verify`만 돌리고 아무것도 게시하지 않습니다. 후보 기록(2단계)과 tag를 붙이기 전의 리허설입니다.
+업로드가 중간에 멈추면(예: wheel만 올라감) 같은 실행의 실패한 job을 다시 돌립니다. 같은 artifact를 쓰고, 이미 있는 파일은 건너뛰며(`skip-existing`), 마지막 확인이 PyPI의 파일이 그 바이트인지 봅니다. 다시 빌드하는 새 실행을 시작하지 않습니다.
+PyPI에서 파일이나 릴리스를 지울 수는 있지만, 지운 뒤에도 같은 번호·파일 이름을 다시 쓸 수 없습니다. 잘못 낸 배포는 yank하고 새 번호로 냅니다.
+
+처음 한 번은 소유자가 설정합니다. 둘 다 저장소 밖의 권한이라 이 저장소의 코드로 하지 않습니다.
+
+- PyPI의 pending publisher: project `aelix-analytics`, owner `handochan`, repository `aelix-analytics`, workflow `release.yml`, environment `pypi`.
+- GitHub 저장소의 환경 `pypi`: required reviewer `handochan`, 배포할 수 있는 tag `v*`.

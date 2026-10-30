@@ -1,0 +1,193 @@
+name: Release
+
+# A release (owner's decision of 2026-10-30, Issue #24; CONTRIBUTING.md's release steps): a `v<version>`
+# tag pushed on a commit of main builds the wheel and sdist once and checks they are the candidate the
+# release rehearsal measured (docs/releases/<version>.sha256), installs, upgrades and removes those very
+# files on Linux, Windows and macOS, and only then — after the owner approves the `pypi` environment's
+# deployment — uploads them to PyPI by Trusted Publishing (no token is stored), checks PyPI holds those
+# bytes, and attaches the same files and their SHA256SUMS to a GitHub Release. Nothing is built again
+# after the check.
+#
+# A manual run, on any ref, does the build and the check and publishes nothing: a rehearsal of the files a
+# tag of that commit would publish, whose SHA256SUMS artifact is what docs/releases/<version>.sha256 records.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build · the wheel and sdist
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      # The whole history: a tag has to be on a commit of main.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.19"
+      # pyproject.toml, KIT_VERSION, the manifest, README's wheel names and a dated changelog section
+      # name one version; a tag has to be `v` and that version, on main. pipefail: tee must not hide
+      # the check's failure.
+      - name: The version
+        id: version
+        env:
+          TAG: ${{ github.event_name == 'push' && github.ref_name || '' }}
+        run: |
+          set -euo pipefail
+          if [ -n "$TAG" ]; then
+            git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "the tag $TAG is not on main" >&2; exit 1; }
+            uv run --no-project --python 3.12 python tools/release_check.py version --tag "$TAG" | tee version.json
+          else
+            uv run --no-project --python 3.12 python tools/release_check.py version | tee version.json
+          fi
+          echo "version=$(python3 -c 'import json; print(json.load(open("version.json"))["version"])')" >> "$GITHUB_OUTPUT"
+      - name: Build
+        run: uv build -o dist
+      # A tag publishes the candidate the rehearsal measured: these files have to be the bytes
+      # docs/releases/<version>.sha256 records. A manual run only writes their sums.
+      - name: SHA256SUMS
+        env:
+          EXPECT: ${{ github.event_name == 'push' && format('docs/releases/{0}.sha256', steps.version.outputs.version) || '' }}
+        run: |
+          set -euo pipefail
+          if [ -n "$EXPECT" ]; then
+            uv run --no-project --python 3.12 python tools/release_check.py sums dist --output SHA256SUMS --expect "$EXPECT"
+          else
+            uv run --no-project --python 3.12 python tools/release_check.py sums dist --output SHA256SUMS
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-dist
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 90
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-sums
+          path: SHA256SUMS
+          if-no-files-found: error
+          retention-days: 90
+
+  verify:
+    name: verify · ${{ matrix.os }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025, macos-26]
+    steps:
+      # The whole history: the upgrade tests build an earlier kit's wheel from its commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.19"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-dist
+          path: ${{ runner.temp }}/release-dist
+      - name: Sync the development environment
+        timeout-minutes: 5
+        run: uv sync --locked --python 3.12
+      # The tests install these files, not a build of their own, and one test checks a build of this
+      # checkout makes the same members with the same bytes (the same file bytes on macOS; a Windows
+      # build differs in the zip headers' system field only).
+      - name: Install, upgrade and remove the release files
+        timeout-minutes: 45
+        env:
+          AELIX_ANALYTICS_TEST_INSTALL: "1"
+          AELIX_ANALYTICS_TEST_DIST: ${{ runner.temp }}/release-dist
+        run: uv run --locked pytest -q -ra -p no:cacheprovider --timeout 900 --timeout-method=thread tests/test_packaging.py tests/test_release_check.py
+
+  pypi:
+    name: publish · PyPI
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [build, verify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: pypi
+      url: https://pypi.org/project/aelix-analytics/${{ needs.build.outputs.version }}/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.19"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-dist
+          path: dist
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-sums
+          path: .
+      # skip-existing: re-running this job after an upload stopped half way sends only what is missing;
+      # the next step fails unless PyPI then holds exactly these bytes.
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: dist/
+          skip-existing: true
+      - name: PyPI holds these files
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: uv run --no-project --python 3.12 python tools/release_check.py pypi "$VERSION" --sums SHA256SUMS --wait 600
+
+  github-release:
+    name: publish · GitHub Release
+    needs: [build, pypi]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.19"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-dist
+          path: dist
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-sums
+          path: .
+      - name: The files are the ones the check installed
+        run: sha256sum --check ../SHA256SUMS
+        working-directory: dist
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          uv run --no-project --python 3.12 python tools/release_check.py notes "$VERSION" --output notes.md
+          gh release create "$TAG" dist/*.whl dist/*.tar.gz SHA256SUMS --verify-tag \
+            --title "Aelix Analytics $VERSION" --notes-file notes.md
