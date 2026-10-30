@@ -6,7 +6,8 @@
     python tools/release_check.py pypi VERSION --sums FILE [--wait SECONDS]   PyPI holds those files
 
 `version` reads pyproject.toml, KIT_VERSION, the aelix manifest, README's wheel names and the changelog,
-and reports whether they name one version (and, with --tag, that the tag is `v` and that version). A
+and reports whether they name one version (and, with --tag, that the tag is `v` and that version), and
+whether that version's changelog section, which becomes the release notes, links only full URLs. A
 release publishes the candidate the release rehearsal measured (CONTRIBUTING.md's release steps):
 `sums` writes the hashes of the wheel and sdist, refuses a directory that holds anything else, and
 with --expect (docs/releases/<version>.sha256, the candidate's SHA256SUMS) refuses other bytes. `pypi`
@@ -67,9 +68,17 @@ def check_version(tag: str | None, pack: Path = PACK) -> dict:
         problems.append(f"CHANGELOG.md has no section [{version}]")
     elif sections[version]["date"] is None:
         problems.append(f"CHANGELOG.md's section [{version}] has no date")
+    if version in sections:
+        # The section becomes the GitHub Release's notes, where a link relative to the checkout leads nowhere.
+        for target in relative_links(notes(version, pack)):
+            problems.append(f"CHANGELOG.md's section [{version}] links {target!r}; the release notes need a full URL")
     if tag is not None and tag != f"v{version}":
         problems.append(f"the tag is {tag!r}, the version {version!r} wants 'v{version}'")
     return {"ok": not problems, "version": version, "tag": tag, "seen": seen, "problems": problems}
+
+
+def relative_links(text: str) -> list[str]:
+    return [t for t in re.findall(r"\]\(([^)\s]+)\)", text) if not re.match(r"https?://", t)]
 
 
 def notes(version: str, pack: Path = PACK) -> str | None:

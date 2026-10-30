@@ -17,13 +17,27 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 
 ## [0.32.0] - 2026-10-30
 
+이 번호부터 PyPI(`aelix-analytics`)와 GitHub Release에 게시합니다. 공식 베타입니다(#24). 이전 번호는 게시하지 않았고, 그 변경은
+[변경 이력](https://github.com/handochan/aelix-analytics/blob/main/CHANGELOG.md)의 이전 절에 있습니다.
+
+### Changed
+
+- #24: README는 이 버전의 PyPI 페이지에 남으므로 게시한 뒤에도 맞는 문장으로 바꿨습니다. 설치는 PyPI의 이름 또는 체크아웃에서 만든 wheel이고,
+  인사이트 화면·Reports 탭처럼 설계만 있는 것은 이 버전에 없다고 적습니다.
+
+### Fixed
+
+- #24: 릴리스 workflow의 Windows 확인이 Linux에서 만든 wheel과 Windows에서 다시 빌드한 wheel을 파일 바이트로 비교해 실패했습니다(main의 수동 실행
+  41007605467). 두 wheel은 zip 헤더의 '만든 시스템' 칸만 다르므로, Windows에서는 멤버와 그 바이트를 비교합니다.
+
 ### Security
 
 - #131: 새 프로젝트의 템플릿(`pyproject.toml`)이 Pillow에 하한 `pillow>=13`을 둡니다. matplotlib가 그림에 쓰는 Pillow는 12.3.0까지
   GHSA-8g5g-8vmr-9782(critical)를 포함한 9건에 노출됩니다. 오프라인이고 uv 캐시에 Pillow 13 이상이 없으면 새 프로젝트의 환경을 만들지 못합니다
   (전에는 캐시의 이전 Pillow로 만들었습니다). 저장소의 dev 환경도 같은 하한을 둡니다.
 - 이미 만든 프로젝트의 Pillow는 kit이 올리지 않습니다. 그 프로젝트에서 `uv lock --upgrade-package pillow`와 `uv sync`를 실행하고, `uv.lock`의
-  Pillow가 13 이상인지 확인하세요. 프로젝트의 `pyproject.toml`이 그보다 낮게 묶었으면 올라가지 않습니다([README](README.md#5분-시작)).
+  Pillow가 13 이상인지 확인하세요. 프로젝트의 `pyproject.toml`이 그보다 낮게 묶었으면 올라가지 않습니다
+  ([README](https://github.com/handochan/aelix-analytics/blob/main/README.md#5분-시작)).
 
 ## [0.31.0] - 2026-10-29
 
