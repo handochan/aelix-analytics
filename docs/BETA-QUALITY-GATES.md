@@ -248,7 +248,8 @@ Qwen과 프론티어 모델이 서로 다른 올바른 방법을 선택할 수 �
 각 fixture에는 정정·철회·미보존 데이터·동일 chart ID·순환 참조·긴 한국어 내용을 포함한다.
 S/M은 `tools/eval_fixtures.py scale`이 seed로 결정적으로 만든다([평가 fixture 안내](../tools/eval_fixtures_data/README.md)). runs는 run 기록 수,
 events는 journal 줄 수, datasets는 가져온 원본 수이고(파생 표는 따로 셈), M의 원본은 약 217 MB다. 사례마다 실제 reader의 판정을
-manifest에 적고 `check` 명령이 다시 확인한다. 현재 형식은 `/1`이며 `analytics.event/2`는 #13 뒤에 같은 계획으로 만든다.
+manifest에 적고 `check` 명령이 다시 확인한다. 같은 계획을 `lab.*/1`(`--format v1`, kit 0.8.0 전의 kit)과 지금 kit의
+`analytics.event/2`(`--format v2`)로 만들며, 정정·철회처럼 형식마다 다르게 읽히는 사례의 판정은 형식별로 적는다.
 장비·디스크·Python·SQLite·브라우저·라이브러리 버전을 고정해 warm/cold를 구분하고(생성기의 `environment` 명령이 같은 형식으로 남긴다),
 반복 측정의 p50/p95·최대 메모리·읽은 파일량·생성 HTML 크기를 기록한다.
 초기 목표 후보는 M의 warm 제한 조회 p95 500 ms 이내, 캐시가 있는 첫 화면 사용 가능 p95 2초 이내다.
