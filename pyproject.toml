@@ -14,6 +14,25 @@ maintainers = [{ name = "handochan" }]
 # keeps >=3.12 (src/aelix_analytics/template/pyproject.toml, decision 3).
 requires-python = ">=3.11"
 dependencies = []
+# What a package index shows (Issue #24). The systems are the support target (ADR-0002); what was
+# installed and run where is docs/SUPPORT.md, not these lines.
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+]
+
+[project.urls]
+Source = "https://github.com/handochan/aelix-analytics"
+Issues = "https://github.com/handochan/aelix-analytics/issues"
+Changelog = "https://github.com/handochan/aelix-analytics/blob/main/CHANGELOG.md"
+Security = "https://github.com/handochan/aelix-analytics/blob/main/SECURITY.md"
 
 [project.scripts]
 analytics = "aelix_analytics.cli:main"
