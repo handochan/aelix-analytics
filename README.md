@@ -90,7 +90,8 @@ aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역
 ## 설치본(wheel)으로 쓰기
 
 체크아웃 없이 쓰는 방법입니다. Windows에서는 이것이 사람용 명령을 얻는 길입니다(`bin/analytics`는 POSIX 셸 스크립트).
-배포본은 아직 어디에도 게시하지 않았으므로 체크아웃에서 직접 만듭니다.
+배포본은 아직 어디에도 게시하지 않았으므로 체크아웃에서 직접 만듭니다. 첫 베타부터는 같은 파일을 PyPI(`aelix-analytics`)와
+GitHub Release에 게시합니다([릴리스 절차](CONTRIBUTING.md#릴리스-절차), 아래 [게시된 배포본](#게시된-배포본)).
 
 ```sh
 cd $PACK && uv build                                   # dist/aelix_analytics-0.31.0-py3-none-any.whl
@@ -98,12 +99,16 @@ uv tool install --python 3.12 dist/aelix_analytics-0.31.0-py3-none-any.whl      
 uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.31.0-py3-none-any.whl   # aelix와 함께
 ```
 
+새 wheel로 바꿀 때는 같은 줄을 새 파일로 다시 실행합니다. 이전 wheel의 파일은 남지 않습니다.
+
 - `analytics`는 체크아웃의 `bin/analytics`와 같은 명령·인자·usage(바이트까지 같음)를 쓰고 kit의 출력을 바이트 그대로 넘깁니다
   (`analytics --help`). `bin/analytics`가 셸의 오류에 맡기는 경우(uv가 없거나 시작할 수 없을 때, 문서를 여는 프로그램이 없을 때,
   작업 디렉터리를 읽을 수 없을 때)에는 자기 문구를 냅니다. 종료 코드가 다른 경우를 포함해 측정한 차이는
   [현재 계약](docs/CONTRACTS.md)의 F절에 있습니다. Python 3.11 이상이면 됩니다. 분석은 프로젝트의 uv 환경(Python 3.12 이상)에서 돕니다.
 - aelix 환경에 설치하면 aelix가 entry point로 확장을 찾습니다. `aelix extension verify aelix-analytics`가 `BOUND`를
-  보여 줍니다. `aelix extension install <wheel>`로도 설치할 수 있습니다.
+  보여 줍니다. `aelix extension install <wheel> --yes`로도 설치할 수 있고, `aelix extension remove aelix-analytics --yes`가
+  지웁니다. 새 wheel로 바꿀 때도 새 파일을 `aelix extension install`로 설치하세요. aelix 0.1.0b2의 `aelix extension update`는
+  경로로 설치한 wheel을 새로 받지 않고, 처음 설치한 경로의 wheel을 다시 설치합니다(이전 버전으로 돌아감).
 - aelix와 같은 환경에서 `analytics`도 쓰려면 `uv tool install aelix==0.1.0b2 --with <wheel> --with-executables-from
   aelix-analytics`처럼 설치합니다. `analytics`를 따로 설치하면 kit이 두 벌이 되므로 둘을 함께 업그레이드하세요.
 - 설치본을 업그레이드한 뒤에는 aelix를 다시 시작하세요(`/reload`로는 새 코드가 로드되지 않습니다).
@@ -111,6 +116,25 @@ uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.31.0-
 - **체크아웃의 symlink와 함께 두지 마세요.** 아래 `~/.aelix/agent/extensions/aelix_analytics.py` symlink가 있으면 aelix는
   두 사본을 모두 로드합니다. 이 버전 이상의 두 사본은 먼저 로드된 하나만 설정되지만, 이전 버전의 체크아웃은 이를
   알지 못해 hook이 두 번 돕니다. 설치본으로 옮길 때 symlink를 지우세요.
+
+### 게시된 배포본
+
+첫 베타를 게시한 뒤에는 이름으로 설치합니다. 아직 게시한 버전은 없습니다.
+
+```sh
+uv tool install --python 3.12 aelix-analytics                    # 사람용 `analytics`
+uv tool install --python 3.12 aelix==0.1.0b2 --with aelix-analytics --with-executables-from aelix-analytics   # aelix와 함께, 같은 kit의 `analytics`
+```
+
+- 업그레이드: `uv tool upgrade aelix-analytics`, aelix와 함께 설치했으면 `uv tool upgrade aelix`(aelix의 고정 버전은 그대로 두고
+  aelix-analytics만 올립니다). aelix 안에서 `aelix extension install aelix-analytics --yes`로 설치했으면
+  `aelix extension update aelix-analytics --yes`가 새 버전을 받습니다. 업그레이드한 뒤에는 aelix를 다시 시작하세요.
+- 제거: `uv tool uninstall aelix-analytics`, `uv tool uninstall aelix`(함께 넣은 확장과 `analytics`까지), 또는
+  `aelix extension remove aelix-analytics --yes`.
+- 이전 버전이 만든 프로젝트는 업그레이드한 kit이 이어 씁니다. 기존 기록·run은 바이트 그대로이고, 새 run은 새 kit 버전을 적습니다.
+  저장소 시험은 kit 0.25.0의 wheel(Q17에서 쓴 것)에서 이 버전으로 올리는 경로를 PyPI 대신 loopback의 색인으로 확인합니다
+  ([지원 범위](docs/SUPPORT.md#설치-경로)).
+- 보안 수정은 가장 최근 릴리스에만 합니다([보안 정책](SECURITY.md#지원하는-버전과-처리)).
 
 ## Windows에서 쓸 때
 

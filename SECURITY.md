@@ -1,5 +1,11 @@
 # 보안 정책
 
+> **In English.** Do not report a vulnerability in a public issue, pull request or discussion. Use
+> GitHub's private vulnerability reporting: the repository's **Security** tab, **Report a
+> vulnerability**. Security fixes go to the latest release only. You get a first answer within 7 days
+> and our assessment within 14 days. A fix ships in a new release with a GitHub security advisory
+> (a CVE when one applies, and credit if you want it). The rest of this policy is in Korean.
+
 Aelix Analytics는 첫 베타를 준비하고 있고 아직 어떤 버전도 게시하지 않았습니다. 패키지 색인의 패키지·버전 태그·GitHub 릴리스가
 없고, wheel은 체크아웃에서 빌드합니다([변경 이력](CHANGELOG.md)). 어떤 Python·운영체제·aelix·설치 경로에서 설치하고 실행했는지는
 [지원 범위](docs/SUPPORT.md)에 있습니다.
@@ -25,14 +31,19 @@ Issue·pull request·commit은 누구나 읽습니다. 저장소에는 secret sc
 - 합성 데이터로 재현하는 단계. 실제 데이터·자격 증명·세션 로그는 보내지 마세요.
 - 기대한 것과 실제로 일어난 것. 고칠 방법이 있으면 그것도.
 
-## 아직 정하지 않은 것
+## 지원하는 버전과 처리
 
-정한 것은 위의 신고 경로와 공개 Issue로 받지 않는다는 것입니다(2026-10-07 소유자 결정,
-[#24](https://github.com/handochan/aelix-analytics/issues/24)). 다음은 아직 정하지 않았고, 정하면 이 문서에 적습니다.
+신고 경로와 공개 Issue로 받지 않는다는 것은 2026-10-07에, 아래는 2026-10-30에 소유자가 정했습니다
+([#24](https://github.com/handochan/aelix-analytics/issues/24)). 관리자는 한 사람입니다.
 
-- 보안 수정을 받는 버전과, 수정을 이전 버전에 반영하는지.
-- 신고를 받은 뒤의 처리 절차와 응답 시간.
-- 수정 뒤의 공지(GitHub security advisory를 게시하는지와 그 시점).
+- **보안 수정을 받는 버전**: 가장 최근 릴리스 하나입니다. 베타 동안에는 이전 버전에 반영(backport)하지 않습니다. 고친 버전으로
+  업그레이드하세요([README](README.md#설치본wheel으로-쓰기)). 아직 게시한 버전이 없으므로 지금은 main의 체크아웃입니다.
+- **응답**: 신고를 받은 지 7일 안에 처음 답하고, 14일 안에 판단 결과(취약점인지, 영향 범위, 고칠 계획)를 알립니다. 더 필요한
+  정보가 있으면 그 안에 묻습니다.
+- **고치는 동안**: 신고 내용과 고치는 작업은 비공개 advisory 안에서 다룹니다. 수정을 게시하기 전에는 공개 Issue·pull request·
+  commit 설명에 취약점을 적지 않습니다.
+- **공지**: 수정한 버전을 게시할 때 GitHub security advisory를 공개합니다. 해당하면 CVE를 요청하고, 신고자가 원하면 이름을
+  적습니다. 변경 이력에는 advisory를 가리키는 항목을 둡니다.
 
 ## 범위
 

@@ -13,7 +13,7 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 ## [Unreleased]
 
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
-([기여 가이드](CONTRIBUTING.md#첫-공개-전에-남은-운영-결정)).
+([기여 가이드](CONTRIBUTING.md#배포와-운영-결정)).
 
 ## [0.31.0] - 2026-10-29
 
@@ -24,12 +24,18 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 - 저장한 대상: `analytics publish --save-target NAME --to FOLDER`와 `--target NAME`. `.analytics/publish-targets.json`에 저장하며, 새 프로젝트의
   `.gitignore`에 그 줄이 들어갑니다. 그 줄이 없는 프로젝트에서는 저장하지 않습니다.
 - `analytics publish --list --to FOLDER | --target NAME`이 그 대상의 channel과 history를 함께 보입니다.
+- #24 PR-1: 릴리스 workflow(`.github/workflows/release.yml`)와 `tools/release_check.py`. tag 하나가 wheel·sdist를 한 번 빌드하고, 세 OS에서 그 파일을
+  설치·업그레이드·제거한 뒤, 소유자가 승인하면 PyPI와 GitHub Release에 같은 파일을 올립니다([릴리스 절차](CONTRIBUTING.md#릴리스-절차)). 아직 게시한 버전은 없습니다.
+- 배포본 메타데이터에 분류자(`Development Status :: 4 - Beta` 등)와 프로젝트 URL(Source·Issues·Changelog·Security)을 더했습니다.
 
 ### Changed
 
 - channel 페이지는 최신 버전이 스스로 불러오는 스타일시트·이미지가 이 기기에서 열린 뒤에만 그 버전으로 옮깁니다. 아직 다 오지 않았으면 안내와
   이전 버전 링크를 보입니다.
 - 다른 계정이 게시한 버전을 읽지 못해 보이면(POSIX 권한) 결과에 경고 `others_cannot_read`를 더합니다. receipt는 group 권한도 관찰합니다.
+- #24 PR-1: README의 설치 안내에 게시된 배포본(첫 베타부터)의 설치·업그레이드·제거와, 새 wheel로 바꾸는 방법을 적었습니다. aelix 0.1.0b2의
+  `aelix extension update`는 경로로 설치한 wheel을 갱신하지 않고 처음 설치한 경로의 wheel을 다시 설치하므로, 새 파일을 `aelix extension install`로
+  설치하라고 안내합니다. SECURITY.md에 지원하는 버전·응답 기한·공지와 영어 요약을 적었습니다.
 
 ## [0.30.0] - 2026-10-27
 
