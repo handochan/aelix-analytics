@@ -1,6 +1,6 @@
 [project]
 name = "aelix-analytics"
-version = "0.31.0"
+version = "0.32.0"
 description = "Agent-native analytics projects with durable context, metrics, evidence, and reports"
 readme = "README.md"
 license = "Apache-2.0"
@@ -72,6 +72,7 @@ dev = [
   "polars>=1.30,<2",
   "pyarrow>=17",
   "matplotlib>=3.9",
+  "pillow>=13",
   "plotly>=6,<7",
   "pygments>=2.18",
   "markdown-it-py>=3",

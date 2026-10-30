@@ -8,7 +8,7 @@ resolution-markers = [
 
 [[package]]
 name = "aelix-analytics"
-version = "0.31.0"
+version = "0.32.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]
@@ -20,6 +20,7 @@ dev = [
     { name = "jsonschema", extra = ["format-nongpl"], marker = "python_full_version >= '3.12'" },
     { name = "markdown-it-py", marker = "python_full_version >= '3.12'" },
     { name = "matplotlib", marker = "python_full_version >= '3.12'" },
+    { name = "pillow", marker = "python_full_version >= '3.12'" },
     { name = "plotly", marker = "python_full_version >= '3.12'" },
     { name = "polars", marker = "python_full_version >= '3.12'" },
     { name = "pyarrow", marker = "python_full_version >= '3.12'" },
@@ -38,6 +39,7 @@ dev = [
     { name = "jsonschema", extras = ["format-nongpl"], marker = "python_full_version >= '3.12'", specifier = ">=4,<5" },
     { name = "markdown-it-py", marker = "python_full_version >= '3.12'", specifier = ">=3" },
     { name = "matplotlib", marker = "python_full_version >= '3.12'", specifier = ">=3.9" },
+    { name = "pillow", marker = "python_full_version >= '3.12'", specifier = ">=13" },
     { name = "plotly", marker = "python_full_version >= '3.12'", specifier = ">=6,<7" },
     { name = "polars", marker = "python_full_version >= '3.12'", specifier = ">=1.30,<2" },
     { name = "pyarrow", marker = "python_full_version >= '3.12'", specifier = ">=17" },

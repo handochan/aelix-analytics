@@ -10,6 +10,9 @@ dependencies = [
   "polars>=1.30,<2",
   "pyarrow>=17",
   "matplotlib>=3.9",
+  # A floor for security fixes, not for features: Pillow, which matplotlib draws with, up to 12.3.0
+  # has GHSA-8g5g-8vmr-9782 and eight more advisories (Issue #131).
+  "pillow>=13",
   "plotly>=6,<7",
   "pygments>=2.18",
   "markdown-it-py>=3",

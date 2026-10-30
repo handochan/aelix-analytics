@@ -144,7 +144,7 @@ def test_records_are_the_same_bytes_everywhere(tmp_path):
 NEW_PROJECT_SHA256 = {
     ".gitattributes": "66b748264be11611b9428c43a486454118278853b83c13397133c946929b6c15",
     ".gitignore": "c3c57341ef79ae4e0d4010661251423c97a94b1ec33c36e11ee8a37c3b259898",
-    "pyproject.toml": "09f536b1d9faf106e903d4614a308e28fc23e15cf0c346e939de82e828bb4b28",
+    "pyproject.toml": "2252b03efd8cf574ab12a5a78fc54fc210535800ad79116308718359938f83dc",
     ".python-version": "7b55f8e67b5623c4bef3fa691288da9437d79d3aba156de48d481db32ac7d16d",
 }
 

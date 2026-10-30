@@ -239,6 +239,16 @@ def test_the_current_contract_names_the_kit_s_version():
     assert pyproject()["project"]["version"] == core.KIT_VERSION
 
 
+def test_new_projects_keep_the_security_floor_the_dev_environment_tests():
+    """A new project gets Pillow 13 or newer (Issue #131: up to 12.3.0 it has GHSA-8g5g-8vmr-9782 and
+    eight more advisories), and the dev environment tests the kit with the template's libraries: every
+    requirement of the template is a dev requirement, written the same."""
+    template = tomllib.loads((PACK / "src" / "aelix_analytics" / "template" / "pyproject.toml")
+                             .read_text(encoding="utf-8"))["project"]["dependencies"]
+    assert "pillow>=13" in template
+    assert set(template) <= set(pyproject()["dependency-groups"]["dev"])
+
+
 def test_the_manifest_agrees_with_the_distribution(dist):
     with zipfile.ZipFile(dist["wheel"]) as wheel:
         manifest = tomllib.loads(wheel.read("aelix_analytics/aelix-plugin.toml").decode("utf-8"))
@@ -689,6 +699,10 @@ def test_the_installed_command_drives_a_project_without_aelix(dist, tmp_path, py
     ok([analytics, "init", "proj", "--title", title], cwd=work, env=env)
     project = work / "proj"
     assert tomllib.loads((project / "pyproject.toml").read_text(encoding="utf-8"))["project"]["description"] == title
+    # The environment uv made from the template keeps its security floor (Issue #131).
+    [pillow] = [p["version"] for p in tomllib.loads((project / "uv.lock").read_text(encoding="utf-8"))["package"]
+                if p["name"] == "pillow"]
+    assert int(pillow.split(".")[0]) >= 13, pillow
     csv = tmp_path / "sales.csv"
     csv.write_text("month,region,revenue\n2025-01,서울,100\n2025-02,부산,250\n", encoding="utf-8")
     ok([analytics, "import", csv, "--name", "sales"], cwd=project, env=env)
