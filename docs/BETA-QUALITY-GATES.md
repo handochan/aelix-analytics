@@ -396,9 +396,9 @@ PR에는 문제를 재현하는 입력, 변경 후 행동, 바뀐 계약, 비교
 | Q14 | not run(아래 #20·#21 몫은 pass) | — | — | — | — | 소유자의 다른 기기 열람 |
 | Q15 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), floor 3.11 세 OS | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | — |
 | Q16 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), macOS 26.6.2 arm64 로컬, 모델 없음 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | 사람의 Reports 탐색은 Q6 |
-| Q17-a 기능 | pass(Workspace 이동 미측정) | kit 0.25.0 wheel `660beb63…` | macOS 26.6.2, sandbox, 모델 없음 | 에이전트(2026-10-21 소유자 결정으로 갈음) | [2026-10-22-issue-23-q17](verification/2026-10-22-issue-23-q17.md) | 측정 범위의 `not_covered` |
+| Q17-a 기능 | pass(Workspace 이동 미측정) | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`). 처음 잰 것은 kit 0.25.0 wheel `660beb63…` | macOS 26.6.2, sandbox, 모델 없음 | 에이전트(2026-10-21 소유자 결정으로 갈음) | [2026-10-31-issue-24-q17a](verification/2026-10-31-issue-24-q17a.md), [2026-10-22-issue-23-q17](verification/2026-10-22-issue-23-q17.md) | 측정 범위의 `not_covered` |
 | Q17-a 사람의 사용성 | not_run | — | — | — | 같음 | 소유자 결정으로 갈음(#39를 좁힘) |
-| Q17-b | pass | 같음, aelix 0.1.0b2 | gpt-6.1-sol, Qwen3.8 27B(OpenRouter) | 에이전트 세션 + 소유자 검토 | 같음 | 세션은 터미널 없이 에이전트가 띄움. OpenRouter 서빙 미고정 |
+| Q17-b | pass | kit 0.25.0 wheel `660beb63…`, aelix 0.1.0b2 | gpt-6.1-sol, Qwen3.8 27B(OpenRouter) | 에이전트 세션 + 소유자 검토 | [2026-10-22-issue-23-q17](verification/2026-10-22-issue-23-q17.md) | 세션은 터미널 없이 에이전트가 띄움. OpenRouter 서빙 미고정. 후보로 다시 재는 것은 모델 캠페인(#24 PR-3) |
 | Q14의 #20 몫(받은 사본) | pass(측정 범위). Q14 자체는 not_run | kit 0.28.0 `ad509b2`(시험·CI `5b8114c`) | macOS 26.6.2 로컬(Chromium·Firefox·WebKit), CI 세 OS와 Linux Chromium | 에이전트 | [2026-10-27-issue-20-reader](verification/2026-10-27-issue-20-reader.md) | P1 게시(#21), 다른 기기의 열람(#24), OS 보관 도구, Safari·모바일, M의 Linux·Windows는 not_run |
 | Q14의 #21 몫(폴더 게시) | pass(측정 범위). Q14 자체는 not_run | kit 0.31.0 `7286182`(접근·CI `f5825e4`) | macOS 26.6.2 로컬(Chromium·Firefox·WebKit, exFAT 이미지), CI 세 OS의 두 번째 OS 계정, Windows 루프백 SMB, Linux Chromium | 에이전트 | [2026-10-29-issue-21-publish-channel](verification/2026-10-29-issue-21-publish-channel.md), [PR-2](verification/2026-10-27-issue-21-publish-steps.md) | 다른 기기의 열람(#24), 다른 기기의 공유·동기화 폴더, Safari·모바일, Windows ACL, 측정 도구의 Linux·Windows는 not_run |
 

@@ -1,0 +1,321 @@
+{
+ "record_kind": "aelix-analytics-q17-verification",
+ "observed_at": "2026-10-31",
+ "issue": "https://github.com/handochan/aelix-analytics/issues/24",
+ "pull_request": null,
+ "run_id": "3d4ae6db-bdef-498f-9214-3c2fa7f982c6",
+ "method": "docs/verification/2026-10-22-issue-23-q17.md (#23), the same tool and the same rehearsal scripts",
+ "candidate": {
+  "version": "0.32.0",
+  "commit": "26c28d09289718f0fc499c2975a33f1f59380a4c",
+  "wheel_sha256": "203f7e10583a51e30dd361c2d8e038c73428ac95b1789ee09e8ece4a7a437440",
+  "recorded_in": "docs/releases/0.32.0.sha256",
+  "release_run": "https://github.com/handochan/aelix-analytics/actions/runs/41150700659",
+  "prepare_wheel_equals_candidate": true
+ },
+ "q17a": {
+  "result": "pass (functions, agent run; step 5's Workspace navigation not measured); not_run (a person's usability)",
+  "prepare": {
+   "prepared_at": "2026-10-31T10:30:00+09:00",
+   "checkout": {
+    "path": "~/dev/aelix-extensions/.worktrees/aelix-analytics-b6-26c28d0",
+    "commit": "26c28d09289718f0fc499c2975a33f1f59380a4c",
+    "dirty": false,
+    "kit_version": "0.32.0"
+   },
+   "machine": {
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "machine": "arm64"
+   },
+   "wheel": {
+    "file": "aelix_analytics-0.32.0-py3-none-any.whl",
+    "sha256": "203f7e10583a51e30dd361c2d8e038c73428ac95b1789ee09e8ece4a7a437440",
+    "bytes": 1250437
+   },
+   "uv": {
+    "copied_from": "/opt/homebrew/Cellar/uv/0.11.19/bin/uv",
+    "version": "uv 0.11.19 (Homebrew 2026-06-03 aarch64-apple-darwin)"
+   },
+   "python": "3.12.13",
+   "analysis_packages": {
+    "contourpy": "1.4.0",
+    "cycler": "0.12.1",
+    "duckdb": "1.5.6",
+    "fonttools": "4.68.0",
+    "kiwisolver": "1.5.1",
+    "markdown-it-py": "4.2.0",
+    "matplotlib": "3.11.2",
+    "mdurl": "0.1.2",
+    "narwhals": "2.28.0",
+    "numpy": "2.5.4",
+    "packaging": "26.3",
+    "pillow": "13.0.0",
+    "plotly": "6.9.0",
+    "polars": "1.44.2",
+    "polars-runtime-32": "1.44.2",
+    "pyarrow": "26.0.0",
+    "pygments": "2.21.0",
+    "pyparsing": "3.3.3",
+    "python-dateutil": "3.0.0",
+    "six": "1.17.0",
+    "tzdata": "2026.6"
+   },
+   "data": {
+    "file": "data/orders.csv",
+    "sha256": "d4d76e8f220b8602c22a4c23031dc02a8512c081637da50f9b05f06e64062037",
+    "rows": 856,
+    "seed": 23
+   },
+   "sandbox": {
+    "tag": "q17a-deny-0be4e1ba",
+    "canary_tag": "q17a-canary-9e259f80",
+    "profile_sha256": "151adfe316a17738aa568ba4a11e8bb30d59dd46cfe65f73c40598aada0ddd20",
+    "canary_sha256": "26d995a98318b3cae9c8470385857c4a640dd24147ff41ee221308de72af5a01",
+    "denied_network": "every outbound IP connection (loopback included) and every Unix-domain socket connection (the resolver's included)",
+    "denied_exec": [
+     "/Applications/Ollama.app/Contents/Resources/ollama",
+     "~/.local/bin/aelix",
+     "~/.local/bin/claude",
+     "~/.local/share/claude/versions/2.1.314",
+     "~/.local/share/uv/tools/aelix/bin/aelix",
+     "/opt/homebrew/bin/codex",
+     "/opt/homebrew/bin/gemini",
+     "/opt/homebrew/bin/ollama",
+     "/opt/homebrew/bin/opencode",
+     "/opt/homebrew/bin/qwen",
+     "/opt/homebrew/lib/node_modules/@google/gemini-cli/bundle/gemini.js",
+     "/opt/homebrew/lib/node_modules/@openai/codex/bin/codex.js",
+     "/opt/homebrew/lib/node_modules/@qwen-code/qwen-code/cli-entry.js",
+     "/opt/homebrew/lib/node_modules/opencode-ai/bin/opencode.exe",
+     "/usr/local/bin/ollama"
+    ],
+    "denied_read": [
+     "~/.aelix",
+     "~/.cache/huggingface",
+     "~/.cache/uv",
+     "~/.claude",
+     "~/.codex",
+     "~/.config/aelix",
+     "~/.config/opencode",
+     "~/.gemini",
+     "~/.local/share/uv/tools/aelix",
+     "~/.ollama"
+    ],
+    "not_covered": [
+     "a model the analysis code loads itself from a file outside the denied stores (no connection or listed program to deny)",
+     "a model client that is not on the caller's PATH when prepare runs, or a copy of one (execution is denied by path)",
+     "what a process the session started tries after the check, when it was cut loose (setsid, or orphaned as the shell ended) before a poll (0.2 s) saw it and so was neither waited for nor stopped"
+    ]
+   }
+  },
+  "scripts": [
+   "rehearse-a1.zsh",
+   "rehearse-a2.zsh",
+   "rehearse-a3.zsh",
+   "rehearse-a4.zsh",
+   "rehearse-a5.zsh",
+   "verify-v1.zsh"
+  ],
+  "scripts_from": "#23's run (probe/rehearse-a1..a5.zsh), copied unchanged; verify-v1.zsh finds the report's first revision instead of naming it",
+  "zero_model": {
+   "schema": "aelix-analytics.q17-zero-model/1",
+   "checked_at": "2026-10-31T10:31:26+09:00",
+   "model_calls": 0,
+   "model_calls_basis": "inside the sandboxed sessions: no outbound IP or Unix-domain socket connection can be made and no listed model client can be executed by its path; what runs outside them (the editor, the browser) is the owner's statement in owner-notes.md",
+   "records_outside_sessions": [],
+   "attempts": 0,
+   "attempts_by_operation": {},
+   "denials": [],
+   "log_read_again": {
+    "from": "2026-10-31T10:29:55+09:00",
+    "returncode": 0,
+    "found": 0
+   },
+   "sessions": [
+    {
+     "number": 1,
+     "started_at": "2026-10-31T10:30:20+09:00",
+     "ended_at": "2026-10-31T10:30:20+09:00",
+     "exit_code": 0,
+     "canary": {
+      "curl_returncode": 7,
+      "logged": 1
+     },
+     "left_running": [],
+     "denials": 0
+    },
+    {
+     "number": 2,
+     "started_at": "2026-10-31T10:30:26+09:00",
+     "ended_at": "2026-10-31T10:30:49+09:00",
+     "exit_code": 0,
+     "canary": {
+      "curl_returncode": 7,
+      "logged": 1
+     },
+     "left_running": [],
+     "denials": 0
+    },
+    {
+     "number": 3,
+     "started_at": "2026-10-31T10:30:54+09:00",
+     "ended_at": "2026-10-31T10:30:58+09:00",
+     "exit_code": 0,
+     "canary": {
+      "curl_returncode": 7,
+      "logged": 1
+     },
+     "left_running": [],
+     "denials": 0
+    },
+    {
+     "number": 4,
+     "started_at": "2026-10-31T10:31:04+09:00",
+     "ended_at": "2026-10-31T10:31:06+09:00",
+     "exit_code": 0,
+     "canary": {
+      "curl_returncode": 7,
+      "logged": 1
+     },
+     "left_running": [],
+     "denials": 0
+    },
+    {
+     "number": 5,
+     "started_at": "2026-10-31T10:31:12+09:00",
+     "ended_at": "2026-10-31T10:31:13+09:00",
+     "exit_code": 0,
+     "canary": {
+      "curl_returncode": 7,
+      "logged": 1
+     },
+     "left_running": [],
+     "denials": 0
+    },
+    {
+     "number": 6,
+     "started_at": "2026-10-31T10:31:19+09:00",
+     "ended_at": "2026-10-31T10:31:19+09:00",
+     "exit_code": 0,
+     "canary": {
+      "curl_returncode": 7,
+      "logged": 1
+     },
+     "left_running": [],
+     "denials": 0
+    }
+   ],
+   "aelix_importable": {
+    "tool_env": {
+     "aelix_coding_agent": false,
+     "aelix_ai": false,
+     "aelix": false
+    }
+   },
+   "home_aelix_files": [
+    ".aelix/agent/analytics-projects.json"
+   ],
+   "kit_network_imports": [
+    {
+     "file": "aelix_analytics/kit/aelix_analytics/publishing/build.py",
+     "module": "socket",
+     "uses": [
+      "gethostname"
+     ]
+    },
+    {
+     "file": "aelix_analytics/kit/aelix_analytics/publishing/publish.py",
+     "module": "socket",
+     "uses": [
+      "gethostname"
+     ]
+    },
+    {
+     "file": "aelix_analytics/publishing/build.py",
+     "module": "socket",
+     "uses": [
+      "gethostname"
+     ]
+    },
+    {
+     "file": "aelix_analytics/publishing/publish.py",
+     "module": "socket",
+     "uses": [
+      "gethostname"
+     ]
+    }
+   ],
+   "denied": {
+    "denied_network": "every outbound IP connection (loopback included) and every Unix-domain socket connection (the resolver's included)",
+    "denied_exec": [
+     "/Applications/Ollama.app/Contents/Resources/ollama",
+     "~/.local/bin/aelix",
+     "~/.local/bin/claude",
+     "~/.local/share/claude/versions/2.1.314",
+     "~/.local/share/uv/tools/aelix/bin/aelix",
+     "/opt/homebrew/bin/codex",
+     "/opt/homebrew/bin/gemini",
+     "/opt/homebrew/bin/ollama",
+     "/opt/homebrew/bin/opencode",
+     "/opt/homebrew/bin/qwen",
+     "/opt/homebrew/lib/node_modules/@google/gemini-cli/bundle/gemini.js",
+     "/opt/homebrew/lib/node_modules/@openai/codex/bin/codex.js",
+     "/opt/homebrew/lib/node_modules/@qwen-code/qwen-code/cli-entry.js",
+     "/opt/homebrew/lib/node_modules/opencode-ai/bin/opencode.exe",
+     "/usr/local/bin/ollama"
+    ],
+    "denied_read": [
+     "~/.aelix",
+     "~/.cache/huggingface",
+     "~/.cache/uv",
+     "~/.claude",
+     "~/.codex",
+     "~/.config/aelix",
+     "~/.config/opencode",
+     "~/.gemini",
+     "~/.local/share/uv/tools/aelix",
+     "~/.ollama"
+    ],
+    "not_covered": [
+     "a model the analysis code loads itself from a file outside the denied stores (no connection or listed program to deny)",
+     "a model client that is not on the caller's PATH when prepare runs, or a copy of one (execution is denied by path)",
+     "what a process the session started tries after the check, when it was cut loose (setsid, or orphaned as the shell ended) before a poll (0.2 s) saw it and so was neither waited for nor stopped"
+    ]
+   },
+   "problems": [],
+   "passed": true
+  },
+  "comparison_with_0_25_0": {
+   "against": "#23 rehearsal-3 a1.log..a5.log",
+   "masked": [
+    "run IDs",
+    "report revision and request IDs",
+    "timestamps",
+    "paths",
+    "elapsed times",
+    "source_revision"
+   ],
+   "result": "the same output",
+   "script_input_errors_refused_as_before": [
+    "--ref busan_daily.py::chart-1 without scripts/: no version bound (none)",
+    "--based-on with run IDs only: report_input_invalid (invalid_basis)",
+    "v2 with an empty previous revision after v1 was refused: name_not_portable"
+   ]
+  },
+  "report_v1_check": {
+   "revision": "first revision of q3-review",
+   "recording_status": "complete",
+   "content": "resolved",
+   "files": {
+    "monthly-revenue.png": 66778,
+    "요약.md": 318
+   },
+   "based_on_runs": 2
+  },
+  "not_measured": [
+   "step 5's Workspace navigation (the agent rendered only); a person's exploration is Q6",
+   "a person's usability (owner decision 2026-10-21)",
+   "Q17-b: model campaign (PR-3)"
+  ]
+ }
+}
