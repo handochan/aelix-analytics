@@ -28,10 +28,12 @@ Windows의 선언된 한계, 실행하지 않은 것은 [현재 계약](CONTRACT
 현재 사용자가 지정한 지원 하단 기준은 **Qwen3.8 27B**다. 정확한 serving ID·버전·양자화·backend·tokenizer·실제 context 설정을 고정한 검증이 필요하다.
 그 설정은 #40이 고정했다: ollama 0.35.1의 `qwen3.8:27b-mtp-q4_K_M`(GGUF Q4_K_M, manifest digest 고정), context 131,072, 출력 예약 32,768,
 Qwen 권장 표본 추출 값([실제 모델 평가 안내](../tools/model_eval_data/README.md#로컬-qwen-서빙)). 프론티어 모델은 aelix의 `openai-codex`
-provider와 소유자의 aelix 로그인으로 부르는 `gpt-5.6-sol`이다(context 1,050,000, 출력 128,000; 2026-10-07 소유자 결정. thinking `medium`은
-소유자 결정이 아니라 aelix 0.1.0b2의 기본값 `DEFAULT_THINKING_LEVEL`(`core/defaults.py`)이다).
+provider와 소유자의 aelix 로그인으로 부르는 `gpt-6.1-sol`이다(context 500,000, 출력 128,000; 2026-10-30 소유자 결정 D1, #24. 그 전의 결정은
+`gpt-5.6-sol`(2026-10-07)이었다. thinking `medium`은 소유자 결정이 아니라 aelix 0.1.0b2의 기본값 `DEFAULT_THINKING_LEVEL`(`core/defaults.py`)이다).
 설정을 고정한 것은 검증 결과가 아니다. 이 설정으로 측정한 결과는 #24가 낸다.
-이 모델과 프론티어 모델의 정상 사용 설정을 주 검증 대상으로 삼는다. 8K 등의 축소 문맥 시험은 별도 진단이며 기본 실행 한도나 하단 모델의 정의가 아니다.
+이 모델과 프론티어 모델의 정상 사용 설정을 주 검증 대상으로 삼는다. #24의 모델 측정은 Qwen3.8 27B를 이 로컬 설정 대신 OpenRouter로
+부른다(2026-10-30 소유자 결정 D2). 그래서 지원 하단의 로컬 설정은 미실행이고, §7에 따라 출시 보류 사유다. 출시 판정 때 소유자가 다시 본다(D2).
+8K 등의 축소 문맥 시험은 별도 진단이며 기본 실행 한도나 하단 모델의 정의가 아니다.
 더 작은 모델의 실행을 차단하지 않고, 모델 발전에 따라 릴리스별 기준을 재검토한다.
 [참고 세션](REVIEW-REFERENCE-SESSION-2026-09-18.md)은 GLM-5.3-Flash의 기록이며 Qwen 지원 통과 증거가 아니다.
 
@@ -57,7 +59,7 @@ provider와 소유자의 aelix 로그인으로 부르는 `gpt-5.6-sol`이다(con
 | Q10 분석·표시 경계 | 기록 내용의 안전한 표시와 적절한 분석 검사 | HTML 특수문자·경로·악성처럼 보이는 메모를 내용으로 표시. 집계 키·단위·분모·기간 검사 예제. 공유되는 데이터·로그 범위 명시 |
 | Q11 도구 표면 | 기능 추가가 불필요한 상시 도구·schema·분기를 늘리지 않음 | 기존 6개 활용·선택적 노출·신설 대안의 선택 정확도·인자 오류·토큰·과제 완수 비교. 로컬·프론티어 모델과 호스트 전체 도구 목록에서 검증 |
 | Q12 지표와 분석 방향 | 목적·지표·현재 질문·다음 확인을 유지하고 정의와 관측을 구별 | 미정 후보·다중 지표·정의 수정·파생·조건별 조회·코드만 수정한 재계산·부모 버전 변경·새 세션 재개 fixture. 원래 정의·결과와 방향 변경 사유 보존 |
-| Q13 분석 자유도 | 기록·지표·메모리 개선이 유용했던 자유 분석을 막지 않음 | 모호한 EDA → 새 Python 계산 → 방법 비교 → 오류 복구 → 사용자 요청의 그림 확장 → 맥락 갱신을 주 검증 모델에서 완수. 사전 지표 등록·닫힌 chart spec·단계별 승인을 요구하지 않음 |
+| Q13 분석 자유도 | 기록·지표·메모리 개선이 유용했던 자유 분석을 막지 않음 | 모호한 EDA → 새 Python 계산 → 방법 비교 → 오류 복구 → 사용자 요청의 그림 확장 → 맥락 갱신을 확장 유무로 비교해, 확장이 있을 때의 완수가 순정보다 줄지 않음([제품 효과 평가 설계](design/PRODUCT-EVALUATION.md) 8절 R5). 모델별 완수는 보고한다. 사전 지표 등록·닫힌 chart spec·단계별 승인을 요구하지 않음 |
 | Q14 공유·게시 | 진행 중인 분석을 선택한 범위·고정 버전으로 다른 환경에서 읽음 | [P0·P1](PUBLISH-AND-SHARING.md)의 독립 패키지, 원본 없는 환경, 공유 범위, 버전/최신 주소, 실제 접근·자원 일치, 실패·재시도 검증 |
 | Q15 장기 확장 구조 | 도메인·응용 계약과 Strategy·기술 adapter의 의존 경계 유지 | core의 host/분석 라이브러리 없는 대표 호출, 역방향 import 검사, 대체 구현의 계약 시험, 프로젝트·세션 상태 격리, 기존 형식·스크립트 호환 |
 | Q16 보고서 산출물 | 중간·자유 형식 보고서의 시점·버전·근거와 반복 묶음을 보존 | [보고서 설계](REPORT-ARTIFACTS.md)의 자유 본문·파일 보존, 과거 버전 불변, 컬럼별 부분 생성, 근거 왕복, 불완전 저장·재시도, 추가 LLM 없는 렌더·선택 공유 검증 |
@@ -397,7 +399,7 @@ PR에는 문제를 재현하는 입력, 변경 후 행동, 바뀐 계약, 비교
 | Q7 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), macOS 26.6.2 arm64 로컬, 모델 없음(S·M `v1` 전환) | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | — |
 | Q8 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492) | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | — |
 | Q9 | pass(측정 범위) | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`), 도구 `056760d`·`80a8510` | macOS 26.6.2 arm64 로컬, 모델 없음, Chromium 156 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | Linux·Windows·L 규모·읽은 파일량 미측정. M에서 run 끝의 전체 빌드 6.3초 |
-| Q10 | 표시 경계 pass, 분석 검사 not run | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), macOS 26.6.2 arm64 로컬, 모델 없음, Chromium 156 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | 분석 검사 예제의 판정은 모델 과제(PR-3) |
+| Q10 | 표시 경계 pass, 분석 검사 not run | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), macOS 26.6.2 arm64 로컬, 모델 없음, Chromium 156 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | 분석 검사 예제(T07–T09)의 판정은 확장 유무 비교의 해 없음(R5)으로 보고하고 판정 기준으로 쓰지 않는다([제품 효과 평가 설계](design/PRODUCT-EVALUATION.md)) |
 | Q12 | 결정적 사례 pass, 새 세션 재개 not run | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492) | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | 새 세션 재개는 모델 과제(PR-3) |
 | Q14 | not run(아래 #20·#21 몫은 pass) | — | — | — | — | 소유자의 다른 기기 열람 |
 | Q15 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), floor 3.11 세 OS | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | — |
