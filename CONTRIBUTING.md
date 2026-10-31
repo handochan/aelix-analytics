@@ -249,7 +249,8 @@ ID 회수·판단 상태·원본 journal 해시와 UTF-8 응답 bytes를 남깁�
 Workspace의 S/M 측정(Q9, #24)은 `v2` fixture 프로젝트의 사본에서 합니다.
 `uv run --locked --group browser python tools/workspace_scale_eval.py --fixture <fixture> --project <사본> --out <새 결과 dir>`는
 빌드의 cold·warm·변경 없음 확인의 p50/p95, 빌드의 최대 메모리, 쓴 페이지의 수와 크기, Chromium이 `file://`로 첫 화면을 여는 시간을
-남깁니다. 같은 페이지에서 Q10의 표시 사례(`display_safety`)가 글자로만 보이는지도 봅니다. 읽은 파일량은 측정하지 않습니다.
+남깁니다. Q10의 표시 사례(`display_safety`)가 글자로만 들어 있는지도 HTML 파서(모든 페이지)와 Chromium으로 따로 판정합니다.
+읽은 파일량은 측정하지 않습니다.
 `tests/test_workspace_scale_eval.py`가 S로 이 도구를 확인합니다.
 
 분석 자산 host의 Q11 측정(#17)은 `tools/asset_host_eval.py --out <새 결과 dir> --baseline-extension <B3-b 확장 소스>`로

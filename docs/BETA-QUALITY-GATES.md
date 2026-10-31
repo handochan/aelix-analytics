@@ -384,13 +384,13 @@ PR에는 문제를 재현하는 입력, 변경 후 행동, 바뀐 계약, 비교
 
 | Gate | 결과(pass/fail/not run) | commit·artifact | 환경·모델 | 수행자 | 증거 경로 | 제한·후속 작업 |
 |---|---|---|---|---|---|---|
-| Q1 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), release `verify` 세 OS(41150700659), aelix 0.1.0b2 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | PyPI에서 이름으로 설치는 게시 뒤 |
+| Q1 | pass(지원표 제외) | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), release `verify` 세 OS(41150700659), aelix 0.1.0b2 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | 후보로 다시 채운 지원표(PR-4). PyPI에서 이름으로 설치는 게시 뒤 |
 | Q2·Q3·Q5·Q11·Q13 | not run | — | — | — | — | 모델 캠페인(#24 PR-3). Q3의 결정적 회수·응답 bytes는 Q9 행의 기록 |
 | Q4 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), macOS 26.6.2 arm64 로컬, 모델 없음(S·M fixture `check`) | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | — |
 | Q6 | not run | — | — | — | — | 소유자의 사람 탐색 |
 | Q7 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), macOS 26.6.2 arm64 로컬, 모델 없음(S·M `v1` 전환) | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | — |
 | Q8 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492) | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | — |
-| Q9 | pass(측정 범위) | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`), 도구 `056760d` | macOS 26.6.2 arm64 로컬, 모델 없음, Chromium 156 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | Linux·Windows·L 규모·읽은 파일량 미측정. M에서 run 끝의 전체 빌드 6.7초 |
+| Q9 | pass(측정 범위) | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`), 도구 `056760d`·`80a8510` | macOS 26.6.2 arm64 로컬, 모델 없음, Chromium 156 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | Linux·Windows·L 규모·읽은 파일량 미측정. M에서 run 끝의 전체 빌드 6.3초 |
 | Q10 | 표시 경계 pass, 분석 검사 not run | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), macOS 26.6.2 arm64 로컬, 모델 없음, Chromium 156 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | 분석 검사 예제의 판정은 모델 과제(PR-3) |
 | Q12 | 결정적 사례 pass, 새 세션 재개 not run | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492) | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | 새 세션 재개는 모델 과제(PR-3) |
 | Q14 | not run(아래 #20·#21 몫은 pass) | — | — | — | — | 소유자의 다른 기기 열람 |
