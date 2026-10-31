@@ -4,8 +4,8 @@ A replaceable part is an interface with more than one implementation, one of whi
 test injects. Today these are the four platform ports of ADR-0003 (`FileLocks`, `AtomicFiles`,
 `ProcessControl`, `RunControl`), carried by a `Project` (`Project(root, platform=…)`), with three
 implementations: POSIX, Windows, and the recording stand-in tests inject (tests/platform_doubles.py).
-Policy Strategies are not here yet: ProposalPolicy (#17) and PublicationProjection (#20) add their own
-table of implementations and their cases in this shape when they exist.
+The policy Strategies follow in this shape: PublicationProjection and ReportRenderer (#20) at the end of
+this file. ProposalPolicy's replacement (#17) is in tests/test_asset_contract.py.
 
 Each case runs once per implementation, where that implementation runs: the POSIX one on the Linux and
 macOS legs, the Windows one on the Windows leg. Elsewhere the case is skipped and says so; a skip is

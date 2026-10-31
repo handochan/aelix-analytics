@@ -11,7 +11,9 @@ child process of this interpreter, so its peak memory is its own (ru_maxrss; not
 - cold: the kit's derived directories emptied first (the hash cache and the Workspace); the OS's file
   cache is not flushed, so a cold sample is the kit's cold, not the disk's;
 - warm: the cache and the Workspace there, a full build;
-- unchanged: `build(if_changed=True)` with nothing changed, which a run's end and `analytics open` meet.
+- unchanged: `build(if_changed=True)` with nothing changed: the detached `render --if-changed` the aelix
+  extension starts after each prompt meets it (a run's end builds in full; `analytics open` opens the
+  page that is there).
 The time inside the child is the build's; the child's wall time adds the interpreter and the imports.
 `analytics render` adds `uv run` on top, which is not measured here. The browser (Playwright's
 Chromium, the `browser` dependency group) opens `workspace/index.html` from file:// in a new context
