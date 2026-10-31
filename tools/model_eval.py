@@ -613,8 +613,10 @@ SPLITTERS = {
     "clause": re.compile(r"\n|(?<=[.!?。？])\s+|[,;]\s+|:\s+|\s[—–]\s"),
 }
 # A quotation on one line: a period inside it does not end the answer's sentence (#24's campaign: an answer
-# said e74 was 4,000 characters and cut mid-sentence, quoting its last words "…낮다. 센").
-QUOTED = re.compile(r"“[^”\n]*”|「[^」\n]*」|『[^』\n]*』|\"[^\"\n]*\"")
+# said e74 was 4,000 characters and cut mid-sentence, quoting its last words "…낮다. 센"). A quotation
+# holds no other kind of quotation mark and is at most 300 characters, so that a mark left unpaired
+# does not join the sentences after it.
+QUOTED = re.compile(r"“[^“”\"\n]{0,300}”|「[^「」\n]{0,300}」|『[^『』\n]{0,300}』|\"[^\"“”\n]{0,300}\"")
 CLAUSE_BOUNDARY = re.compile(r"\n|(?<=[.!?。？])\s|,\s|;|:\s|\s[—–]\s")
 STRIP = ".,!?\"'`*()[]{}<>“”‘’「」『』|"
 # Korean and English negation: after a word (해결되지 않은, 맞지 않다, 사실이 아니다, 안 됨, is not) or
@@ -2658,10 +2660,13 @@ CREDENTIAL_KINDS = tuple(kind for kind, *_ in CREDENTIAL_PATTERNS)
 CLASSES = (rb"[A-Z]", rb"[a-z]", rb"[0-9]")
 # A digest written as algorithm=base64url (a wheel's RECORD: sha256=…) is not a credential.
 DIGEST_PREFIX = re.compile(rb"(?:sha(?:1|224|256|384|512)|md5|blake2[bs])=$", re.IGNORECASE)
-# Two values of the kit's own that have a credential's shape (2026-10-31 campaign: 288 findings in 14
-# runs, all of them these): the cursor of a limited read's next page, and a Visualization reference's
-# `token`, which is `<script path>::<name>`. Quotes may be escaped, as in a JSON event line.
+# Values of the kit's own that have a credential's shape (2026-10-31 campaign: 486 findings in the 24
+# runs whose model worked, all of them these): the cursor of a limited read's next page, a Visualization
+# reference's `token`, which is `<script path>::<name>`, and the `token` of a reference the kit could not
+# bind, which is the name the model wrote (`{"type": "visualization_version", "token": …}`). Quotes may
+# be escaped, as in a JSON event line.
 KIT_CURSOR_BEFORE = re.compile(rb'\\*"cursor\\*"\s*:\s*\\*"$')
+KIT_BINDING_BEFORE = re.compile(rb'\\*"type\\*"\s*:\s*\\*"(?:visualization_version|dataset_import)\\*"\s*,\s*$')
 FIELD_NAME = re.compile(rb'\\*["\']?([A-Za-z0-9_]+)')
 
 
@@ -2703,8 +2708,9 @@ def credential_findings(data: bytes, *, mask: bool = False) -> list[dict]:
                     bytes(work[max(0, start - 12):start])) or KIT_CURSOR_BEFORE.search(
                     bytes(work[max(0, start - 24):start]))):
                 continue
-            if kind == "credential_field" and bytes(work[end:end + 2]) == b"::" and \
-                    FIELD_NAME.match(match.group(0)).group(1).lower() == b"token":
+            if kind == "credential_field" and FIELD_NAME.match(match.group(0)).group(1).lower() == b"token" and (
+                    bytes(work[end:end + 2]) == b"::" or KIT_BINDING_BEFORE.search(
+                        bytes(work[max(0, match.start(0) - 64):match.start(0)]))):
                 continue
             line += work.count(b"\n", counted, start)
             counted = start
@@ -3936,7 +3942,7 @@ def provider_refused(tr: Transcript) -> str | None:
     """The not_run reason when the provider refused the run before the model did anything: no tool
     call, no answer, and a turn that ended in the provider's refusal. A run the model had worked in
     when the refusal came stays an error."""
-    if tr.calls or any(a.strip() for a in tr.answers):
+    if tr.calls or any(a.strip() for a in tr.answers) or any(usage_reported(m) for m in tr.messages):
         return None
     for turn in tr.turns:
         text = str(turn.get("error") or "")

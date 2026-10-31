@@ -352,6 +352,11 @@ def test_a_period_in_a_quotation_does_not_end_the_sentence(config):
     assert me.run_check(check, evidence(said), config.words)["passed"]
     apart = "원문은 4,000자입니다. 마지막 문장은 중간에서 끊겨 있습니다."
     assert not me.run_check(check, evidence(apart), config.words)["passed"]
+    # A mark left unpaired, or of another kind, joins nothing: the closed question after it is read in a
+    # sentence of its own.
+    closed = next(c for c in config.answers["T01"]["checks"] if c["id"] == "closed-as-open")
+    mixed = '마지막 글은 "낮다. 센”으로 끊겼다. e56은 열려 있다. 그리고 "x"는 e139로 해결됐다.'
+    assert me.stated_as_current(closed, mixed, config.words)[0] == ["e56은 열려 있다."]
 
 
 def test_numbers_percentages_and_ids_are_read_with_their_boundaries(config):
@@ -837,11 +842,14 @@ def test_the_secret_scan_overwrites_credential_shapes_without_knowing_them(tmp_p
         "6e5241b4-86b1-43c1-bace-74f4f07a01f2", '"apiKey": "ollama-local-no-key"', "resp_" + "68e4c2a1" * 6,
         '"encrypted_content": "gAAAAAB' + "o5Kx" * 40 + '"', "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
         "iVBORw0KGgo" + "+AbC9xQ2/" * 30 + "==", "_handleOverridablePaintPropertyUpdate", "accessToken:r._mapboxAccessToken",
-        # The kit's own: a limited read's next-page cursor and a Visualization reference's token (#24's
-        # campaign: 288 findings in 14 runs, all of these), also with the quotes of a JSON event line.
+        # The kit's own: a limited read's next-page cursor, a Visualization reference's token and the
+        # token of a reference the kit could not bind, the name the model wrote (#24's campaign: 486
+        # findings in 24 runs, all of these), also with the quotes of a JSON event line.
         '"cursor": "' + "eyJxIjoiXHVjMTNjIiwibyI6OCwiZiI6Wy" + "Q2xK8vRz1mN0bP4w" * 5 + '"',
         '{\\"cursor\\": \\"' + "Zt9Qx2Lm8Rv4Kp7W" * 6 + '\\"}',
-        '"token": "scripts/03_sensor_plots.py::sensor-distributions"'])
+        '"token": "scripts/03_sensor_plots.py::sensor-distributions"',
+        '{"type": "visualization_version", "token": "sensorBand2Chart_v3_allSensors"}',
+        '{\\"type\\": \\"visualization_version\\", \\"token\\": \\"anomaly2Candidates_byStepScore\\"}'])
     (run / "benign.txt").write_text(benign, encoding="utf-8")
     secret_file = tmp_path / "login.json"
     secret_file.write_text(login, encoding="utf-8")

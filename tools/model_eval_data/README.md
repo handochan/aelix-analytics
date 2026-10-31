@@ -69,8 +69,8 @@ uv run --locked python tools/model_eval.py scan <dir>                         # 
 비밀 검사가 통과하지 못함, `OUT`에 검사하지 않은 run이 남음, 또는 신호로 멈춤), 2(사용법·설정 오류, 아무것도 실행하지 않음),
 3(전제가 없어 실행하지 않음: 모델의 aelix 로그인이 없거나 API가 그 로그인을 거절함, 키 없음, 서빙이 고정 설정과 다름, kit에 없는 조건.
 `summary.json`에 `not_run`과 이유, 로그인 문제면 로그인 방법과 실행할 명령).
-provider가 요청을 거절해(HTTP 402, 예: OpenRouter의 크레딧 부족) 모델이 도구 호출도 답도 내기 전에 끝난 run은 모델의 실패가 아니라
-`not_run`(`provider_refused`)이다. 작업 도중에 거절되면 `error`로 남는다.
+provider가 요청을 거절해(aelix가 적은 오류 `Error code: 402`, 예: OpenRouter의 크레딧 부족) 모델이 도구 호출도 답도 usage가 보고된
+응답도 내기 전에 끝난 run은 모델의 실패가 아니라 `not_run`(`provider_refused`)이다. 작업 도중에 거절되면 `error`로 남는다.
 
 **멈춤과 강제 종료.** SIGTERM·SIGHUP·SIGINT(에이전트의 명령 시간 제한이나 작업 중지가 보내는 것)를 받으면 하네스는 진행 중인 run을
 끝까지 닫는다: aelix를 멈추고, 작업 루트를 정리해 옮기고, 모든 파일을 검사하고, 기록을 쓴 뒤 종료 코드 1로 끝난다(정리 중에 온 두 번째
@@ -179,8 +179,9 @@ TOKEN·KEY·SECRET·PASSWORD·CREDENTIAL·COOKIE)의 값도 같은 방식으로 
 둘), `Bearer` 토큰, 값이 있는 `refresh`·`access`·`*_token`·`api_key`·`client_secret`·`secret`·`password` 항목(앞에 다른 낱말이 붙은
 이름 `GEMINI_CLI_IDE_AUTH_TOKEN=`, 따옴표가 이스케이프된 JSON 사건 줄 포함), `sk-` 키, 대·소문자와 숫자가 섞인 32–256자의 무작위
 base64url 토큰(이름·코드·`sha256=` digest·codex의 암호화된 reasoning `gAAAAA…`·base64 그림 조각은 빼도록 모양을 가림), 그런 모양의
-파일 이름. kit 자신의 값은 빼도록 모양을 가린다: 조회의 다음 쪽 `cursor` 값, 그리고 이름이 정확히 `token`이고 값 뒤에 `::`가 오는
-Visualization 토큰(2026-10-31 캠페인에서 모델이 돈 24 run의 486개가 모두 이 둘이었다). 찾은 것은 같은 길이 표시로 덮어쓰고 값 없이 파일·줄·종류·길이만 `secret_scan`에 적는다. **파일을 그 자리에서 고쳐 쓰지
+파일 이름. kit 자신의 값은 빼도록 모양을 가린다: 조회의 다음 쪽 `cursor` 값, 이름이 정확히 `token`이고 값 뒤에 `::`가 오는
+Visualization 토큰, 그리고 kit이 묶지 못한 참조의 `token`(`"type": "visualization_version"`이나 `"dataset_import"` 바로 뒤, 모델이
+적은 이름). 2026-10-31 캠페인에서 모델이 돈 24 run의 486개는 모두 이 셋이었다(`cursor` 226, `::` 토큰 236, 묶지 못한 참조 24). 찾은 것은 같은 길이 표시로 덮어쓰고 값 없이 파일·줄·종류·길이만 `secret_scan`에 적는다. **파일을 그 자리에서 고쳐 쓰지
 않는다**: 고친 내용을 같은 디렉터리의 임시 파일에 쓰고 `os.replace`로 바꾼다(하드 링크로 이어진 다른 이름이 남아 있어도 그 파일에는
 쓰지 않음). 검사 전에 run 밖으로 이어진 링크를 lstat만으로 찾아(파일을 열지 않음) 그 이름을 지운다: run 밖을 가리키는 심볼릭 링크,
 run 밖에도 이름이 있는 파일(하드 링크: 링크 수가 run 안의 이름 수보다 많음), 로그인 파일과 같은 파일(장치·inode). 작업 루트에서는
@@ -339,21 +340,31 @@ uv run --locked python tools/model_eval_compare.py OUT [OUT ...] --out DIR [--fi
 ```
 
 캠페인의 모든 출력(모델마다, 재실행)을 함께 준다. 표면 `default`(A)와 `vanilla`(V)의 `unrequested` run을 비교하고, 그 밖의 조건(Q5·Q11)은
-따로 적는다. 같은 run(모델·과제·조건·반복)이 여러 출력에 있으면 실행된 것(`error`·`not_run`이 아닌 것, 그다음 늦게 끝난 것)을 쓰고
-나머지는 `replaced`에 적는다. `DIR/comparison.json`과 `comparison.md`를 쓴다.
+따로 적는다. 같은 run(모델·kit·과제·조건·반복)이 여러 출력에 있으면 실행된 것(`error`·`not_run`이 아닌 것, 그다음 늦게 끝난 것)을 쓰고
+나머지는 `replaced`에 적는다. 모델마다 비교하는 run 대부분이 쓴 kit(세대·버전·commit) 하나만 비교하고, 다른 kit의 run(#9의 이름 전환 전
+checkout)은 따로 적는다. `DIR/comparison.json`과 `comparison.md`를 쓴다.
 
-- **지표**: run마다 답의 결과, 사실·근거·한계 검사의 통과 수, 중대 오판, 없는 ID, 토큰, 요청·도구 호출·오류, A가 확장을 두고 kit의
-  원시 파일(`journal.jsonl`, `run.json`, `.analytics/`)을 직접 읽은 호출, 요청과 다른 문자의 답(`han`).
+- **지표**: run마다 답의 결과(필수인 사실·근거·한계 검사와 중대 오판만 본 성공, `success`·`failure`로 끝난 run만), 필수인 사실·근거·한계
+  검사의 통과 수, 중대 오판, 없는 ID, 토큰, 요청·도구 호출·오류, A가 확장을 두고 kit의 원시 파일(`journal.jsonl`, `run.json`,
+  `.analytics/`)을 직접 읽은 호출, 요청과 다른 문자의 답(한자 `han`, 가나 `kana`).
 - **사람의 확정**: 발생한 중대 오판은 사람이 확정하기 전까지 맥락 오류로 센다. `--confirmations FILE`(`{"schema":
-  "aelix-analytics.model-eval-confirmations/1", "confirmed_by": "...", "runs": {RUN: {CHECK: "real" | "misread"}}}`)에서 `misread`로
-  확정한 검사는 빼고, 그것만으로 실패한 답은 성공이다.
+  "aelix-analytics.model-eval-confirmations/1", "confirmed_by": "...", "runs": {RUN: {"finished_at": "...", "checks": {CHECK: "real" |
+  "misread"}}}}`)에서 `misread`로 확정한 검사는 빼고, 그것만으로 실패한 답은 성공이다. 확정은 `finished_at`이 같은 run, 곧 사람이 본 그
+  run에만 적용한다. 같은 이름으로 다시 돈 run에는 적용하지 않고 `stale_confirmations`에 적는다.
 - **규칙**: 설계 8절의 R1–R7을 모델마다 판정한다. 모델 설정의 `role`이 `frontier`면 상위 모델이다. 수치(2/3, 1.2배, 반복 1회분)는 소유자가
-  정했다. 데이터가 없는 규칙(Part II 전의 R4)은 `not_run`, 확정되지 않은 중대 오판에 기대는 R3은 `provisional`이고, 그동안 게이트는
-  `pending`이다.
+  정했다. R2의 없는 ID는 근거 과제(E2)에서 센다. 규칙은 다음일 때 `not_run`이다.
+  - 데이터가 없을 때(Part II 전의 R4).
+  - 그 범위의 어떤 과제가 두 조건에서 같은 반복을 돌지 않았을 때(`incomplete`). 한 조건의 run만으로 판정하지 않는다.
+  - 단, A에 확정된 맥락 오류가 있으면 상위 모델의 R3은 V와 관계없이 `fail`이다. R7은 A만의 하한이라 A의 run으로 판정한다.
+
+  사람이 발생한 중대 오판을 확정하거나 기각하면 판정이 바뀔 수 있는 규칙(R3, R5)은 `provisional`이다. 이런 규칙이 남아 있는 동안
+  게이트는 `pending`이다.
 - **진단**(설계 7절): 실패한 근거 검사와 기록된 상태를 묻는 과제(E1–E3)의 실패한 사실 검사 가운데 글이 담을 수 있는 값(ID·수)을 가진
   것마다, 그 run이 받았는지(도구 결과와 A의 맥락 블록), 받지 않았지만 kit의 읽기로 얻을 수 있었는지(`--fixtures`: fixture의 새 사본에서
-  맥락 블록·상태·정답 ID의 읽기), 어느 쪽도 아닌지(제품의 공백)를 가린다. 낱말로 판정하는 검사와 모델이 계산하는 값(E6)은 대상이 아니다.
-  조건별 도구 흐름과 개선 후보도 낸다.
+  맥락 블록·상태·정답 ID의 읽기), 어느 쪽도 아닌지(제품의 공백)를 가린다. `ids_any`는 그 최소 개수, 수는 다른 수의 일부가 아닌 곳만
+  본다. 낱말로 판정하는 검사와 모델이 계산하는 값(E6)은 대상이 아니다. 근거 ID는 그 ID의 읽기가 늘 그 ID를 담으므로, 읽을 수 있는 ID는
+  `not_available`이 되지 않는다. 그 경우는 모델이 그 ID를 찾아 읽을지가 문제다(발견 가능성). 조건별 도구 흐름과 개선 후보도 낸다. 개선
+  후보는 kit이 있던 run(A, Q11 표면)만으로 만든다.
 
 ## 격리
 

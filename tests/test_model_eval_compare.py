@@ -25,10 +25,15 @@ def config():
 
 def row(task, cond, repeat=1, *, model="gpt-6.1-sol", ok=True, fact=(1, 1), evidence=(1, 1), limits=(0, 0),
         critical=(), unconfirmed=(), fabricated=(), tokens=(100, 0, 10)):
+    """A run's row. `critical` fired and counts as real; those also in `unconfirmed` await a person, and
+    the run would be an answer success were they misread when nothing else failed."""
+    misread_ok = ok or (bool(critical) and set(critical) <= set(unconfirmed))
     return {"run": f"{task}-{model}-{cond}-r{repeat}", "out": "out", "model": model, "task": task,
+            "kit": "analytics:0.32.0:26c28d0", "with_kit": cond == "A",
             "condition": cond, "surface": "default" if cond == "A" else "vanilla", "proposal": "unrequested",
             "repeat": repeat, "outcome": "success" if ok else "failure", "executed": True,
-            "answer_success": ok, "fact": list(fact), "evidence": list(evidence), "limits": list(limits),
+            "answer_success": ok, "answer_success_if_misread": misread_ok, "stale_confirmation": False,
+            "fact": list(fact), "evidence": list(evidence), "limits": list(limits),
             "critical_fired": list(critical), "critical_real": list(critical), "critical_unconfirmed": list(unconfirmed),
             "fabricated_ids": list(fabricated), "tokens": list(tokens), "tool_calls": 3, "tool_errors": 0,
             "argument_errors": 0, "tools": {}, "raw_reads": 0, "elapsed_s": 10, "script": None,
@@ -59,9 +64,11 @@ def test_each_rule_fails_on_its_own_line(config):
     # Both full is no difference, and passes (O6).
     rows = [row("T01", "A", fact=(4, 4)), row("T01", "V", fact=(4, 4))]
     assert mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R1"]["verdict"] == "pass"
-    # R2: more ids that do not exist with the extension.
+    # R2: more ids that do not exist with the extension, in its evidence tasks.
     rows = [row("T04", "A", evidence=(1, 1), fabricated=("e999",)), row("T04", "V", evidence=(0, 1))]
     assert mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R2"]["verdict"] == "fail"
+    rows = [row("T04", "A"), row("T04", "V"), row("T07", "A", fabricated=("e999",)), row("T07", "V")]
+    assert mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R2"]["verdict"] == "pass"
     # R2: pooled better, but one evidence task's limits worse.
     rows = [row("T04", "A", evidence=(3, 3), limits=(1, 1)), row("T04", "V", evidence=(0, 3), limits=(0, 1)),
             row("T05", "A", evidence=(1, 1), limits=(0, 1)), row("T05", "V", evidence=(1, 1), limits=(1, 1))]
@@ -72,15 +79,22 @@ def test_each_rule_fails_on_its_own_line(config):
     assert mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R3"]["verdict"] == "fail"
     lower = [{**r, "model": "qwen3.8-27b-openrouter"} for r in rows]
     assert mc.judge(config, lower)["qwen3.8-27b-openrouter"]["rules"]["R3"]["verdict"] == "pass"
-    # R3 rests on a critical check no person has confirmed: provisional.
-    rows = [row("T02", "A"), row("T02", "V", critical=("old-rate",), unconfirmed=("old-rate",))]
+    # R3 whose verdict a person's confirmation could turn: provisional. One it could not turn is not.
+    rows = [row("T02", "A", ok=False, critical=("old-rate",), unconfirmed=("old-rate",)), row("T02", "V")]
     assert mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R3"]["verdict"] == "provisional"
+    rows = [row("T02", "A"), row("T02", "V", ok=False, critical=("old-rate",), unconfirmed=("old-rate",))]
+    assert mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R3"]["verdict"] == "pass"
     # R5: more than one run short on an analysis task is harm; one run is allowed.
     rows = [row("T07", "A", 1, ok=False), row("T07", "A", 2, ok=False), row("T07", "A", 3),
             row("T07", "V", 1), row("T07", "V", 2), row("T07", "V", 3)]
     assert mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R5"]["verdict"] == "fail"
     rows[1] = row("T07", "A", 2)
     assert mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R5"]["verdict"] == "pass"
+    # Short only by critical checks no person has confirmed: provisional, and the gate waits.
+    rows[0] = row("T07", "A", 1, ok=False, critical=("wrong-rate",), unconfirmed=("wrong-rate",))
+    rows[1] = row("T07", "A", 2, ok=False, critical=("wrong-rate",), unconfirmed=("wrong-rate",))
+    verdict = mc.judge(config, rows)["gpt-6.1-sol"]
+    assert verdict["rules"]["R5"]["verdict"] == "provisional" and verdict["gate"] == "pending"
     # R6 reports a task that costs more than 1.2x with the extension.
     rows = [row("T01", "A", tokens=(130, 0, 0)), row("T01", "V", tokens=(100, 0, 0))]
     assert mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R6"]["over_1_2x"] == [{"task": "T01", "A": 130, "V": 100}]
@@ -89,6 +103,24 @@ def test_each_rule_fails_on_its_own_line(config):
     assert mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R7"]["verdict"] == "fail"
     assert mc.judge(config, [{**r, "model": "qwen3.8-27b-openrouter"} for r in rows])[
         "qwen3.8-27b-openrouter"]["rules"]["R7"]["verdict"] == "report"
+
+
+def test_a_task_without_the_same_repeats_in_both_conditions_is_not_judged(config):
+    """A task whose V runs did not all run (402) is not left out quietly: the rules over it wait."""
+    rows = [row("T04", "A", r) for r in (1, 2, 3)] + [row("T04", "V", 1)]
+    rows += [row(t, c, r) for t in ("T01", "T07") for c in "AV" for r in (1, 2, 3)]
+    verdict = mc.judge(config, rows)["gpt-6.1-sol"]
+    assert verdict["incomplete"] == ["T04"]
+    assert {k: v["verdict"] for k, v in verdict["rules"].items() if k in ("R1", "R2", "R3", "R5")} == {
+        "R1": "pass", "R2": "not_run", "R3": "not_run", "R5": "pass"}
+    assert verdict["rules"]["R2"]["incomplete"] == ["T04"] and verdict["gate"] == "pending"
+    # A confirmed context error with the extension fails the upper model's bar, whatever V ran.
+    rows[0] = row("T04", "A", 1, ok=False, critical=("complete-claim",))
+    assert mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R3"]["verdict"] == "fail"
+    # With no V at all, nothing is compared.
+    only_a = [r for r in rows if r["condition"] == "A"]
+    assert {v["verdict"] for k, v in mc.judge(config, only_a)["gpt-6.1-sol"]["rules"].items()
+            if k in ("R1", "R2", "R5")} == {"not_run"}
 
 
 def test_a_value_is_looked_for_as_a_text_holds_it():
@@ -100,6 +132,9 @@ def test_a_value_is_looked_for_as_a_text_holds_it():
     assert mc.check_tokens({"type": "text_any", "values": ["품목"]}) == []
     assert mc.held("… e74 …", "e74") and not mc.held("… e740 …", "e74")
     assert mc.held("합계 5,838건", "5,838")
+    # A number is not a piece of another.
+    assert not mc.held("세종 성장률은 12.4%", "2.4") and not mc.held("2.45배", "2.4") and mc.held("2.4배", "2.4")
+    assert not mc.held("15,838건", "5,838") and not mc.held("5,838,000", "5,838") and mc.held("(5,838).", "5,838")
 
 
 def stored(out: Path, name: str, record: dict, events: list | None = None) -> None:
@@ -130,10 +165,42 @@ def test_a_rerun_replaces_a_run_that_did_not_execute_and_a_person_s_verdict_coun
     assert kept[("A", 1)]["out"] == str(rerun) and replaced == [f"{kept[('A', 1)]['run']} in {first}"]
     assert kept[("A", 1)]["critical_real"] == ["old-rate"] and not kept[("A", 1)]["answer_success"]
     # A person found the fired check a misreading: the answer is a success, and nothing is unconfirmed.
-    rows, _, _ = mc.collect(config, [first, rerun], {kept[("A", 1)]["run"]: {"old-rate": "misread"}}, None)
+    name = kept[("A", 1)]["run"]
+    rows, _, _ = mc.collect(config, [first, rerun], {name: {"finished_at": "2026-10-31T02:00:00",
+                                                           "checks": {"old-rate": "misread"}}}, None)
     kept = {(r["condition"], r["repeat"]): r for r in rows}
     assert kept[("A", 1)]["answer_success"] and kept[("A", 1)]["critical_real"] == []
     assert kept[("A", 1)]["critical_unconfirmed"] == []
+    # A confirmation of the run that finished earlier does not hold for a re-run under its name.
+    rows, _, _ = mc.collect(config, [first, rerun], {name: {"finished_at": "2026-10-30T09:00:00",
+                                                           "checks": {"old-rate": "misread"}}}, None)
+    kept = {(r["condition"], r["repeat"]): r for r in rows}
+    assert kept[("A", 1)]["stale_confirmation"] and not kept[("A", 1)]["answer_success"]
+    assert kept[("A", 1)]["critical_unconfirmed"] == ["old-rate"]
+
+
+def test_another_kit_s_runs_are_listed_apart(config, tmp_path):
+    """An older checkout's runs (#9's comparison) do not stand in for the candidate's."""
+    new, old = tmp_path / "out", tmp_path / "old"
+    stored(new, "a", {**record("T02", "default", 1, "failure"), "kit": {"generation": "analytics", "kit_version": "0.32.0"}})
+    stored(new, "v", {**record("T02", "vanilla", 1, "success"), "kit": {"generation": "analytics", "kit_version": "0.32.0"}})
+    stored(old, "a", {**record("T02", "default", 1, "success", finished="2026-10-31T09:00:00"),
+                      "kit": {"generation": "lab", "kit_version": "0.2.0"}})
+    rows, other, replaced = mc.collect(config, [new, old], {}, None)
+    assert replaced == [] and {r["kit"] for r in rows} == {"analytics:0.32.0:"}
+    assert [(r["surface"], r["condition"]) for r in other] == [("default (lab:0.2.0:)", None)]
+
+
+def test_an_ids_any_check_is_held_by_its_minimum(config, tmp_path, monkeypatch):
+    """T01's open questions ask for 3 of 28 ids: a run that received 3 had what it needed."""
+    rec = record("T01", "default", 1, "failure", checks=[{"id": "open-ids", "kind": "evidence", "required": True,
+                                                         "passed": False}])
+    monkeypatch.setattr(mc, "received_texts", lambda run_dir: "e51 e70 e71")
+    found = mc.availability(config, rec, tmp_path, None, {})
+    assert [(a["where"], a["needed"]) for a in found] == [("received", 3)]
+    monkeypatch.setattr(mc, "received_texts", lambda run_dir: "e51 e70")
+    monkeypatch.setattr(mc, "kit_reads", lambda *a: {"context_block": "e85", "status": "", "ids": {}})
+    assert [a["where"] for a in mc.availability(config, rec, tmp_path, tmp_path, {})] == ["available_not_received"]
 
 
 def test_a_failed_check_is_told_received_offered_or_missing(config, tmp_path, monkeypatch):
