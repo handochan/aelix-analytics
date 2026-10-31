@@ -15,6 +15,12 @@
       "what": "read and the extension's six: no bash, so no way around the analytics tools",
       "tools": ["read", "@extension"],
       "extension": "extension/aelix_analytics.py"
+    },
+    "vanilla": {
+      "what": "aelix alone (condition V of docs/design/PRODUCT-EVALUATION.md): aelix 0.1.0b2's own default list (aelix_status, read, bash, edit, write, grep, find, ls), no extension and no kit; the same data, and for a fresh project a folder with the same analysis libraries",
+      "tools": null,
+      "extension": null,
+      "kit": false
     }
   },
   "proposals": {

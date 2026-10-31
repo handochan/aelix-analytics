@@ -2,7 +2,7 @@
   "schema": "aelix-analytics.model-eval-tasks/1",
   "status": "confirmed",
   "confirmed_by": "handochan (owner), 2026-10-18, Issue #40",
-  "note": "Issue #40. Requests and setup of the 12 real-model tasks; the answers are in answers/<id>.json. Requests never name a tool, so the same text serves every tool surface (Q11) and both generations of names (#9). {input} is replaced with the absolute path of the run's input directory.",
+  "note": "Issue #40. Requests and setup of the 12 real-model tasks; the answers are in answers/<id>.json. Requests never name a tool, so the same text serves every tool surface (Q11) and both generations of names (#9). {input} is replaced with the absolute path of the run's input directory. `areas` (#24, docs/design/PRODUCT-EVALUATION.md §5) names what each task measures in the comparison with aelix alone: E1 resume, E2 evidence, E3 judgment history, E6 analysis (no harm); it is metadata for the comparison and changes no request or answer.",
   "fixtures": {
     "S": {"kind": "scale", "scale": "S", "seed": 0, "generator_version": 1},
     "Q10": {"kind": "q10", "seed": 0, "generator_version": 1},
@@ -15,6 +15,7 @@
       "fixture": "S",
       "setup": "fixture",
       "gates": ["Q2", "Q12"],
+      "areas": ["E1"],
       "q11_request": "combination",
       "scenario": "새 세션에서 이어 하기",
       "requests": [
@@ -28,6 +29,7 @@
       "fixture": "S",
       "setup": "fixture",
       "gates": ["Q2"],
+      "areas": ["E3"],
       "q11_request": "combination",
       "scenario": "뒤늦은 정정",
       "requests": [
@@ -41,6 +43,7 @@
       "fixture": "S",
       "setup": "fixture",
       "gates": ["Q2", "Q3"],
+      "areas": ["E1", "E2"],
       "q11_request": "combination",
       "scenario": "오래된 중요한 발견",
       "requests": [
@@ -54,6 +57,7 @@
       "fixture": "S",
       "setup": "fixture",
       "gates": ["Q3"],
+      "areas": ["E2"],
       "q11_request": "single",
       "scenario": "중단·누락",
       "requests": [
@@ -67,6 +71,7 @@
       "fixture": "S",
       "setup": "fixture",
       "gates": ["Q2", "Q3"],
+      "areas": ["E2"],
       "q11_request": "combination",
       "scenario": "근거의 현재/과거",
       "requests": [
@@ -80,6 +85,7 @@
       "fixture": "Q10",
       "setup": "fixture",
       "gates": ["Q11", "Q3"],
+      "areas": ["E6"],
       "q11_request": "single",
       "scenario": "정답 도구가 하나인 요청",
       "requests": [
@@ -93,6 +99,7 @@
       "fixture": "Q10",
       "setup": "fixture",
       "gates": ["Q12", "Q5"],
+      "areas": ["E6"],
       "q11_request": "combination",
       "scenario": "분석 방향 변경(정의 수정)",
       "proposal_conditions": ["unrequested", "requested", "always_on"],
@@ -107,6 +114,7 @@
       "fixture": "Q10",
       "setup": "fixture",
       "gates": ["Q12", "Q5", "Q13"],
+      "areas": ["E6"],
       "q11_request": "combination",
       "scenario": "분석 방향 변경(조건별 조회)",
       "proposal_conditions": ["unrequested", "requested", "always_on"],
@@ -121,6 +129,7 @@
       "fixture": "Q10",
       "setup": "fixture",
       "gates": ["Q12", "Q2"],
+      "areas": ["E6"],
       "q11_request": "combination",
       "scenario": "여러 지표의 해석",
       "requests": [
@@ -134,6 +143,7 @@
       "fixture": "Q13",
       "setup": "fixture",
       "gates": ["Q13", "Q2"],
+      "areas": ["E6"],
       "q11_request": "combination",
       "scenario": "근거의 현재/과거, 미검증 해석",
       "requests": [
@@ -147,6 +157,7 @@
       "fixture": "Q13",
       "setup": "fixture",
       "gates": ["Q2", "Q3"],
+      "areas": ["E2"],
       "q11_request": "combination",
       "scenario": "중단·누락",
       "requests": [
@@ -161,6 +172,7 @@
       "setup": "fresh_with_input",
       "fresh_project": {"title": "장비 트레이스 이상 탐지", "goal": "학습 트레이스에서 장비 이상 후보를 찾고, 후보를 판단할 지표를 정한다.", "inputs": ["traces.csv"]},
       "gates": ["Q13", "Q11", "Q5"],
+      "areas": ["E6"],
       "q11_request": "ambiguous",
       "scenario": "모호한 EDA → 새 계산 → 방법 비교 → 오류 복구 → 그림 확장 → 맥락 갱신",
       "proposal_conditions": ["unrequested", "requested", "always_on"],
