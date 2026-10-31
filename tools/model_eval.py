@@ -187,6 +187,8 @@ CHECK_TYPES = {
     "tool_called": ("role",),
 }
 SCOPES = ("clause", "sentence", "line", "paragraph")
+# What a task measures in the comparison with aelix alone (docs/design/PRODUCT-EVALUATION.md §4).
+AREAS = ("E1", "E2", "E3", "E4", "E5", "E6")
 VERDICTS = ("supported", "false", "unverified")
 ROLES = ("status", "query", "import", "run", "record", "init")
 OUTCOMES = ("success", "failure", "error", "timeout", "not_run")
@@ -429,6 +431,9 @@ def check_tasks(doc) -> list[str]:
                 out.append(f"{where}: unknown proposal condition {cond}")
         if not isinstance(task.get("timeout_s"), int) or task["timeout_s"] <= 0:
             out.append(f"{where}: timeout_s must be a positive integer")
+        areas = task.get("areas")
+        if areas is not None and (not isinstance(areas, list) or not areas or any(a not in AREAS for a in areas)):
+            out.append(f"{where}: areas must be among {AREAS}")
     return out
 
 
@@ -443,8 +448,10 @@ def check_conditions(doc) -> list[str]:
         tools = surface.get("tools")
         if tools is not None and (not isinstance(tools, list) or not tools):
             out.append(f"conditions.json: surface {name}: tools must be null or a non-empty list")
-        if not surface.get("extension"):
+        if not surface.get("extension") and surface.get("kit", True):
             out.append(f"conditions.json: surface {name} names no extension file")
+        if not surface.get("kit", True) and (surface.get("extension") or surface.get("tools") is not None):
+            out.append(f"conditions.json: surface {name} has no kit: it takes aelix's own tools and no extension")
     proposals = doc.get("proposals") or {}
     for name in ("unrequested", "requested", "always_on"):
         if name not in proposals:
@@ -605,6 +612,11 @@ SPLITTERS = {
     "sentence": re.compile(r"\n|(?<=[.!?。？])\s+"),
     "clause": re.compile(r"\n|(?<=[.!?。？])\s+|[,;]\s+|:\s+|\s[—–]\s"),
 }
+# A quotation on one line: a period inside it does not end the answer's sentence (#24's campaign: an answer
+# said e74 was 4,000 characters and cut mid-sentence, quoting its last words "…낮다. 센"). A quotation
+# holds no other kind of quotation mark and is at most 300 characters, so that a mark left unpaired
+# does not join the sentences after it.
+QUOTED = re.compile(r"“[^“”\"\n]{0,300}”|「[^「」\n]{0,300}」|『[^『』\n]{0,300}』|\"[^\"“”\n]{0,300}\"")
 CLAUSE_BOUNDARY = re.compile(r"\n|(?<=[.!?。？])\s|,\s|;|:\s|\s[—–]\s")
 STRIP = ".,!?\"'`*()[]{}<>“”‘’「」『』|"
 # Korean and English negation: after a word (해결되지 않은, 맞지 않다, 사실이 아니다, 안 됨, is not) or
@@ -655,8 +667,11 @@ def contains_any(text: str, values) -> list[str]:
 
 def segments(text: str, scope: str) -> list[tuple[int, int]]:
     """(start, end) of each non-empty paragraph, line, sentence or clause of text."""
+    quoted = [m.span() for m in QUOTED.finditer(text)] if scope == "sentence" else []
     out, pos = [], 0
     for m in SPLITTERS[scope].finditer(text):
+        if any(s < m.start() < e for s, e in quoted):
+            continue
         if text[pos:m.start()].strip():
             out.append((pos, m.start()))
         pos = m.end()
@@ -982,7 +997,10 @@ def stated_as_current(check: dict, text: str, words: dict) -> tuple[list[str], l
     """The segments (sentences by default) that state a pattern as current, and all that mention it.
     A pattern counts where it is not asked, and (unless it is an id) not negated; a check with
     `together` needs one of those words in the segment too. A segment is let pass by an `unless`
-    word that is not negated, or for an id by its `resolved_by` id."""
+    word that is not negated, or for an id by its `resolved_by` id. A segment that ends as a question
+    is left out for words, not for ids: a record listed with its question's own text (`- e56 — 감소가
+    계절 효과인가?`) is said to be open, which is what an id check is for (#24 campaign). Such a segment
+    is read with the rest of its line, where a resolving id may follow (`… 인가? → e139로 해결`)."""
     scope = check.get("scope", "sentence")
     unless = words_of(check["unless"], words, check.get("reason_words", ()))
     together = check.get("together") or []
@@ -993,7 +1011,10 @@ def stated_as_current(check: dict, text: str, words: dict) -> tuple[list[str], l
     for s, e in segments(text, scope):
         seg = text[s:e]
         if seg.rstrip().rstrip("*").endswith(("?", "？")):
-            continue
+            if not ids:
+                continue
+            line_end = text.find("\n", e)
+            seg = text[s:len(text) if line_end < 0 else line_end]
         hits = []
         for name, pattern in patterns:
             for m in pattern.finditer(seg):
@@ -1214,13 +1235,21 @@ def fabricated_ids(text: str, existing: set) -> list[str]:
     return sorted(i for i in found if i not in existing)
 
 
+# The checks on what the answer says, which aelix alone can pass as well as the extension: the result of
+# a comparison of the two (docs/design/PRODUCT-EVALUATION.md). `state` and `behavior` checks read what
+# the kit recorded or which of its tools was called, which only the extension can do.
+ANSWER_KINDS = ("fact", "evidence", "uncertainty")
+
+
 def score(answer: dict, ev: Evidence, words: dict, extra_checks=()) -> dict:
     checks = [run_check(c, ev, words) for c in [*answer["checks"], *extra_checks]]
     required = [c for c in checks if c["required"] and c["kind"] != "critical"]
     critical = [c["id"] for c in checks if c["kind"] == "critical" and not c["passed"]]
     facts = [c for c in checks if c["kind"] == "fact"]
     evidence = [c for c in checks if c["kind"] == "evidence"]
+    limits = [c for c in checks if c["kind"] == "uncertainty"]
     success = all(c["passed"] for c in required) and not critical
+    answer_success = all(c["passed"] for c in required if c["kind"] in ANSWER_KINDS) and not critical
     fabricated = fabricated_ids(ev.text, ev.existing_ids)
     review = [c["id"] for c in checks if c.get("needs_review")]
     if fabricated:
@@ -1231,8 +1260,10 @@ def score(answer: dict, ev: Evidence, words: dict, extra_checks=()) -> dict:
         "answer_status": answer["status"],
         "answer_sha256": sha256_bytes(json.dumps(answer, ensure_ascii=False, sort_keys=True).encode()),
         "result": "success" if success else "failure",
+        "answer_result": "success" if answer_success else "failure",
         "checks": checks,
         "fact_recall": {"passed": sum(c["passed"] for c in facts), "total": len(facts)},
+        "limits": {"passed": sum(c["passed"] for c in limits), "total": len(limits)},
         "evidence": {"passed": sum(c["passed"] for c in evidence), "total": len(evidence),
                      "cited": [i for i in answer.get("evidence_ids", []) if id_present(ev.text, i)]},
         "fabricated_ids": fabricated,
@@ -1744,8 +1775,74 @@ def fixture_project(kit_src: Path, source: Path, project: Path, env: dict) -> st
     return done.stdout.strip().splitlines()[-1]
 
 
-def prepare_work(task: dict, fixture: Path, work: Path, kit_src: Path, env: dict) -> Path:
-    """project/ and input/ only: manifest.json and expected.json carry answers."""
+# The always_on condition (Q5): the project's suggestion mode set as a person sets it (`analytics assets
+# mode always_on`, kit 0.11.0 and later, #17) before aelix starts. It appends one asset_mode record.
+PROPOSAL_MODE = """\
+import json, sys
+from pathlib import Path
+from aelix_analytics import core
+result = core.set_asset_mode(core.Project(Path(sys.argv[1])), "always_on", origin=core.Origin("human", "cli"))
+print(json.dumps({"mode": result["mode"], "changed": result["changed"], "event": result["event"]["id"]}))
+"""
+
+
+# The context block the extension appends to the system prompt (extension: core.context_block), as the
+# project is when aelix starts. Kept with an A run so that the diagnosis of what a run received can
+# search it (docs/design/PRODUCT-EVALUATION.md §7).
+CONTEXT_BLOCK = """\
+import sys
+from pathlib import Path
+from aelix_analytics import core
+sys.stdout.write(core.context_block(core.Project(Path(sys.argv[1]))))
+"""
+
+
+def context_block_of(kit_src: Path, project: Path, env: dict, run_dir: Path) -> dict:
+    """The kit's context block for the project, written to the run's context_block.txt; not_measured
+    when the checkout's kit cannot give one (another generation of names, say)."""
+    done = subprocess.run([sys.executable, "-c", CONTEXT_BLOCK, str(project)], cwd=project,
+                          env={**env, "PYTHONPATH": str(kit_src)}, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", timeout=300)
+    if done.returncode != 0:
+        return {"status": "not_measured",
+                "reason": "the checkout's kit gave no context block: " + mask_text((done.stderr or done.stdout)[-300:])}
+    (run_dir / "context_block.txt").write_text(done.stdout, encoding="utf-8", newline="\n")
+    return {"status": "measured", "file": "context_block.txt", "bytes": len(done.stdout.encode("utf-8")),
+            "what": "core.context_block of the project when aelix started; the extension appends it to the "
+                    "system prompt of every prompt, so later prompts may have had a newer one"}
+
+
+def kit_has_proposal_mode(kit_src: Path) -> bool:
+    core = kit_src / "aelix_analytics" / "core.py"
+    return core.is_file() and "def set_asset_mode(" in core.read_text(encoding="utf-8")
+
+
+def set_proposal_mode(kit_src: Path, project: Path, env: dict) -> dict:
+    """The project in always_on, by the checkout's kit as a human (PROPOSAL_MODE)."""
+    done = subprocess.run([sys.executable, "-c", PROPOSAL_MODE, str(project)], cwd=project,
+                          env={**env, "PYTHONPATH": str(kit_src)}, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", timeout=300)
+    if done.returncode != 0:
+        raise HarnessError(f"setting the always_on suggestion mode failed: {(done.stderr or done.stdout)[-1500:]}")
+    return json.loads(done.stdout.strip().splitlines()[-1])
+
+
+def plain_project(kit_src: Path, project: Path, title: str) -> None:
+    """A folder for aelix alone: the analysis libraries a kit project's environment has (the kit's
+    template pyproject.toml, its placeholders filled) and the Python version a kit project pins, and
+    nothing of the kit (no marker, CONTEXT.md, journal or directories)."""
+    template = (kit_src / "aelix_analytics" / "template" / "pyproject.toml").read_text(encoding="utf-8")
+    slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-") or "analysis"
+    project.mkdir(parents=True)
+    (project / "pyproject.toml").write_text(template.replace("{{slug}}", slug).replace("{{title}}", title),
+                                            encoding="utf-8", newline="\n")
+    (project / ".python-version").write_text("3.12\n", encoding="utf-8", newline="\n")
+
+
+def prepare_work(task: dict, fixture: Path, work: Path, kit_src: Path, env: dict, kit: bool = True) -> Path:
+    """project/ and input/ only: manifest.json and expected.json carry answers. A fixture's project is
+    the same for aelix alone (the files the kit wrote, which it reads without the kit); a fresh one is a
+    plain folder there (plain_project)."""
     work.mkdir(parents=True, exist_ok=True)
     if any(work.iterdir()):
         raise HarnessError(f"the work root {work} is not empty")
@@ -1759,7 +1856,10 @@ def prepare_work(task: dict, fixture: Path, work: Path, kit_src: Path, env: dict
         (work / "input").mkdir()
         for name in fresh["inputs"]:
             shutil.copy2(fixture / "input" / name, work / "input" / name)
-        init_project(kit_src, project, fresh["title"], fresh["goal"], env)
+        if kit:
+            init_project(kit_src, project, fresh["title"], fresh["goal"], env)
+        else:
+            plain_project(kit_src, project, fresh["title"])
     return project
 
 
@@ -2156,10 +2256,18 @@ def tools_of(session: Session) -> dict:
     return GENERATIONS[session.checkout["generation"]]["tools"]
 
 
-def surface_argv(session: Session) -> tuple[list[str], str]:
+def has_kit(session: Session) -> bool:
+    """Whether the run's surface gives the model the extension and the kit (A), or aelix alone (V:
+    the `vanilla` surface of docs/design/PRODUCT-EVALUATION.md)."""
+    return session.config.conditions["surfaces"][session.surface].get("kit", True)
+
+
+def surface_argv(session: Session) -> tuple[list[str], str | None]:
     surface = session.config.conditions["surfaces"][session.surface]
     tools = tools_of(session)
-    extension = surface["extension"]
+    extension = surface.get("extension")
+    if extension is None:
+        return [], None
     if session.checkout["generation"] == "lab" and extension == GENERATIONS["analytics"]["extension"]:
         extension = GENERATIONS["lab"]["extension"]
     argv = []
@@ -2171,13 +2279,14 @@ def surface_argv(session: Session) -> tuple[list[str], str]:
     return argv, extension
 
 
-def build_argv(session: Session, requests: list[str], extension: Path, tools_argv: list[str],
+def build_argv(session: Session, requests: list[str], extension: Path | None, tools_argv: list[str],
                link: LauncherLink | None = None, redact: tuple = ()) -> list[str]:
     model = session.model
     launch = launch_command(model, session.auth_file, session.aelix_command, link, redact)
     return [*launch, "--mode", "json", "-p", *requests,
             "--provider", model["provider"], "--model", model["model"], "--thinking", model["thinking"],
-            "--no-session", "--offline", "--no-context-files", *tools_argv, "-e", str(extension)]
+            "--no-session", "--offline", "--no-context-files", *tools_argv,
+            *(["-e", str(extension)] if extension is not None else [])]
 
 
 def key_names(session: Session) -> tuple:
@@ -2185,20 +2294,21 @@ def key_names(session: Session) -> tuple:
     return (session.model["api_key_env"],) if session.model.get("api_key_env") else ()
 
 
-def run_env(session: Session, run_dir: Path, project: Path) -> tuple[dict, dict]:
+def run_env(session: Session, run_dir: Path, project: Path, kit: bool = True) -> tuple[dict, dict]:
     """The child's environment and the variables this harness set in it (paths only). HOME is the
     run's home/: the model's tools resolve ~ there, not to the caller's ~/.aelix (a path written out
-    in full still reaches the caller's files: see login_mentions)."""
+    in full still reaches the caller's files: see login_mentions). Without the kit (aelix alone) the
+    kit's variables are not set."""
     names = GENERATIONS[session.checkout["generation"]]["env"]
     iso = session.out / "iso"
     set_vars = {
-        names["trust"]: str(iso / "trust" / "analytics-projects.json"),
-        names["project"]: str(project),
+        **({names["trust"]: str(iso / "trust" / "analytics-projects.json"), names["project"]: str(project)}
+           if kit else {}),
         "AELIX_CODING_AGENT_DIR": str(run_dir / "agent"),
         "AELIX_CODING_AGENT_SESSION_DIR": str(run_dir / "agent" / "sessions"),
         **home_vars(run_dir / "home", session.dirs),
     }
-    if session.uv:
+    if session.uv and kit:
         set_vars[names["uv"]] = session.uv
     return {**isolated_env(keep=key_names(session)), **set_vars}, set_vars
 
@@ -2238,7 +2348,9 @@ def not_run_reason(session: Session, task: dict) -> str | None:
         return "serving_differs: " + "; ".join(session.serving.get("problems") or ["check failed"])
     if session.proposal != "unrequested" and session.proposal not in (task.get("proposal_conditions") or []):
         return f"proposal condition {session.proposal} is not defined for {task['id']}"
-    if session.proposal == "always_on":
+    if session.proposal == "always_on" and not has_kit(session):
+        return "always_on sets the kit's suggestion mode: aelix alone has no kit"
+    if session.proposal == "always_on" and not kit_has_proposal_mode(Path(session.checkout["path"]) / "src"):
         return session.config.conditions["proposals"]["always_on"]["not_run_reason"]
     return None
 
@@ -2303,7 +2415,7 @@ def base_record(session: Session, task: dict, repeat: int, key: str) -> dict:
                  "python": platform.python_version(), "platform": platform.platform(),
                  "machine": platform.machine()},
         "kit": session.checkout,
-        "conditions": {"surface": session.surface, "proposal": session.proposal},
+        "conditions": {"surface": session.surface, "proposal": session.proposal, "kit": has_kit(session)},
         "fixture": {**session.config.fixtures[task["fixture"]], "seed": session.seed},
         "answer": {"status": answer["status"], "confirmed_by": answer.get("confirmed_by")},
     }
@@ -2548,6 +2660,14 @@ CREDENTIAL_KINDS = tuple(kind for kind, *_ in CREDENTIAL_PATTERNS)
 CLASSES = (rb"[A-Z]", rb"[a-z]", rb"[0-9]")
 # A digest written as algorithm=base64url (a wheel's RECORD: sha256=…) is not a credential.
 DIGEST_PREFIX = re.compile(rb"(?:sha(?:1|224|256|384|512)|md5|blake2[bs])=$", re.IGNORECASE)
+# Values of the kit's own that have a credential's shape (2026-10-31 campaign: 486 findings in the 24
+# runs whose model worked, all of them these): the cursor of a limited read's next page, a Visualization
+# reference's `token`, which is `<script path>::<name>`, and the `token` of a reference the kit could not
+# bind, which is the name the model wrote (`{"type": "visualization_version", "token": …}`). Quotes may
+# be escaped, as in a JSON event line.
+KIT_CURSOR_BEFORE = re.compile(rb'\\*"cursor\\*"\s*:\s*\\*"$')
+KIT_BINDING_BEFORE = re.compile(rb'\\*"type\\*"\s*:\s*\\*"(?:visualization_version|dataset_import)\\*"\s*,\s*$')
+FIELD_NAME = re.compile(rb'\\*["\']?([A-Za-z0-9_]+)')
 
 
 def mixed(value: bytes) -> bool:
@@ -2585,7 +2705,12 @@ def credential_findings(data: bytes, *, mask: bool = False) -> list[dict]:
                 continue
             start, end = match.span(group)
             if kind == "long_token" and (not random_like(value) or DIGEST_PREFIX.search(
-                    bytes(work[max(0, start - 12):start]))):
+                    bytes(work[max(0, start - 12):start])) or KIT_CURSOR_BEFORE.search(
+                    bytes(work[max(0, start - 24):start]))):
+                continue
+            if kind == "credential_field" and FIELD_NAME.match(match.group(0)).group(1).lower() == b"token" and (
+                    bytes(work[end:end + 2]) == b"::" or KIT_BINDING_BEFORE.search(
+                        bytes(work[max(0, match.start(0) - 64):match.start(0)]))):
                 continue
             line += work.count(b"\n", counted, start)
             counted = start
@@ -3595,12 +3720,18 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
         write_json(run_dir / "run.json", provisional(record))  # names the work root for `scan OUT`
         (run_dir / "home").mkdir()
         env_probe, _ = run_env(session, run_dir, work / "project")
-        project = prepare_work(task, fixture, work, Path(session.checkout["path"]) / "src", env_probe)
+        project = prepare_work(task, fixture, work, Path(session.checkout["path"]) / "src", env_probe,
+                               kit=has_kit(session))
+        if session.proposal == "always_on":
+            record["proposal_mode"] = set_proposal_mode(Path(session.checkout["path"]) / "src", project, env_probe)
+        if has_kit(session):
+            record["context_block"] = context_block_of(Path(session.checkout["path"]) / "src", project,
+                                                       env_probe, run_dir)
         before = snapshot(project)
         requests, extra_checks = task_requests(session, task, work)
         tools_argv, extension = surface_argv(session)
-        extension_path = Path(session.checkout["path"]) / extension
-        env, set_vars = run_env(session, run_dir, project)
+        extension_path = Path(session.checkout["path"]) / extension if extension is not None else None
+        env, set_vars = run_env(session, run_dir, project, kit=has_kit(session))
         (run_dir / "agent").mkdir(parents=True, exist_ok=True)
         scripted = session.model["serving"].get("backend") == "fake"
         timeout = session.timeout or task["timeout_s"]
@@ -3769,6 +3900,10 @@ def finish_record(session: Session, task: dict, record: dict, run_dir: Path, pro
         outcome = "not_run"
         record.update(reason=unusable, command_to_run=command_line(session, task, record.get("repeat", 1)),
                       login_to_run=LOGIN_HOWTO)
+    refused = provider_refused(tr) if outcome == "error" and not unusable else None
+    if refused:
+        outcome = "not_run"
+        record.update(reason=refused, command_to_run=command_line(session, task, record.get("repeat", 1)))
     observed = sorted({m.get("model") for m in tr.messages if m.get("model")})
     proposal_turn = len(record["requests"]) if session.proposal == "requested" else None
     record.update(
@@ -3796,6 +3931,24 @@ def finish_record(session: Session, task: dict, record: dict, run_dir: Path, pro
 AUTH_ERROR = re.compile(r"\b40[13]\b|unauthori[sz]ed|forbidden|invalid[_ ]?(?:grant|api[_ ]?key|token)|"
                         r"refresh|re-?authenticat|\blog ?in\b|credential|no api key|api key|access token|"
                         r"token (?:has )?expired", re.IGNORECASE)
+
+
+# The provider's refusal for want of credits (OpenRouter: "Error code: 402 - … requires more credits"):
+# on 2026-10-31 it ended 21 runs of the campaign before the model answered once.
+PROVIDER_REFUSAL = re.compile(r"\bError code: 402\b")
+
+
+def provider_refused(tr: Transcript) -> str | None:
+    """The not_run reason when the provider refused the run before the model did anything: no tool
+    call, no answer, and a turn that ended in the provider's refusal. A run the model had worked in
+    when the refusal came stays an error."""
+    if tr.calls or any(a.strip() for a in tr.answers) or any(usage_reported(m) for m in tr.messages):
+        return None
+    for turn in tr.turns:
+        text = str(turn.get("error") or "")
+        if PROVIDER_REFUSAL.search(text):
+            return f"provider_refused: the provider refused the request before the model ran: {mask_text(text[:300])}"
+    return None
 
 
 def login_unusable(session: Session, tr: Transcript, run_dir: Path) -> str | None:
@@ -3914,9 +4067,12 @@ def summarize(out: Path) -> dict:
             "run": record.get("run") or run_dir.name, "task": record.get("task"),
             "model": (record.get("model") or {}).get("config"),
             "surface": conditions.get("surface"), "proposal": conditions.get("proposal"),
+            "kit": conditions.get("kit", True),
             "repeat": record.get("repeat"), "outcome": record.get("outcome"),
+            "answer_result": sc.get("answer_result"),
             "reason": record.get("reason") or (record.get("harness_error") if record.get("provisional") else None),
             "answer_status": (record.get("answer") or {}).get("status"), "fact_recall": sc.get("fact_recall"),
+            "limits": sc.get("limits"),
             "evidence": {k: (sc.get("evidence") or {}).get(k) for k in ("passed", "total")},
             "critical": sc.get("critical"), "needs_review": sc.get("needs_review"),
             "fabricated_ids": sc.get("fabricated_ids"),
@@ -3943,6 +4099,9 @@ def summarize(out: Path) -> dict:
         aggregate.append({"model": model, "task": task, "surface": surface, "proposal": proposal,
                           "runs": len(items), "not_run": len(items) - len(executed),
                           "success": sum(r["outcome"] == "success" for r in items),
+                          # What the answer says only (ANSWER_KINDS): the measure aelix alone shares.
+                          "answer_success": sum(r["outcome"] in ("success", "failure")
+                                                and r["answer_result"] == "success" for r in items),
                           "success_without_review": sum(r["outcome"] == "success" and not r["needs_review"]
                                                         for r in items),
                           "success_with_clean_scan": sum(r["outcome"] == "success" and r["secret_scan"] == "passed"

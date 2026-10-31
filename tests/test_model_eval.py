@@ -303,6 +303,62 @@ def test_a_right_answer_succeeds_and_a_stale_value_stated_as_current_is_critical
     assert [c["id"] for c in result["checks"] if not c["passed"]] == ["recorded"]
 
 
+def test_the_answer_result_leaves_out_what_only_the_kit_records(config):
+    """The comparison with aelix alone (docs/design/PRODUCT-EVALUATION.md) uses what the answer says:
+    T06's right count without the query tool fails the run (its tool check) but not the answer."""
+    right = "There are 5,838 sessions in August 2026."
+    result = me.score(config.answers["T06"], evidence(right), config.words)
+    assert result["result"] == "failure" and result["answer_result"] == "success"
+    assert [c["id"] for c in result["checks"] if not c["passed"]] == ["queried"]
+    wrong = me.score(config.answers["T06"], evidence("There are 5,383 sessions."), config.words)
+    assert wrong["answer_result"] == "failure"
+    # A critical error fails the answer as well.
+    stale = me.score(config.answers["T07"], evidence("8월 세션당 전환율은 46.8%입니다(e16)."), config.words)
+    assert stale["answer_result"] == "failure" and stale["critical"] == ["wrong-rate"]
+
+
+def test_a_fresh_project_for_aelix_alone_is_a_plain_folder(config, tmp_path):
+    """V of the design: the same analysis libraries and Python version as a kit project, nothing of the kit."""
+    task = config.tasks["T12"]
+    fixture = tmp_path / "fixture"
+    (fixture / "input").mkdir(parents=True)
+    for name in task["fresh_project"]["inputs"]:
+        (fixture / "input" / name).write_text("t,value\n0,1\n", encoding="utf-8")
+    project = me.prepare_work(task, fixture, tmp_path / "work", ROOT / "src", dict(os.environ), kit=False)
+    assert sorted(p.name for p in project.iterdir()) == [".python-version", "pyproject.toml"]
+    pyproject = (project / "pyproject.toml").read_text(encoding="utf-8")
+    template = (ROOT / "src" / "aelix_analytics" / "template" / "pyproject.toml").read_text(encoding="utf-8")
+    deps = lambda text: text[text.index("dependencies"):text.index("]", text.index("dependencies"))]  # noqa: E731
+    assert deps(pyproject) == deps(template) and "{{" not in pyproject
+    assert sorted(p.name for p in (tmp_path / "work" / "input").iterdir()) == task["fresh_project"]["inputs"]
+
+
+def test_a_closed_question_listed_with_its_own_text_is_said_to_be_open(config):
+    """#24's campaign: an answer listed e56 under open questions with the question's text, which ends
+    with a question mark; the id check must not take that line for the model asking."""
+    check = next(c for c in config.answers["T01"]["checks"] if c["id"] == "closed-as-open")
+    listed = "### 아직 답이 나오지 않은 질문\n- e56 — 감소가 계절 효과인가, 매장 수 변화인가?\n- e87 — 계절 효과로 설명되는가?"
+    fired, mentioned = me.stated_as_current(check, listed, config.words)
+    assert fired == ["- e56 — 감소가 계절 효과인가, 매장 수 변화인가?"] and fired == mentioned
+    closed = "- e56 — 감소가 계절 효과인가, 매장 수 변화인가? → e139로 해결"
+    assert me.stated_as_current(check, closed, config.words)[0] == []
+
+
+def test_a_period_in_a_quotation_does_not_end_the_sentence(config):
+    """#24's campaign: an answer gave e74's length and its cut in one sentence that quoted the record's
+    last words, which hold a period."""
+    check = next(c for c in config.answers["T04"]["checks"] if c["id"] == "cut")
+    said = "원문도 정확히 4,000자이며, 마지막이 “…다른 집단보다 뚜렷하게 낮다. 센”으로 문장 중간에서 끊겨 있습니다."
+    assert me.run_check(check, evidence(said), config.words)["passed"]
+    apart = "원문은 4,000자입니다. 마지막 문장은 중간에서 끊겨 있습니다."
+    assert not me.run_check(check, evidence(apart), config.words)["passed"]
+    # A mark left unpaired, or of another kind, joins nothing: the closed question after it is read in a
+    # sentence of its own.
+    closed = next(c for c in config.answers["T01"]["checks"] if c["id"] == "closed-as-open")
+    mixed = '마지막 글은 "낮다. 센”으로 끊겼다. e56은 열려 있다. 그리고 "x"는 e139로 해결됐다.'
+    assert me.stated_as_current(closed, mixed, config.words)[0] == ["e56은 열려 있다."]
+
+
 def test_numbers_percentages_and_ids_are_read_with_their_boundaries(config):
     assert me.numbers_in("합계는 32,586,900원, 비율 0.118, e74와 C057, 2026-08-01, 4.36으로") == [
         32586900.0, 0.118, 2026.0, 8.0, 1.0, 4.36]
@@ -534,7 +590,10 @@ def test_the_login_is_where_the_callers_aelix_keeps_it_and_aelix_starts_through_
     assert "AELIX_CODING_AGENT_DIR is not set" in source
 
 
-def test_always_on_is_not_run_until_the_kit_has_the_setting(tmp_path):
+def test_always_on_is_not_run_with_a_kit_without_the_setting(tmp_path, monkeypatch):
+    # This checkout's kit has it (#17); a checkout of an older kit does not.
+    assert me.kit_has_proposal_mode(ROOT / "src")
+    monkeypatch.setattr(me, "kit_has_proposal_mode", lambda kit_src: False)
     out = tmp_path / "out"
     assert me.main(["run", "--model", "dry-run", "--task", "T07", "--proposal", "always_on",
                     "--out", str(out)]) == 3
@@ -782,7 +841,15 @@ def test_the_secret_scan_overwrites_credential_shapes_without_knowing_them(tmp_p
         "T06-dry-run-default-unrequested-r1", "e2674e1072b9780db582951701181161239f7127b3723eb343fb36d96efa1564",
         "6e5241b4-86b1-43c1-bace-74f4f07a01f2", '"apiKey": "ollama-local-no-key"', "resp_" + "68e4c2a1" * 6,
         '"encrypted_content": "gAAAAAB' + "o5Kx" * 40 + '"', "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
-        "iVBORw0KGgo" + "+AbC9xQ2/" * 30 + "==", "_handleOverridablePaintPropertyUpdate", "accessToken:r._mapboxAccessToken"])
+        "iVBORw0KGgo" + "+AbC9xQ2/" * 30 + "==", "_handleOverridablePaintPropertyUpdate", "accessToken:r._mapboxAccessToken",
+        # The kit's own: a limited read's next-page cursor, a Visualization reference's token and the
+        # token of a reference the kit could not bind, the name the model wrote (#24's campaign: 486
+        # findings in 24 runs, all of these), also with the quotes of a JSON event line.
+        '"cursor": "' + "eyJxIjoiXHVjMTNjIiwibyI6OCwiZiI6Wy" + "Q2xK8vRz1mN0bP4w" * 5 + '"',
+        '{\\"cursor\\": \\"' + "Zt9Qx2Lm8Rv4Kp7W" * 6 + '\\"}',
+        '"token": "scripts/03_sensor_plots.py::sensor-distributions"',
+        '{"type": "visualization_version", "token": "sensorBand2Chart_v3_allSensors"}',
+        '{\\"type\\": \\"visualization_version\\", \\"token\\": \\"anomaly2Candidates_byStepScore\\"}'])
     (run / "benign.txt").write_text(benign, encoding="utf-8")
     secret_file = tmp_path / "login.json"
     secret_file.write_text(login, encoding="utf-8")
@@ -921,8 +988,27 @@ def aelix_command():
 
 
 SECRET = "sk-test-" + "dryrunsecret0123456789abcdef"
+
 # The launcher masks a run by the login's exact values through its pipes to the harness (POSIX).
 EXACT = os.name != "nt"
+
+
+def test_always_on_sets_the_mode_as_a_person_before_the_model_starts(aelix_command, fixtures, tmp_path):
+    """Q5's always_on (#24): the work copy's suggestion mode is always_on, set by the kit as a human
+    before aelix starts, so the run's before-snapshot holds that record and the model's records do not."""
+    root, _ = fixtures
+    out = tmp_path / "always"
+    assert me.main(["run", "--model", "dry-run", "--task", "T07", "--proposal", "always_on", "--out", str(out),
+                    "--fixtures", str(root), "--work-root", str(tmp_path / "roots")]) == 0
+    run = out / "runs" / "T07-dry-run-default-always_on-r1"
+    record = json.loads((run / "run.json").read_text(encoding="utf-8"))
+    assert record["outcome"] == "success" and record["proposal_mode"]["mode"] == "always_on"
+    assert record["proposal_mode"]["changed"] is True
+    events = [json.loads(line) for line in (run / "work" / "project" / "journal.jsonl").read_text(
+        encoding="utf-8").splitlines()]
+    [mode] = [e for e in events if e["id"] == record["proposal_mode"]["event"]]
+    assert mode["kind"] == "asset_mode" and mode["actor"] == "human" and mode["details"]["mode"] == "always_on"
+    assert all(r["kind"] != "asset_mode" for r in record["changes"]["new_records"])
 
 
 def test_the_dry_run_goes_through_aelix_and_is_scored(aelix_command, fixtures, tmp_path, monkeypatch):
@@ -1368,6 +1454,42 @@ def test_a_work_root_that_cannot_be_moved_is_searched_where_it_is(aelix_command,
     assert left.is_dir() and left.parent == tmp_path / "roots" and record["secret_scan"]["files"] > 1
     assert any(f.startswith("work_root_left/") for f in record["secret_redacted"])
     assert files_with(out, LEAK) == [] and files_with(tmp_path / "roots", LEAK) == []
+
+
+def test_aelix_alone_gets_no_extension_and_no_kit(aelix_command, fixtures, tmp_path):
+    """V (the `vanilla` surface): no -e, none of the kit's variables, aelix's own tools only; the
+    answer is scored as A's is."""
+    root, _ = fixtures
+    out = tmp_path / "out"
+    script = script_file(tmp_path, "alone", [ANSWER])
+    assert me.main(run_args(root, tmp_path, out, script, "--surface", "vanilla")) == 0
+    run = out / "runs" / "T06-dry-run-vanilla-unrequested-r1"
+    record = json.loads((run / "run.json").read_text(encoding="utf-8"))
+    command = json.loads((run / "command.json").read_text(encoding="utf-8"))
+    assert "-e" not in command["argv"] and record["conditions"] == {
+        "surface": "vanilla", "proposal": "unrequested", "kit": False}
+    assert not any(name.startswith(("AELIX_ANALYTICS_", "AELIX_LAB_")) for name in command["set_env"])
+    offered = set(record["offered_tools"]["tools"])
+    assert offered and not offered & set(me.GENERATIONS["analytics"]["tools"].values())
+    assert record["score"]["answer_result"] == "success" and record["outcome"] == "failure"  # no query tool
+    summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+    assert [(a["surface"], a["answer_success"], a["success"]) for a in summary["aggregate"]] == [("vanilla", 1, 0)]
+    # always_on sets the kit's mode: aelix alone has none.
+    assert me.main(["run", "--model", "dry-run", "--task", "T07", "--surface", "vanilla", "--proposal",
+                    "always_on", "--out", str(tmp_path / "out2"), "--fixtures", str(root)]) == 3
+
+
+def test_a_refusal_before_the_model_ran_is_not_run(aelix_command, fixtures, tmp_path):
+    """OpenRouter's 402 (credits) ended 21 runs of #24's campaign before the model answered once: such
+    a run is not_run, with the refusal as its reason, not a failure of the task."""
+    root, _ = fixtures
+    script = script_file(tmp_path, "credits", [{"http_status": 402, "code": "insufficient_credits",
+                                                 "text": "This request requires more credits, or fewer max_tokens."}])
+    out = tmp_path / "out"
+    assert me.main(run_args(root, tmp_path, out, script)) == 3
+    record = json.loads(next((out / "runs").glob("*/run.json")).read_text(encoding="utf-8"))
+    assert record["outcome"] == "not_run" and record["reason"].startswith("provider_refused: ")
+    assert "402" in record["reason"] and record["command_to_run"]
 
 
 def test_a_login_the_api_refuses_is_not_run(aelix_command, fixtures, tmp_path, login_dry_run):
