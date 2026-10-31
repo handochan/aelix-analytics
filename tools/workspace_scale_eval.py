@@ -7,7 +7,8 @@ screen. Q10's display case is looked at in the same pages.
 
 FIXTURE is a `tools/eval_fixtures.py scale --format v2` fixture with seed 0 and COPY a copy of its
 `project/`: the builds write the copy's Workspace and cache, never the fixture's. Each build runs in a
-child process of this interpreter, so its peak memory is its own (ru_maxrss; not on Windows):
+child process of this interpreter, so its peak memory is its own: VmHWM where /proc/self/status has it
+(Linux, where ru_maxrss would carry the parent's over the exec), else ru_maxrss (macOS); not on Windows.
 - cold: the kit's derived directories emptied first (the hash cache and the Workspace); the OS's file
   cache is not flushed, so a cold sample is the kit's cold, not the disk's;
 - warm: the cache and the Workspace there, a full build;
@@ -19,24 +20,28 @@ The time inside the child is the build's; the child's wall time adds the interpr
 Chromium, the `browser` dependency group) opens `workspace/index.html` from file:// in a new context
 per sample and waits for `load`; navigation timing gives DOMContentLoaded and load. Page errors and
 dialogs are counted. Bytes read from disk are not measured: the standard library has no portable
-counter. The display case (manifest case `display_safety`) passes when no page holds its markup as
-markup, a page holds it escaped, and the browser shows the text as text with no dialog.
+counter. The display case (manifest case `display_safety`, a text that looks like markup, a path and a
+template) is judged twice, apart: `static` — some page holds the whole text as text and no page made
+any part of it an element, an attribute or a comment (an HTML parser over every page); `browser` — in
+each of those pages Chromium's document text holds the whole text and no element, link or comment was
+made of it, with no dialog (`not_run` without the browser).
 
 Writes NEW_DIR/workspace-scale-evaluation.json and prints a one-line summary. Exit status: 0 every
-build succeeded, the unchanged check skipped the build, the display case passed and the copy's
-journal is unchanged; 1 otherwise; 2 a usage error. The times are a record, not a gate.
+build succeeded, the unchanged check skipped the build, the display case's static judgment and, when
+the browser ran, its browser judgment held, no page error, and the copy's journal is unchanged; 1
+otherwise; 2 a usage error. The times are a record, not a gate.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
-import html
 import json
 import math
 import statistics
 import subprocess
 import sys
 import time
+from html.parser import HTMLParser
 from pathlib import Path
 
 import eval_fixtures
@@ -52,12 +57,19 @@ from aelix_analytics import core, workspace
 imported = time.perf_counter()
 result = workspace.build(core.Project(sys.argv[2]), if_changed=sys.argv[3] == "1")
 built = time.perf_counter()
+peak = None
 try:
-    import resource
-    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    peak = peak if sys.platform == "darwin" else peak * 1024
-except ImportError:
-    peak = None
+    with open("/proc/self/status", encoding="ascii") as status:
+        peak = next((int(line.split()[1]) * 1024 for line in status if line.startswith("VmHWM:")), None)
+except OSError:
+    pass
+if peak is None:
+    try:
+        import resource
+        peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        peak = peak if sys.platform == "darwin" else peak * 1024
+    except ImportError:
+        pass
 print(json.dumps({"import_ms": (imported - started) * 1000, "build_ms": (built - imported) * 1000,
                   "skipped": bool(result.get("skipped")), "peak_rss_bytes": peak}))
 """
@@ -90,7 +102,7 @@ def series(samples: list[dict]) -> dict:
     return {"samples": samples, "build_ms": summary([s["build_ms"] for s in samples]),
             "wall_ms": summary([s["wall_ms"] for s in samples]),
             "peak_rss_bytes": {"max": max(peaks)} if peaks else
-            {"status": "not_measured", "reason": "no resource module on this platform"},
+            {"status": "not_measured", "reason": "neither /proc/self/status nor the resource module here"},
             "skipped": [s["skipped"] for s in samples]}
 
 
@@ -103,29 +115,70 @@ def pages(workspace: Path) -> dict:
             "largest_page": {"path": largest[0], "bytes": largest[1]}}
 
 
-# The parts of the display case that would act if a page held them as markup.
-ACTIVE = ('<script>alert("fixture")</script>', "<img src=x onerror=alert(1)>", "<svg onload=alert(2)>")
-# In the browser: the parts are in the document's text, and none became an element.
-DISPLAY_DOM = """(parts) => ({
-  text_shown: parts.every(part => document.body.textContent.includes(part)),
-  elements_made: [...document.querySelectorAll('script')].filter(s => s.textContent.includes('alert("fixture")')).length
-    + document.querySelectorAll('img[src="x"], img[onerror], svg[onload]').length,
-})"""
+# In the browser: the whole text is in the document's text, and no element, link or comment was made
+# of it (the parts that would make one: a script, an image and an SVG with handlers, a javascript: link,
+# a comment).
+DISPLAY_DOM = """(text) => {
+  const comments = [];
+  const walk = document.createTreeWalker(document, NodeFilter.SHOW_COMMENT);
+  while (walk.nextNode()) comments.push(walk.currentNode.data.trim());
+  return {
+    text_shown: document.body.textContent.includes(text),
+    elements_made: [...document.querySelectorAll('script')].filter(s => s.textContent.includes('alert("fixture")')).length
+      + document.querySelectorAll('img[src="x"], img[onerror], svg[onload], [href^="javascript:alert(3)"]').length
+      + comments.filter(c => c === '주석').length,
+  };
+}"""
+SCRIPT_TYPES = ("", "text/javascript", "application/javascript", "module")
+
+
+class Page(HTMLParser):
+    """A page's text outside scripts and styles, and what the display case would have made of itself
+    had it been left as markup: a running script, an image or SVG with a handler, a javascript: link, a
+    comment."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.text, self.made, self._inside = [], [], []
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag in ("script", "style"):
+            self._inside.append((tag, (attrs.get("type") or "").lower()))
+        if ((tag == "img" and (attrs.get("src") == "x" or "onerror" in attrs)) or (tag == "svg" and "onload" in attrs)
+                or (attrs.get("href") or "").startswith("javascript:alert(3)")):
+            self.made.append(tag)
+
+    def handle_endtag(self, tag):
+        if self._inside and self._inside[-1][0] == tag:
+            self._inside.pop()
+
+    def handle_data(self, data):
+        if not self._inside:
+            self.text.append(data)
+        elif self._inside[-1][0] == "script" and self._inside[-1][1] in SCRIPT_TYPES and 'alert("fixture")' in data:
+            self.made.append("script")
+
+    def handle_comment(self, data):
+        if data.strip() == "주석":
+            self.made.append("comment")
 
 
 def display_case(manifest: dict, workspace: Path) -> dict:
     case = next(c for c in manifest["cases"] if c["id"] == "display_safety")
     text = next(c["text"] for c in case["checks"] if c["type"] == "event_text")
-    raw, escaped = [], []
+    made, holding = {}, []
     for page in sorted(workspace.rglob("*.html")):
-        body = page.read_text(encoding="utf-8")
+        parsed = Page()
+        parsed.feed(page.read_text(encoding="utf-8"))
+        parsed.close()
         rel = page.relative_to(workspace).as_posix()
-        if any(part in body for part in ACTIVE):
-            raw.append(rel)
-        if html.escape(ACTIVE[0], quote=False) in body or html.escape(ACTIVE[0]) in body:
-            escaped.append(rel)
-    return {"record": case["records"]["note"], "text": text, "pages_with_markup": raw,
-            "pages_with_escaped_text": escaped}
+        if parsed.made:
+            made[rel] = parsed.made
+        if text in "".join(parsed.text):
+            holding.append(rel)
+    return {"record": case["records"]["note"], "text": text, "pages_with_markup": made,
+            "pages_with_text": holding, "static": not made and bool(holding)}
 
 
 def browser_samples(workspace: Path, repeats: int, display: dict) -> dict:
@@ -153,7 +206,7 @@ def browser_samples(workspace: Path, repeats: int, display: dict) -> dict:
                             "title": page.title(), "text_chars": len(page.inner_text("body"))})
             context.close()
         shown = []
-        for rel in display["pages_with_escaped_text"]:
+        for rel in display["pages_with_text"]:
             # Each page that holds the text: in the document as text (a closed tab's panel counts) and
             # no element made of it.
             context = browser.new_context()
@@ -161,7 +214,7 @@ def browser_samples(workspace: Path, repeats: int, display: dict) -> dict:
             page.on("pageerror", lambda exc: errors.append(str(exc)))
             page.on("dialog", lambda dialog: (dialogs.append(dialog.message), dialog.dismiss()))
             page.goto((workspace / rel).resolve().as_uri(), wait_until="load")
-            shown.append({"page": rel, **page.evaluate(DISPLAY_DOM, list(ACTIVE))})
+            shown.append({"page": rel, **page.evaluate(DISPLAY_DOM, display["text"])})
             context.close()
         version = browser.version
         browser.close()
@@ -221,14 +274,13 @@ def main(argv=None) -> int:
                          else {"status": "not_run", "reason": "--browser none"})
     shown = report["browser"].get("display_pages")
     display["browser"] = ("not_run" if shown is None else
-                          all(p["text_shown"] and not p["elements_made"] for p in shown))
-    display["pass"] = (not display["pages_with_markup"] and bool(display["pages_with_escaped_text"])
-                       and display["browser"] is not False and not report["browser"].get("dialogs"))
+                          bool(shown) and all(p["text_shown"] and not p["elements_made"] for p in shown)
+                          and not report["browser"]["dialogs"])
     report["display_case"] = display
     report["journal"] = {"before": before, "after": digest(journal)}
     report["journal"]["unchanged"] = before == report["journal"]["after"]
-    ok = (all(report["unchanged"]["skipped"]) and display["pass"] and report["journal"]["unchanged"]
-          and not report["browser"].get("page_errors"))
+    ok = (all(report["unchanged"]["skipped"]) and display["static"] and display["browser"] is not False
+          and report["journal"]["unchanged"] and not report["browser"].get("page_errors"))
     report["ok"] = ok
     (out / "workspace-scale-evaluation.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n",
                                                          encoding="utf-8", newline="\n")

@@ -451,11 +451,12 @@ def test_update_validates_request_before_lock_and_generates_common_response_id(c
 
 def test_a_report_s_body_and_files_stay_out_of_the_standing_context(case):
     """Q16 (#24, B6): what a model is given each turn (the context block) and the status it reads by
-    default hold no Report body and no file of one; a read by its ID names it, and its files are where
-    that read says."""
+    default hold no Report body and no file of one, not even as base64; a read by its ID names it, and its
+    body is in the revision's directory."""
     p, source = case
     (source / "요약.md").write_text("# 결과\n" + "본문표식q16 " * 2000, encoding="utf-8")
-    (source / "그림.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"imagemarkq16" * 1000)
+    image = b"\x89PNG\r\n\x1a\n" + b"imagemarkq16" * 1000
+    (source / "그림.png").write_bytes(image)
     answer = save(case)
     asked = core.retrieve(p, id=f"report:weekly/{answer['report']['revision_id']}")
     assert {"field": "report_id", "value": "weekly"} in asked["items"]
@@ -463,3 +464,5 @@ def test_a_report_s_body_and_files_stay_out_of_the_standing_context(case):
     for given in (core.context_block(p), core.status_text(core.status(p)),
                   json.dumps(core.status(p), ensure_ascii=False)):
         assert "본문표식q16" not in given and "imagemarkq16" not in given
+        # Nor the image as base64 (a data: URI, say), which hides the marker.
+        assert base64.b64encode(image)[64:128].decode() not in given

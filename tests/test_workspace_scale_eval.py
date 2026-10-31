@@ -8,6 +8,7 @@ markup. The browser half runs where AELIX_ANALYTICS_TEST_BROWSER names chromium.
 
 from __future__ import annotations
 
+import html
 import importlib.util
 import json
 import os
@@ -64,8 +65,9 @@ def test_a_copy_is_built_and_its_journal_kept(fixture, tmp_path):
     assert report["ok"] is True and report["journal"]["unchanged"] is True
     assert report["unchanged"]["skipped"] == [True, True] and report["warm"]["skipped"] == [False, False]
     assert report["fixture"]["scale"] == "S" and report["pages"]["pages"] > 1
-    assert report["display_case"]["pages_with_markup"] == [] and report["display_case"]["pages_with_escaped_text"]
-    assert report["display_case"]["browser"] == (True if BROWSER else "not_run")
+    display = report["display_case"]
+    assert display["text"] == TEXT and display["pages_with_markup"] == {} and display["pages_with_text"]
+    assert display["static"] is True and display["browser"] == (True if BROWSER else "not_run")
     # The fixture's own project was never built.
     assert not any((path / "project" / "workspace").iterdir())
 
@@ -81,34 +83,50 @@ def test_the_fixture_s_own_project_and_another_project_are_refused(fixture, tmp_
     assert done.returncode == 2 and "journal differs" in done.stderr
 
 
-def test_the_display_check_finds_markup_left_as_markup(tmp_path):
+# The fixture's display case (tools/eval_fixtures.py, case display_safety).
+TEXT = ('표시 경계 사례: <script>alert("fixture")</script> <img src=x onerror=alert(1)> &amp; &lt;b&gt; '
+        '"><svg onload=alert(2)> ../../etc/passwd C:\\Windows\\System32\\drivers {{title}} javascript:alert(3) '
+        '`rm -rf /` <!-- 주석 --> 줄\t탭')
+
+
+def test_the_display_check_wants_the_whole_text_as_text_and_nothing_made_of_it(tmp_path):
     workspace = tmp_path / "workspace"
     (workspace / "lists").mkdir(parents=True)
-    text = "case: " + " ".join(tool.ACTIVE)
-    (workspace / "index.html").write_text(f"<p>{text}</p>", encoding="utf-8")
-    (workspace / "lists" / "notes.html").write_text(f"<p>{tool.html.escape(text)}</p>", encoding="utf-8")
+    pages = {"raw.html": f"<p>{TEXT}</p>",  # left as markup
+             "lists/whole.html": f"<p>{html.escape(TEXT)}</p>",
+             # The three tags escaped, the rest dropped: not the case's text.
+             "lists/part.html": "<p>" + html.escape('<script>alert("fixture")</script> <img src=x onerror=alert(1)> '
+                                                     '<svg onload=alert(2)>') + "</p>",
+             "lists/data.html": '<script type="application/json">{"t": "alert(\\"fixture\\")"}</script>'}
+    for rel, body in pages.items():
+        (workspace / rel).write_text(body, encoding="utf-8")
     manifest = {"cases": [{"id": "display_safety", "records": {"note": "e1"},
-                           "checks": [{"type": "event_text", "id": "e1", "text": text}]}]}
+                           "checks": [{"type": "event_text", "id": "e1", "text": TEXT}]}]}
     found = tool.display_case(manifest, workspace)
-    assert found["pages_with_markup"] == ["index.html"]
-    assert found["pages_with_escaped_text"] == ["lists/notes.html"]
+    assert found["pages_with_markup"] == {"raw.html": ["script", "img", "svg", "comment"]}
+    assert found["pages_with_text"] == ["lists/whole.html"] and found["static"] is False
+    (workspace / "raw.html").unlink()
+    assert tool.display_case(manifest, workspace)["static"] is True
+    (workspace / "lists" / "whole.html").unlink()
+    assert tool.display_case(manifest, workspace)["static"] is False
 
 
 @pytest.mark.skipif(not BROWSER, reason="AELIX_ANALYTICS_TEST_BROWSER does not name chromium")
 def test_the_browser_check_tells_text_from_elements(tmp_path):
     from playwright.sync_api import sync_playwright
 
-    text = " ".join(tool.ACTIVE)
     as_text, as_markup = tmp_path / "text.html", tmp_path / "markup.html"
-    as_text.write_text(f"<p>{tool.html.escape(text)}</p>", encoding="utf-8")
-    as_markup.write_text(f"<p>{text.replace('alert(', 'console.log(')}</p><script>// alert(\"fixture\")</script>",
-                         encoding="utf-8")
+    as_text.write_text(f"<p>{html.escape(TEXT)}</p>", encoding="utf-8")
+    # Left as markup, with the alerts made harmless so no dialog stops the page.
+    as_markup.write_text(f"<p>{TEXT.replace('alert(', 'console.log(')}</p><script>// alert(\"fixture\")</script>"
+                         '<a href="javascript:alert(3)">x</a>', encoding="utf-8")
     with sync_playwright() as play:
         browser = play.chromium.launch()
         page = browser.new_page()
         page.goto(as_text.as_uri())
-        assert page.evaluate(tool.DISPLAY_DOM, list(tool.ACTIVE)) == {"text_shown": True, "elements_made": 0}
+        assert page.evaluate(tool.DISPLAY_DOM, TEXT) == {"text_shown": True, "elements_made": 0}
         page.goto(as_markup.as_uri())
-        seen = page.evaluate(tool.DISPLAY_DOM, list(tool.ACTIVE))
+        seen = page.evaluate(tool.DISPLAY_DOM, TEXT)
         browser.close()
-    assert seen["text_shown"] is False and seen["elements_made"] >= 3
+    # The script, the image, the SVG, the link and the comment.
+    assert seen == {"text_shown": False, "elements_made": 5}

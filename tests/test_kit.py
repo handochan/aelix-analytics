@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import re
@@ -1735,6 +1736,10 @@ def test_a_workspace_that_cannot_be_built_after_a_run_is_told_and_the_run_kept(p
     run_id = result["run"]["id"]
     stored = json.loads((project / "runs" / run_id / "run.json").read_text(encoding="utf-8"))
     assert stored["status"] == "ok" and not stored.get("finalize_errors"), stored
-    assert {o["path"] for o in stored["outputs"]} >= {"data/derived/region_revenue.parquet"}
+    # The outputs are there, with the bytes the record names.
+    outputs = {o["path"]: o["sha256"] for o in stored["outputs"]}
+    assert "data/derived/region_revenue.parquet" in outputs
+    for path, sha in outputs.items():
+        assert hashlib.sha256((project / path).read_bytes()).hexdigest() == sha, path
     events = core.read_events(core.Project(project))
     assert result["event"] == events[-1]["id"] and run_id in json.dumps(events[-1]["refs"])

@@ -86,7 +86,7 @@ PyPI 자리의 loopback 색인, aelix의 확장 명령, kit 0.25.0 wheel에서�
 항목별로 맡는 Issue는 그 ADR의 [구현에서 확인할 것](decisions/0001-evolvable-platform-boundaries.md#구현에서-확인할-것)에 있다.
 역방향 import 검사(`tests/test_layers.py`, 계층표는 [아키텍처 §11](ARCHITECTURE.md#계층과-의존-방향-검사))와 플랫폼 포트 세 구현의 공통 계약 시험
 (`tests/test_contracts.py`)은 #43부터 저장소 CI에서 돈다. 정책 Strategy의 교체 시험은 #17(`ProposalPolicy`, `tests/test_asset_contract.py`)과
-#20(`PublicationProjection`·`ReportRenderer`, `tests/test_contracts.py`)이 더했다. Q15의 판정은 출시 결과표가 한다.
+#20(`PublicationProjection`)·#19(`ReportRenderer`, 둘 다 `tests/test_contracts.py`)가 더했다. Q15의 판정은 출시 결과표가 한다.
 
 - core의 의미·읽기 흐름이 Aelix·UI·분석 라이브러리 없이 실제로 호출된다. import만 성공하는 것을 독립성 증거로 삼지 않는다.
 - 대표 Strategy 또는 adapter를 대체해도 ID·버전·근거·상태 계약이 유지된다. 명목적인 base class 상속만 시험하지 않는다.
