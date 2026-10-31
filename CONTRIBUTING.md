@@ -240,10 +240,17 @@ fixture를 cold로 둡니다. `tests/test_eval_fixtures.py`가 두 형식의 S·
 `input/`을 합쳐 약 440 MB, 형식마다 두 번 만듦)은 `AELIX_ANALYTICS_TEST_SCALE_M=1`일 때만 돕니다. 생성기가 만드는 내용(계획·사례·데이터)을
 바꾸면 `GENERATOR_VERSION`을 올리고 그 시험도 실행하세요.
 
-제한 조회의 결정적 S/M 측정(#15)은 생성기의 fixture를 명시적으로 전환한 합성 사본에서 합니다. 원본 fixture를 고치지 않습니다.
-`tools/retrieval_eval.py --fixture <fixture> --project <전환 사본> --out <새 결과 dir> --repeats 10`은 같은 사례의 cold/warm/재구축/직접 읽기,
+제한 조회의 결정적 S/M 측정(#15)은 `v1` fixture를 명시적으로 전환한 합성 사본에서 합니다. `v2` fixture는 지금 kit의 형식이라
+프로젝트의 사본을 그대로 잽니다(#24). 원본 fixture를 고치지 않습니다.
+`tools/retrieval_eval.py --fixture <fixture> --project <사본> --out <새 결과 dir> --repeats 10`은 같은 사례의 cold/warm/재구축/직접 읽기,
 ID 회수·판단 상태·원본 journal 해시와 UTF-8 응답 bytes를 남깁니다. cold는 파생 인덱스가 없는 경우이며 OS 파일 캐시를 비우지 않습니다.
 토큰·실제 모델·브라우저 지연은 미측정/미실행입니다.
+
+Workspace의 S/M 측정(Q9, #24)은 `v2` fixture 프로젝트의 사본에서 합니다.
+`uv run --locked --group browser python tools/workspace_scale_eval.py --fixture <fixture> --project <사본> --out <새 결과 dir>`는
+빌드의 cold·warm·변경 없음 확인의 p50/p95, 빌드의 최대 메모리, 쓴 페이지의 수와 크기, Chromium이 `file://`로 첫 화면을 여는 시간을
+남깁니다. 같은 페이지에서 Q10의 표시 사례(`display_safety`)가 글자로만 보이는지도 봅니다. 읽은 파일량은 측정하지 않습니다.
+`tests/test_workspace_scale_eval.py`가 S로 이 도구를 확인합니다.
 
 분석 자산 host의 Q11 측정(#17)은 `tools/asset_host_eval.py --out <새 결과 dir> --baseline-extension <B3-b 확장 소스>`로
 실제 Aelix 여섯 도구의 definition/description/schema와 합성 skill 후보의 요청 시/상시/다음 턴 맥락을 비교합니다.
