@@ -9,7 +9,7 @@
 
 | 파일 | 내용 |
 |---|---|
-| [`tasks.json`](tasks.json) | 과제 12개: 사용자 요청 글, fixture, 준비 방식, 게이트, 측정 영역(`areas`, 설계의 E1–E6), Q11 요청 유형, Q5 조건, 제한 시간. 소유자가 과제 목록을 확인했다(`status: confirmed`, 2026-10-18). 하네스는 `status`를 읽지 않는다 |
+| [`tasks.json`](tasks.json) | 과제 14개와 체인 3개: 사용자 요청 글(체인은 세션별), fixture, 준비 방식, 게이트, 측정 영역(`areas`, 설계의 E1–E6), Q11 요청 유형, Q5 조건, 제한 시간. 소유자가 T01–T12를 확인했다(`status: confirmed`, 2026-10-18). T13·T14와 체인은 초안이다. 하네스는 `status`를 읽지 않는다 |
 | [`answers/`](answers/) | 과제별 정답: 바른 완료(글), 근거 ID, 채점 검사, 쓴 fixture의 seed. 에이전트가 쓴 초안을 소유자가 모두 확인했다(`status: confirmed`, 2026-10-17). T12는 `always_review`(아래 채점) |
 | [`models/`](models/) | 모델 설정: [로컬 Qwen](models/qwen3.8-27b-local.json), [프론티어](models/gpt-5.6-sol.json), [Q17-b의 gpt-6.1-sol](models/gpt-6.1-sol.json), [OpenRouter의 Qwen](models/qwen3.8-27b-openrouter.json), [dry-run](models/dry-run.json) |
 | [`conditions.json`](conditions.json) | 도구 표면(Q11과 aelix만의 `vanilla`), 제안 조건(Q5), 글 판정에 쓰는 낱말 묶음 |
@@ -34,6 +34,17 @@
 | T10 | Q13 | Q13·Q2 | 기록된 주장 넷을 저장된 수치로 판정(뒷받침·거짓·판단 불가) |
 | T11 | Q13 | Q2·Q3 | 실패한 run의 부분 산출물과 지금 바이트의 생산자 |
 | T12 | Q13 입력 | Q13·Q11·Q5 | 새 프로젝트에서 모호한 EDA → 스텝 프로파일·점수 → 모든 센서 그림(요청 3개) |
+| T13 | Q13 | Q2·Q3 | 발견(e8, C057) → 그것을 낸 run·코드·차트·입력 버전(설계의 N1, 초안) |
+| T14 | S | Q2 | 정정된 발견(e41 → e287): 원래 값의 run·코드·입력, 지금 값에는 run이 없다는 한계(설계의 N2, 초안) |
+| C1 | Q13 입력 | Q2·Q13 | 체인: EDA → (새 세션) 지난 작업을 말하고 이어서 프로파일·점수 → (새 세션) 발견을 근거와 함께 정리 |
+| C2 | Q10 입력 | Q2·Q12 | 체인: 8·9월 비교 → (새 세션) 9월이 20일까지임을 알리고 다시 비교·정정 → (새 세션) 계획에 쓸 숫자와 앞선 숫자 |
+| C3 | Q10 입력 | Q2·Q12 | 체인: 고객 기준 전환율 → (새 세션) 세션 기준으로 정의 수정 → (새 세션) 지금 정의·값·이유·이전 값 |
+
+**체인**(C1–C3, [제품 효과 평가 설계](../../docs/design/PRODUCT-EVALUATION.md) Part II)은 세션 셋으로 된 과제다. 세션마다 새 aelix를
+`--no-session`으로 띄우고, 앞 세션이 남긴 작업 루트(`work/`: 프로젝트와 입력, 모델이 거기 둔 모든 것)의 사본에서 시작한다. 대화는
+이어지지 않는다. 첫 세션의 요청 글이 두 조건 모두에 여러 세션에 걸친 분석이라는 것과 목표를 알린다(A의 새 프로젝트는 목표를 비워 둔다).
+마지막 세션은 앞 세션들이 찾은 것만 묻는다(`recall_only`). 앞 세션이 `error`나 `not_run`으로 끝나면 이을 작업이 없어 남은 세션은
+`not_run`(`chain_broken`)이다. 체인의 요청과 정답은 초안이다(소유자 확인 전, #24 E3).
 
 요청 글은 도구 이름을 말하지 않아 도구 표면과 이름 전환 전후(#9)에 같은 글을 쓴다. 모델에게는 fixture의 `project/`와 `input/`만
 준다(`manifest.json`·`expected.json`은 정답을 담음). 모델이 일하는 작업 루트는 `OUT` 밖의 새 디렉터리라 그 위로 올라가도 fixture와
@@ -241,7 +252,7 @@ Codex CLI 0.162.0 모델 목록(2026-10-21)의 값이다. 출력 예약 128,000�
 
 ## run 기록
 
-`OUT/runs/<과제>-<모델>-<표면>-<제안 조건>-r<반복>/`에 `run.json`(아래), `events.jsonl`(aelix `--mode json`의 사건 그대로),
+`OUT/runs/<과제>-<모델>-<표면>-<제안 조건>-r<반복>/`(체인은 세션마다 끝에 `-s<세션>`)에 `run.json`(아래), `events.jsonl`(aelix `--mode json`의 사건 그대로),
 `stderr.txt`, `command.json`(argv·cwd·하네스가 정한 변수·로그인 파일 경로), `agent/`(aelix의 상태와 `models.json`), `work/`(모델이 일한
 작업 루트: 프로젝트와 입력, aelix가 끝난 뒤 옮겨 옴), `home/`(run의 HOME)이 남는다. kit의 확장은 요청이 끝날 때마다 보고서 빌드(`uv run
 --project <프로젝트> … render --if-changed`)를 분리된 프로세스로 띄워 aelix보다 오래 살고, 모델의 bash 명령은 저마다 새 세션에서 돈다
@@ -331,6 +342,10 @@ Codex CLI 0.162.0 모델 목록(2026-10-21)의 값이다. 출력 예약 128,000�
 - `summary.json`의 집계는 성공, 사람이 볼 것이 없는 성공(`success_without_review`), `needs_review`·`fabricated_ids`가 있는 run 수를 따로
   세고, 토큰 중앙값은 모든 요청이 usage를 보고한 run만으로 낸다(`token_runs`, 뺀 run은 `partial_usage_runs`). `summary.md`는 부분 값에
   `(partial)`을 붙이고, `not_run` 행의 칸은 모두 `—`다.
+- 체인의 검사는 자기 세션(`session`)의 답만 본다. 회수 검사(`recall`)는 앞 세션의 검사(`requires`)에 기댄다: 앞 세션이 그 값을 내지
+  못했으면(그 검사가 통과하지 않음) 회수할 것이 없으므로 `passed: null`과 `not_applicable`이고, 성공·실패와 회수율(`recall`의 `passed`·
+  `total`)에서 빠진다(`not_applicable` 수는 따로). 앞 세션의 결과는 그 세션의 `run.json`에서 읽으므로 `score`는 이름 순서(세션 순서)로
+  다시 채점한다. run 기록의 `chain`은 세션 번호·세션 수·`recall_only`·앞 세션의 run이다.
 - 모델의 자기평가는 쓰지 않는다. 같은 코드·같은 방법을 요구하지 않는다(T12는 결과물과 기록으로 본다).
 
 ## 조건 비교
@@ -359,6 +374,14 @@ checkout)은 따로 적는다. `DIR/comparison.json`과 `comparison.md`를 쓴�
 
   사람이 발생한 중대 오판을 확정하거나 기각하면 판정이 바뀔 수 있는 규칙(R3, R5)은 `provisional`이다. 이런 규칙이 남아 있는 동안
   게이트는 `pending`이다.
+- **체인**(Part II): 세션마다 run 하나다. 한 체인 반복의 세션들은 서로를 대신하지 않는다.
+  - **R1**: 재개 정확도에 체인의 일하는 세션(`recall_only`가 아닌 세션)이 앞 세션에 대해 말한 회수 검사를 더한다.
+  - **R4**: 회수 검사마다 같은 체인·반복의 A와 V를 짝으로 본다. 한쪽이라도 "해당 없음"인 짝은 두 조건 모두에서 빼고
+    `not_applicable_pairs`로 센다(O7). 빠진 짝이 절반을 넘으면 `withheld`이고 게이트는 `pending`이다. 중복 작업은 회수만 묻는 세션에서
+    분석을 실행한 호출 수다. kit의 run·query 도구와, Python·`uv run`·DuckDB를 실행한 bash가 여기에 든다.
+  - **R5**: 체인마다 세션 1(체인이 시작하는 분석)을 분석 과제처럼 센다.
+  - **R6**: 체인 반복 하나의 토큰은 세 세션의 합이다. 모든 세션의 답이 성공한 반복만 센다.
+  - **R7**: A의 회수율(모든 A 체인 run)이 2/3 이상인지 본다.
 - **진단**(설계 7절): 실패한 근거 검사와 기록된 상태를 묻는 과제(E1–E3)의 실패한 사실 검사 가운데 글이 담을 수 있는 값(ID·수)을 가진
   것마다, 그 run이 받았는지(도구 결과와 A의 맥락 블록), 받지 않았지만 kit의 읽기로 얻을 수 있었는지(`--fixtures`: fixture의 새 사본에서
   맥락 블록·상태·정답 ID의 읽기), 어느 쪽도 아닌지(제품의 공백)를 가린다. `ids_any`는 그 최소 개수, 수는 다른 수의 일부가 아닌 곳만

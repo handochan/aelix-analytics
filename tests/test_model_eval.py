@@ -118,18 +118,21 @@ def test_a_v2_fixture_is_not_taken_for_the_v1_answers(tmp_path):
 # --- configuration --------------------------------------------------------------------------------
 
 def test_the_configuration_has_twelve_tasks_with_confirmed_answers_and_both_models(config):
-    assert sorted(config.tasks) == [f"T{i:02d}" for i in range(1, 13)]
+    assert sorted(config.tasks) == ["C1", "C2", "C3"] + [f"T{i:02d}" for i in range(1, 15)]
     assert sorted(config.answers) == sorted(config.tasks)
-    # The agent wrote the answers as drafts and the owner confirmed all twelve (Issue #40, 2026-10-17).
-    assert {a["status"] for a in config.answers.values()} == {"confirmed"}
-    assert all(a["confirmed_by"] == "handochan (owner), 2026-10-17, Issue #40" for a in config.answers.values())
+    # The agent wrote the answers as drafts and the owner confirmed the first twelve (Issue #40,
+    # 2026-10-17); the two new tasks and the chains of #24 (E3) are drafts until the owner confirms them.
+    confirmed = [f"T{i:02d}" for i in range(1, 13)]
+    assert {config.answers[t]["status"] for t in confirmed} == {"confirmed"}
+    assert all(config.answers[t]["confirmed_by"] == "handochan (owner), 2026-10-17, Issue #40" for t in confirmed)
+    assert {t for t, a in config.answers.items() if a["status"] == "draft"} == {"T13", "T14", "C1", "C2", "C3"}
     gates = {g for t in config.tasks.values() for g in t["gates"]}
     assert gates == set(me.GATES)
     assert {t["q11_request"] for t in config.tasks.values()} >= {"single", "combination", "ambiguous"}
     assert {t for t, task in config.tasks.items() if task.get("proposal_conditions")} == {"T07", "T08", "T12"}
     # Requests name no tool: the same text serves every surface and both generations of names.
     for task in config.tasks.values():
-        for request in task["requests"]:
+        for request in task.get("requests") or [r for s in task["sessions"] for r in s["requests"]]:
             assert not re.search(r"\b(analytics|lab)_[a-z]+", request), task["id"]
 
     qwen = config.models["qwen3.8-27b-local"]
@@ -1490,6 +1493,76 @@ def test_a_refusal_before_the_model_ran_is_not_run(aelix_command, fixtures, tmp_
     record = json.loads(next((out / "runs").glob("*/run.json")).read_text(encoding="utf-8"))
     assert record["outcome"] == "not_run" and record["reason"].startswith("provider_refused: ")
     assert "402" in record["reason"] and record["command_to_run"]
+
+
+def chain_args(root: Path, tmp_path: Path, out: Path, script: Path, surface: str) -> list[str]:
+    return ["run", "--model", "dry-run", "--task", "C2", "--surface", surface, "--out", str(out), "--fixtures",
+            str(root), "--script", str(script), "--work-root", str(tmp_path / "roots")]
+
+
+def test_a_chain_continues_in_the_work_its_session_before_left(aelix_command, fixtures, tmp_path):
+    """Part II of docs/design/PRODUCT-EVALUATION.md: each session is a new aelix (--no-session) over a
+    copy of the work root the session before it left, and a later session's recall check rests on what
+    an earlier one found."""
+    root, _ = fixtures
+    out = tmp_path / "out"
+    script = script_file(tmp_path, "chain", [bash("echo seen >> notes.txt"),
+                                             {"text": "9월 주문 금액은 8월보다 22.0% 감소했습니다."}])
+    assert me.main(chain_args(root, tmp_path, out, script, "default")) == 0
+    names = [f"C2-dry-run-default-unrequested-r1-s{k}" for k in (1, 2, 3)]
+    assert sorted(p.name for p in (out / "runs").iterdir()) == names
+    records = [json.loads((out / "runs" / n / "run.json").read_text(encoding="utf-8")) for n in names]
+    assert [r["chain"] for r in records] == [
+        {"session": 1, "sessions": 3, "recall_only": False, "previous": None},
+        {"session": 2, "sessions": 3, "recall_only": False, "previous": names[0]},
+        {"session": 3, "sessions": 3, "recall_only": True, "previous": names[1]}]
+    # Each session found the note the one before it left, and the kit's project with it.
+    assert shell_text(out / "runs" / names[2] / "work" / "project" / "notes.txt").split() == ["seen"] * 3
+    assert all(r["context_block"]["bytes"] > 0 for r in records)
+    checks = [{c["id"]: c["passed"] for c in r["score"]["checks"]} for r in records]
+    assert checks[0] == {"compared": True, "naive": True}
+    assert checks[1] == {"same-days": False, "same-days-direction": False}
+    # Session 2 did not find the same-days value: session 3 had nothing of it to recall.
+    assert checks[2]["recall-value"] is None and checks[2]["recall-direction"] is None
+    assert checks[2]["recall-earlier"] is False and checks[2]["decline-as-current"] is False
+    assert records[2]["score"]["recall"] == {"passed": 0, "total": 1, "not_applicable": 2}
+    # Scored again in name order, a chain's sessions read the same earlier results.
+    assert me.main(["score", str(out)]) == 0
+    again = json.loads((out / "runs" / names[2] / "run.json").read_text(encoding="utf-8"))
+    assert again["score"]["checks"] == records[2]["score"]["checks"]
+    summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+    assert [a["task"] for a in summary["aggregate"]] == ["C2/s1", "C2/s2", "C2/s3"]
+
+
+def test_a_chain_stops_where_a_session_left_nothing(aelix_command, fixtures, tmp_path):
+    """A session that ended without a result (here the provider refused it) leaves no work to continue:
+    the later sessions are not_run, and none of them starts aelix."""
+    root, _ = fixtures
+    out = tmp_path / "out"
+    script = script_file(tmp_path, "credits", [{"http_status": 402, "code": "insufficient_credits",
+                                                 "text": "This request requires more credits."}])
+    assert me.main(chain_args(root, tmp_path, out, script, "vanilla")) == 3
+    records = [json.loads((out / "runs" / f"C2-dry-run-vanilla-unrequested-r1-s{k}" / "run.json").read_text(
+        encoding="utf-8")) for k in (1, 2, 3)]
+    assert [r["outcome"] for r in records] == ["not_run"] * 3
+    assert records[0]["reason"].startswith("provider_refused: ")
+    assert all(r["reason"].startswith("chain_broken: session 1 ") and "requests" not in r for r in records[1:])
+
+
+def test_a_chain_is_checked_as_one(config):
+    """A chain names its sessions, and a check of a later session rests only on one of an earlier one."""
+    tasks = {"C1": {**config.tasks["C1"]}}
+    answer = json.loads(json.dumps(config.answers["C1"]))
+    assert me.check_answer(answer, "C1", tasks, config.words) == []
+    answer["checks"][2]["requires"] = ["recall-c057"]  # a session-2 check resting on session 3
+    answer["checks"][0].pop("session")
+    assert me.check_answer(answer, "C1", tasks, config.words) == [
+        "check sensors: a chain's check names its session (1-3)",
+        "check resume-c057: requires 'recall-c057', which is not a check of an earlier session"]
+    doc = {"schema": me.TASKS_SCHEMA, "fixtures": {"Q13": {"kind": "q13", "seed": 0, "generator_version": 1}},
+           "tasks": [{**config.tasks["C1"], "requests": ["x"]}, {**config.tasks["T12"], "id": "C9"}]}
+    assert me.check_tasks(doc) == ["tasks.json C1: a chain's requests are its sessions'",
+                                   "tasks.json C9: a chain (C1) has sessions and a single task (T01) has requests"]
 
 
 def test_a_login_the_api_refuses_is_not_run(aelix_command, fixtures, tmp_path, login_dry_run):

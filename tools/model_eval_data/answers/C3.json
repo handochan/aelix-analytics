@@ -1,0 +1,95 @@
+{
+  "schema": "aelix-analytics.model-eval-answer/1",
+  "task": "C3",
+  "status": "draft",
+  "author": "Claude Code (agent) from the seed-0 fixtures of tools/eval_fixtures.py, 2026-10-31 (#24, E3 of docs/design/PRODUCT-EVALUATION.md); to be confirmed by the owner",
+  "fixture": {
+    "kind": "q10",
+    "seed": 0,
+    "generator_version": 1
+  },
+  "correct_completion": "세션 1: 8월 고객 기준 전환율 = 주문한 고객 546 / 방문한 고객 1,471 = 37.1%. 세션 2: 세션 기준 = 주문으로 이어진 세션 688 / 세션 5,838 = 11.8%로 다시 계산하고 정의 변경을 남긴다. 세션 3: 새로 계산하지 않고 지금 정의(세션 기준)와 8월 값 11.8%, 바꾼 이유(사용자가 세션 기준으로 바꾸기로 함), 이전 정의(고객 기준)와 그 값 37.1%를 말한다.",
+  "evidence_ids": [],
+  "checks": [
+    {
+      "id": "customer-rate",
+      "session": 1,
+      "kind": "fact",
+      "type": "percent",
+      "value": 0.371176,
+      "abs_tol_pp": 0.1,
+      "what": "고객 기준 전환율 37.1%"
+    },
+    {
+      "id": "session-rate",
+      "session": 2,
+      "kind": "fact",
+      "type": "percent",
+      "value": 0.117849,
+      "abs_tol_pp": 0.1,
+      "what": "세션 기준 전환율 11.8%"
+    },
+    {
+      "id": "recall-current",
+      "session": 3,
+      "kind": "recall",
+      "type": "percent",
+      "value": 0.117849,
+      "abs_tol_pp": 0.1,
+      "requires": [
+        "session-rate"
+      ],
+      "what": "지금 정의의 8월 값 11.8%"
+    },
+    {
+      "id": "recall-definition",
+      "session": 3,
+      "kind": "recall",
+      "type": "text_any",
+      "values": [
+        "세션 기준",
+        "세션 수",
+        "세션당",
+        "per session",
+        "session-based",
+        "sessions"
+      ],
+      "requires": [
+        "session-rate"
+      ],
+      "what": "지금 정의가 세션 기준"
+    },
+    {
+      "id": "recall-previous",
+      "session": 3,
+      "kind": "recall",
+      "type": "percent",
+      "value": 0.371176,
+      "abs_tol_pp": 0.1,
+      "requires": [
+        "customer-rate"
+      ],
+      "what": "이전 정의의 값 37.1%"
+    },
+    {
+      "id": "customer-as-current",
+      "session": 3,
+      "kind": "critical",
+      "type": "stated_as_current",
+      "patterns": [
+        "37\\.1\\s*%"
+      ],
+      "unless": "@superseded_or_reason",
+      "reason_words": [
+        "고객 기준",
+        "고객 수",
+        "이전 정의",
+        "바꾸기 전",
+        "변경 전",
+        "previous",
+        "customer"
+      ],
+      "what": "37.1%(고객 기준)를 지금의 전환율로"
+    }
+  ]
+}

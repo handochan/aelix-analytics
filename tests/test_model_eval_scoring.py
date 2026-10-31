@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -181,13 +182,28 @@ def test_a_right_answer_written_another_way_passes(task, text, state, calls):
 
 @pytest.mark.parametrize("task", sorted(CONFIG.answers))
 def test_each_correct_completion_passes_its_own_text_checks(task):
-    """The answer's own text, scored without the project: every text check it can pass, it passes."""
+    """The answer's own text, scored without the project: every text check it can pass, it passes. A
+    chain's completion gives each session's part after "세션 N:", scored with that session's checks and
+    with every earlier session's checks passed."""
     answer = CONFIG.answers[task]
+    text_types = {"text_any", "text_all", "number", "percent", "number_near", "cooccur", "claim_verdicts",
+                  "ids_all", "ids_any", "stated_as_current"}
+    if CONFIG.tasks[task].get("sessions"):
+        parts = re.split(r"세션 (\d+):", answer["correct_completion"])[1:]
+        assert [int(n) for n in parts[0::2]] == list(range(1, len(CONFIG.tasks[task]["sessions"]) + 1))
+        failing = []
+        for step, part in zip(map(int, parts[0::2]), parts[1::2]):
+            ev = me.Evidence(text=part, last_turn=part, calls=list(QUERIED), tools=me.GENERATIONS["analytics"]["tools"],
+                             state=EMPTY, existing_ids=set())
+            earlier = {c["id"]: True for c in answer["checks"] if c["session"] < step}
+            own = {**answer, "checks": [c for c in answer["checks"] if c["session"] == step]}
+            result = me.score(own, ev, CONFIG.words, earlier=earlier)
+            failing += [c["id"] for c in result["checks"] if c["type"] in text_types and not c["passed"]]
+        assert failing == []
+        return
     result = scored(task, answer["correct_completion"],
                     state=recorded("11.8% 20.6% 증가") if task in ("T07", "T08") else None,
                     calls=QUERIED)
-    text_types = {"text_any", "text_all", "number", "percent", "number_near", "cooccur", "claim_verdicts",
-                  "ids_all", "ids_any", "stated_as_current"}
     failing = [c["id"] for c in result["checks"] if c["type"] in text_types and not c["passed"]]
     assert failing == []
 

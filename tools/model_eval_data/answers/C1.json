@@ -1,0 +1,131 @@
+{
+  "schema": "aelix-analytics.model-eval-answer/1",
+  "task": "C1",
+  "status": "draft",
+  "author": "Claude Code (agent) from the seed-0 fixtures of tools/eval_fixtures.py, 2026-10-31 (#24, E3 of docs/design/PRODUCT-EVALUATION.md); to be confirmed by the owner",
+  "fixture": {
+    "kind": "q13",
+    "seed": 0,
+    "generator_version": 1
+  },
+  "correct_completion": "세션 1: 네 센서(flow·pressure·rf_power·temperature)의 분포를 보고, 트레이스 평균이 3σ 밖인 pressure의 C057(z≈4.01)을 이상 후보로 든다. 세션 2: 지난번 EDA와 후보 C057을 먼저 말하고, 스텝·시점별 프로파일과 z 점수를 계산한다(기준 방법에서 최대 |z| 4.36, C035의 rf_power). 세션 3: 새로 계산하지 않고 정리한다. 세션 1의 EDA에서 나온 후보는 pressure의 C057이고, 세션 2의 점수에서 나온 최대 이탈은 C035의 rf_power다. 각 결과를 그것을 만든 코드(세션의 .py 스크립트)와 실행, 출력 파일(.parquet 표·차트)과 함께 적는다.",
+  "evidence_ids": [],
+  "checks": [
+    {
+      "id": "sensors",
+      "session": 1,
+      "kind": "fact",
+      "type": "text_all",
+      "values": [
+        "flow",
+        "pressure",
+        "rf_power",
+        "temperature"
+      ],
+      "what": "네 센서의 분포를 다룸"
+    },
+    {
+      "id": "c057",
+      "session": 1,
+      "kind": "fact",
+      "type": "cooccur",
+      "any": [
+        [
+          "C057"
+        ],
+        [
+          "pressure",
+          "압력"
+        ]
+      ],
+      "what": "pressure의 C057을 이상 후보로(트레이스 평균 3σ 밖)"
+    },
+    {
+      "id": "resume-c057",
+      "session": 2,
+      "kind": "recall",
+      "type": "cooccur",
+      "any": [
+        [
+          "C057"
+        ]
+      ],
+      "requires": [
+        "c057"
+      ],
+      "what": "지난번 후보 C057을 말함"
+    },
+    {
+      "id": "max-z",
+      "session": 2,
+      "kind": "fact",
+      "type": "cooccur",
+      "required": false,
+      "any": [
+        [
+          "C035"
+        ],
+        [
+          "rf_power",
+          "rf power",
+          "RF"
+        ]
+      ],
+      "what": "최대 |z|가 C035의 rf_power(기준 방법). 방법에 따라 다를 수 있어 필수가 아니고, 세션 3의 회수가 기대는 값"
+    },
+    {
+      "id": "recall-c057",
+      "session": 3,
+      "kind": "recall",
+      "type": "cooccur",
+      "any": [
+        [
+          "C057"
+        ],
+        [
+          "pressure",
+          "압력"
+        ]
+      ],
+      "requires": [
+        "c057"
+      ],
+      "what": "세션 1의 후보 C057(pressure)"
+    },
+    {
+      "id": "recall-max-z",
+      "session": 3,
+      "kind": "recall",
+      "type": "cooccur",
+      "any": [
+        [
+          "C035"
+        ],
+        [
+          "rf_power",
+          "rf power",
+          "RF"
+        ]
+      ],
+      "requires": [
+        "max-z"
+      ],
+      "what": "세션 2의 최대 이탈 C035 rf_power"
+    },
+    {
+      "id": "source",
+      "session": 3,
+      "kind": "evidence",
+      "type": "text_any",
+      "values": [
+        ".py",
+        ".parquet",
+        ".png",
+        ".svg",
+        ".html",
+        ".ipynb"
+      ],
+      "what": "결과가 나온 코드·실행·파일 하나 이상(두 조건 모두 파일 경로·스크립트 이름·출력 파일을 근거로 인정, 설계 5절). kit의 run id만 적은 답은 놓친다(초안의 한계)"
+    }
+  ]
+}

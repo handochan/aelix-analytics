@@ -33,7 +33,8 @@ def row(task, cond, repeat=1, *, model="gpt-6.1-sol", ok=True, fact=(1, 1), evid
             "condition": cond, "surface": "default" if cond == "A" else "vanilla", "proposal": "unrequested",
             "repeat": repeat, "outcome": "success" if ok else "failure", "executed": True,
             "answer_success": ok, "answer_success_if_misread": misread_ok, "stale_confirmation": False,
-            "fact": list(fact), "evidence": list(evidence), "limits": list(limits),
+            "session": None, "recall_only": False, "resume": list(fact), "recall": [0, 0], "recall_checks": {},
+            "analysis_calls": 0, "fact": list(fact), "evidence": list(evidence), "limits": list(limits),
             "critical_fired": list(critical), "critical_real": list(critical), "critical_unconfirmed": list(unconfirmed),
             "fabricated_ids": list(fabricated), "tokens": list(tokens), "tool_calls": 3, "tool_errors": 0,
             "argument_errors": 0, "tools": {}, "raw_reads": 0, "elapsed_s": 10, "script": None,
@@ -123,6 +124,66 @@ def test_a_task_without_the_same_repeats_in_both_conditions_is_not_judged(config
             if k in ("R1", "R2", "R5")} == {"not_run"}
 
 
+def chain_row(task, cond, repeat, session, recall=None, *, ok=True, calls=0, tokens=(100, 0, 10), recall_only=None):
+    """A chain session's row: `recall` maps its recall checks to passed (None: not applicable)."""
+    recall = recall or {}
+    recalled = [sum(v is True for v in recall.values()), sum(v is not None for v in recall.values())]
+    only = session == 3 if recall_only is None else recall_only
+    return {**row(task, cond, repeat, ok=ok, tokens=tokens), "run": f"{task}-{cond}-r{repeat}-s{session}",
+            "session": session, "recall_only": only, "resume": [0, 0] if only else recalled, "recall": recalled,
+            "recall_checks": recall, "analysis_calls": calls, "fact": [1, 1] if ok else [0, 1]}
+
+
+def chain(cond, repeat, recalled, *, calls=0, first_ok=True):
+    """C2's three sessions; session 3 recalls the value and the earlier number."""
+    return [chain_row("C2", cond, repeat, 1, ok=first_ok), chain_row("C2", cond, repeat, 2),
+            chain_row("C2", cond, repeat, 3, {"recall-value": recalled, "recall-earlier": recalled}, calls=calls)]
+
+
+def test_the_chains_judge_recall_and_redundant_work(config):
+    """R4: A recalls more of what the earlier sessions found and runs no more analyses to answer a
+    question about them; R7: A's recall is at least 2/3 for the upper model."""
+    part1 = [row(t, c, r) for t in ("T01", "T04", "T07") for c in "AV" for r in (1, 2, 3)]
+    rows = part1 + [x for r in (1, 2, 3) for x in chain("A", r, True) + chain("V", r, False, calls=4)]
+    verdict = mc.judge(config, rows)["gpt-6.1-sol"]
+    r4 = verdict["rules"]["R4"]
+    assert r4["verdict"] == "pass" and r4["recall"] == {"A": 1.0, "V": 0.0} and r4["pairs"] == 6
+    assert r4["redundant_analysis_calls"] == {"A": 0, "V": 12}
+    assert verdict["rules"]["R7"] == {"resume_A": 1.0, "recall_A": 1.0, "floor": mc.FLOOR, "verdict": "pass"}
+    assert verdict["rules"]["R5"]["tasks"] == ["T07", "C2/s1"] and verdict["gate"] == "pass"
+    # Recomputing what an earlier session found, more than aelix alone did, fails R4.
+    rows = part1 + [x for r in (1, 2, 3) for x in chain("A", r, True, calls=5) + chain("V", r, False, calls=4)]
+    assert mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R4"]["verdict"] == "fail"
+    # A first session that fails with the extension where aelix alone's did not: R5.
+    rows = part1 + [x for r in (1, 2, 3) for x in chain("A", r, True, first_ok=False) + chain("V", r, False)]
+    assert mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R5"]["A_short"] == ["C2/s1"]
+
+
+def test_a_recall_pair_with_nothing_to_recall_leaves_both_and_too_many_withhold_r4(config):
+    """O7: a pair where either side had nothing to recall is left out of both; past half of them, R4 waits."""
+    rows = [x for r in (1, 2, 3) for x in chain("A", r, True) + chain("V", r, None)]
+    r4 = mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R4"]
+    assert r4["verdict"] == "withheld" and r4["pairs"] == 0 and r4["not_applicable_pairs"] == 6
+    rows = [x for r in (1, 2, 3) for x in chain("A", r, True) + chain("V", r, None if r == 1 else False)]
+    r4 = mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R4"]
+    assert r4["verdict"] == "pass" and r4["pairs"] == 4 and r4["not_applicable_pairs"] == 2
+
+
+def test_a_chain_costs_the_sum_of_its_sessions(config):
+    rows = [x for r in (1, 2, 3) for x in chain("A", r, True) + chain("V", r, False)]
+    rows = [{**x, "tokens": [300, 0, 0]} if x["condition"] == "A" else x for x in rows]
+    assert mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R6"]["over_1_2x"] == [{"task": "C2", "A": 900, "V": 330}]
+
+
+def test_a_call_that_runs_an_analysis_is_counted():
+    bash = {"name": "bash"}
+    assert mc.analysis_call({**bash, "args": {"command": "cd project && uv run python scripts/compare.py"}})
+    assert mc.analysis_call({**bash, "args": {"command": "python3 -c 'import duckdb'"}})
+    assert mc.analysis_call({"name": "analytics_query", "args": {"sql": "select 1"}})
+    assert not mc.analysis_call({**bash, "args": {"command": "cat runs/x/run.json && ls scripts/"}})
+    assert not mc.analysis_call({**bash, "args": {"command": "cat my_python_notes.txt"}})
+
+
 def test_a_value_is_looked_for_as_a_text_holds_it():
     assert mc.check_tokens({"type": "ids_all", "values": ["e74", "20260803-191107-case-overwritten"]}) == [
         "e74", "20260803-191107-case-overwritten"]
@@ -177,6 +238,23 @@ def test_a_rerun_replaces_a_run_that_did_not_execute_and_a_person_s_verdict_coun
     kept = {(r["condition"], r["repeat"]): r for r in rows}
     assert kept[("A", 1)]["stale_confirmation"] and not kept[("A", 1)]["answer_success"]
     assert kept[("A", 1)]["critical_unconfirmed"] == ["old-rate"]
+
+
+def test_a_chain_s_sessions_are_runs_of_their_own(config, tmp_path):
+    """The sessions of one chain repeat share task, condition and repeat: none of them replaces another."""
+    out = tmp_path / "out"
+    recall = {"id": "recall-value", "kind": "recall", "required": True, "passed": None, "not_applicable": "…"}
+    for surface in ("default", "vanilla"):
+        for step in (1, 2, 3):
+            rec = record("C2", surface, 1, "success", checks=[recall] if step == 3 else [])
+            rec["run"] += f"-s{step}"
+            rec["chain"] = {"session": step, "sessions": 3, "recall_only": step == 3, "previous": None}
+            stored(out, rec["run"], rec)
+    rows, _, replaced = mc.collect(config, [out], {}, None)
+    assert replaced == [] and sorted((r["condition"], r["session"]) for r in rows) == [
+        (c, s) for c in "AV" for s in (1, 2, 3)]
+    last = next(r for r in rows if r["condition"] == "A" and r["session"] == 3)
+    assert last["recall_only"] and last["recall_checks"] == {"recall-value": None} and last["recall"] == [0, 0]
 
 
 def test_another_kit_s_runs_are_listed_apart(config, tmp_path):

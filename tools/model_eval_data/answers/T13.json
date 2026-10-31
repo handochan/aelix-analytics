@@ -1,0 +1,85 @@
+{
+  "schema": "aelix-analytics.model-eval-answer/1",
+  "task": "T13",
+  "status": "draft",
+  "author": "Claude Code (agent) from the seed-0 fixtures of tools/eval_fixtures.py, 2026-10-31 (#24, E3 of docs/design/PRODUCT-EVALUATION.md); to be confirmed by the owner",
+  "fixture": {
+    "kind": "q13",
+    "seed": 0,
+    "generator_version": 1
+  },
+  "correct_completion": "발견 e8(트레이스 평균이 3σ 밖인 것은 pressure의 C057, z=4.01)은 run 20260916-212900-01-eda-training-traces에서 나왔다(e6). 코드는 scripts/01_eda_training_traces.py(그 run의 스냅숏), 차트는 trace-mean-z(트레이스 평균의 z, 데이터 320행)다. 그 run이 읽은 입력은 data/raw/traces.parquet(sha256 e1fd5dfd…, 76,135 bytes)이고, traces.csv를 가져온 e4의 것이다. 같은 이름의 앞선 run 20260916-212600-01-eda-training-traces는 오류로 끝나 이 발견을 내지 않았다.",
+  "evidence_ids": [
+    "e8",
+    "e6",
+    "e4",
+    "20260916-212900-01-eda-training-traces"
+  ],
+  "checks": [
+    {
+      "id": "cites",
+      "kind": "evidence",
+      "type": "ids_all",
+      "values": [
+        "e8",
+        "20260916-212900-01-eda-training-traces"
+      ],
+      "what": "발견과 그것을 낸 run"
+    },
+    {
+      "id": "script",
+      "kind": "fact",
+      "type": "text_any",
+      "values": [
+        "01_eda_training_traces.py"
+      ],
+      "what": "그때의 코드"
+    },
+    {
+      "id": "chart",
+      "kind": "fact",
+      "type": "text_any",
+      "values": [
+        "trace-mean-z",
+        "트레이스 평균의 z"
+      ],
+      "what": "그때의 차트"
+    },
+    {
+      "id": "input-version",
+      "kind": "fact",
+      "type": "cooccur",
+      "scope": "paragraph",
+      "any": [
+        [
+          "traces.parquet"
+        ],
+        [
+          "e1fd5dfd",
+          "sha256",
+          "76,135",
+          "76135",
+          "e4"
+        ]
+      ],
+      "what": "입력 파일과 그 버전(sha256·크기·가져온 기록 e4 가운데 하나)"
+    },
+    {
+      "id": "failed-as-source",
+      "kind": "critical",
+      "type": "stated_as_current",
+      "patterns": [
+        "20260916-212600-01-eda-training-traces"
+      ],
+      "unless": [
+        "오류",
+        "실패",
+        "error",
+        "failed",
+        "내지 않",
+        "아니"
+      ],
+      "what": "오류로 끝난 앞선 run을 발견의 출처로"
+    }
+  ]
+}
