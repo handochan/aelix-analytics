@@ -1,0 +1,4751 @@
+{
+ "record_kind": "aelix-analytics-release-gate-verification",
+ "observed_at": "2026-10-31",
+ "issue": "https://github.com/handochan/aelix-analytics/issues/24",
+ "pull_request": "https://github.com/handochan/aelix-analytics/pull/144",
+ "run_id": "3d4ae6db-bdef-498f-9214-3c2fa7f982c6",
+ "candidate": {
+  "version": "0.32.0",
+  "commit": "26c28d09289718f0fc499c2975a33f1f59380a4c",
+  "release_run": "https://github.com/handochan/aelix-analytics/actions/runs/41150700659",
+  "recorded_in": "docs/releases/0.32.0.sha256 (PR #143)",
+  "files": {
+   "aelix_analytics-0.32.0-py3-none-any.whl": "203f7e10583a51e30dd361c2d8e038c73428ac95b1789ee09e8ece4a7a437440",
+   "aelix_analytics-0.32.0.tar.gz": "b243bc417675205a2360c7ab3f35b5be7a67f10237a8a16d63fd47ae88ea0add"
+  }
+ },
+ "measured_source": {
+  "tools_commit": {
+   "retrieval_migration_reports": "056760d",
+   "workspace": "80a8510 (after the reviews; first run 056760d in workspace_first_run)"
+  },
+  "kit_same_as_candidate": "git diff --quiet 26c28d0 <tools commit> -- src extension README.md pyproject.toml LICENSE .gitignore: same for 056760d and 80a8510",
+  "fixtures_written_at": "clean detached 26c28d0 (v2), V1_KIT_COMMIT ebd10b6 (v1)"
+ },
+ "machine": {
+  "os": "macOS 26.6.2 (25G83)",
+  "arch": "arm64",
+  "cpu_count": 18,
+  "memory_bytes": 68719476736,
+  "disk": "local SSD",
+  "python": "CPython 3.12.13",
+  "sqlite": "3.53.1",
+  "browser": "Chromium 156.0.8078.4 (Playwright 1.64.0)"
+ },
+ "release_verify": {
+  "run": 41150700659,
+  "commit": "26c28d0",
+  "results": {
+   "ubuntu-24.04": "58 passed",
+   "macos-26": "58 passed",
+   "windows-2025": "57 passed, 1 skipped (tests/test_packaging.py:436 the stand-in uv is a script; Windows starts only an .exe)"
+  },
+  "tests": [
+   "tests/test_packaging.py",
+   "tests/test_release_check.py"
+  ]
+ },
+ "ci_main": {
+  "run": 41150692492,
+  "commit": "26c28d0",
+  "conclusion": "success",
+  "suite": {
+   "ubuntu-24.04": "3119 passed, 112 skipped",
+   "macos-26": "3120 passed, 111 skipped",
+   "windows-2025": "2922 passed, 340 skipped"
+  },
+  "aelix_0.1.0b2": {
+   "3.12": "997 passed (Windows 1 skipped)",
+   "3.11": "997 passed (Windows 1 skipped)"
+  },
+  "stdlib_3.11": {
+   "ubuntu-24.04": "208 passed, 1 skipped",
+   "macos-26": "208 passed, 1 skipped",
+   "windows-2025": "97 passed, 112 skipped"
+  },
+  "browser_linux_chromium": "13 passed",
+  "usage_report": {
+   "required_facts": "58/58",
+   "invariants": "42/42"
+  }
+ },
+ "local_full_suite": {
+  "commit": "056760d",
+  "command": "AELIX_ANALYTICS_TEST_INSTALL=1 AELIX_ANALYTICS_TEST_DIST=<candidate files> AELIX_ANALYTICS_TEST_BROWSER=chromium uv run --locked --group browser pytest -q -p no:cacheprovider -ra --ignore=tests/test_console.py",
+  "result": "3140 passed, 129 skipped",
+  "seconds": 814.69,
+  "skips": "Windows-only (console, long paths), aelix_coding_agent not importable outside the aelix legs, file systems this machine does not have",
+  "ignore_note": "tests/test_console.py does not exist: the --ignore excluded nothing"
+ },
+ "changed_tests_after_reviews": {
+  "commit": "80a8510",
+  "tests": [
+   "tests/test_workspace_scale_eval.py",
+   "tests/test_kit.py::test_a_workspace_that_cannot_be_built_after_a_run_is_told_and_the_run_kept",
+   "tests/test_reports.py::test_a_report_s_body_and_files_stay_out_of_the_standing_context"
+  ],
+  "result": "6 passed (Chromium included)"
+ },
+ "fixtures": {
+  "S-v2": {
+   "digest": "sha256:0fe6b0030cfac65f471aaff4d5445f7254f7697ba6574e2aa0f638f3d7255d6a",
+   "kit_version": "0.32.0",
+   "kit_commit": "26c28d09289718f0fc499c2975a33f1f59380a4c",
+   "counts": {
+    "runs": 30,
+    "runs_executed": 3,
+    "runs_written": 27,
+    "events": 300,
+    "datasets": 5,
+    "derived_tables": 17,
+    "charts": 27,
+    "context_versions": 5
+   },
+   "sizes": {
+    "raw_parquet_bytes": 2393281,
+    "derived_parquet_bytes": 19234,
+    "journal_bytes": 194934
+   },
+   "generation_seconds": {
+    "kit_phase": 0.664,
+    "self_check": 0.681,
+    "sources": 0.904,
+    "total": 3.254,
+    "written_phase": 0.834
+   },
+   "check": {
+    "ok": true,
+    "problems": 0
+   }
+  },
+  "S-v1": {
+   "digest": "sha256:ccd8c9237581fbe86f1b79114ee9a05986ae875621afd210af0dd238ecd48350",
+   "kit_version": "0.7.0",
+   "kit_commit": "ebd10b644e8cb8550ccf6446b134666db6bb9386",
+   "counts": {
+    "runs": 30,
+    "runs_executed": 3,
+    "runs_written": 27,
+    "events": 300,
+    "datasets": 5,
+    "derived_tables": 17,
+    "charts": 27,
+    "context_versions": 5
+   },
+   "sizes": {
+    "raw_parquet_bytes": 2393281,
+    "derived_parquet_bytes": 19234,
+    "journal_bytes": 112594
+   },
+   "generation_seconds": {
+    "kit_phase": 0.281,
+    "self_check": 0.47,
+    "sources": 0.061,
+    "total": 1.193,
+    "written_phase": 0.247
+   },
+   "check": {
+    "ok": true,
+    "problems": 0
+   }
+  },
+  "M-v2": {
+   "digest": "sha256:e8d3226aea01d812247a29e5e671f5c03e288adabcc60b65b5a6706d20c759a3",
+   "kit_version": "0.32.0",
+   "kit_commit": "26c28d09289718f0fc499c2975a33f1f59380a4c",
+   "counts": {
+    "runs": 300,
+    "runs_executed": 3,
+    "runs_written": 297,
+    "events": 10000,
+    "datasets": 20,
+    "derived_tables": 35,
+    "charts": 429,
+    "context_versions": 13
+   },
+   "sizes": {
+    "raw_parquet_bytes": 217365715,
+    "derived_parquet_bytes": 34871,
+    "journal_bytes": 6551435
+   },
+   "generation_seconds": {
+    "kit_phase": 0.356,
+    "self_check": 1.715,
+    "sources": 2.575,
+    "total": 937.743,
+    "written_phase": 932.517
+   },
+   "check": {
+    "ok": true,
+    "problems": 0
+   }
+  },
+  "M-v1": {
+   "digest": "sha256:0d7889f6f77aa090d653c8f614554776cfb3caada27b75eede70bd0994500bde",
+   "kit_version": "0.7.0",
+   "kit_commit": "ebd10b644e8cb8550ccf6446b134666db6bb9386",
+   "counts": {
+    "runs": 300,
+    "runs_executed": 3,
+    "runs_written": 297,
+    "events": 10000,
+    "datasets": 20,
+    "derived_tables": 35,
+    "charts": 429,
+    "context_versions": 13
+   },
+   "sizes": {
+    "raw_parquet_bytes": 217365715,
+    "derived_parquet_bytes": 34871,
+    "journal_bytes": 3662049
+   },
+   "generation_seconds": {
+    "kit_phase": 0.399,
+    "self_check": 1.097,
+    "sources": 2.713,
+    "total": 185.691,
+    "written_phase": 181.055
+   },
+   "check": {
+    "ok": true,
+    "problems": 0
+   }
+  },
+  "q10-v2": {
+   "digest": "sha256:d931528187f83a2be0c66109fac0a865976d7e2eb9ea96f85202fefdf2960a3d",
+   "check": {
+    "ok": true,
+    "problems": 0
+   },
+   "examples": [
+    {
+     "id": "aggregation_key.flawed",
+     "check": "aggregation_key",
+     "verdict": "fail"
+    },
+    {
+     "id": "aggregation_key.sound",
+     "check": "aggregation_key",
+     "verdict": "pass"
+    },
+    {
+     "id": "unit.flawed",
+     "check": "unit",
+     "verdict": "fail"
+    },
+    {
+     "id": "unit.sound",
+     "check": "unit",
+     "verdict": "pass"
+    },
+    {
+     "id": "denominator.flawed",
+     "check": "denominator",
+     "verdict": "fail"
+    },
+    {
+     "id": "denominator.sound",
+     "check": "denominator",
+     "verdict": "pass"
+    },
+    {
+     "id": "period.flawed",
+     "check": "period",
+     "verdict": "fail"
+    },
+    {
+     "id": "period.sound",
+     "check": "period",
+     "verdict": "pass"
+    }
+   ]
+  },
+  "q10-v1": {
+   "digest": "sha256:6e0811cdec9c2410fed2631b8d8f2cf7de0567c59a411e11adf3120593f72fef",
+   "check": {
+    "ok": true,
+    "problems": 0
+   },
+   "examples": [
+    {
+     "id": "aggregation_key.flawed",
+     "check": "aggregation_key",
+     "verdict": "fail"
+    },
+    {
+     "id": "aggregation_key.sound",
+     "check": "aggregation_key",
+     "verdict": "pass"
+    },
+    {
+     "id": "unit.flawed",
+     "check": "unit",
+     "verdict": "fail"
+    },
+    {
+     "id": "unit.sound",
+     "check": "unit",
+     "verdict": "pass"
+    },
+    {
+     "id": "denominator.flawed",
+     "check": "denominator",
+     "verdict": "fail"
+    },
+    {
+     "id": "denominator.sound",
+     "check": "denominator",
+     "verdict": "pass"
+    },
+    {
+     "id": "period.flawed",
+     "check": "period",
+     "verdict": "fail"
+    },
+    {
+     "id": "period.sound",
+     "check": "period",
+     "verdict": "pass"
+    }
+   ]
+  }
+ },
+ "workspace": {
+  "S": {
+   "schema": "aelix-analytics.workspace-scale-evaluation/1",
+   "fixture": {
+    "scale": "S",
+    "format": "v2",
+    "digest": "sha256:0fe6b0030cfac65f471aaff4d5445f7254f7697ba6574e2aa0f638f3d7255d6a",
+    "kit_commit": "26c28d09289718f0fc499c2975a33f1f59380a4c",
+    "counts": {
+     "runs": 30,
+     "runs_executed": 3,
+     "runs_written": 27,
+     "events": 300,
+     "datasets": 5,
+     "derived_tables": 17,
+     "charts": 27,
+     "context_versions": 5
+    }
+   },
+   "environment": {
+    "schema": "aelix-analytics.eval-environment/1",
+    "recorded_at": "2026-10-31T01:41:07+00:00",
+    "machine": {
+     "system": "Darwin",
+     "release": "25.6.0",
+     "version": "Darwin Kernel Version 25.6.0: Fri Jul 31 19:19:08 PDT 2026; root:xnu-12377.161.14~5/RELEASE_ARM64_T6050",
+     "machine": "arm64",
+     "processor": "arm",
+     "cpu_count": 18,
+     "memory_bytes": 68719476736
+    },
+    "disk": {
+     "path": "<scratch>/b6/copy-S-v2-ws2",
+     "total_bytes": 994610155520,
+     "free_bytes": 306180620288,
+     "device": {
+      "status": "not_measured",
+      "reason": "the standard library has no portable way to name the device or its kind (SSD, HDD, network)"
+     },
+     "filesystem": {
+      "status": "not_measured",
+      "reason": "the standard library has no portable way to read it"
+     }
+    },
+    "python": {
+     "version": "3.12.13",
+     "implementation": "CPython",
+     "executable": "~/dev/aelix-extensions/.worktrees/aelix-analytics-issue-24-b6/.venv/bin/python3"
+    },
+    "sqlite": {
+     "version": "3.53.1",
+     "fts5": true,
+     "json": true
+    },
+    "browser": {
+     "status": "not_measured",
+     "reason": "not given: pass --browser NAME=VERSION when a browser is measured"
+    },
+    "libraries": {
+     "duckdb": "1.5.5",
+     "polars": "1.44.2",
+     "pyarrow": "25.0.1",
+     "numpy": "2.5.3",
+     "plotly": "6.9.0",
+     "matplotlib": "3.11.2",
+     "markdown-it-py": "4.2.0",
+     "pygments": "2.21.0",
+     "jsonschema": "4.26.0"
+    },
+    "kit": {
+     "version": "0.32.0",
+     "sha256": "4d2de06e4d2742385dfa00fa1f2126dbbee609269092064d3104cf8a559432dc"
+    },
+    "threads": {
+     "polars": 18,
+     "note": "the generator runs Polars on one thread (POLARS_MAX_THREADS=1) so its results' bits are the seed's; a measurement records the threads it ran with"
+    },
+    "cache_state": {
+     "measurement": "unknown",
+     "kit_caches": "unknown",
+     "os_file_cache": "unknown",
+     "definition": "cold: the kit's caches (the hash cache and the Workspace: .lab/cache/ and report/ in a lab.json project, .analytics/cache/ and workspace/ in an analytics.json one) are absent, the first read; warm: a repeat in the same process and machine after one full read. The OS file cache is not dropped (that needs privileges)."
+    }
+   },
+   "definitions": {
+    "cold": "kit's hash cache and Workspace emptied first; OS cache not flushed",
+    "warm": "cache and Workspace present; a full build",
+    "unchanged": "build(if_changed=True) with nothing changed since the last build",
+    "build_ms": "workspace.build inside the child process",
+    "wall_ms": "the child process: interpreter, imports and build; not `uv run`",
+    "files_read_bytes": "not measured: no portable counter in the standard library"
+   },
+   "cold": {
+    "samples": [
+     {
+      "import_ms": 27.184749953448772,
+      "build_ms": 356.52679204940796,
+      "skipped": false,
+      "peak_rss_bytes": 131809280,
+      "wall_ms": 419.16412487626076
+     },
+     {
+      "import_ms": 30.042791040614247,
+      "build_ms": 335.63429210335016,
+      "skipped": false,
+      "peak_rss_bytes": 130449408,
+      "wall_ms": 400.186707964167
+     },
+     {
+      "import_ms": 27.159041026607156,
+      "build_ms": 331.785999936983,
+      "skipped": false,
+      "peak_rss_bytes": 131776512,
+      "wall_ms": 392.9152078926563
+     }
+    ],
+    "build_ms": {
+     "n": 3,
+     "p50": 335.63429210335016,
+     "p95": 356.52679204940796,
+     "max": 356.52679204940796
+    },
+    "wall_ms": {
+     "n": 3,
+     "p50": 400.186707964167,
+     "p95": 419.16412487626076,
+     "max": 419.16412487626076
+    },
+    "peak_rss_bytes": {
+     "max": 131809280
+    },
+    "skipped": [
+     false,
+     false,
+     false
+    ]
+   },
+   "warm": {
+    "samples": [
+     {
+      "import_ms": 27.770208194851875,
+      "build_ms": 316.0880838986486,
+      "skipped": false,
+      "peak_rss_bytes": 111116288,
+      "wall_ms": 377.285165945068
+     },
+     {
+      "import_ms": 26.216665981337428,
+      "build_ms": 311.2821669783443,
+      "skipped": false,
+      "peak_rss_bytes": 111263744,
+      "wall_ms": 371.3799580000341
+     },
+     {
+      "import_ms": 26.08787501230836,
+      "build_ms": 312.8705839626491,
+      "skipped": false,
+      "peak_rss_bytes": 111460352,
+      "wall_ms": 372.3266660235822
+     },
+     {
+      "import_ms": 27.040875051170588,
+      "build_ms": 323.7769999541342,
+      "skipped": false,
+      "peak_rss_bytes": 111656960,
+      "wall_ms": 384.56274988129735
+     },
+     {
+      "import_ms": 26.35974995791912,
+      "build_ms": 309.94858290068805,
+      "skipped": false,
+      "peak_rss_bytes": 111214592,
+      "wall_ms": 369.66049997135997
+     },
+     {
+      "import_ms": 26.84025000780821,
+      "build_ms": 315.08491607382894,
+      "skipped": false,
+      "peak_rss_bytes": 111722496,
+      "wall_ms": 376.510415924713
+     },
+     {
+      "import_ms": 26.52979106642306,
+      "build_ms": 313.0803748499602,
+      "skipped": false,
+      "peak_rss_bytes": 111394816,
+      "wall_ms": 373.2605001423508
+     },
+     {
+      "import_ms": 26.187957962974906,
+      "build_ms": 311.9109170511365,
+      "skipped": false,
+      "peak_rss_bytes": 111460352,
+      "wall_ms": 372.9435419663787
+     },
+     {
+      "import_ms": 27.086166897788644,
+      "build_ms": 316.6083749383688,
+      "skipped": false,
+      "peak_rss_bytes": 111820800,
+      "wall_ms": 380.29479212127626
+     },
+     {
+      "import_ms": 27.434832882136106,
+      "build_ms": 313.6236669961363,
+      "skipped": false,
+      "peak_rss_bytes": 111656960,
+      "wall_ms": 375.48525002785027
+     }
+    ],
+    "build_ms": {
+     "n": 10,
+     "p50": 313.35202092304826,
+     "p95": 323.7769999541342,
+     "max": 323.7769999541342
+    },
+    "wall_ms": {
+     "n": 10,
+     "p50": 374.37287508510053,
+     "p95": 384.56274988129735,
+     "max": 384.56274988129735
+    },
+    "peak_rss_bytes": {
+     "max": 111820800
+    },
+    "skipped": [
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "unchanged": {
+    "samples": [
+     {
+      "import_ms": 26.506334077566862,
+      "build_ms": 10.549124795943499,
+      "skipped": true,
+      "peak_rss_bytes": 32653312,
+      "wall_ms": 55.284000001847744
+     },
+     {
+      "import_ms": 27.26741600781679,
+      "build_ms": 10.271500097587705,
+      "skipped": true,
+      "peak_rss_bytes": 32669696,
+      "wall_ms": 55.864499881863594
+     },
+     {
+      "import_ms": 26.947125094011426,
+      "build_ms": 10.508582927286625,
+      "skipped": true,
+      "peak_rss_bytes": 32636928,
+      "wall_ms": 56.069874903187156
+     },
+     {
+      "import_ms": 27.262042043730617,
+      "build_ms": 10.661166161298752,
+      "skipped": true,
+      "peak_rss_bytes": 32522240,
+      "wall_ms": 56.34699994698167
+     },
+     {
+      "import_ms": 26.23674995265901,
+      "build_ms": 10.445917025208473,
+      "skipped": true,
+      "peak_rss_bytes": 32604160,
+      "wall_ms": 54.764959029853344
+     },
+     {
+      "import_ms": 27.039416832849383,
+      "build_ms": 10.905875125899911,
+      "skipped": true,
+      "peak_rss_bytes": 32702464,
+      "wall_ms": 56.22854083776474
+     },
+     {
+      "import_ms": 27.05687517300248,
+      "build_ms": 10.695082833990455,
+      "skipped": true,
+      "peak_rss_bytes": 32604160,
+      "wall_ms": 56.47466704249382
+     },
+     {
+      "import_ms": 25.851957965642214,
+      "build_ms": 11.144333984702826,
+      "skipped": true,
+      "peak_rss_bytes": 32833536,
+      "wall_ms": 56.698041036725044
+     },
+     {
+      "import_ms": 26.39833395369351,
+      "build_ms": 10.286416159942746,
+      "skipped": true,
+      "peak_rss_bytes": 32636928,
+      "wall_ms": 55.20729208365083
+     },
+     {
+      "import_ms": 26.187916984781623,
+      "build_ms": 10.352083016186953,
+      "skipped": true,
+      "peak_rss_bytes": 32686080,
+      "wall_ms": 54.304457968100905
+     }
+    ],
+    "build_ms": {
+     "n": 10,
+     "p50": 10.528853861615062,
+     "p95": 11.144333984702826,
+     "max": 11.144333984702826
+    },
+    "wall_ms": {
+     "n": 10,
+     "p50": 55.967187392525375,
+     "p95": 56.698041036725044,
+     "max": 56.698041036725044
+    },
+    "peak_rss_bytes": {
+     "max": 32833536
+    },
+    "skipped": [
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   "pages": {
+    "files": 518,
+    "bytes": 13380412,
+    "pages": 511,
+    "index_bytes": 323785,
+    "largest_page": {
+     "path": "index.html",
+     "bytes": 323785
+    }
+   },
+   "browser": {
+    "name": "chromium",
+    "version": "156.0.8078.4",
+    "launch_ms": 61.727083986625075,
+    "definition": "a new browser context per sample; file:// index.html until the load event",
+    "samples": [
+     {
+      "goto_ms": 45.54016701877117,
+      "dom_content_loaded_ms": 43.5,
+      "load_ms": 43.5,
+      "title": "Workspace · 평가 fixture S (seed 0)",
+      "text_chars": 5175
+     },
+     {
+      "goto_ms": 43.53670799173415,
+      "dom_content_loaded_ms": 42.200000047683716,
+      "load_ms": 42.200000047683716,
+      "title": "Workspace · 평가 fixture S (seed 0)",
+      "text_chars": 5175
+     },
+     {
+      "goto_ms": 43.13866700977087,
+      "dom_content_loaded_ms": 41.5,
+      "load_ms": 41.60000014305115,
+      "title": "Workspace · 평가 fixture S (seed 0)",
+      "text_chars": 5175
+     },
+     {
+      "goto_ms": 42.99329104833305,
+      "dom_content_loaded_ms": 41.5,
+      "load_ms": 41.5,
+      "title": "Workspace · 평가 fixture S (seed 0)",
+      "text_chars": 5175
+     },
+     {
+      "goto_ms": 44.9340830091387,
+      "dom_content_loaded_ms": 43.40000009536743,
+      "load_ms": 43.5,
+      "title": "Workspace · 평가 fixture S (seed 0)",
+      "text_chars": 5175
+     },
+     {
+      "goto_ms": 43.7479589600116,
+      "dom_content_loaded_ms": 42.39999985694885,
+      "load_ms": 42.39999985694885,
+      "title": "Workspace · 평가 fixture S (seed 0)",
+      "text_chars": 5175
+     },
+     {
+      "goto_ms": 42.50420816242695,
+      "dom_content_loaded_ms": 41.09999990463257,
+      "load_ms": 41.200000047683716,
+      "title": "Workspace · 평가 fixture S (seed 0)",
+      "text_chars": 5175
+     },
+     {
+      "goto_ms": 42.71916695870459,
+      "dom_content_loaded_ms": 41.19999980926514,
+      "load_ms": 41.19999980926514,
+      "title": "Workspace · 평가 fixture S (seed 0)",
+      "text_chars": 5175
+     },
+     {
+      "goto_ms": 42.76729188859463,
+      "dom_content_loaded_ms": 41.39999985694885,
+      "load_ms": 41.39999985694885,
+      "title": "Workspace · 평가 fixture S (seed 0)",
+      "text_chars": 5175
+     },
+     {
+      "goto_ms": 42.25791711360216,
+      "dom_content_loaded_ms": 41,
+      "load_ms": 41.09999990463257,
+      "title": "Workspace · 평가 fixture S (seed 0)",
+      "text_chars": 5175
+     }
+    ],
+    "goto_ms": {
+     "n": 10,
+     "p50": 43.06597902905196,
+     "p95": 45.54016701877117,
+     "max": 45.54016701877117
+    },
+    "load_ms": {
+     "n": 10,
+     "p50": 41.550000071525574,
+     "p95": 43.5,
+     "max": 43.5
+    },
+    "dom_content_loaded_ms": {
+     "n": 10,
+     "p50": 41.5,
+     "p95": 43.5,
+     "max": 43.5
+    },
+    "page_errors": [],
+    "dialogs": [],
+    "display_pages": [
+     {
+      "page": "index.html",
+      "text_shown": true,
+      "elements_made": 0
+     },
+     {
+      "page": "lists/kind-note-0.html",
+      "text_shown": true,
+      "elements_made": 0
+     },
+     {
+      "page": "lists/timeline-0.html",
+      "text_shown": true,
+      "elements_made": 0
+     },
+     {
+      "page": "relations/d49567c2c621c6be2ebb6a1034b0487831b09c7919cc442254097bef367fa24c-0.html",
+      "text_shown": true,
+      "elements_made": 0
+     }
+    ]
+   },
+   "display_case": {
+    "record": "e278",
+    "text": "표시 경계 사례: <script>alert(\"fixture\")</script> <img src=x onerror=alert(1)> &amp; &lt;b&gt; \"><svg onload=alert(2)> ../../etc/passwd C:\\Windows\\System32\\drivers {{title}} javascript:alert(3) `rm -rf /` <!-- 주석 --> 줄\t탭",
+    "pages_with_markup": {},
+    "pages_with_text": [
+     "index.html",
+     "lists/kind-note-0.html",
+     "lists/timeline-0.html",
+     "relations/d49567c2c621c6be2ebb6a1034b0487831b09c7919cc442254097bef367fa24c-0.html"
+    ],
+    "static": true,
+    "browser": true
+   },
+   "journal": {
+    "before": "a5d8f6a0f3942be80fcbb66cf6b16e61af88e53bdc5508f291e9d7e5548cd014",
+    "after": "a5d8f6a0f3942be80fcbb66cf6b16e61af88e53bdc5508f291e9d7e5548cd014",
+    "unchanged": true
+   },
+   "ok": true
+  },
+  "M": {
+   "schema": "aelix-analytics.workspace-scale-evaluation/1",
+   "fixture": {
+    "scale": "M",
+    "format": "v2",
+    "digest": "sha256:e8d3226aea01d812247a29e5e671f5c03e288adabcc60b65b5a6706d20c759a3",
+    "kit_commit": "26c28d09289718f0fc499c2975a33f1f59380a4c",
+    "counts": {
+     "runs": 300,
+     "runs_executed": 3,
+     "runs_written": 297,
+     "events": 10000,
+     "datasets": 20,
+     "derived_tables": 35,
+     "charts": 429,
+     "context_versions": 13
+    }
+   },
+   "environment": {
+    "schema": "aelix-analytics.eval-environment/1",
+    "recorded_at": "2026-10-31T01:41:16+00:00",
+    "machine": {
+     "system": "Darwin",
+     "release": "25.6.0",
+     "version": "Darwin Kernel Version 25.6.0: Fri Jul 31 19:19:08 PDT 2026; root:xnu-12377.161.14~5/RELEASE_ARM64_T6050",
+     "machine": "arm64",
+     "processor": "arm",
+     "cpu_count": 18,
+     "memory_bytes": 68719476736
+    },
+    "disk": {
+     "path": "<scratch>/b6/copy-M-v2-ws2",
+     "total_bytes": 994610155520,
+     "free_bytes": 305932288000,
+     "device": {
+      "status": "not_measured",
+      "reason": "the standard library has no portable way to name the device or its kind (SSD, HDD, network)"
+     },
+     "filesystem": {
+      "status": "not_measured",
+      "reason": "the standard library has no portable way to read it"
+     }
+    },
+    "python": {
+     "version": "3.12.13",
+     "implementation": "CPython",
+     "executable": "~/dev/aelix-extensions/.worktrees/aelix-analytics-issue-24-b6/.venv/bin/python3"
+    },
+    "sqlite": {
+     "version": "3.53.1",
+     "fts5": true,
+     "json": true
+    },
+    "browser": {
+     "status": "not_measured",
+     "reason": "not given: pass --browser NAME=VERSION when a browser is measured"
+    },
+    "libraries": {
+     "duckdb": "1.5.5",
+     "polars": "1.44.2",
+     "pyarrow": "25.0.1",
+     "numpy": "2.5.3",
+     "plotly": "6.9.0",
+     "matplotlib": "3.11.2",
+     "markdown-it-py": "4.2.0",
+     "pygments": "2.21.0",
+     "jsonschema": "4.26.0"
+    },
+    "kit": {
+     "version": "0.32.0",
+     "sha256": "4d2de06e4d2742385dfa00fa1f2126dbbee609269092064d3104cf8a559432dc"
+    },
+    "threads": {
+     "polars": 18,
+     "note": "the generator runs Polars on one thread (POLARS_MAX_THREADS=1) so its results' bits are the seed's; a measurement records the threads it ran with"
+    },
+    "cache_state": {
+     "measurement": "unknown",
+     "kit_caches": "unknown",
+     "os_file_cache": "unknown",
+     "definition": "cold: the kit's caches (the hash cache and the Workspace: .lab/cache/ and report/ in a lab.json project, .analytics/cache/ and workspace/ in an analytics.json one) are absent, the first read; warm: a repeat in the same process and machine after one full read. The OS file cache is not dropped (that needs privileges)."
+    }
+   },
+   "definitions": {
+    "cold": "kit's hash cache and Workspace emptied first; OS cache not flushed",
+    "warm": "cache and Workspace present; a full build",
+    "unchanged": "build(if_changed=True) with nothing changed since the last build",
+    "build_ms": "workspace.build inside the child process",
+    "wall_ms": "the child process: interpreter, imports and build; not `uv run`",
+    "files_read_bytes": "not measured: no portable counter in the standard library"
+   },
+   "cold": {
+    "samples": [
+     {
+      "import_ms": 27.744665974751115,
+      "build_ms": 6512.056916952133,
+      "skipped": false,
+      "peak_rss_bytes": 589905920,
+      "wall_ms": 6758.050750009716
+     },
+     {
+      "import_ms": 27.17937482520938,
+      "build_ms": 6192.159082973376,
+      "skipped": false,
+      "peak_rss_bytes": 623771648,
+      "wall_ms": 6440.27958298102
+     },
+     {
+      "import_ms": 27.316417079418898,
+      "build_ms": 6221.924749901518,
+      "skipped": false,
+      "peak_rss_bytes": 602865664,
+      "wall_ms": 6462.723208125681
+     }
+    ],
+    "build_ms": {
+     "n": 3,
+     "p50": 6221.924749901518,
+     "p95": 6512.056916952133,
+     "max": 6512.056916952133
+    },
+    "wall_ms": {
+     "n": 3,
+     "p50": 6462.723208125681,
+     "p95": 6758.050750009716,
+     "max": 6758.050750009716
+    },
+    "peak_rss_bytes": {
+     "max": 623771648
+    },
+    "skipped": [
+     false,
+     false,
+     false
+    ]
+   },
+   "warm": {
+    "samples": [
+     {
+      "import_ms": 30.26870801113546,
+      "build_ms": 6489.200457930565,
+      "skipped": false,
+      "peak_rss_bytes": 370114560,
+      "wall_ms": 6726.0100829880685
+     },
+     {
+      "import_ms": 26.045207865536213,
+      "build_ms": 6195.496666943654,
+      "skipped": false,
+      "peak_rss_bytes": 369950720,
+      "wall_ms": 6430.1080838777125
+     },
+     {
+      "import_ms": 26.76620800048113,
+      "build_ms": 6288.679457968101,
+      "skipped": false,
+      "peak_rss_bytes": 369852416,
+      "wall_ms": 6550.1064588315785
+     },
+     {
+      "import_ms": 26.604417013004422,
+      "build_ms": 6267.865041038021,
+      "skipped": false,
+      "peak_rss_bytes": 369623040,
+      "wall_ms": 6504.701166879386
+     },
+     {
+      "import_ms": 26.589083950966597,
+      "build_ms": 6203.592375153676,
+      "skipped": false,
+      "peak_rss_bytes": 369377280,
+      "wall_ms": 6444.0408339723945
+     },
+     {
+      "import_ms": 26.457666885107756,
+      "build_ms": 6394.633625168353,
+      "skipped": false,
+      "peak_rss_bytes": 370393088,
+      "wall_ms": 6658.743041101843
+     },
+     {
+      "import_ms": 26.55425015836954,
+      "build_ms": 6250.881499843672,
+      "skipped": false,
+      "peak_rss_bytes": 369950720,
+      "wall_ms": 6506.382666062564
+     },
+     {
+      "import_ms": 27.419541031122208,
+      "build_ms": 6336.810249835253,
+      "skipped": false,
+      "peak_rss_bytes": 369819648,
+      "wall_ms": 6573.832000140101
+     },
+     {
+      "import_ms": 26.56274987384677,
+      "build_ms": 6215.55516612716,
+      "skipped": false,
+      "peak_rss_bytes": 369639424,
+      "wall_ms": 6452.266500098631
+     },
+     {
+      "import_ms": 27.334624901413918,
+      "build_ms": 6208.965917117894,
+      "skipped": false,
+      "peak_rss_bytes": 369426432,
+      "wall_ms": 6448.348457925022
+     }
+    ],
+    "build_ms": {
+     "n": 10,
+     "p50": 6259.373270440847,
+     "p95": 6489.200457930565,
+     "max": 6489.200457930565
+    },
+    "wall_ms": {
+     "n": 10,
+     "p50": 6505.541916470975,
+     "p95": 6726.0100829880685,
+     "max": 6726.0100829880685
+    },
+    "peak_rss_bytes": {
+     "max": 370393088
+    },
+    "skipped": [
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "unchanged": {
+    "samples": [
+     {
+      "import_ms": 26.809416944161057,
+      "build_ms": 97.9928751476109,
+      "skipped": true,
+      "peak_rss_bytes": 79626240,
+      "wall_ms": 144.68458388000727
+     },
+     {
+      "import_ms": 25.9448338765651,
+      "build_ms": 87.42179092951119,
+      "skipped": true,
+      "peak_rss_bytes": 79609856,
+      "wall_ms": 132.97345815226436
+     },
+     {
+      "import_ms": 26.11937513574958,
+      "build_ms": 90.04612499848008,
+      "skipped": true,
+      "peak_rss_bytes": 79577088,
+      "wall_ms": 135.35804208368063
+     },
+     {
+      "import_ms": 25.780957890674472,
+      "build_ms": 88.31129199825227,
+      "skipped": true,
+      "peak_rss_bytes": 79642624,
+      "wall_ms": 133.15666583366692
+     },
+     {
+      "import_ms": 26.490624994039536,
+      "build_ms": 88.35583296604455,
+      "skipped": true,
+      "peak_rss_bytes": 79626240,
+      "wall_ms": 133.71245912276208
+     },
+     {
+      "import_ms": 31.32329205982387,
+      "build_ms": 91.35274984873831,
+      "skipped": true,
+      "peak_rss_bytes": 79773696,
+      "wall_ms": 141.9584578834474
+     },
+     {
+      "import_ms": 26.305540930479765,
+      "build_ms": 87.41758414544165,
+      "skipped": true,
+      "peak_rss_bytes": 79413248,
+      "wall_ms": 132.7752920333296
+     },
+     {
+      "import_ms": 26.203874964267015,
+      "build_ms": 88.21633318439126,
+      "skipped": true,
+      "peak_rss_bytes": 79593472,
+      "wall_ms": 133.39974987320602
+     },
+     {
+      "import_ms": 26.932209031656384,
+      "build_ms": 88.48666585981846,
+      "skipped": true,
+      "peak_rss_bytes": 79626240,
+      "wall_ms": 134.36979101970792
+     },
+     {
+      "import_ms": 26.280000107362866,
+      "build_ms": 87.93179201893508,
+      "skipped": true,
+      "peak_rss_bytes": 79577088,
+      "wall_ms": 133.36741691455245
+     }
+    ],
+    "build_ms": {
+     "n": 10,
+     "p50": 88.33356248214841,
+     "p95": 97.9928751476109,
+     "max": 97.9928751476109
+    },
+    "wall_ms": {
+     "n": 10,
+     "p50": 133.55610449798405,
+     "p95": 144.68458388000727,
+     "max": 144.68458388000727
+    },
+    "peak_rss_bytes": {
+     "max": 79773696
+    },
+    "skipped": [
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   "pages": {
+    "files": 12273,
+    "bytes": 250369265,
+    "pages": 12266,
+    "index_bytes": 449809,
+    "largest_page": {
+     "path": "index.html",
+     "bytes": 449809
+    }
+   },
+   "browser": {
+    "name": "chromium",
+    "version": "156.0.8078.4",
+    "launch_ms": 127.59312498383224,
+    "definition": "a new browser context per sample; file:// index.html until the load event",
+    "samples": [
+     {
+      "goto_ms": 58.46925009973347,
+      "dom_content_loaded_ms": 56.09999990463257,
+      "load_ms": 56.200000047683716,
+      "title": "Workspace · 평가 fixture M (seed 0)",
+      "text_chars": 5468
+     },
+     {
+      "goto_ms": 52.01066704466939,
+      "dom_content_loaded_ms": 50.200000047683716,
+      "load_ms": 50.299999952316284,
+      "title": "Workspace · 평가 fixture M (seed 0)",
+      "text_chars": 5468
+     },
+     {
+      "goto_ms": 47.6370002143085,
+      "dom_content_loaded_ms": 45.799999952316284,
+      "load_ms": 45.89999985694885,
+      "title": "Workspace · 평가 fixture M (seed 0)",
+      "text_chars": 5468
+     },
+     {
+      "goto_ms": 47.47195797972381,
+      "dom_content_loaded_ms": 45.700000047683716,
+      "load_ms": 45.799999952316284,
+      "title": "Workspace · 평가 fixture M (seed 0)",
+      "text_chars": 5468
+     },
+     {
+      "goto_ms": 49.66837493702769,
+      "dom_content_loaded_ms": 48.10000014305115,
+      "load_ms": 48.10000014305115,
+      "title": "Workspace · 평가 fixture M (seed 0)",
+      "text_chars": 5468
+     },
+     {
+      "goto_ms": 46.65774991735816,
+      "dom_content_loaded_ms": 44.90000009536743,
+      "load_ms": 45,
+      "title": "Workspace · 평가 fixture M (seed 0)",
+      "text_chars": 5468
+     },
+     {
+      "goto_ms": 46.01475014351308,
+      "dom_content_loaded_ms": 44.59999990463257,
+      "load_ms": 44.59999990463257,
+      "title": "Workspace · 평가 fixture M (seed 0)",
+      "text_chars": 5468
+     },
+     {
+      "goto_ms": 47.96024993993342,
+      "dom_content_loaded_ms": 46.5,
+      "load_ms": 46.5,
+      "title": "Workspace · 평가 fixture M (seed 0)",
+      "text_chars": 5468
+     },
+     {
+      "goto_ms": 46.982500003650784,
+      "dom_content_loaded_ms": 45.5,
+      "load_ms": 45.60000014305115,
+      "title": "Workspace · 평가 fixture M (seed 0)",
+      "text_chars": 5468
+     },
+     {
+      "goto_ms": 46.78783402778208,
+      "dom_content_loaded_ms": 45.09999990463257,
+      "load_ms": 45.19999980926514,
+      "title": "Workspace · 평가 fixture M (seed 0)",
+      "text_chars": 5468
+     }
+    ],
+    "goto_ms": {
+     "n": 10,
+     "p50": 47.554479097016156,
+     "p95": 58.46925009973347,
+     "max": 58.46925009973347
+    },
+    "load_ms": {
+     "n": 10,
+     "p50": 45.84999990463257,
+     "p95": 56.200000047683716,
+     "max": 56.200000047683716
+    },
+    "dom_content_loaded_ms": {
+     "n": 10,
+     "p50": 45.75,
+     "p95": 56.09999990463257,
+     "max": 56.09999990463257
+    },
+    "page_errors": [],
+    "dialogs": [],
+    "display_pages": [
+     {
+      "page": "lists/kind-note-7.html",
+      "text_shown": true,
+      "elements_made": 0
+     },
+     {
+      "page": "lists/timeline-27.html",
+      "text_shown": true,
+      "elements_made": 0
+     },
+     {
+      "page": "relations/e8961037f23c6e2b33d614b12f11ddc889da35510b0b47bef8129849a0b8da38-0.html",
+      "text_shown": true,
+      "elements_made": 0
+     }
+    ]
+   },
+   "display_case": {
+    "record": "e8609",
+    "text": "표시 경계 사례: <script>alert(\"fixture\")</script> <img src=x onerror=alert(1)> &amp; &lt;b&gt; \"><svg onload=alert(2)> ../../etc/passwd C:\\Windows\\System32\\drivers {{title}} javascript:alert(3) `rm -rf /` <!-- 주석 --> 줄\t탭",
+    "pages_with_markup": {},
+    "pages_with_text": [
+     "lists/kind-note-7.html",
+     "lists/timeline-27.html",
+     "relations/e8961037f23c6e2b33d614b12f11ddc889da35510b0b47bef8129849a0b8da38-0.html"
+    ],
+    "static": true,
+    "browser": true
+   },
+   "journal": {
+    "before": "a0d873027908cb4b25ba64ec02ca11551a02fab96bba02f365a52490b47ebfce",
+    "after": "a0d873027908cb4b25ba64ec02ca11551a02fab96bba02f365a52490b47ebfce",
+    "unchanged": true
+   },
+   "ok": true
+  }
+ },
+ "workspace_first_run": {
+  "S": {
+   "cold": {
+    "samples": [
+     {
+      "import_ms": 30.56608303450048,
+      "build_ms": 582.467749947682,
+      "skipped": false,
+      "peak_rss_bytes": 132382720,
+      "wall_ms": 657.0254999678582
+     },
+     {
+      "import_ms": 28.769416036084294,
+      "build_ms": 345.6888338550925,
+      "skipped": false,
+      "peak_rss_bytes": 131743744,
+      "wall_ms": 409.0918330475688
+     },
+     {
+      "import_ms": 28.489834163337946,
+      "build_ms": 346.48033301346004,
+      "skipped": false,
+      "peak_rss_bytes": 131809280,
+      "wall_ms": 412.4275001231581
+     }
+    ],
+    "build_ms": {
+     "n": 3,
+     "p50": 346.48033301346004,
+     "p95": 582.467749947682,
+     "max": 582.467749947682
+    },
+    "wall_ms": {
+     "n": 3,
+     "p50": 412.4275001231581,
+     "p95": 657.0254999678582,
+     "max": 657.0254999678582
+    },
+    "peak_rss_bytes": {
+     "max": 132382720
+    },
+    "skipped": [
+     false,
+     false,
+     false
+    ]
+   },
+   "warm": {
+    "samples": [
+     {
+      "import_ms": 29.758542077615857,
+      "build_ms": 321.1722078267485,
+      "skipped": false,
+      "peak_rss_bytes": 111247360,
+      "wall_ms": 385.31149993650615
+     },
+     {
+      "import_ms": 27.844374999403954,
+      "build_ms": 316.84116716496646,
+      "skipped": false,
+      "peak_rss_bytes": 111067136,
+      "wall_ms": 381.2945829704404
+     },
+     {
+      "import_ms": 27.189375134184957,
+      "build_ms": 319.5086249615997,
+      "skipped": false,
+      "peak_rss_bytes": 111640576,
+      "wall_ms": 381.25370792113245
+     },
+     {
+      "import_ms": 26.092416839674115,
+      "build_ms": 316.7384162079543,
+      "skipped": false,
+      "peak_rss_bytes": 111820800,
+      "wall_ms": 378.8311250973493
+     },
+     {
+      "import_ms": 27.472625020891428,
+      "build_ms": 323.532042093575,
+      "skipped": false,
+      "peak_rss_bytes": 111460352,
+      "wall_ms": 387.18791608698666
+     },
+     {
+      "import_ms": 26.057624956592917,
+      "build_ms": 332.84479193389416,
+      "skipped": false,
+      "peak_rss_bytes": 111738880,
+      "wall_ms": 396.1871659848839
+     },
+     {
+      "import_ms": 27.60670892894268,
+      "build_ms": 312.9087910056114,
+      "skipped": false,
+      "peak_rss_bytes": 111247360,
+      "wall_ms": 376.79141690023243
+     },
+     {
+      "import_ms": 35.6434581335634,
+      "build_ms": 316.7931670323014,
+      "skipped": false,
+      "peak_rss_bytes": 112558080,
+      "wall_ms": 389.70945798791945
+     },
+     {
+      "import_ms": 27.454124996438622,
+      "build_ms": 320.2719581313431,
+      "skipped": false,
+      "peak_rss_bytes": 111804416,
+      "wall_ms": 383.2100839354098
+     },
+     {
+      "import_ms": 27.247416088357568,
+      "build_ms": 326.1219169944525,
+      "skipped": false,
+      "peak_rss_bytes": 111181824,
+      "wall_ms": 388.09158303774893
+     }
+    ],
+    "build_ms": {
+     "n": 10,
+     "p50": 319.8902915464714,
+     "p95": 332.84479193389416,
+     "max": 332.84479193389416
+    },
+    "wall_ms": {
+     "n": 10,
+     "p50": 384.26079193595797,
+     "p95": 396.1871659848839,
+     "max": 396.1871659848839
+    },
+    "peak_rss_bytes": {
+     "max": 112558080
+    },
+    "skipped": [
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "unchanged": {
+    "samples": [
+     {
+      "import_ms": 26.824124855920672,
+      "build_ms": 10.608750162646174,
+      "skipped": true,
+      "peak_rss_bytes": 32505856,
+      "wall_ms": 56.64462503045797
+     },
+     {
+      "import_ms": 26.53758297674358,
+      "build_ms": 10.21566684357822,
+      "skipped": true,
+      "peak_rss_bytes": 32489472,
+      "wall_ms": 55.41858309879899
+     },
+     {
+      "import_ms": 26.389374863356352,
+      "build_ms": 10.506750084459782,
+      "skipped": true,
+      "peak_rss_bytes": 32456704,
+      "wall_ms": 55.36275007762015
+     },
+     {
+      "import_ms": 27.96408301219344,
+      "build_ms": 10.617583058774471,
+      "skipped": true,
+      "peak_rss_bytes": 32604160,
+      "wall_ms": 57.325624860823154
+     },
+     {
+      "import_ms": 26.18704200722277,
+      "build_ms": 10.147957829758525,
+      "skipped": true,
+      "peak_rss_bytes": 32571392,
+      "wall_ms": 54.82899979688227
+     },
+     {
+      "import_ms": 33.573499880731106,
+      "build_ms": 12.82420800998807,
+      "skipped": true,
+      "peak_rss_bytes": 32931840,
+      "wall_ms": 69.2092499230057
+     },
+     {
+      "import_ms": 32.750959042459726,
+      "build_ms": 11.320832883939147,
+      "skipped": true,
+      "peak_rss_bytes": 32604160,
+      "wall_ms": 66.1871659103781
+     },
+     {
+      "import_ms": 29.92475009523332,
+      "build_ms": 10.44337498024106,
+      "skipped": true,
+      "peak_rss_bytes": 32489472,
+      "wall_ms": 61.913917073979974
+     },
+     {
+      "import_ms": 27.44504204019904,
+      "build_ms": 10.786958038806915,
+      "skipped": true,
+      "peak_rss_bytes": 32604160,
+      "wall_ms": 56.702082976698875
+     },
+     {
+      "import_ms": 27.091291034594178,
+      "build_ms": 10.515916859731078,
+      "skipped": true,
+      "peak_rss_bytes": 32522240,
+      "wall_ms": 56.23220815323293
+     }
+    ],
+    "build_ms": {
+     "n": 10,
+     "p50": 10.562333511188626,
+     "p95": 12.82420800998807,
+     "max": 12.82420800998807
+    },
+    "wall_ms": {
+     "n": 10,
+     "p50": 56.673354003578424,
+     "p95": 69.2092499230057,
+     "max": 69.2092499230057
+    },
+    "peak_rss_bytes": {
+     "max": 32931840
+    },
+    "skipped": [
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   "pages": {
+    "files": 518,
+    "bytes": 13380411,
+    "pages": 511,
+    "index_bytes": 323784,
+    "largest_page": {
+     "path": "index.html",
+     "bytes": 323784
+    }
+   },
+   "ok": true,
+   "tool_commit": "056760d"
+  },
+  "M": {
+   "cold": {
+    "samples": [
+     {
+      "import_ms": 28.82516710087657,
+      "build_ms": 6752.584957983345,
+      "skipped": false,
+      "peak_rss_bytes": 597639168,
+      "wall_ms": 7009.734167018905
+     },
+     {
+      "import_ms": 27.21687499433756,
+      "build_ms": 6459.811999928206,
+      "skipped": false,
+      "peak_rss_bytes": 597573632,
+      "wall_ms": 6734.648999990895
+     },
+     {
+      "import_ms": 27.58966595865786,
+      "build_ms": 6406.084750080481,
+      "skipped": false,
+      "peak_rss_bytes": 603635712,
+      "wall_ms": 6665.086166933179
+     }
+    ],
+    "build_ms": {
+     "n": 3,
+     "p50": 6459.811999928206,
+     "p95": 6752.584957983345,
+     "max": 6752.584957983345
+    },
+    "wall_ms": {
+     "n": 3,
+     "p50": 6734.648999990895,
+     "p95": 7009.734167018905,
+     "max": 7009.734167018905
+    },
+    "peak_rss_bytes": {
+     "max": 603635712
+    },
+    "skipped": [
+     false,
+     false,
+     false
+    ]
+   },
+   "warm": {
+    "samples": [
+     {
+      "import_ms": 26.51133295148611,
+      "build_ms": 6540.556417079642,
+      "skipped": false,
+      "peak_rss_bytes": 369311744,
+      "wall_ms": 6818.7372498214245
+     },
+     {
+      "import_ms": 27.92779100127518,
+      "build_ms": 6885.224375175312,
+      "skipped": false,
+      "peak_rss_bytes": 370573312,
+      "wall_ms": 7138.936167117208
+     },
+     {
+      "import_ms": 28.47020816989243,
+      "build_ms": 6667.577666928992,
+      "skipped": false,
+      "peak_rss_bytes": 370327552,
+      "wall_ms": 6942.919541848823
+     },
+     {
+      "import_ms": 29.20550014823675,
+      "build_ms": 6968.643040861934,
+      "skipped": false,
+      "peak_rss_bytes": 370376704,
+      "wall_ms": 7231.54537496157
+     },
+     {
+      "import_ms": 27.108582900837064,
+      "build_ms": 6740.860333200544,
+      "skipped": false,
+      "peak_rss_bytes": 370327552,
+      "wall_ms": 7001.508624991402
+     },
+     {
+      "import_ms": 29.074957827106118,
+      "build_ms": 6661.211542086676,
+      "skipped": false,
+      "peak_rss_bytes": 370180096,
+      "wall_ms": 6935.540749924257
+     },
+     {
+      "import_ms": 31.646249815821648,
+      "build_ms": 6447.557834209874,
+      "skipped": false,
+      "peak_rss_bytes": 370622464,
+      "wall_ms": 6702.043375000358
+     },
+     {
+      "import_ms": 26.881416095420718,
+      "build_ms": 6630.420250119641,
+      "skipped": false,
+      "peak_rss_bytes": 370147328,
+      "wall_ms": 6941.968000028282
+     },
+     {
+      "import_ms": 31.033249804750085,
+      "build_ms": 7165.587708121166,
+      "skipped": false,
+      "peak_rss_bytes": 370458624,
+      "wall_ms": 7429.269124986604
+     },
+     {
+      "import_ms": 26.860582875087857,
+      "build_ms": 6493.485667044297,
+      "skipped": false,
+      "peak_rss_bytes": 369672192,
+      "wall_ms": 6758.553666993976
+     }
+    ],
+    "build_ms": {
+     "n": 10,
+     "p50": 6664.394604507834,
+     "p95": 7165.587708121166,
+     "max": 7165.587708121166
+    },
+    "wall_ms": {
+     "n": 10,
+     "p50": 6942.443770938553,
+     "p95": 7429.269124986604,
+     "max": 7429.269124986604
+    },
+    "peak_rss_bytes": {
+     "max": 370622464
+    },
+    "skipped": [
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false
+    ]
+   },
+   "unchanged": {
+    "samples": [
+     {
+      "import_ms": 26.835374999791384,
+      "build_ms": 96.97737521491945,
+      "skipped": true,
+      "peak_rss_bytes": 79511552,
+      "wall_ms": 144.0013749524951
+     },
+     {
+      "import_ms": 27.51287491992116,
+      "build_ms": 97.57154202088714,
+      "skipped": true,
+      "peak_rss_bytes": 79364096,
+      "wall_ms": 144.92545905523002
+     },
+     {
+      "import_ms": 27.329124975949526,
+      "build_ms": 103.00058289431036,
+      "skipped": true,
+      "peak_rss_bytes": 79527936,
+      "wall_ms": 150.37791687063873
+     },
+     {
+      "import_ms": 31.011457787826657,
+      "build_ms": 102.00050007551908,
+      "skipped": true,
+      "peak_rss_bytes": 79331328,
+      "wall_ms": 156.1632500961423
+     },
+     {
+      "import_ms": 34.68066593632102,
+      "build_ms": 100.78150010667741,
+      "skipped": true,
+      "peak_rss_bytes": 80068608,
+      "wall_ms": 156.51462506502867
+     },
+     {
+      "import_ms": 29.816833091899753,
+      "build_ms": 102.66204178333282,
+      "skipped": true,
+      "peak_rss_bytes": 79331328,
+      "wall_ms": 154.69358302652836
+     },
+     {
+      "import_ms": 28.548625065013766,
+      "build_ms": 95.48820904456079,
+      "skipped": true,
+      "peak_rss_bytes": 79527936,
+      "wall_ms": 145.4821249935776
+     },
+     {
+      "import_ms": 30.67337512038648,
+      "build_ms": 103.65333291701972,
+      "skipped": true,
+      "peak_rss_bytes": 79626240,
+      "wall_ms": 154.45745806209743
+     },
+     {
+      "import_ms": 28.909499989822507,
+      "build_ms": 94.74008297547698,
+      "skipped": true,
+      "peak_rss_bytes": 79478784,
+      "wall_ms": 143.71233293786645
+     },
+     {
+      "import_ms": 28.052540961652994,
+      "build_ms": 100.43462505564094,
+      "skipped": true,
+      "peak_rss_bytes": 79544320,
+      "wall_ms": 148.04741693660617
+     }
+    ],
+    "build_ms": {
+     "n": 10,
+     "p50": 100.60806258115917,
+     "p95": 103.65333291701972,
+     "max": 103.65333291701972
+    },
+    "wall_ms": {
+     "n": 10,
+     "p50": 149.21266690362245,
+     "p95": 156.51462506502867,
+     "max": 156.51462506502867
+    },
+    "peak_rss_bytes": {
+     "max": 80068608
+    },
+    "skipped": [
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   "pages": {
+    "files": 12273,
+    "bytes": 250369264,
+    "pages": 12266,
+    "index_bytes": 449808,
+    "largest_page": {
+     "path": "index.html",
+     "bytes": 449808
+    }
+   },
+   "ok": true,
+   "tool_commit": "056760d"
+  }
+ },
+ "retrieval": {
+  "S-v2": {
+   "schema": "aelix-analytics.retrieval-evaluation/1",
+   "fixture": {
+    "scale": "S",
+    "digest": "sha256:0fe6b0030cfac65f471aaff4d5445f7254f7697ba6574e2aa0f638f3d7255d6a",
+    "generator": {
+     "path": "tools/eval_fixtures.py",
+     "version": 1
+    },
+    "source_kit_commit": "26c28d09289718f0fc499c2975a33f1f59380a4c",
+    "format": "v2",
+    "migrated_copy": false
+   },
+   "environment": {
+    "schema": "aelix-analytics.eval-environment/1",
+    "recorded_at": "2026-10-31T01:10:10+00:00",
+    "machine": {
+     "system": "Darwin",
+     "release": "25.6.0",
+     "version": "Darwin Kernel Version 25.6.0: Fri Jul 31 19:19:08 PDT 2026; root:xnu-12377.161.14~5/RELEASE_ARM64_T6050",
+     "machine": "arm64",
+     "processor": "arm",
+     "cpu_count": 18,
+     "memory_bytes": 68719476736
+    },
+    "disk": {
+     "path": "<scratch>/b6/copy-S-v2-ret",
+     "total_bytes": 994610155520,
+     "free_bytes": 308341555200,
+     "device": {
+      "status": "not_measured",
+      "reason": "the standard library has no portable way to name the device or its kind (SSD, HDD, network)"
+     },
+     "filesystem": {
+      "status": "not_measured",
+      "reason": "the standard library has no portable way to read it"
+     }
+    },
+    "python": {
+     "version": "3.12.13",
+     "implementation": "CPython",
+     "executable": "~/dev/aelix-extensions/.worktrees/aelix-analytics-issue-24-b6/.venv/bin/python3"
+    },
+    "sqlite": {
+     "version": "3.53.1",
+     "fts5": true,
+     "json": true
+    },
+    "browser": {
+     "status": "not_measured",
+     "reason": "not given: pass --browser NAME=VERSION when a browser is measured"
+    },
+    "libraries": {
+     "duckdb": "1.5.5",
+     "polars": "1.44.2",
+     "pyarrow": "25.0.1",
+     "numpy": "2.5.3",
+     "plotly": "6.9.0",
+     "matplotlib": "3.11.2",
+     "markdown-it-py": "4.2.0",
+     "pygments": "2.21.0",
+     "jsonschema": "4.26.0"
+    },
+    "kit": {
+     "version": "0.32.0",
+     "sha256": "4d2de06e4d2742385dfa00fa1f2126dbbee609269092064d3104cf8a559432dc"
+    },
+    "threads": {
+     "polars": 18,
+     "note": "the generator runs Polars on one thread (POLARS_MAX_THREADS=1) so its results' bits are the seed's; a measurement records the threads it ran with"
+    },
+    "cache_state": {
+     "measurement": "unknown",
+     "kit_caches": "unknown",
+     "os_file_cache": "unknown",
+     "definition": "cold: the kit's caches (the hash cache and the Workspace: .lab/cache/ and report/ in a lab.json project, .analytics/cache/ and workspace/ in an analytics.json one) are absent, the first read; warm: a repeat in the same process and machine after one full read. The OS file cache is not dropped (that needs privileges)."
+    }
+   },
+   "definitions": {
+    "cold": "derived retrieval cache removed; OS cache not flushed",
+    "warm": "same process, same machine, existing validated index",
+    "rebuild": "corrupt derived SQLite payload, then reconstruction",
+    "response": "complete structured first page, UTF-8 bytes"
+   },
+   "tokens": {
+    "status": "not_measured",
+    "reason": "no tokenizer supplied"
+   },
+   "model": {
+    "status": "not_run",
+    "reason": "deterministic model-free evaluation"
+   },
+   "query_source": "Supplemental lexical queries authored for #15; #41 labels do not declare search queries",
+   "limits": "First-page recall is separate from complete paged scope; no semantic-answer or real-model success claim",
+   "tasks": [
+    {
+     "id": "old_finding",
+     "query": "야간 배송",
+     "expected_ids": [
+      "e24"
+     ],
+     "returned_ids": [
+      "e24",
+      "e242",
+      "e27",
+      "e222",
+      "e49",
+      "e221",
+      "e81",
+      "e213"
+     ],
+     "first_page_recall": 1.0,
+     "complete_paged_scope": {
+      "pages": 1,
+      "limit": 100,
+      "returned_unique_ids": 15,
+      "elapsed_ms": 8.705832995474339,
+      "recall": 1.0
+     },
+     "scope": "readable journal records",
+     "cold": {
+      "samples_ms": [
+       14.35545808635652
+      ],
+      "p50_ms": 14.35545808635652,
+      "p95_ms": 14.35545808635652,
+      "max_response_bytes": 9533,
+      "returned": 8,
+      "total": 15,
+      "index": {
+       "adapter": "sqlite",
+       "state": "missing",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "warm": {
+      "samples_ms": [
+       7.851083995774388,
+       8.2246670499444,
+       7.630040869116783,
+       7.836000062525272,
+       11.853624833747745,
+       8.075541816651821,
+       7.718167034909129,
+       7.533084135502577,
+       7.6011670753359795,
+       8.047709008678794
+      ],
+      "p50_ms": 7.84354202914983,
+      "p95_ms": 11.853624833747745,
+      "max_response_bytes": 9553,
+      "returned": 8,
+      "total": 15,
+      "index": {
+       "adapter": "sqlite",
+       "state": "ready",
+       "fts": true,
+       "rebuilt": false,
+       "answered_from": "index_candidates_and_source"
+      }
+     },
+     "source_direct": {
+      "samples_ms": [
+       8.591624908149242,
+       9.05474997125566,
+       8.945833891630173,
+       8.303666952997446,
+       8.717333199456334,
+       8.526166900992393,
+       9.566583903506398,
+       9.703792165964842,
+       11.38458400964737,
+       9.541166946291924
+      ],
+      "p50_ms": 9.000291931442916,
+      "p95_ms": 11.38458400964737,
+      "max_response_bytes": 9496,
+      "returned": 8,
+      "total": 15,
+      "index": {
+       "adapter": "source",
+       "state": "disabled",
+       "answered_from": "source"
+      }
+     },
+     "rebuild": {
+      "samples_ms": [
+       12.713667005300522
+      ],
+      "p50_ms": 12.713667005300522,
+      "p95_ms": 12.713667005300522,
+      "max_response_bytes": 9533,
+      "returned": 8,
+      "total": 15,
+      "index": {
+       "adapter": "sqlite",
+       "state": "corrupt",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "details": {
+      "e24": {
+       "state": {
+        "state": "current",
+        "made_by": null,
+        "corrected_by": [],
+        "transitions": [
+         "withdrawn"
+        ],
+        "mismatched_updates": []
+       },
+       "legacy_resolved_by": [],
+       "evidence": {
+        "states": {
+         "resolved": 1
+        },
+        "confirmed": 1,
+        "not_resolved": []
+       }
+      }
+     }
+    },
+    {
+     "id": "correction",
+     "query": "세종 성장률",
+     "expected_ids": [
+      "e41",
+      "e287"
+     ],
+     "returned_ids": [
+      "e287",
+      "e41"
+     ],
+     "first_page_recall": 1.0,
+     "complete_paged_scope": {
+      "pages": 1,
+      "limit": 100,
+      "returned_unique_ids": 2,
+      "elapsed_ms": 6.4940000884234905,
+      "recall": 1.0
+     },
+     "scope": "readable journal records",
+     "cold": {
+      "samples_ms": [
+       11.728457873687148
+      ],
+      "p50_ms": 11.728457873687148,
+      "p95_ms": 11.728457873687148,
+      "max_response_bytes": 2638,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "missing",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "warm": {
+      "samples_ms": [
+       6.75674993544817,
+       6.569625111296773,
+       7.311208173632622,
+       7.550708018243313,
+       6.779375020414591,
+       7.469666190445423,
+       7.4549170676618814,
+       7.2206249460577965,
+       7.035915972664952,
+       7.859667064622045
+      ],
+      "p50_ms": 7.265916559845209,
+      "p95_ms": 7.859667064622045,
+      "max_response_bytes": 2658,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "ready",
+       "fts": true,
+       "rebuilt": false,
+       "answered_from": "index_candidates_and_source"
+      }
+     },
+     "source_direct": {
+      "samples_ms": [
+       9.664166020229459,
+       9.054458001628518,
+       7.9721249639987946,
+       8.296041982248425,
+       8.748415857553482,
+       8.429999928921461,
+       8.154832990840077,
+       8.038166910409927,
+       7.650666870176792,
+       12.100833002477884
+      ],
+      "p50_ms": 8.363020955584943,
+      "p95_ms": 12.100833002477884,
+      "max_response_bytes": 2601,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "source",
+       "state": "disabled",
+       "answered_from": "source"
+      }
+     },
+     "rebuild": {
+      "samples_ms": [
+       11.795833008363843
+      ],
+      "p50_ms": 11.795833008363843,
+      "p95_ms": 11.795833008363843,
+      "max_response_bytes": 2638,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "corrupt",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "details": {
+      "e41": {
+       "state": {
+        "state": "superseded",
+        "made_by": "e287",
+        "corrected_by": [
+         "e287"
+        ],
+        "transitions": [
+         "withdrawn"
+        ],
+        "mismatched_updates": []
+       },
+       "legacy_resolved_by": [],
+       "evidence": {
+        "states": {
+         "resolved": 1
+        },
+        "confirmed": 1,
+        "not_resolved": []
+       }
+      },
+      "e287": {
+       "state": {
+        "state": "current",
+        "made_by": null,
+        "corrected_by": [],
+        "transitions": [
+         "withdrawn"
+        ],
+        "mismatched_updates": []
+       },
+       "legacy_resolved_by": [],
+       "evidence": {
+        "states": {
+         "resolved": 1
+        },
+        "confirmed": 1,
+        "not_resolved": []
+       }
+      }
+     }
+    },
+    {
+     "id": "withdrawal",
+     "query": "연간 합계",
+     "expected_ids": [
+      "e68",
+      "e274"
+     ],
+     "returned_ids": [
+      "e274",
+      "e68"
+     ],
+     "first_page_recall": 1.0,
+     "complete_paged_scope": {
+      "pages": 1,
+      "limit": 100,
+      "returned_unique_ids": 2,
+      "elapsed_ms": 6.634624907746911,
+      "recall": 1.0
+     },
+     "scope": "readable journal records",
+     "cold": {
+      "samples_ms": [
+       11.15962490439415
+      ],
+      "p50_ms": 11.15962490439415,
+      "p95_ms": 11.15962490439415,
+      "max_response_bytes": 2317,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "missing",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "warm": {
+      "samples_ms": [
+       6.7006670869886875,
+       6.891209166496992,
+       6.822332972660661,
+       6.716124946251512,
+       6.608583033084869,
+       6.560541922226548,
+       6.44108303822577,
+       6.605708040297031,
+       6.834583124145865,
+       6.845749914646149
+      ],
+      "p50_ms": 6.7083960166200995,
+      "p95_ms": 6.891209166496992,
+      "max_response_bytes": 2337,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "ready",
+       "fts": true,
+       "rebuilt": false,
+       "answered_from": "index_candidates_and_source"
+      }
+     },
+     "source_direct": {
+      "samples_ms": [
+       7.929957937449217,
+       7.783291861414909,
+       7.831541821360588,
+       8.377875201404095,
+       8.037166902795434,
+       12.144834036007524,
+       8.248707978054881,
+       8.062333101406693,
+       7.861708058044314,
+       8.05270904675126
+      ],
+      "p50_ms": 8.044937974773347,
+      "p95_ms": 12.144834036007524,
+      "max_response_bytes": 2280,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "source",
+       "state": "disabled",
+       "answered_from": "source"
+      }
+     },
+     "rebuild": {
+      "samples_ms": [
+       11.691207997500896
+      ],
+      "p50_ms": 11.691207997500896,
+      "p95_ms": 11.691207997500896,
+      "max_response_bytes": 2317,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "corrupt",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "details": {
+      "e68": {
+       "state": {
+        "state": "withdrawn",
+        "made_by": "e274",
+        "corrected_by": [],
+        "transitions": [
+         "current"
+        ],
+        "mismatched_updates": []
+       },
+       "legacy_resolved_by": [],
+       "evidence": {
+        "states": {},
+        "confirmed": 0,
+        "not_resolved": []
+       }
+      },
+      "e274": {
+       "state": null,
+       "legacy_resolved_by": [],
+       "evidence": {
+        "states": {
+         "resolved": 1
+        },
+        "confirmed": 1,
+        "not_resolved": []
+       }
+      }
+     }
+    },
+    {
+     "id": "long_korean",
+     "query": "센서",
+     "expected_ids": [
+      "e74"
+     ],
+     "returned_ids": [
+      "e9",
+      "e295",
+      "e15",
+      "e284",
+      "e28",
+      "e279",
+      "e39",
+      "e271"
+     ],
+     "first_page_recall": 0.0,
+     "complete_paged_scope": {
+      "pages": 1,
+      "limit": 100,
+      "returned_unique_ids": 31,
+      "elapsed_ms": 10.201375000178814,
+      "recall": 1.0
+     },
+     "scope": "readable journal records",
+     "cold": {
+      "samples_ms": [
+       11.963458033278584
+      ],
+      "p50_ms": 11.963458033278584,
+      "p95_ms": 11.963458033278584,
+      "max_response_bytes": 8145,
+      "returned": 8,
+      "total": 31,
+      "index": {
+       "adapter": "sqlite",
+       "state": "missing",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "warm": {
+      "samples_ms": [
+       7.715709041804075,
+       7.241250015795231,
+       8.030165918171406,
+       8.355958154425025,
+       7.938208989799023,
+       8.03837482817471,
+       7.375124841928482,
+       8.268291829153895,
+       7.447791984304786,
+       11.458916123956442
+      ],
+      "p50_ms": 7.984187453985214,
+      "p95_ms": 11.458916123956442,
+      "max_response_bytes": 8165,
+      "returned": 8,
+      "total": 31,
+      "index": {
+       "adapter": "sqlite",
+       "state": "ready",
+       "fts": true,
+       "rebuilt": false,
+       "answered_from": "index_candidates_and_source"
+      }
+     },
+     "source_direct": {
+      "samples_ms": [
+       8.374667027965188,
+       8.44991602934897,
+       8.21941695176065,
+       8.71212501078844,
+       8.757750038057566,
+       8.722041035071015,
+       8.597958134487271,
+       8.481375174596906,
+       8.460290962830186,
+       8.336707949638367
+      ],
+      "p50_ms": 8.470833068713546,
+      "p95_ms": 8.757750038057566,
+      "max_response_bytes": 8108,
+      "returned": 8,
+      "total": 31,
+      "index": {
+       "adapter": "source",
+       "state": "disabled",
+       "answered_from": "source"
+      }
+     },
+     "rebuild": {
+      "samples_ms": [
+       13.137167086824775
+      ],
+      "p50_ms": 13.137167086824775,
+      "p95_ms": 13.137167086824775,
+      "max_response_bytes": 8145,
+      "returned": 8,
+      "total": 31,
+      "index": {
+       "adapter": "sqlite",
+       "state": "corrupt",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "details": {
+      "e74": {
+       "state": {
+        "state": "current",
+        "made_by": null,
+        "corrected_by": [],
+        "transitions": [
+         "withdrawn"
+        ],
+        "mismatched_updates": []
+       },
+       "legacy_resolved_by": [],
+       "evidence": {
+        "states": {},
+        "confirmed": 0,
+        "not_resolved": []
+       }
+      }
+     }
+    }
+   ],
+   "known_text_lookup": {
+    "purpose": "exact known-text lexical lookup, not an unseen question or semantic-recall trial",
+    "query": "프로모션 기간 주문: 주중과 주말의 차이가 크다 (중복 주문 제거 후). 프로모션 기간 주문: 이상치를 빼면 변화가 거의 없다. 평균 주문 금액",
+    "expected_id": "e74",
+    "returned_ids": [
+     "e74",
+     "e221"
+    ]
+   },
+   "original_journal": {
+    "before": "a5d8f6a0f3942be80fcbb66cf6b16e61af88e53bdc5508f291e9d7e5548cd014",
+    "after": "a5d8f6a0f3942be80fcbb66cf6b16e61af88e53bdc5508f291e9d7e5548cd014",
+    "unchanged": true
+   },
+   "recall_pass": true
+  },
+  "S-v1": {
+   "schema": "aelix-analytics.retrieval-evaluation/1",
+   "fixture": {
+    "scale": "S",
+    "digest": "sha256:ccd8c9237581fbe86f1b79114ee9a05986ae875621afd210af0dd238ecd48350",
+    "generator": {
+     "path": "tools/eval_fixtures.py",
+     "version": 1
+    },
+    "source_kit_commit": "ebd10b644e8cb8550ccf6446b134666db6bb9386",
+    "format": "v1",
+    "migrated_copy": true
+   },
+   "environment": {
+    "schema": "aelix-analytics.eval-environment/1",
+    "recorded_at": "2026-10-31T01:10:13+00:00",
+    "machine": {
+     "system": "Darwin",
+     "release": "25.6.0",
+     "version": "Darwin Kernel Version 25.6.0: Fri Jul 31 19:19:08 PDT 2026; root:xnu-12377.161.14~5/RELEASE_ARM64_T6050",
+     "machine": "arm64",
+     "processor": "arm",
+     "cpu_count": 18,
+     "memory_bytes": 68719476736
+    },
+    "disk": {
+     "path": "<scratch>/b6/mig-S-v1",
+     "total_bytes": 994610155520,
+     "free_bytes": 308333142016,
+     "device": {
+      "status": "not_measured",
+      "reason": "the standard library has no portable way to name the device or its kind (SSD, HDD, network)"
+     },
+     "filesystem": {
+      "status": "not_measured",
+      "reason": "the standard library has no portable way to read it"
+     }
+    },
+    "python": {
+     "version": "3.12.13",
+     "implementation": "CPython",
+     "executable": "~/dev/aelix-extensions/.worktrees/aelix-analytics-issue-24-b6/.venv/bin/python3"
+    },
+    "sqlite": {
+     "version": "3.53.1",
+     "fts5": true,
+     "json": true
+    },
+    "browser": {
+     "status": "not_measured",
+     "reason": "not given: pass --browser NAME=VERSION when a browser is measured"
+    },
+    "libraries": {
+     "duckdb": "1.5.5",
+     "polars": "1.44.2",
+     "pyarrow": "25.0.1",
+     "numpy": "2.5.3",
+     "plotly": "6.9.0",
+     "matplotlib": "3.11.2",
+     "markdown-it-py": "4.2.0",
+     "pygments": "2.21.0",
+     "jsonschema": "4.26.0"
+    },
+    "kit": {
+     "version": "0.32.0",
+     "sha256": "4d2de06e4d2742385dfa00fa1f2126dbbee609269092064d3104cf8a559432dc"
+    },
+    "threads": {
+     "polars": 18,
+     "note": "the generator runs Polars on one thread (POLARS_MAX_THREADS=1) so its results' bits are the seed's; a measurement records the threads it ran with"
+    },
+    "cache_state": {
+     "measurement": "unknown",
+     "kit_caches": "unknown",
+     "os_file_cache": "unknown",
+     "definition": "cold: the kit's caches (the hash cache and the Workspace: .lab/cache/ and report/ in a lab.json project, .analytics/cache/ and workspace/ in an analytics.json one) are absent, the first read; warm: a repeat in the same process and machine after one full read. The OS file cache is not dropped (that needs privileges)."
+    }
+   },
+   "definitions": {
+    "cold": "derived retrieval cache removed; OS cache not flushed",
+    "warm": "same process, same machine, existing validated index",
+    "rebuild": "corrupt derived SQLite payload, then reconstruction",
+    "response": "complete structured first page, UTF-8 bytes"
+   },
+   "tokens": {
+    "status": "not_measured",
+    "reason": "no tokenizer supplied"
+   },
+   "model": {
+    "status": "not_run",
+    "reason": "deterministic model-free evaluation"
+   },
+   "query_source": "Supplemental lexical queries authored for #15; #41 labels do not declare search queries",
+   "limits": "First-page recall is separate from complete paged scope; no semantic-answer or real-model success claim",
+   "tasks": [
+    {
+     "id": "old_finding",
+     "query": "야간 배송",
+     "expected_ids": [
+      "e24"
+     ],
+     "returned_ids": [
+      "e24",
+      "e242",
+      "e27",
+      "e222",
+      "e49",
+      "e221",
+      "e81",
+      "e213"
+     ],
+     "first_page_recall": 1.0,
+     "complete_paged_scope": {
+      "pages": 1,
+      "limit": 100,
+      "returned_unique_ids": 15,
+      "elapsed_ms": 6.579333217814565,
+      "recall": 1.0
+     },
+     "scope": "readable journal records",
+     "cold": {
+      "samples_ms": [
+       11.820416897535324
+      ],
+      "p50_ms": 11.820416897535324,
+      "p95_ms": 11.820416897535324,
+      "max_response_bytes": 10705,
+      "returned": 8,
+      "total": 15,
+      "index": {
+       "adapter": "sqlite",
+       "state": "missing",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "warm": {
+      "samples_ms": [
+       7.497916929423809,
+       6.9969999603927135,
+       6.922417087480426,
+       6.879958091303706,
+       11.331957997754216,
+       6.793583044782281,
+       6.514000007882714,
+       6.436083931475878,
+       6.49620802141726,
+       6.15929183550179
+      ],
+      "p50_ms": 6.8367705680429935,
+      "p95_ms": 11.331957997754216,
+      "max_response_bytes": 10725,
+      "returned": 8,
+      "total": 15,
+      "index": {
+       "adapter": "sqlite",
+       "state": "ready",
+       "fts": true,
+       "rebuilt": false,
+       "answered_from": "index_candidates_and_source"
+      }
+     },
+     "source_direct": {
+      "samples_ms": [
+       7.084791781380773,
+       6.9628749042749405,
+       7.114042062312365,
+       6.974749965593219,
+       7.026584120467305,
+       6.894582882523537,
+       7.368667051196098,
+       7.754999911412597,
+       7.719792192801833,
+       8.489249972626567
+      ],
+      "p50_ms": 7.099416921846569,
+      "p95_ms": 8.489249972626567,
+      "max_response_bytes": 10668,
+      "returned": 8,
+      "total": 15,
+      "index": {
+       "adapter": "source",
+       "state": "disabled",
+       "answered_from": "source"
+      }
+     },
+     "rebuild": {
+      "samples_ms": [
+       10.667042108252645
+      ],
+      "p50_ms": 10.667042108252645,
+      "p95_ms": 10.667042108252645,
+      "max_response_bytes": 10705,
+      "returned": 8,
+      "total": 15,
+      "index": {
+       "adapter": "sqlite",
+       "state": "corrupt",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "details": {
+      "e24": {
+       "state": {
+        "state": "current",
+        "made_by": null,
+        "corrected_by": [],
+        "transitions": [
+         "withdrawn"
+        ],
+        "mismatched_updates": []
+       },
+       "legacy_resolved_by": [],
+       "evidence": {
+        "states": {
+         "resolved": 1
+        },
+        "confirmed": 1,
+        "not_resolved": []
+       }
+      }
+     }
+    },
+    {
+     "id": "correction",
+     "query": "세종 성장률",
+     "expected_ids": [
+      "e41",
+      "e287"
+     ],
+     "returned_ids": [
+      "e287",
+      "e41"
+     ],
+     "first_page_recall": 1.0,
+     "complete_paged_scope": {
+      "pages": 1,
+      "limit": 100,
+      "returned_unique_ids": 2,
+      "elapsed_ms": 6.125916028395295,
+      "recall": 1.0
+     },
+     "scope": "readable journal records",
+     "cold": {
+      "samples_ms": [
+       9.848958114162087
+      ],
+      "p50_ms": 9.848958114162087,
+      "p95_ms": 9.848958114162087,
+      "max_response_bytes": 2629,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "missing",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "warm": {
+      "samples_ms": [
+       6.204209057614207,
+       10.498916963115335,
+       6.195834139361978,
+       6.341499974951148,
+       5.820791004225612,
+       6.780249997973442,
+       7.001874968409538,
+       6.145999999716878,
+       5.943041993305087,
+       5.817499943077564
+      ],
+      "p50_ms": 6.200021598488092,
+      "p95_ms": 10.498916963115335,
+      "max_response_bytes": 2649,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "ready",
+       "fts": true,
+       "rebuilt": false,
+       "answered_from": "index_candidates_and_source"
+      }
+     },
+     "source_direct": {
+      "samples_ms": [
+       6.767333019524813,
+       6.697417004033923,
+       6.6186669282615185,
+       6.834791041910648,
+       6.979750003665686,
+       7.06020905636251,
+       6.685792002826929,
+       6.719083059579134,
+       6.803999887779355,
+       6.706499960273504
+      ],
+      "p50_ms": 6.743208039551973,
+      "p95_ms": 7.06020905636251,
+      "max_response_bytes": 2592,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "source",
+       "state": "disabled",
+       "answered_from": "source"
+      }
+     },
+     "rebuild": {
+      "samples_ms": [
+       10.517542017623782
+      ],
+      "p50_ms": 10.517542017623782,
+      "p95_ms": 10.517542017623782,
+      "max_response_bytes": 2629,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "corrupt",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "details": {
+      "e41": {
+       "state": {
+        "state": "current",
+        "made_by": null,
+        "corrected_by": [],
+        "transitions": [
+         "withdrawn"
+        ],
+        "mismatched_updates": []
+       },
+       "legacy_resolved_by": [
+        "e287"
+       ],
+       "evidence": {
+        "states": {
+         "resolved": 1
+        },
+        "confirmed": 1,
+        "not_resolved": []
+       }
+      },
+      "e287": {
+       "state": {
+        "state": "current",
+        "made_by": null,
+        "corrected_by": [],
+        "transitions": [
+         "withdrawn"
+        ],
+        "mismatched_updates": []
+       },
+       "legacy_resolved_by": [],
+       "evidence": {
+        "states": {
+         "resolved": 2
+        },
+        "confirmed": 2,
+        "not_resolved": []
+       }
+      }
+     }
+    },
+    {
+     "id": "withdrawal",
+     "query": "연간 합계",
+     "expected_ids": [
+      "e68",
+      "e274"
+     ],
+     "returned_ids": [
+      "e274",
+      "e68"
+     ],
+     "first_page_recall": 1.0,
+     "complete_paged_scope": {
+      "pages": 1,
+      "limit": 100,
+      "returned_unique_ids": 2,
+      "elapsed_ms": 6.287791999056935,
+      "recall": 1.0
+     },
+     "scope": "readable journal records",
+     "cold": {
+      "samples_ms": [
+       9.52320802025497
+      ],
+      "p50_ms": 9.52320802025497,
+      "p95_ms": 9.52320802025497,
+      "max_response_bytes": 2331,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "missing",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "warm": {
+      "samples_ms": [
+       6.5597910434007645,
+       5.899084033444524,
+       5.93229103833437,
+       5.962916882708669,
+       6.028500152751803,
+       6.053749937564135,
+       7.286417065188289,
+       6.336416117846966,
+       6.607542047277093,
+       6.601375062018633
+      ],
+      "p50_ms": 6.19508302770555,
+      "p95_ms": 7.286417065188289,
+      "max_response_bytes": 2351,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "ready",
+       "fts": true,
+       "rebuilt": false,
+       "answered_from": "index_candidates_and_source"
+      }
+     },
+     "source_direct": {
+      "samples_ms": [
+       7.132125087082386,
+       6.797292036935687,
+       6.656334036961198,
+       7.038250099867582,
+       6.7783750128000975,
+       6.895957980304956,
+       7.075291825458407,
+       7.187291048467159,
+       6.97262492030859,
+       11.260708095505834
+      ],
+      "p50_ms": 7.005437510088086,
+      "p95_ms": 11.260708095505834,
+      "max_response_bytes": 2294,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "source",
+       "state": "disabled",
+       "answered_from": "source"
+      }
+     },
+     "rebuild": {
+      "samples_ms": [
+       9.780124993994832
+      ],
+      "p50_ms": 9.780124993994832,
+      "p95_ms": 9.780124993994832,
+      "max_response_bytes": 2331,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "corrupt",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "details": {
+      "e68": {
+       "state": {
+        "state": "current",
+        "made_by": null,
+        "corrected_by": [],
+        "transitions": [
+         "withdrawn"
+        ],
+        "mismatched_updates": []
+       },
+       "legacy_resolved_by": [
+        "e274"
+       ],
+       "evidence": {
+        "states": {},
+        "confirmed": 0,
+        "not_resolved": []
+       }
+      },
+      "e274": {
+       "state": null,
+       "legacy_resolved_by": [],
+       "evidence": {
+        "states": {
+         "resolved": 1
+        },
+        "confirmed": 1,
+        "not_resolved": []
+       }
+      }
+     }
+    },
+    {
+     "id": "long_korean",
+     "query": "센서",
+     "expected_ids": [
+      "e74"
+     ],
+     "returned_ids": [
+      "e9",
+      "e295",
+      "e15",
+      "e284",
+      "e28",
+      "e279",
+      "e39",
+      "e271"
+     ],
+     "first_page_recall": 0.0,
+     "complete_paged_scope": {
+      "pages": 1,
+      "limit": 100,
+      "returned_unique_ids": 31,
+      "elapsed_ms": 6.636583944782615,
+      "recall": 1.0
+     },
+     "scope": "readable journal records",
+     "cold": {
+      "samples_ms": [
+       10.09766710922122
+      ],
+      "p50_ms": 10.09766710922122,
+      "p95_ms": 10.09766710922122,
+      "max_response_bytes": 9128,
+      "returned": 8,
+      "total": 31,
+      "index": {
+       "adapter": "sqlite",
+       "state": "missing",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "warm": {
+      "samples_ms": [
+       6.759332958608866,
+       6.4029579516500235,
+       6.760166026651859,
+       6.359125021845102,
+       6.399665959179401,
+       6.8892501294612885,
+       6.866957992315292,
+       6.967457942664623,
+       6.471541943028569,
+       6.535958033055067
+      ],
+      "p50_ms": 6.647645495831966,
+      "p95_ms": 6.967457942664623,
+      "max_response_bytes": 9148,
+      "returned": 8,
+      "total": 31,
+      "index": {
+       "adapter": "sqlite",
+       "state": "ready",
+       "fts": true,
+       "rebuilt": false,
+       "answered_from": "index_candidates_and_source"
+      }
+     },
+     "source_direct": {
+      "samples_ms": [
+       7.329375017434359,
+       7.529375143349171,
+       7.7905000653117895,
+       11.019750032573938,
+       7.275208830833435,
+       7.430708035826683,
+       7.371667074039578,
+       7.501790998503566,
+       7.349541876465082,
+       7.818958954885602
+      ],
+      "p50_ms": 7.466249517165124,
+      "p95_ms": 11.019750032573938,
+      "max_response_bytes": 9091,
+      "returned": 8,
+      "total": 31,
+      "index": {
+       "adapter": "source",
+       "state": "disabled",
+       "answered_from": "source"
+      }
+     },
+     "rebuild": {
+      "samples_ms": [
+       10.585332987830043
+      ],
+      "p50_ms": 10.585332987830043,
+      "p95_ms": 10.585332987830043,
+      "max_response_bytes": 9128,
+      "returned": 8,
+      "total": 31,
+      "index": {
+       "adapter": "sqlite",
+       "state": "corrupt",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "details": {
+      "e74": {
+       "state": {
+        "state": "current",
+        "made_by": null,
+        "corrected_by": [],
+        "transitions": [
+         "withdrawn"
+        ],
+        "mismatched_updates": []
+       },
+       "legacy_resolved_by": [],
+       "evidence": {
+        "states": {},
+        "confirmed": 0,
+        "not_resolved": []
+       }
+      }
+     }
+    }
+   ],
+   "known_text_lookup": {
+    "purpose": "exact known-text lexical lookup, not an unseen question or semantic-recall trial",
+    "query": "프로모션 기간 주문: 주중과 주말의 차이가 크다 (중복 주문 제거 후). 프로모션 기간 주문: 이상치를 빼면 변화가 거의 없다. 평균 주문 금액",
+    "expected_id": "e74",
+    "returned_ids": [
+     "e74",
+     "e221"
+    ]
+   },
+   "original_journal": {
+    "before": "434d2bf0a4c85ac17741c7c8c0b2ee2707041646f8974c7c168ee92e4259e04a",
+    "after": "434d2bf0a4c85ac17741c7c8c0b2ee2707041646f8974c7c168ee92e4259e04a",
+    "unchanged": true
+   },
+   "recall_pass": true
+  },
+  "M-v2": {
+   "schema": "aelix-analytics.retrieval-evaluation/1",
+   "fixture": {
+    "scale": "M",
+    "digest": "sha256:e8d3226aea01d812247a29e5e671f5c03e288adabcc60b65b5a6706d20c759a3",
+    "generator": {
+     "path": "tools/eval_fixtures.py",
+     "version": 1
+    },
+    "source_kit_commit": "26c28d09289718f0fc499c2975a33f1f59380a4c",
+    "format": "v2",
+    "migrated_copy": false
+   },
+   "environment": {
+    "schema": "aelix-analytics.eval-environment/1",
+    "recorded_at": "2026-10-31T01:11:51+00:00",
+    "machine": {
+     "system": "Darwin",
+     "release": "25.6.0",
+     "version": "Darwin Kernel Version 25.6.0: Fri Jul 31 19:19:08 PDT 2026; root:xnu-12377.161.14~5/RELEASE_ARM64_T6050",
+     "machine": "arm64",
+     "processor": "arm",
+     "cpu_count": 18,
+     "memory_bytes": 68719476736
+    },
+    "disk": {
+     "path": "<scratch>/b6/copy-M-v2-ret",
+     "total_bytes": 994610155520,
+     "free_bytes": 307774271488,
+     "device": {
+      "status": "not_measured",
+      "reason": "the standard library has no portable way to name the device or its kind (SSD, HDD, network)"
+     },
+     "filesystem": {
+      "status": "not_measured",
+      "reason": "the standard library has no portable way to read it"
+     }
+    },
+    "python": {
+     "version": "3.12.13",
+     "implementation": "CPython",
+     "executable": "~/dev/aelix-extensions/.worktrees/aelix-analytics-issue-24-b6/.venv/bin/python3"
+    },
+    "sqlite": {
+     "version": "3.53.1",
+     "fts5": true,
+     "json": true
+    },
+    "browser": {
+     "status": "not_measured",
+     "reason": "not given: pass --browser NAME=VERSION when a browser is measured"
+    },
+    "libraries": {
+     "duckdb": "1.5.5",
+     "polars": "1.44.2",
+     "pyarrow": "25.0.1",
+     "numpy": "2.5.3",
+     "plotly": "6.9.0",
+     "matplotlib": "3.11.2",
+     "markdown-it-py": "4.2.0",
+     "pygments": "2.21.0",
+     "jsonschema": "4.26.0"
+    },
+    "kit": {
+     "version": "0.32.0",
+     "sha256": "4d2de06e4d2742385dfa00fa1f2126dbbee609269092064d3104cf8a559432dc"
+    },
+    "threads": {
+     "polars": 18,
+     "note": "the generator runs Polars on one thread (POLARS_MAX_THREADS=1) so its results' bits are the seed's; a measurement records the threads it ran with"
+    },
+    "cache_state": {
+     "measurement": "unknown",
+     "kit_caches": "unknown",
+     "os_file_cache": "unknown",
+     "definition": "cold: the kit's caches (the hash cache and the Workspace: .lab/cache/ and report/ in a lab.json project, .analytics/cache/ and workspace/ in an analytics.json one) are absent, the first read; warm: a repeat in the same process and machine after one full read. The OS file cache is not dropped (that needs privileges)."
+    }
+   },
+   "definitions": {
+    "cold": "derived retrieval cache removed; OS cache not flushed",
+    "warm": "same process, same machine, existing validated index",
+    "rebuild": "corrupt derived SQLite payload, then reconstruction",
+    "response": "complete structured first page, UTF-8 bytes"
+   },
+   "tokens": {
+    "status": "not_measured",
+    "reason": "no tokenizer supplied"
+   },
+   "model": {
+    "status": "not_run",
+    "reason": "deterministic model-free evaluation"
+   },
+   "query_source": "Supplemental lexical queries authored for #15; #41 labels do not declare search queries",
+   "limits": "First-page recall is separate from complete paged scope; no semantic-answer or real-model success claim",
+   "tasks": [
+    {
+     "id": "old_finding",
+     "query": "야간 배송",
+     "expected_ids": [
+      "e457"
+     ],
+     "returned_ids": [
+      "e21",
+      "e9967",
+      "e25",
+      "e9940",
+      "e64",
+      "e9930",
+      "e76",
+      "e9925"
+     ],
+     "first_page_recall": 0.0,
+     "complete_paged_scope": {
+      "pages": 7,
+      "limit": 100,
+      "returned_unique_ids": 645,
+      "elapsed_ms": 1669.7738748043776,
+      "recall": 1.0
+     },
+     "scope": "readable journal records",
+     "cold": {
+      "samples_ms": [
+       371.21549993753433
+      ],
+      "p50_ms": 371.21549993753433,
+      "p95_ms": 371.21549993753433,
+      "max_response_bytes": 8770,
+      "returned": 8,
+      "total": 645,
+      "index": {
+       "adapter": "sqlite",
+       "state": "missing",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "warm": {
+      "samples_ms": [
+       270.0635411310941,
+       219.26991688087583,
+       243.8434159848839,
+       249.10441599786282,
+       265.6548749655485,
+       261.51337497867644,
+       232.28045785799623,
+       251.25304190441966,
+       248.44845803454518,
+       252.0539998076856
+      ],
+      "p50_ms": 250.17872895114124,
+      "p95_ms": 270.0635411310941,
+      "max_response_bytes": 8790,
+      "returned": 8,
+      "total": 645,
+      "index": {
+       "adapter": "sqlite",
+       "state": "ready",
+       "fts": true,
+       "rebuilt": false,
+       "answered_from": "index_candidates_and_source"
+      }
+     },
+     "source_direct": {
+      "samples_ms": [
+       313.12720919959247,
+       310.53358293138444,
+       265.1239999104291,
+       320.8990830462426,
+       300.88820797391236,
+       313.42187500558794,
+       301.25637515448034,
+       269.70495795831084,
+       292.5156250130385,
+       290.97558418288827
+      ],
+      "p50_ms": 301.07229156419635,
+      "p95_ms": 320.8990830462426,
+      "max_response_bytes": 8733,
+      "returned": 8,
+      "total": 645,
+      "index": {
+       "adapter": "source",
+       "state": "disabled",
+       "answered_from": "source"
+      }
+     },
+     "rebuild": {
+      "samples_ms": [
+       386.9296668563038
+      ],
+      "p50_ms": 386.9296668563038,
+      "p95_ms": 386.9296668563038,
+      "max_response_bytes": 8770,
+      "returned": 8,
+      "total": 645,
+      "index": {
+       "adapter": "sqlite",
+       "state": "corrupt",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "details": {
+      "e457": {
+       "state": {
+        "state": "current",
+        "made_by": null,
+        "corrected_by": [],
+        "transitions": [
+         "withdrawn"
+        ],
+        "mismatched_updates": []
+       },
+       "legacy_resolved_by": [],
+       "evidence": {
+        "states": {
+         "resolved": 1
+        },
+        "confirmed": 1,
+        "not_resolved": []
+       }
+      }
+     }
+    },
+    {
+     "id": "correction",
+     "query": "세종 성장률",
+     "expected_ids": [
+      "e798",
+      "e9331"
+     ],
+     "returned_ids": [
+      "e9331",
+      "e798"
+     ],
+     "first_page_recall": 1.0,
+     "complete_paged_scope": {
+      "pages": 1,
+      "limit": 100,
+      "returned_unique_ids": 2,
+      "elapsed_ms": 205.15987486578524,
+      "recall": 1.0
+     },
+     "scope": "readable journal records",
+     "cold": {
+      "samples_ms": [
+       341.55129105784
+      ],
+      "p50_ms": 341.55129105784,
+      "p95_ms": 341.55129105784,
+      "max_response_bytes": 2649,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "missing",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "warm": {
+      "samples_ms": [
+       226.1717920191586,
+       205.0133750308305,
+       207.21220783889294,
+       230.70458392612636,
+       234.03758299537003,
+       231.27512517385185,
+       197.6787499152124,
+       228.89875015243888,
+       220.12558416463435,
+       226.5235420782119
+      ],
+      "p50_ms": 226.34766704868525,
+      "p95_ms": 234.03758299537003,
+      "max_response_bytes": 2669,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "ready",
+       "fts": true,
+       "rebuilt": false,
+       "answered_from": "index_candidates_and_source"
+      }
+     },
+     "source_direct": {
+      "samples_ms": [
+       246.31837499327958,
+       272.8681250009686,
+       272.39187504164875,
+       280.0014999229461,
+       245.3339579515159,
+       284.3968749511987,
+       275.2455419395119,
+       280.2409171126783,
+       246.6358330566436,
+       284.8983749281615
+      ],
+      "p50_ms": 274.05683347024024,
+      "p95_ms": 284.8983749281615,
+      "max_response_bytes": 2612,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "source",
+       "state": "disabled",
+       "answered_from": "source"
+      }
+     },
+     "rebuild": {
+      "samples_ms": [
+       350.87741701863706
+      ],
+      "p50_ms": 350.87741701863706,
+      "p95_ms": 350.87741701863706,
+      "max_response_bytes": 2649,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "corrupt",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "details": {
+      "e798": {
+       "state": {
+        "state": "superseded",
+        "made_by": "e9331",
+        "corrected_by": [
+         "e9331"
+        ],
+        "transitions": [
+         "withdrawn"
+        ],
+        "mismatched_updates": []
+       },
+       "legacy_resolved_by": [],
+       "evidence": {
+        "states": {
+         "resolved": 1
+        },
+        "confirmed": 1,
+        "not_resolved": []
+       }
+      },
+      "e9331": {
+       "state": {
+        "state": "current",
+        "made_by": null,
+        "corrected_by": [],
+        "transitions": [
+         "withdrawn"
+        ],
+        "mismatched_updates": []
+       },
+       "legacy_resolved_by": [],
+       "evidence": {
+        "states": {
+         "resolved": 1
+        },
+        "confirmed": 1,
+        "not_resolved": []
+       }
+      }
+     }
+    },
+    {
+     "id": "withdrawal",
+     "query": "연간 합계",
+     "expected_ids": [
+      "e1964",
+      "e8133"
+     ],
+     "returned_ids": [
+      "e8133",
+      "e1964"
+     ],
+     "first_page_recall": 1.0,
+     "complete_paged_scope": {
+      "pages": 1,
+      "limit": 100,
+      "returned_unique_ids": 2,
+      "elapsed_ms": 215.541125042364,
+      "recall": 1.0
+     },
+     "scope": "readable journal records",
+     "cold": {
+      "samples_ms": [
+       430.6861248333007
+      ],
+      "p50_ms": 430.6861248333007,
+      "p95_ms": 430.6861248333007,
+      "max_response_bytes": 2331,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "missing",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "warm": {
+      "samples_ms": [
+       211.64491586387157,
+       255.3371659014374,
+       223.11195894144475,
+       222.98349998891354,
+       230.24395806714892,
+       212.41616690531373,
+       225.71654221974313,
+       220.3513749409467,
+       232.03770793043077,
+       192.6983748562634
+      ],
+      "p50_ms": 223.04772946517915,
+      "p95_ms": 255.3371659014374,
+      "max_response_bytes": 2351,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "ready",
+       "fts": true,
+       "rebuilt": false,
+       "answered_from": "index_candidates_and_source"
+      }
+     },
+     "source_direct": {
+      "samples_ms": [
+       268.1964591611177,
+       291.403790935874,
+       279.14266707375646,
+       251.10629200935364,
+       278.1737500336021,
+       290.1292499154806,
+       294.5175420027226,
+       250.53366599604487,
+       289.4415829796344,
+       290.98420892842114
+      ],
+      "p50_ms": 284.29212502669543,
+      "p95_ms": 294.5175420027226,
+      "max_response_bytes": 2294,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "source",
+       "state": "disabled",
+       "answered_from": "source"
+      }
+     },
+     "rebuild": {
+      "samples_ms": [
+       403.9367919322103
+      ],
+      "p50_ms": 403.9367919322103,
+      "p95_ms": 403.9367919322103,
+      "max_response_bytes": 2331,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "corrupt",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "details": {
+      "e1964": {
+       "state": {
+        "state": "withdrawn",
+        "made_by": "e8133",
+        "corrected_by": [],
+        "transitions": [
+         "current"
+        ],
+        "mismatched_updates": []
+       },
+       "legacy_resolved_by": [],
+       "evidence": {
+        "states": {},
+        "confirmed": 0,
+        "not_resolved": []
+       }
+      },
+      "e8133": {
+       "state": null,
+       "legacy_resolved_by": [],
+       "evidence": {
+        "states": {
+         "resolved": 1
+        },
+        "confirmed": 1,
+        "not_resolved": []
+       }
+      }
+     }
+    },
+    {
+     "id": "long_korean",
+     "query": "센서",
+     "expected_ids": [
+      "e2440"
+     ],
+     "returned_ids": [
+      "e9",
+      "e9998",
+      "e18",
+      "e9997",
+      "e20",
+      "e9984",
+      "e36",
+      "e9979"
+     ],
+     "first_page_recall": 0.0,
+     "complete_paged_scope": {
+      "pages": 13,
+      "limit": 100,
+      "returned_unique_ids": 1229,
+      "elapsed_ms": 3488.9422920532525,
+      "recall": 1.0
+     },
+     "scope": "readable journal records",
+     "cold": {
+      "samples_ms": [
+       450.7268751040101
+      ],
+      "p50_ms": 450.7268751040101,
+      "p95_ms": 450.7268751040101,
+      "max_response_bytes": 8189,
+      "returned": 8,
+      "total": 1229,
+      "index": {
+       "adapter": "sqlite",
+       "state": "missing",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "warm": {
+      "samples_ms": [
+       251.4327079989016,
+       249.56525000743568,
+       267.17945793643594,
+       273.0151670984924,
+       273.72829196974635,
+       286.4684169180691,
+       280.1272911019623,
+       285.18766607157886,
+       226.91762493923306,
+       258.6846249178052
+      ],
+      "p50_ms": 270.09731251746416,
+      "p95_ms": 286.4684169180691,
+      "max_response_bytes": 8209,
+      "returned": 8,
+      "total": 1229,
+      "index": {
+       "adapter": "sqlite",
+       "state": "ready",
+       "fts": true,
+       "rebuilt": false,
+       "answered_from": "index_candidates_and_source"
+      }
+     },
+     "source_direct": {
+      "samples_ms": [
+       310.255833202973,
+       301.20766698382795,
+       298.4477081336081,
+       313.90391709282994,
+       316.22345792129636,
+       263.5882080066949,
+       286.26254200935364,
+       305.4255419410765,
+       327.9573330655694,
+       314.12512506358325
+      ],
+      "p50_ms": 307.84068757202476,
+      "p95_ms": 327.9573330655694,
+      "max_response_bytes": 8152,
+      "returned": 8,
+      "total": 1229,
+      "index": {
+       "adapter": "source",
+       "state": "disabled",
+       "answered_from": "source"
+      }
+     },
+     "rebuild": {
+      "samples_ms": [
+       393.73800018802285
+      ],
+      "p50_ms": 393.73800018802285,
+      "p95_ms": 393.73800018802285,
+      "max_response_bytes": 8189,
+      "returned": 8,
+      "total": 1229,
+      "index": {
+       "adapter": "sqlite",
+       "state": "corrupt",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "details": {
+      "e2440": {
+       "state": {
+        "state": "current",
+        "made_by": null,
+        "corrected_by": [],
+        "transitions": [
+         "withdrawn"
+        ],
+        "mismatched_updates": []
+       },
+       "legacy_resolved_by": [],
+       "evidence": {
+        "states": {},
+        "confirmed": 0,
+        "not_resolved": []
+       }
+      }
+     }
+    }
+   ],
+   "known_text_lookup": {
+    "purpose": "exact known-text lexical lookup, not an unseen question or semantic-recall trial",
+    "query": "평균 주문 금액: 이상치를 빼면 변화가 거의 없다 (지역별 가중 평균). 센서 07의 압력: 기준 기간보다 12% 높다 (합성 데이터). 온라인",
+    "expected_id": "e2440",
+    "returned_ids": [
+     "e2440",
+     "e122",
+     "e9940",
+     "e197",
+     "e9385",
+     "e233",
+     "e9162",
+     "e297"
+    ]
+   },
+   "original_journal": {
+    "before": "a0d873027908cb4b25ba64ec02ca11551a02fab96bba02f365a52490b47ebfce",
+    "after": "a0d873027908cb4b25ba64ec02ca11551a02fab96bba02f365a52490b47ebfce",
+    "unchanged": true
+   },
+   "recall_pass": true
+  },
+  "M-v1": {
+   "schema": "aelix-analytics.retrieval-evaluation/1",
+   "fixture": {
+    "scale": "M",
+    "digest": "sha256:0d7889f6f77aa090d653c8f614554776cfb3caada27b75eede70bd0994500bde",
+    "generator": {
+     "path": "tools/eval_fixtures.py",
+     "version": 1
+    },
+    "source_kit_commit": "ebd10b644e8cb8550ccf6446b134666db6bb9386",
+    "format": "v1",
+    "migrated_copy": true
+   },
+   "environment": {
+    "schema": "aelix-analytics.eval-environment/1",
+    "recorded_at": "2026-10-31T01:12:35+00:00",
+    "machine": {
+     "system": "Darwin",
+     "release": "25.6.0",
+     "version": "Darwin Kernel Version 25.6.0: Fri Jul 31 19:19:08 PDT 2026; root:xnu-12377.161.14~5/RELEASE_ARM64_T6050",
+     "machine": "arm64",
+     "processor": "arm",
+     "cpu_count": 18,
+     "memory_bytes": 68719476736
+    },
+    "disk": {
+     "path": "<scratch>/b6/mig-M-v1",
+     "total_bytes": 994610155520,
+     "free_bytes": 307245527040,
+     "device": {
+      "status": "not_measured",
+      "reason": "the standard library has no portable way to name the device or its kind (SSD, HDD, network)"
+     },
+     "filesystem": {
+      "status": "not_measured",
+      "reason": "the standard library has no portable way to read it"
+     }
+    },
+    "python": {
+     "version": "3.12.13",
+     "implementation": "CPython",
+     "executable": "~/dev/aelix-extensions/.worktrees/aelix-analytics-issue-24-b6/.venv/bin/python3"
+    },
+    "sqlite": {
+     "version": "3.53.1",
+     "fts5": true,
+     "json": true
+    },
+    "browser": {
+     "status": "not_measured",
+     "reason": "not given: pass --browser NAME=VERSION when a browser is measured"
+    },
+    "libraries": {
+     "duckdb": "1.5.5",
+     "polars": "1.44.2",
+     "pyarrow": "25.0.1",
+     "numpy": "2.5.3",
+     "plotly": "6.9.0",
+     "matplotlib": "3.11.2",
+     "markdown-it-py": "4.2.0",
+     "pygments": "2.21.0",
+     "jsonschema": "4.26.0"
+    },
+    "kit": {
+     "version": "0.32.0",
+     "sha256": "4d2de06e4d2742385dfa00fa1f2126dbbee609269092064d3104cf8a559432dc"
+    },
+    "threads": {
+     "polars": 18,
+     "note": "the generator runs Polars on one thread (POLARS_MAX_THREADS=1) so its results' bits are the seed's; a measurement records the threads it ran with"
+    },
+    "cache_state": {
+     "measurement": "unknown",
+     "kit_caches": "unknown",
+     "os_file_cache": "unknown",
+     "definition": "cold: the kit's caches (the hash cache and the Workspace: .lab/cache/ and report/ in a lab.json project, .analytics/cache/ and workspace/ in an analytics.json one) are absent, the first read; warm: a repeat in the same process and machine after one full read. The OS file cache is not dropped (that needs privileges)."
+    }
+   },
+   "definitions": {
+    "cold": "derived retrieval cache removed; OS cache not flushed",
+    "warm": "same process, same machine, existing validated index",
+    "rebuild": "corrupt derived SQLite payload, then reconstruction",
+    "response": "complete structured first page, UTF-8 bytes"
+   },
+   "tokens": {
+    "status": "not_measured",
+    "reason": "no tokenizer supplied"
+   },
+   "model": {
+    "status": "not_run",
+    "reason": "deterministic model-free evaluation"
+   },
+   "query_source": "Supplemental lexical queries authored for #15; #41 labels do not declare search queries",
+   "limits": "First-page recall is separate from complete paged scope; no semantic-answer or real-model success claim",
+   "tasks": [
+    {
+     "id": "old_finding",
+     "query": "야간 배송",
+     "expected_ids": [
+      "e457"
+     ],
+     "returned_ids": [
+      "e21",
+      "e9967",
+      "e25",
+      "e9940",
+      "e64",
+      "e9930",
+      "e76",
+      "e9925"
+     ],
+     "first_page_recall": 0.0,
+     "complete_paged_scope": {
+      "pages": 7,
+      "limit": 100,
+      "returned_unique_ids": 645,
+      "elapsed_ms": 1192.883542040363,
+      "recall": 1.0
+     },
+     "scope": "readable journal records",
+     "cold": {
+      "samples_ms": [
+       278.60729210078716
+      ],
+      "p50_ms": 278.60729210078716,
+      "p95_ms": 278.60729210078716,
+      "max_response_bytes": 9753,
+      "returned": 8,
+      "total": 645,
+      "index": {
+       "adapter": "sqlite",
+       "state": "missing",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "warm": {
+      "samples_ms": [
+       156.29041590727866,
+       171.14774999208748,
+       187.10370804183185,
+       154.70062498934567,
+       168.11008309014142,
+       175.5847919266671,
+       178.5870841704309,
+       153.3613339997828,
+       185.817584162578,
+       175.6100000347942
+      ],
+      "p50_ms": 173.3662709593773,
+      "p95_ms": 187.10370804183185,
+      "max_response_bytes": 9773,
+      "returned": 8,
+      "total": 645,
+      "index": {
+       "adapter": "sqlite",
+       "state": "ready",
+       "fts": true,
+       "rebuilt": false,
+       "answered_from": "index_candidates_and_source"
+      }
+     },
+     "source_direct": {
+      "samples_ms": [
+       187.7145420294255,
+       202.93649984523654,
+       205.5297081824392,
+       186.75070814788342,
+       202.27529108524323,
+       204.16475017555058,
+       212.63029193505645,
+       187.1726659592241,
+       213.75933405943215,
+       228.75533415935934
+      ],
+      "p50_ms": 203.55062501039356,
+      "p95_ms": 228.75533415935934,
+      "max_response_bytes": 9716,
+      "returned": 8,
+      "total": 645,
+      "index": {
+       "adapter": "source",
+       "state": "disabled",
+       "answered_from": "source"
+      }
+     },
+     "rebuild": {
+      "samples_ms": [
+       244.35404199175537
+      ],
+      "p50_ms": 244.35404199175537,
+      "p95_ms": 244.35404199175537,
+      "max_response_bytes": 9753,
+      "returned": 8,
+      "total": 645,
+      "index": {
+       "adapter": "sqlite",
+       "state": "corrupt",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "details": {
+      "e457": {
+       "state": {
+        "state": "current",
+        "made_by": null,
+        "corrected_by": [],
+        "transitions": [
+         "withdrawn"
+        ],
+        "mismatched_updates": []
+       },
+       "legacy_resolved_by": [],
+       "evidence": {
+        "states": {
+         "resolved": 1
+        },
+        "confirmed": 1,
+        "not_resolved": []
+       }
+      }
+     }
+    },
+    {
+     "id": "correction",
+     "query": "세종 성장률",
+     "expected_ids": [
+      "e798",
+      "e9331"
+     ],
+     "returned_ids": [
+      "e9331",
+      "e798"
+     ],
+     "first_page_recall": 1.0,
+     "complete_paged_scope": {
+      "pages": 1,
+      "limit": 100,
+      "returned_unique_ids": 2,
+      "elapsed_ms": 146.03637484833598,
+      "recall": 1.0
+     },
+     "scope": "readable journal records",
+     "cold": {
+      "samples_ms": [
+       247.51254101283848
+      ],
+      "p50_ms": 247.51254101283848,
+      "p95_ms": 247.51254101283848,
+      "max_response_bytes": 2639,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "missing",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "warm": {
+      "samples_ms": [
+       153.5518339369446,
+       164.267250103876,
+       139.13587504066527,
+       157.61966607533395,
+       169.4462918676436,
+       147.05483289435506,
+       166.82958416640759,
+       174.38874999061227,
+       162.09270898252726,
+       171.22254217974842
+      ],
+      "p50_ms": 163.17997954320163,
+      "p95_ms": 174.38874999061227,
+      "max_response_bytes": 2659,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "ready",
+       "fts": true,
+       "rebuilt": false,
+       "answered_from": "index_candidates_and_source"
+      }
+     },
+     "source_direct": {
+      "samples_ms": [
+       215.05304193124175,
+       203.45062506385148,
+       206.2203329987824,
+       200.85312495939434,
+       178.9955000858754,
+       197.67320901155472,
+       182.32708307914436,
+       200.60974988155067,
+       204.4703329447657,
+       182.91704216971993
+      ],
+      "p50_ms": 200.7314374204725,
+      "p95_ms": 215.05304193124175,
+      "max_response_bytes": 2602,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "source",
+       "state": "disabled",
+       "answered_from": "source"
+      }
+     },
+     "rebuild": {
+      "samples_ms": [
+       267.2557500191033
+      ],
+      "p50_ms": 267.2557500191033,
+      "p95_ms": 267.2557500191033,
+      "max_response_bytes": 2639,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "corrupt",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "details": {
+      "e798": {
+       "state": {
+        "state": "current",
+        "made_by": null,
+        "corrected_by": [],
+        "transitions": [
+         "withdrawn"
+        ],
+        "mismatched_updates": []
+       },
+       "legacy_resolved_by": [
+        "e9331"
+       ],
+       "evidence": {
+        "states": {
+         "resolved": 1
+        },
+        "confirmed": 1,
+        "not_resolved": []
+       }
+      },
+      "e9331": {
+       "state": {
+        "state": "current",
+        "made_by": null,
+        "corrected_by": [],
+        "transitions": [
+         "withdrawn"
+        ],
+        "mismatched_updates": []
+       },
+       "legacy_resolved_by": [],
+       "evidence": {
+        "states": {
+         "resolved": 2
+        },
+        "confirmed": 2,
+        "not_resolved": []
+       }
+      }
+     }
+    },
+    {
+     "id": "withdrawal",
+     "query": "연간 합계",
+     "expected_ids": [
+      "e1964",
+      "e8133"
+     ],
+     "returned_ids": [
+      "e8133",
+      "e1964"
+     ],
+     "first_page_recall": 1.0,
+     "complete_paged_scope": {
+      "pages": 1,
+      "limit": 100,
+      "returned_unique_ids": 2,
+      "elapsed_ms": 157.3359169997275,
+      "recall": 1.0
+     },
+     "scope": "readable journal records",
+     "cold": {
+      "samples_ms": [
+       231.28662491217256
+      ],
+      "p50_ms": 231.28662491217256,
+      "p95_ms": 231.28662491217256,
+      "max_response_bytes": 2345,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "missing",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "warm": {
+      "samples_ms": [
+       161.9365829974413,
+       171.76654213108122,
+       142.6332499831915,
+       161.25166695564985,
+       180.43570802547038,
+       154.7620000783354,
+       174.2090831976384,
+       179.53704204410315,
+       177.51279193907976,
+       169.4381250999868
+      ],
+      "p50_ms": 170.602333615534,
+      "p95_ms": 180.43570802547038,
+      "max_response_bytes": 2365,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "ready",
+       "fts": true,
+       "rebuilt": false,
+       "answered_from": "index_candidates_and_source"
+      }
+     },
+     "source_direct": {
+      "samples_ms": [
+       189.20916691422462,
+       202.0755000412464,
+       210.77470784075558,
+       187.0994169730693,
+       203.32604204304516,
+       221.12370817922056,
+       182.89366690441966,
+       207.83954206854105,
+       227.24150004796684,
+       188.30300006084144
+      ],
+      "p50_ms": 202.7007710421458,
+      "p95_ms": 227.24150004796684,
+      "max_response_bytes": 2308,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "source",
+       "state": "disabled",
+       "answered_from": "source"
+      }
+     },
+     "rebuild": {
+      "samples_ms": [
+       277.7523749973625
+      ],
+      "p50_ms": 277.7523749973625,
+      "p95_ms": 277.7523749973625,
+      "max_response_bytes": 2345,
+      "returned": 2,
+      "total": 2,
+      "index": {
+       "adapter": "sqlite",
+       "state": "corrupt",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "details": {
+      "e1964": {
+       "state": {
+        "state": "current",
+        "made_by": null,
+        "corrected_by": [],
+        "transitions": [
+         "withdrawn"
+        ],
+        "mismatched_updates": []
+       },
+       "legacy_resolved_by": [
+        "e8133"
+       ],
+       "evidence": {
+        "states": {},
+        "confirmed": 0,
+        "not_resolved": []
+       }
+      },
+      "e8133": {
+       "state": null,
+       "legacy_resolved_by": [],
+       "evidence": {
+        "states": {
+         "resolved": 1
+        },
+        "confirmed": 1,
+        "not_resolved": []
+       }
+      }
+     }
+    },
+    {
+     "id": "long_korean",
+     "query": "센서",
+     "expected_ids": [
+      "e2440"
+     ],
+     "returned_ids": [
+      "e9",
+      "e9998",
+      "e18",
+      "e9997",
+      "e20",
+      "e9984",
+      "e36",
+      "e9979"
+     ],
+     "first_page_recall": 0.0,
+     "complete_paged_scope": {
+      "pages": 13,
+      "limit": 100,
+      "returned_unique_ids": 1229,
+      "elapsed_ms": 2558.4207081701607,
+      "recall": 1.0
+     },
+     "scope": "readable journal records",
+     "cold": {
+      "samples_ms": [
+       263.64450016990304
+      ],
+      "p50_ms": 263.64450016990304,
+      "p95_ms": 263.64450016990304,
+      "max_response_bytes": 8619,
+      "returned": 8,
+      "total": 1229,
+      "index": {
+       "adapter": "sqlite",
+       "state": "missing",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "warm": {
+      "samples_ms": [
+       193.8130829948932,
+       211.0514589585364,
+       209.4089169986546,
+       178.70499985292554,
+       188.61933308653533,
+       189.9639160837978,
+       199.42174991592765,
+       169.53362501226366,
+       189.64379094541073,
+       211.57166711054742
+      ],
+      "p50_ms": 191.8884995393455,
+      "p95_ms": 211.57166711054742,
+      "max_response_bytes": 8639,
+      "returned": 8,
+      "total": 1229,
+      "index": {
+       "adapter": "sqlite",
+       "state": "ready",
+       "fts": true,
+       "rebuilt": false,
+       "answered_from": "index_candidates_and_source"
+      }
+     },
+     "source_direct": {
+      "samples_ms": [
+       232.35291591845453,
+       209.29529191926122,
+       233.25683292932808,
+       240.37441704422235,
+       229.85616698861122,
+       199.41370887681842,
+       224.47808319702744,
+       221.67375008575618,
+       225.68195802159607,
+       199.6005829423666
+      ],
+      "p50_ms": 225.08002060931176,
+      "p95_ms": 240.37441704422235,
+      "max_response_bytes": 8582,
+      "returned": 8,
+      "total": 1229,
+      "index": {
+       "adapter": "source",
+       "state": "disabled",
+       "answered_from": "source"
+      }
+     },
+     "rebuild": {
+      "samples_ms": [
+       285.1887089200318
+      ],
+      "p50_ms": 285.1887089200318,
+      "p95_ms": 285.1887089200318,
+      "max_response_bytes": 8619,
+      "returned": 8,
+      "total": 1229,
+      "index": {
+       "adapter": "sqlite",
+       "state": "corrupt",
+       "fts": true,
+       "rebuilt": true,
+       "answered_from": "source"
+      }
+     },
+     "details": {
+      "e2440": {
+       "state": {
+        "state": "current",
+        "made_by": null,
+        "corrected_by": [],
+        "transitions": [
+         "withdrawn"
+        ],
+        "mismatched_updates": []
+       },
+       "legacy_resolved_by": [],
+       "evidence": {
+        "states": {},
+        "confirmed": 0,
+        "not_resolved": []
+       }
+      }
+     }
+    }
+   ],
+   "known_text_lookup": {
+    "purpose": "exact known-text lexical lookup, not an unseen question or semantic-recall trial",
+    "query": "평균 주문 금액: 이상치를 빼면 변화가 거의 없다 (지역별 가중 평균). 센서 07의 압력: 기준 기간보다 12% 높다 (합성 데이터). 온라인",
+    "expected_id": "e2440",
+    "returned_ids": [
+     "e2440",
+     "e122",
+     "e9940",
+     "e197",
+     "e9385",
+     "e233",
+     "e9162",
+     "e297"
+    ]
+   },
+   "original_journal": {
+    "before": "97c48f389067128317894ff5a750a2e4f5003d7aa961c4aa227773e150077246",
+    "after": "97c48f389067128317894ff5a750a2e4f5003d7aa961c4aa227773e150077246",
+    "unchanged": true
+   },
+   "recall_pass": true
+  }
+ },
+ "migration": {
+  "S": {
+   "seconds": 1.08,
+   "max_rss_bytes": 33832960,
+   "answer": {
+    "ok": true,
+    "already_migrated": false,
+    "files": 228,
+    "bytes": 2896203,
+    "excluded": 5,
+    "not_copied": 0
+   },
+   "source_tree": {
+    "before": "f7ba13447323a47f12a5b4d3a05fbcc0d773e178bcbc9a1a0b45629e0e456ecf",
+    "after": "f7ba13447323a47f12a5b4d3a05fbcc0d773e178bcbc9a1a0b45629e0e456ecf",
+    "unchanged": true
+   }
+  },
+  "M": {
+   "seconds": 9.09,
+   "max_rss_bytes": 77299712,
+   "answer": {
+    "ok": true,
+    "already_migrated": false,
+    "files": 2036,
+    "bytes": 223090483,
+    "excluded": 5,
+    "not_copied": 0
+   },
+   "source_tree": {
+    "before": "a45e60d72fdc5c0b06319ca03fc51be8507bb4379181fe96c64e53a3003054d1",
+    "after": "a45e60d72fdc5c0b06319ca03fc51be8507bb4379181fe96c64e53a3003054d1",
+    "unchanged": true
+   }
+  }
+ },
+ "reports": {
+  "storage": {
+   "schema": "aelix-analytics.report-storage-eval/1",
+   "recorded_at": "2026-10-31T00:59:24.139119+00:00",
+   "source_commit": "26c28d09289718f0fc499c2975a33f1f59380a4c",
+   "tracked_dirty": false,
+   "command": "uv run --locked python tools/report_storage_eval.py --out <new directory>",
+   "environment": {
+    "python": "3.12.13",
+    "platform": "darwin",
+    "kit_version": "0.32.0"
+   },
+   "fixture": {
+    "kind": "synthetic authored files",
+    "file_count": 2,
+    "attachment_bytes": 1048576
+   },
+   "measurements": [
+    {
+     "operation": "save_v1",
+     "seconds": 0.008893208112567663,
+     "response_utf8_bytes": 836
+    },
+    {
+     "operation": "same_request",
+     "seconds": 0.005838791839778423,
+     "response_utf8_bytes": 839
+    },
+    {
+     "operation": "save_v2",
+     "seconds": 0.006376291858032346,
+     "response_utf8_bytes": 836
+    },
+    {
+     "operation": "list",
+     "seconds": 0.000651082955300808,
+     "response_utf8_bytes": 435
+    },
+    {
+     "operation": "show_v1_metadata",
+     "seconds": 0.0005952920764684677,
+     "response_utf8_bytes": 920
+    },
+    {
+     "operation": "read_v1_file_range",
+     "seconds": 0.0006689589936286211,
+     "response_utf8_bytes": 2392
+    },
+    {
+     "operation": "withdrawn",
+     "seconds": 0.0022018749732524157,
+     "response_utf8_bytes": 653
+    },
+    {
+     "operation": "current",
+     "seconds": 0.0021746670827269554,
+     "response_utf8_bytes": 651
+    }
+   ],
+   "assertions": {
+    "same_request_existing": true,
+    "v1_hashes_unchanged_after_v2_and_state_updates": true
+   },
+   "preserved_v1_sha256": {
+    "content/attachment.bin": "fbbab289f7f94b25736c58be46a994c441fd02552cc6022352e3d86d2fab7c83",
+    "content/요약.md": "1fac39c6837dc06de260135e6833f5edce1c117181adbdbaf5a299d5f1a874b5",
+    "manifest.json": "0a85006548acd7dc84304d2dfb8d82337d2b075816d50b6d24a3450afb65e451"
+   },
+   "not_run": [
+    "generation",
+    "ReportRenderer",
+    "Workspace UI",
+    "real model",
+    "owner acceptance"
+   ],
+   "tokens": {
+    "status": "not_measured"
+   }
+  },
+  "collections": {
+   "schema": "aelix-analytics.report-collection-eval/1",
+   "recorded_at": "2026-10-31T00:59:24.517667+00:00",
+   "source_commit": "26c28d09289718f0fc499c2975a33f1f59380a4c",
+   "tracked_dirty": false,
+   "environment": {
+    "python": "3.12.13",
+    "platform": "darwin",
+    "kit_version": "0.32.0"
+   },
+   "command": "uv run --locked python tools/report_collection_eval.py --out <new directory>",
+   "fixture": {
+    "kind": "synthetic authored reports",
+    "requested": 20,
+    "initial_complete": 18,
+    "authored_bytes": 39
+   },
+   "measurements": [
+    {
+     "operation": "authored_fixture_generation",
+     "seconds": 5.7791825383901596e-05
+    },
+    {
+     "operation": "save_member_0",
+     "seconds": 0.0033522089943289757
+    },
+    {
+     "operation": "save_member_1",
+     "seconds": 0.002867083065211773
+    },
+    {
+     "operation": "save_member_2",
+     "seconds": 0.0039472500793635845
+    },
+    {
+     "operation": "save_member_3",
+     "seconds": 0.00488212495110929
+    },
+    {
+     "operation": "save_member_4",
+     "seconds": 0.0074518749024719
+    },
+    {
+     "operation": "save_member_5",
+     "seconds": 0.00987125001847744
+    },
+    {
+     "operation": "save_member_6",
+     "seconds": 0.010384791065007448
+    },
+    {
+     "operation": "save_member_7",
+     "seconds": 0.008983374806120992
+    },
+    {
+     "operation": "save_member_8",
+     "seconds": 0.010145792039111257
+    },
+    {
+     "operation": "save_member_9",
+     "seconds": 0.009757625171914697
+    },
+    {
+     "operation": "save_member_10",
+     "seconds": 0.010182416997849941
+    },
+    {
+     "operation": "save_member_11",
+     "seconds": 0.01253541698679328
+    },
+    {
+     "operation": "save_member_12",
+     "seconds": 0.012405750108882785
+    },
+    {
+     "operation": "save_member_13",
+     "seconds": 0.011942791054025292
+    },
+    {
+     "operation": "save_member_14",
+     "seconds": 0.015888500027358532
+    },
+    {
+     "operation": "save_member_15",
+     "seconds": 0.01383100007660687
+    },
+    {
+     "operation": "save_member_16",
+     "seconds": 0.01443212479352951
+    },
+    {
+     "operation": "save_member_17",
+     "seconds": 0.015020166989415884
+    },
+    {
+     "operation": "save_collection_v1",
+     "seconds": 0.019423875026404858
+    },
+    {
+     "operation": "same_request",
+     "seconds": 0.01382345799356699
+    },
+    {
+     "operation": "collection_metadata_query",
+     "seconds": 0.006258666981011629
+    },
+    {
+     "operation": "collection_verified_query",
+     "seconds": 0.0074537089094519615
+    },
+    {
+     "operation": "save_collection_v2",
+     "seconds": 0.02231783396564424
+    },
+    {
+     "operation": "render_v1",
+     "seconds": 0.016004999866709113
+    },
+    {
+     "operation": "render_v1_again",
+     "seconds": 0.00018225004896521568
+    }
+   ],
+   "metadata_response_utf8_bytes": 3585,
+   "rendered_bytes": 357,
+   "preserved_v1_sha256": {
+    "manifest.json": "dc23c60b6f1618168bf2dbbaa56e99c7c8ecd5841a2dec63948f005c2892d88f",
+    "content/요약.md": "9debeb9d1d4766d19bb14529299f626e5c70a9a644f7872ccd8661f48e755dfc",
+    "content/_analytics/metadata.json": "a1648e3a59871a0e7949c02574807818bf7c054eba3c277c5246f8016ca06244"
+   },
+   "assertions": {
+    "partial_counts": true,
+    "failed_member_added_as_new_snapshot": true,
+    "same_request_existing": true,
+    "repeat_render_deterministic": true,
+    "v1_bytes_metadata_membership_unchanged": true
+   },
+   "not_run": [
+    "actual model/generator",
+    "Workspace integration",
+    "browser UI",
+    "owner acceptance",
+    "publication shareability"
+   ],
+   "tokens": {
+    "status": "not_measured"
+   }
+  }
+ },
+ "gates": {
+  "Q1": "pass except the support table: refilling docs/SUPPORT.md from the candidate is PR-4",
+  "Q4": "pass",
+  "Q7": "pass",
+  "Q8": "pass",
+  "Q9": "pass (measured scope: one macOS machine, S and M)",
+  "Q10": "display boundary pass; analysis checks not_run (model tasks, PR-3)",
+  "Q12": "deterministic cases pass; new-session resume not_run (model tasks, PR-3)",
+  "Q15": "pass",
+  "Q16": "pass",
+  "Q2": "not_run",
+  "Q3": "not_run (deterministic recall and response bytes: retrieval)",
+  "Q5": "not_run",
+  "Q6": "not_run (owner)",
+  "Q11": "not_run",
+  "Q13": "not_run",
+  "Q14": "not_run (owner's other device)",
+  "Q17-a": "kit 0.25.0 record; the candidate's re-measurement is recorded separately"
+ },
+ "kit_has_no_model_client": "no model or HTTP client in the imports of src/ and extension/; socket is used for gethostname only; the uv sync that makes environments is a separate process",
+ "not_run": [
+  "bytes read from disk (Q9): no portable counter in the standard library",
+  "Q9 on Linux and Windows, L scale",
+  "Q10 analysis-check verdicts and Q12 new-session resume: model campaign (PR-3)",
+  "Q17-a on the candidate: tools/human_e2e.py, separately"
+ ],
+ "reviews": {
+  "basis": "1693cbb",
+  "codex": {
+   "model": "gpt-6.1-sol",
+   "effort": "xhigh",
+   "must_fix": 5,
+   "minor": 2
+  },
+  "independent": {
+   "must_fix": 4,
+   "minor": 7
+  },
+  "fixed_in": "80a8510 (tool and tests) and the record commit",
+  "left": [
+   "the copy checks compare the journal only (Codex minor)",
+   "retrieval_eval's v2 path has no test of its own (independent minor)"
+  ]
+ }
+}

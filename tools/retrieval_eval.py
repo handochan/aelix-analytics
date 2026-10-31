@@ -1,6 +1,7 @@
 """Measure Issue #15 on an existing #41 scale fixture; never generate or rewrite its records.
 
-Generate with tools/eval_fixtures.py, optionally migrate its synthetic project explicitly, then:
+Generate with tools/eval_fixtures.py, then give a v1 fixture's synthetic project migrated explicitly
+(a copy), or a copy of a v2 fixture's project as it is (#24, B6: what this kit writes), and:
 python tools/retrieval_eval.py --fixture FIXTURE --project PROJECT --out NEW_DIR --repeats 10
 Cold means derived retrieval cache absent, not an OS page-cache flush. Warm repeats in this process.
 No model/tokenizer/host runs: bytes are bytes and every token value is not_measured.
@@ -59,11 +60,16 @@ def main(argv=None):
     manifest = json.loads((fixture / "manifest.json").read_text(encoding="utf-8"))
     if manifest.get("kind") != "scale" or manifest.get("seed") != 0:
         parser.error("use the generator's scale fixture with seed 0")
-    if manifest.get("format", "v1") != "v1":
-        # What this measures is the explicitly migrated copy of a v1 fixture (the report says so).
-        parser.error("use a v1 fixture (--format v1): this measures its explicitly migrated copy")
+    fmt = manifest.get("format", "v1")
+    if fmt not in ("v1", "v2"):
+        parser.error(f"format {fmt!r}: use a v1 or v2 fixture")
     original = fixture / manifest["project"] / "journal.jsonl"
     before = digest(original)
+    if fmt == "v2":
+        # The fixture's project is in this kit's format: a copy of it is measured, never the fixture.
+        copy = Path(args.project).resolve() / "journal.jsonl"
+        if copy == original.resolve() or not copy.is_file() or digest(copy) != before:
+            parser.error("give a copy of the v2 fixture's project (the measurement writes its cache)")
     p = core.Project(args.project)
     model = core.read_model(p)
     cases = {case["id"]: case["records"] for case in manifest["cases"]}
@@ -75,12 +81,13 @@ def main(argv=None):
              ("long_korean", "센서", [long_id])]
     cache = p.cache / "retrieval.sqlite3"
     if core.admit(p, "measure the synthetic retrieval cache", side=True) is None:
-        parser.error("project must be an explicitly migrated synthetic copy for cache measurements")
+        parser.error("project must be a synthetic copy this kit writes (a v1 fixture's migrated explicitly)")
     out.mkdir(parents=True, exist_ok=True)
     report = {"schema": "aelix-analytics.retrieval-evaluation/1",
               "fixture": {"scale": manifest["scale"], "digest": manifest["digest"],
-                          "generator": manifest["generator"], "source_kit_commit": eval_fixtures.V1_KIT_COMMIT,
-                          "format": manifest["format"], "migrated_copy": True},
+                          "generator": manifest["generator"],
+                          "source_kit_commit": eval_fixtures.V1_KIT_COMMIT if fmt == "v1" else manifest["kit_commit"],
+                          "format": fmt, "migrated_copy": fmt == "v1"},
               "environment": eval_fixtures.environment_record(p.root),
               "definitions": {"cold": "derived retrieval cache removed; OS cache not flushed",
                               "warm": "same process, same machine, existing validated index",

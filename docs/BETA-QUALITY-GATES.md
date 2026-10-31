@@ -40,7 +40,8 @@ provider와 소유자의 aelix 로그인으로 부르는 `gpt-5.6-sol`이다(con
 수치가 있는 항목은 초기 수용 목표다. 구현 전에 fixture·장비·모델·측정법을 확정하고, 조정하면 이유를 남긴다.
 토큰·문자 수 목표는 **성능 측정 기준**이다. 수치 초과만으로 실행을 제한하거나 출시를 실패 처리하지 않는다.
 계측의 정확성, 과제 품질·비용 비교, 필요한 정보에 계속 접근할 수 있는지를 검증한다.
-아래 모든 항목은 **미통과/미검증** 상태다. 기존 README의 과거 테스트 결과가 새 설계의 통과 증거를 대신하지 않는다.
+아래 항목의 결과는 출시 후보로 잰 [§7의 결과표](#7-기여출시-기록의-형식)에 적는다. 기존 README의 과거 테스트 결과가 새 설계의 통과 증거를
+대신하지 않는다.
 
 | ID | 출시 전에 확인할 것 | 통과 증거 |
 |---|---|---|
@@ -84,7 +85,8 @@ PyPI 자리의 loopback 색인, aelix의 확장 명령, kit 0.25.0 wheel에서�
 [ADR-0001](decisions/0001-evolvable-platform-boundaries.md)(2026-10-03 채택, 채택은 구현 완료가 아님)의 구조를 따르는 구현은 다음을 확인한다.
 항목별로 맡는 Issue는 그 ADR의 [구현에서 확인할 것](decisions/0001-evolvable-platform-boundaries.md#구현에서-확인할-것)에 있다.
 역방향 import 검사(`tests/test_layers.py`, 계층표는 [아키텍처 §11](ARCHITECTURE.md#계층과-의존-방향-검사))와 플랫폼 포트 세 구현의 공통 계약 시험
-(`tests/test_contracts.py`)은 #43부터 저장소 CI에서 돈다. 정책 Strategy의 계약 시험(#17·#20)과 나머지 항목은 남았고, Q15의 판정은 출시 결과표가 한다.
+(`tests/test_contracts.py`)은 #43부터 저장소 CI에서 돈다. 정책 Strategy의 교체 시험은 #17(`ProposalPolicy`, `tests/test_asset_contract.py`)과
+#20(`PublicationProjection`)·#19(`ReportRenderer`, 둘 다 `tests/test_contracts.py`)가 더했다. Q15의 판정은 출시 결과표가 한다.
 
 - core의 의미·읽기 흐름이 Aelix·UI·분석 라이브러리 없이 실제로 호출된다. import만 성공하는 것을 독립성 증거로 삼지 않는다.
 - 대표 Strategy 또는 adapter를 대체해도 ID·버전·근거·상태 계약이 유지된다. 명목적인 base class 상속만 시험하지 않는다.
@@ -382,7 +384,18 @@ PR에는 문제를 재현하는 입력, 변경 후 행동, 바뀐 계약, 비교
 
 | Gate | 결과(pass/fail/not run) | commit·artifact | 환경·모델 | 수행자 | 증거 경로 | 제한·후속 작업 |
 |---|---|---|---|---|---|---|
-| Q1–Q16 각각 | 미실행 | 미정 | 미정 | 미정 | 미정 | 구현·검증 필요 |
+| Q1 | pass(지원표 제외) | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), release `verify` 세 OS(41150700659), aelix 0.1.0b2 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | 후보로 다시 채운 지원표(PR-4). PyPI에서 이름으로 설치는 게시 뒤 |
+| Q2·Q3·Q5·Q11·Q13 | not run | — | — | — | — | 모델 캠페인(#24 PR-3). Q3의 결정적 회수·응답 bytes는 Q9 행의 기록 |
+| Q4 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), macOS 26.6.2 arm64 로컬, 모델 없음(S·M fixture `check`) | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | — |
+| Q6 | not run | — | — | — | — | 소유자의 사람 탐색 |
+| Q7 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), macOS 26.6.2 arm64 로컬, 모델 없음(S·M `v1` 전환) | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | — |
+| Q8 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492) | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | — |
+| Q9 | pass(측정 범위) | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`), 도구 `056760d`·`80a8510` | macOS 26.6.2 arm64 로컬, 모델 없음, Chromium 156 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | Linux·Windows·L 규모·읽은 파일량 미측정. M에서 run 끝의 전체 빌드 6.3초 |
+| Q10 | 표시 경계 pass, 분석 검사 not run | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), macOS 26.6.2 arm64 로컬, 모델 없음, Chromium 156 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | 분석 검사 예제의 판정은 모델 과제(PR-3) |
+| Q12 | 결정적 사례 pass, 새 세션 재개 not run | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492) | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | 새 세션 재개는 모델 과제(PR-3) |
+| Q14 | not run(아래 #20·#21 몫은 pass) | — | — | — | — | 소유자의 다른 기기 열람 |
+| Q15 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), floor 3.11 세 OS | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | — |
+| Q16 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), macOS 26.6.2 arm64 로컬, 모델 없음 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | 사람의 Reports 탐색은 Q6 |
 | Q17-a 기능 | pass(Workspace 이동 미측정) | kit 0.25.0 wheel `660beb63…` | macOS 26.6.2, sandbox, 모델 없음 | 에이전트(2026-10-21 소유자 결정으로 갈음) | [2026-10-22-issue-23-q17](verification/2026-10-22-issue-23-q17.md) | 측정 범위의 `not_covered` |
 | Q17-a 사람의 사용성 | not_run | — | — | — | 같음 | 소유자 결정으로 갈음(#39를 좁힘) |
 | Q17-b | pass | 같음, aelix 0.1.0b2 | gpt-6.1-sol, Qwen3.8 27B(OpenRouter) | 에이전트 세션 + 소유자 검토 | 같음 | 세션은 터미널 없이 에이전트가 띄움. OpenRouter 서빙 미고정 |

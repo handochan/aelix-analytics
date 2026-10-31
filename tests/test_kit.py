@@ -1,6 +1,8 @@
+import hashlib
 import json
 import os
 import re
+import shutil
 import time
 import tomllib
 from html.parser import HTMLParser
@@ -1719,3 +1721,25 @@ def test_the_kit_names_the_analytics_commands(project, tmp_path):
     assert f'aelix: analytics_run(title="Rerun comparison", rerun_of="{ran["run"]["id"]}")' in page
     code, refused = kit_cli(project, "demo")
     assert code == 1 and refused["error"]["hint"].startswith("analytics demo NEW_DIR"), refused
+
+
+def test_a_workspace_that_cannot_be_built_after_a_run_is_told_and_the_run_kept(project):
+    """Q8 (#24, B6): the Workspace failing at a run's end is the run's `workspace_error`, not a failed
+    run and not a hidden one; the run's record, its outputs and its journal line are all there."""
+    workspace = core.Project(project).workspace_dir
+    shutil.rmtree(workspace)
+    workspace.write_text("not a directory", encoding="utf-8")
+    code, result = _run(project, write_script(project, "13_after.py", ANALYTICS_API), "after")
+    assert code == 0 and result["run"]["status"] == "ok", result
+    assert "workspace" not in result and result["workspace_error"].startswith(
+        ("FileExistsError", "NotADirectoryError", "FileNotFoundError", "OSError")), result["workspace_error"]
+    run_id = result["run"]["id"]
+    stored = json.loads((project / "runs" / run_id / "run.json").read_text(encoding="utf-8"))
+    assert stored["status"] == "ok" and not stored.get("finalize_errors"), stored
+    # The outputs are there, with the bytes the record names.
+    outputs = {o["path"]: o["sha256"] for o in stored["outputs"]}
+    assert "data/derived/region_revenue.parquet" in outputs
+    for path, sha in outputs.items():
+        assert hashlib.sha256((project / path).read_bytes()).hexdigest() == sha, path
+    events = core.read_events(core.Project(project))
+    assert result["event"] == events[-1]["id"] and run_id in json.dumps(events[-1]["refs"])
