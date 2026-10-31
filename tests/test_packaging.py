@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import importlib.util
 import io
 import json
 import os
@@ -43,6 +44,9 @@ from conftest import OLD_ENV, checkout_eol, record_observation, tracked_kit_sha
 from aelix_analytics import cli, core
 
 PACK = Path(__file__).resolve().parents[1]
+spec = importlib.util.spec_from_file_location("release_check", PACK / "tools" / "release_check.py")
+release_check = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(release_check)
 UV = shutil.which("uv")
 POSIX = os.name != "nt"
 FLOOR, CURRENT = "3.11", "3.12"
@@ -230,6 +234,52 @@ def test_the_wheel_metadata(dist):
         f"Changelog, {repository}/blob/main/CHANGELOG.md", f"Security, {repository}/blob/main/SECURITY.md"]
 
 
+def test_the_index_page_links_this_version_s_documents(dist):
+    """A package index shows the description, README, where a link relative to the checkout leads
+    nowhere (Issue #24). The build points each one at this version's tag on GitHub and changes nothing
+    else: putting the relative links back gives README."""
+    meta, _ = wheel_metadata(dist["wheel"])
+    assert meta["Description-Content-Type"] == "text/markdown"
+    description = meta.get_payload()
+    assert release_check.link_targets(description) and release_check.relative_links(description) == []
+    tag = f"https://github.com/handochan/aelix-analytics/blob/v{pyproject()['project']['version']}/"
+    readme = (PACK / "README.md").read_text(encoding="utf-8")
+    assert tag not in readme
+    assert description.replace(f"{tag}README.md#", "#").replace(tag, "") == readme
+    # The substitutions do not know code, so the commands a reader copies from the page are checked
+    # apart: PowerShell's `[Console]::OutputEncoding` once read as a reference definition.
+    assert code_of(description) == code_of(readme)
+
+
+def code_of(text: str) -> list[str]:
+    """The fenced blocks and the inline code spans outside them, in order."""
+    fence = re.compile(r"^(`{3,}|~{3,})[^\n]*\n.*?^\1[ \t]*$", re.M | re.S)
+    return [m[0] for m in fence.finditer(text)] + re.findall(r"`[^`\n]+`", fence.sub("", text))
+
+
+def test_the_index_page_rewrite_takes_every_markdown_link_form():
+    """pyproject's substitutions, as the plugin applies them (re.sub in order, then the version), on
+    the link forms README could gain; README has only plain inline links today. An HTML link stays
+    relative, and release_check finds it, so the test above would fail on one."""
+    substitutions = pyproject()["tool"]["hatch"]["metadata"]["hooks"]["fancy-pypi-readme"]["substitutions"]
+    text = textwrap.dedent("""\
+        [a](docs/A.md) [b](#part) [c](docs/B.md#x "a title") [d](<docs/C.md>) [e](https://example.org/)
+        [f]: docs/F.md
+        [g]: #part
+          [h]: <docs/H.md> "a title"
+        <a href="docs/I.md">i</a>
+        [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+        """)
+    for substitution in substitutions:
+        text = re.sub(substitution["pattern"], substitution["replacement"], text)
+    tag = "https://github.com/handochan/aelix-analytics/blob/v$HFPR_VERSION/"
+    assert release_check.link_targets(text) == [
+        f"{tag}docs/A.md", f"{tag}README.md#part", f"{tag}docs/B.md#x", f"{tag}docs/C.md",
+        "https://example.org/", f"{tag}docs/F.md", f"{tag}README.md#part", f"{tag}docs/H.md", "docs/I.md"]
+    assert release_check.relative_links(text) == ["docs/I.md"]
+    assert text.endswith("\n[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()\n")
+
+
 def test_the_current_contract_names_the_kit_s_version():
     """The current contract's distribution row states the version (CONTRACTS E): kept equal to
     KIT_VERSION and pyproject.toml, which a version bump changes together (review of PR 3: one bump
@@ -314,7 +364,11 @@ def test_the_sdist_builds_the_same_wheel(dist, tmp_path):
     out = tmp_path / "from-sdist"
     ok([UV, "build", "--quiet", "--wheel", "-o", out, dist["sdist"]], timeout=600)
     [again] = out.glob("*.whl")
-    assert again.read_bytes() == dist["wheel"].read_bytes()
+    assert archive_content(again) == archive_content(dist["wheel"])
+    # The release's wheel was built on Linux; built again here on Windows, only the zip headers differ
+    # (archive_content). The release rehearsal's Windows check stopped on this (run 41007605467).
+    if POSIX or not GIVEN:
+        assert again.read_bytes() == dist["wheel"].read_bytes()
 
 
 def test_the_sdist_installs_the_same_package(dist, tmp_path):

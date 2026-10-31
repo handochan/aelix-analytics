@@ -54,7 +54,12 @@ def test_a_tag_has_to_be_v_and_the_version():
     assert result["problems"] == [f"the tag is {VERSION!r}, the version {VERSION!r} wants 'v{VERSION}'"]
 
 
-@pytest.mark.parametrize("where", ["kit_version", "manifest", "readme", "changelog", "changelog_date"])
+LINK_FORMS = {"changelog_link": "[README](README.md#설치본wheel으로-쓰기)",
+              "changelog_titled_link": '[README](README.md "설치")',
+              "changelog_reference": "[README][r]\n\n[r]: README.md"}
+
+
+@pytest.mark.parametrize("where", ["kit_version", "manifest", "readme", "changelog", "changelog_date", *LINK_FORMS])
 def test_any_place_that_names_another_version_fails(tmp_path, where):
     root = pack_copy(tmp_path)
     other = "9.9.9"
@@ -73,6 +78,11 @@ def test_any_place_that_names_another_version_fails(tmp_path, where):
         swap("README.md", f"aelix_analytics-{VERSION}-py3-none-any.whl", f"aelix_analytics-{other}-py3-none-any.whl")
     elif where == "changelog":
         swap("CHANGELOG.md", f"## [{VERSION}]", f"## [{other}]")
+    elif where in LINK_FORMS:
+        # The release notes are this section on the GitHub Release page, where README.md is no file.
+        link = LINK_FORMS[where]
+        heading = re.search(rf"^## \[{re.escape(VERSION)}\].*$", (root / "CHANGELOG.md").read_text(encoding="utf-8"), re.M)[0]
+        swap("CHANGELOG.md", heading, f"{heading}\n\n{link}")
     else:
         text = (root / "CHANGELOG.md").read_text(encoding="utf-8")
         text = re.sub(rf"^## \[{re.escape(VERSION)}\] - \d{{4}}-\d{{2}}-\d{{2}}$", f"## [{VERSION}]",

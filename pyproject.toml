@@ -2,7 +2,8 @@
 name = "aelix-analytics"
 version = "0.32.0"
 description = "Agent-native analytics projects with durable context, metrics, evidence, and reports"
-readme = "README.md"
+# README, as the build rewrites its links ([tool.hatch.metadata.hooks.fancy-pypi-readme] below).
+dynamic = ["readme"]
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 # The GitHub handle only, no email (owner's decision of 2026-10-07, Issue #24); the manifest's
@@ -45,10 +46,38 @@ aelix-analytics = "aelix_analytics.extension:setup"
 # of src/aelix_analytics becomes aelix_analytics/kit/aelix_analytics/, which makes aelix_analytics/kit/
 # the runtime root: the one directory a child gets on PYTHONPATH (Issue #9). force-include walks the directory without
 # .gitignore (only __pycache__ is left out), so build from a clean checkout; the tests check the
-# members. Pinned so a build does not drift with the backend.
+# members. Pinned so a build does not drift with the backend or its readme plugin.
 [build-system]
-requires = ["hatchling==1.32.4"]
+requires = ["hatchling==1.32.4", "hatch-fancy-pypi-readme==25.1.0"]
 build-backend = "hatchling.build"
+
+# A package index shows the description, README, where a link relative to the checkout leads nowhere
+# (Issue #24). The build points each one at that document in this version's tag on GitHub; the
+# plugin puts in the version after the substitutions. Nothing else in README changes. The forms are
+# inline links (titled or not) and reference definitions, an anchor first, and not PowerShell's
+# `[Console]::`; an HTML link is not rewritten. The packaging test fails on a relative link left
+# (tools/release_check.py's LINKS) and on any change to code (independent review of the candidate).
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+content-type = "text/markdown"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "README.md"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '\]\((\s*<?)#'
+replacement = '](\1https://github.com/handochan/aelix-analytics/blob/v$HFPR_VERSION/README.md#'
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '\]\((\s*<?)(?![a-zA-Z][a-zA-Z0-9+.-]*:)(?=[^)\s>])'
+replacement = '](\1https://github.com/handochan/aelix-analytics/blob/v$HFPR_VERSION/'
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '(?m)^( {0,3}\[[^\]]+\]:\s*<?)#'
+replacement = '\1https://github.com/handochan/aelix-analytics/blob/v$HFPR_VERSION/README.md#'
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '(?m)^( {0,3}\[[^\]]+\]:\s*<?)(?![a-zA-Z][a-zA-Z0-9+.-]*:)(?=[^\s>:])'
+replacement = '\1https://github.com/handochan/aelix-analytics/blob/v$HFPR_VERSION/'
 
 [tool.hatch.build.targets.wheel]
 only-include = ["src/aelix_analytics"]

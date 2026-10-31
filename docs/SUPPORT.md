@@ -7,7 +7,8 @@ Aelix Analytics를 어떤 Python·운영체제·aelix·설치 경로에서 **실
 확장, 확장이 로드하는 stdlib core)이 3.11 이상, 분석 프로젝트 환경이 3.12 이상이다([ADR-0004](decisions/0004-minimal-distribution-and-entry-points.md) 결정 3).
 목표와 검증 결과를 한 칸에 합치지 않는다: 이 표에는 실제 설치·실행 증거가 있는 조합만 `verified`로 적는다(ADR-0002 결정 1,
 [베타 품질 기준](BETA-QUALITY-GATES.md)의 Q1).
-배포본은 아직 어디에도 게시하지 않았으므로 아래의 '설치'는 체크아웃에서 빌드한 wheel의 설치다([변경 이력](../CHANGELOG.md)).
+아래의 '설치'는 각 칸의 증거가 설치한 파일이다. 체크아웃에서 빌드한 wheel인지 릴리스 후보의 파일(`docs/releases/<번호>.sha256`)인지는
+그 증거에 적는다. 게시한 번호는 [변경 이력](../CHANGELOG.md)에 있다.
 무엇을 약속하고 무엇을 약속하지 않는지는 [현재 계약](CONTRACTS.md)이 기준이다. 이 문서는 그 F절이 인용하는 측정 기록과 main의 CI
 실행 결과를 조합별로 모은 것이다.
 보안 문제의 신고는 [SECURITY.md](../SECURITY.md)에 있다.
@@ -99,7 +100,7 @@ CI-main에서 확인한 것(이 실행의 artifact는 2027-01-05에 지워지므
 | 이름으로 `uv tool install aelix==0.1.0b2 --with aelix-analytics --with-executables-from aelix-analytics`·`uv tool upgrade aelix`·`uv tool uninstall aelix`(같은 색인을 먼저 묻는 색인으로) | `verified`(CI-PR1) | `verified`(CI-PR1) | `verified`(CI-PR1) | `test_aelix_takes_the_extension_and_its_command_from_an_index` |
 | `--with-executables-from aelix-analytics`를 wheel 경로로 | `expected`: 위의 이름 설치와 같은 uv 경로이고 wheel 경로로는 실행하지 않았다 | `expected` | `expected` | |
 | 이전 버전 위의 업그레이드: kit 0.25.0 wheel(`660beb63…`, Q17에서 쓴 것. 그 commit을 다시 빌드하면 Linux·macOS에서는 같은 바이트, Windows에서는 zip 헤더만 다르고 멤버와 내용이 같다) → 이 버전. 같은 `uv tool install` 줄을 새 wheel로, 위의 색인과 aelix 경로. 이전 버전이 만든 프로젝트를 이어 씀 | `verified`(CI-PR1) | `verified`(CI-PR1) | `verified`(CI-PR1) | `test_a_newer_wheel_file_replaces_the_earlier_one`, 위의 네 시험 |
-| 실제 PyPI에서 이름으로 설치 | `not run`(게시 전) | `not run` | `not run` | |
+| 실제 PyPI에서 이름으로 설치 | `not run`(이 표를 채울 때 게시 전) | `not run` | `not run` | |
 
 macOS 열에 `d23ddb8`로 적은 `verified`는 그 commit의 결과다. 그때는 macOS를 라벨·수동·주간 실행에서만 돌렸고, 2026-10-21(#22)부터는
 세 OS가 모든 PR과 main push에서 돈다([기여 가이드](../CONTRIBUTING.md#저장소-ci)). CI-PR1로 적은 칸은 그 실행의 결과다.

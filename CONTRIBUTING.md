@@ -119,7 +119,7 @@ python3.11 tools/platform_smoke.py --stdlib-only --gate required --output .devst
 다시 체크아웃하세요(`git rm -r --cached -q . && git reset --hard`). CI는 매번 새로 체크아웃하므로 해당하지 않습니다.
 
 `tests/test_packaging.py`는 `uv build`로 wheel과 sdist를 만들어 체크아웃 밖의 새 환경에 설치합니다(wheel은 3.11·3.12, sdist는 3.12). 빌드
-backend(hatchling)는 네트워크나 uv 캐시에서 받습니다. 추적하지 않은 파일이 `src/aelix_analytics`에 있으면
+backend(hatchling)와 그 README plugin(hatch-fancy-pypi-readme)은 네트워크나 uv 캐시에서 받습니다. 추적하지 않은 파일이 `src/aelix_analytics`에 있으면
 wheel에(package와 실행 루트의 사본 두 곳에) 들어가 구성원 시험이 실패합니다. 소스 트리에서 wheel을 바로 만들면(`uv build --wheel`)
 Git이 무시하는 파일(`.demo/`, `__pycache__` 밖의 `*.pyc` 등)도 실행 루트의 사본에 들어갑니다. `force-include`는 `.gitignore`를 보지
 않기 때문입니다. 그래서 배포본은 깨끗한 체크아웃에서 빌드하고, 빌드 전에 `git clean -ndx src/aelix_analytics`가 `__pycache__/` 말고
@@ -204,8 +204,9 @@ uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with tokeni
 | `docs/BETA-QUALITY-GATES.md` | `tests/test_eval_fixtures.py` |
 | `docs/schemas/` | 기록·상태 schema: `tests/test_record_contract.py`·`tests/test_writer.py` 등과 `tests/test_doc_checks.py` |
 | `docs/templates/WORK-STATE.example.json` | `tests/test_doc_checks.py` |
-| `README.md` | wheel의 설명(`pyproject.toml`의 `readme`), `tests/test_packaging.py`, 개발 명령의 aelix 고정값: `tests/test_ci_workflow.py` |
+| `README.md` | wheel의 설명(`pyproject.toml`의 `dynamic = ["readme"]`과 `[tool.hatch.metadata.hooks.fancy-pypi-readme]`: 상대 링크를 그 버전 tag의 주소로 바꿈), `tests/test_packaging.py`, 개발 명령의 aelix 고정값: `tests/test_ci_workflow.py` |
 | `CONTRIBUTING.md` | 명령과 고정값: `tests/test_ci_workflow.py` |
+| `CHANGELOG.md` | 그 번호 절의 날짜와 전체 주소 링크(릴리스 노트): `tools/release_check.py`(`tests/test_release_check.py`) |
 | `.github/project.json` | 연결 값: `tools/check_docs.py` |
 
 `src/` 아래의 Markdown(새 프로젝트의 템플릿 등)은 배포본에 들어가는 kit 파일이라 문서가 아닙니다.
@@ -340,7 +341,7 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 
 ## 배포와 운영 결정
 
-배포 이름은 `aelix-analytics`입니다(2026-10-17 소유자 결정, [#24](https://github.com/handochan/aelix-analytics/issues/24)). 게시 위치는 PyPI와 GitHub Release이고, 절차는 아래 [릴리스 절차](#릴리스-절차)입니다(2026-10-30 소유자 결정, #24). 아직 게시한 버전은 없습니다.
+배포 이름은 `aelix-analytics`입니다(2026-10-17 소유자 결정, [#24](https://github.com/handochan/aelix-analytics/issues/24)). 게시 위치는 PyPI와 GitHub Release이고, 절차는 아래 [릴리스 절차](#릴리스-절차)입니다(2026-10-30 소유자 결정, #24). 게시는 kit 0.32.0부터입니다.
 관리자는 GitHub 핸들 [@handochan](https://github.com/handochan)이며 이메일은 적지 않습니다(2026-10-07 결정, `pyproject.toml`의 `authors`·`maintainers`).
 보안 취약점은 GitHub의 비공개 취약점 신고로 받고 공개 Issue로 받지 않습니다([SECURITY.md](SECURITY.md), 2026-10-07 결정). 저장소는 공개이고, 그 신고와 secret scanning·push protection·Dependabot 보안 알림을 켰습니다(2026-10-21, #22). 보안 수정을 받는 버전, 응답 기한과 공지는 [SECURITY.md](SECURITY.md#지원하는-버전과-처리)에 있습니다(2026-10-30 결정, #24).
 라이선스는 Apache License 2.0입니다([LICENSE](LICENSE), 2026-09-30 결정).
@@ -354,16 +355,16 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 
 릴리스는 측정한 파일을 그대로 게시합니다. 측정한 뒤에는 다시 빌드한 파일이 그 바이트인지 대조할 뿐, 다른 파일을 올리지 않습니다(2026-10-30 소유자 결정, #24).
 
-1. **후보를 고정합니다.** 번호를 올리는 PR을 main에 병합합니다. pyproject·`KIT_VERSION`·manifest·README의 wheel 이름이 한 번호이고, CHANGELOG에 날짜가 있는 그 번호의 절이 있어야 합니다(`tools/release_check.py version`). README는 wheel의 설명이 되어 그 버전의 PyPI 페이지에 남으므로, 이 PR에서 "아직 게시하지 않았다" 같은 시점의 문장을 게시한 뒤에도 맞는 문장으로 바꿉니다.
+1. **후보를 고정합니다.** 후보 PR을 main에 병합합니다. 후보의 번호는 아직 `docs/releases/`에 없는 번호입니다(이미 후보로 기록한 번호면 이 PR에서 올립니다). pyproject·`KIT_VERSION`·manifest·README의 wheel 이름이 한 번호이고, CHANGELOG에 날짜가 있는 그 번호의 절이 있어야 합니다. 그 절은 GitHub Release의 노트가 되므로 링크는 전체 주소로 적습니다(`tools/release_check.py version`). README는 wheel의 설명이 되어 그 버전의 PyPI 페이지에 남습니다. 빌드가 그 상대 링크를 그 버전 tag의 GitHub 주소로 바꾸므로(`pyproject.toml`), PyPI 페이지는 그 tag의 SECURITY·CHANGELOG·지원 범위·현재 계약으로 이어지고 tag 뒤의 수정은 그곳에 닿지 않습니다. 그래서 이 PR에서 README와 그 문서들의 "아직 게시하지 않았다" 같은 시점의 문장을 게시한 뒤에도 맞는 문장으로 바꿉니다.
 2. **후보의 파일을 기록합니다.** 병합한 main에서 release workflow를 수동 실행(`workflow_dispatch`)하면 `build`가 Linux에서 wheel·sdist를 만들고 세 OS의 `verify`가 그 파일을 확인합니다. 그 실행의 `release-sums` artifact(`SHA256SUMS`)를 `docs/releases/<번호>.sha256`으로 커밋합니다. 이 파일들이 후보입니다. 빌드는 재현됩니다: 같은 commit을 Linux·macOS에서 다시 빌드하면 같은 바이트가 나오고, Windows에서 빌드한 wheel은 zip 헤더의 '만든 시스템' 칸만 달라 멤버와 그 바이트가 같습니다. 그래서 후보와 게시하는 파일은 Linux에서 만든 것입니다.
-3. **후보로 측정합니다.** 출시 리허설(B6)의 결과표와 [지원 범위](docs/SUPPORT.md)를 후보의 sha256으로 채웁니다. 결과표·지원표·측정 기록·`docs/releases/`는 배포본에 들어가지 않으므로 그 뒤의 commit도 같은 파일을 만듭니다. 후보 뒤에 kit이나 README가 바뀌면 번호를 다시 올리고 1단계부터 다시 하며, 영향을 받는 게이트를 다시 잽니다.
+3. **후보로 측정합니다.** 출시 리허설(B6)의 결과표와 [지원 범위](docs/SUPPORT.md)를 후보의 sha256으로 채웁니다. 결과표·지원표·측정 기록·`docs/releases/`는 배포본에 들어가지 않으므로 그 뒤의 commit도 같은 파일을 만듭니다. 후보 뒤에 배포본에 들어가는 파일(kit·`extension/aelix_analytics.py`·README·`pyproject.toml`·`LICENSE`·루트의 `.gitignore`)이 바뀌면 번호를 다시 올리고 1단계부터 다시 하며, 영향을 받는 게이트를 다시 잽니다.
 4. **소유자가 출시를 승인하면** `docs/releases/<번호>.sha256`이 있는 main의 commit에 `v<번호>` tag를 붙여 push합니다.
 5. **`.github/workflows/release.yml`이 돕니다.**
    1. `build`: tag가 main의 commit에 있고 `v`와 그 번호인지 확인하고, wheel·sdist를 한 번 빌드한 뒤 그 `SHA256SUMS`가 `docs/releases/<번호>.sha256`과 같은지 대조합니다(`tools/release_check.py sums --expect`). 다르면 아무것도 게시하지 않습니다.
-   2. `verify`: Linux·Windows·macOS에서 그 파일을 설치·업그레이드·제거합니다(`tests/test_packaging.py`, `AELIX_ANALYTICS_TEST_INSTALL=1`, `AELIX_ANALYTICS_TEST_DIST`). 그 commit을 다시 빌드한 것이 같은 멤버와 바이트인지도 봅니다(macOS에서는 파일 바이트까지).
+   2. `verify`: Linux·Windows·macOS에서 그 파일을 설치·업그레이드·제거합니다(`tests/test_packaging.py`, `AELIX_ANALYTICS_TEST_INSTALL=1`, `AELIX_ANALYTICS_TEST_DIST`). 그 commit과 그 sdist를 다시 빌드한 것이 같은 멤버와 그 바이트인지도 봅니다(Linux·macOS에서는 파일 바이트까지. Windows에서 만든 zip은 헤더가 다릅니다).
    3. `pypi`: 환경 `pypi`의 배포를 소유자가 승인하면 PyPI Trusted Publishing으로 올립니다. 저장한 토큰은 없습니다. 올린 뒤 PyPI의 JSON API가 정확히 그 파일과 sha256을 보일 때까지(최대 10분) 확인합니다(`tools/release_check.py pypi`).
    4. `github-release`: 같은 파일을 `SHA256SUMS`로 대조한 뒤, 그 파일과 `SHA256SUMS`를 GitHub Release에 붙입니다. 노트는 CHANGELOG의 그 번호 절입니다.
-6. **게시 뒤에** SECURITY·지원 범위·CHANGELOG의 "아직 게시하지 않았다" 문장과 지원표를 고치는 PR을 올립니다(README는 1단계에서 고쳤습니다).
+6. **게시 뒤에** 지원표의 게시 경로(실제 PyPI에서 이름으로 설치 등)를 그 증거로 채우는 PR을 올립니다. 게시 상태를 말하는 문장은 1단계에서 고쳤습니다.
 
 수동 실행은 어느 ref에서든, tag에서 돌려도 `build`와 `verify`만 돌리고 아무것도 게시하지 않습니다. 후보 기록(2단계)과 tag를 붙이기 전의 리허설입니다.
 업로드가 중간에 멈추면(예: wheel만 올라감) 같은 실행의 실패한 job을 다시 돌립니다. 같은 artifact를 쓰고, 이미 있는 파일은 건너뛰며(`skip-existing`), 마지막 확인이 PyPI의 파일이 그 바이트인지 봅니다. 다시 빌드하는 새 실행을 시작하지 않습니다.

@@ -7,11 +7,11 @@ Jupyter Notebook과 BI가 만들어 온 분석 작업방식을 바탕으로, 목
 분석 방향은 목적과 지표를 중심으로 유지합니다. 모호한 지표의 구체화, 여러 지표의 병행과 파생을 기록하고,
 각 탐색·계산·발견을 현재 질문과 다음 판단에 연결하는 것이 설계의 중심입니다.
 
-이 Aelix 확장은 그 비전의 첫 제품 형태이며 **공식 베타 출시를 준비**합니다.
+이 Aelix 확장은 그 비전의 첫 제품 형태이며, 이 배포본은 **공식 베타**입니다.
 베타 이후의 지속적인 발전을 위해 지표·근거·버전 계약을 보존하고, 정책·저장소·실행·게시 구현을 교체할 수 있는 구조를 설계합니다.
 이 저장소는 비교 실험용 `aelix-analytics-baseline`에서 출발해 2026-09-18에 정식 제품 이름인
 `aelix-analytics`로 변경했습니다. 과거 평가 문서에는 당시의 baseline 명칭이 이력으로 남아 있습니다.
-아래 사용법은 현재 구현 기준입니다. 새 인사이트 화면·Reports 탭은 아직 설계 단계입니다. 제한 조회·분석 자산과 checkpoint 인계는 현재 CLI·SDK·도구에서 제공합니다.
+아래 사용법은 이 버전의 구현입니다. Workspace의 Reports 탭은 kit 0.25.0부터 있고([계약 C19](docs/CONTRACTS.md#c19-workspace의-reports-탭과-페이지-kit-0250-19-pr3)), Evaluation 탭을 인사이트로 바꿔 분석 발견과 재사용 제안을 잇는 것은 설계만 있고 이 버전에는 없습니다([아래](#기록-상태와-사용-중-문제--현재-인터페이스)). 제한 조회·분석 자산과 checkpoint 인계는 CLI·SDK·도구에서 제공합니다.
 분석 도중에도 자유 형식 보고서를 만들고, 작성 시점·근거·버전과 컬럼별 반복 보고서 묶음을 관리하는 흐름을 설계합니다.
 진행 중인 분석을 팀원에게 전달하는 독립 HTML 빌드와 `publish` 흐름도 설계에 포함합니다.
 공식 명칭은 `analytics` 명령·SDK, 분석 인터페이스 `Workspace`, 시각화 객체 `Visualization`, 문서 산출물 `Report`로 정리합니다.
@@ -22,7 +22,7 @@ kit이 보이는 글(Workspace·도구 응답·오류·새 프로젝트 템플�
 ([옛 이름에서 옮기기](#옛-이름에서-옮기기), [옛 형식 프로젝트 옮기기](#옛-형식-프로젝트-옮기기-analytics-migrate)).
 
 사람이 Python·SQL로 직접 분석하는 경로도 정식 사용 시나리오로 설계합니다. 현재도 사람용 `bin/analytics` CLI로 Aelix 없이 분석을 실행·기록할 수 있습니다.
-베타에서는 모델 없이 프로젝트 생성부터 발견·보고서 기록과 결과 확인까지 완료하고, 사람 → 에이전트 → 사람이 같은 근거를 이어받는지 검증합니다.
+베타의 기준은 모델 없이 프로젝트 생성부터 발견·보고서 기록과 결과 확인까지 완료하고, 사람 → 에이전트 → 사람이 같은 근거를 이어받는 것입니다.
 [직접 분석 설계](docs/DESIGN-CONTINUITY-AND-REUSE.md#사람이-직접-분석하는-경로)와 [Q17 검증 기준](docs/BETA-QUALITY-GATES.md#사람의-직접-분석과-작성-주체-전환-검증)에 범위를 명시합니다. 노트북 실행 기록 연동과 브라우저 분석 편집기는 후속 범위입니다.
 
 그래프 표현의 도입 방향은 [분석 근거 그래프 제안 0.2](docs/PROPOSAL-EVIDENCE-GRAPH-2026-09-17.md)에 기록되어 있습니다.
@@ -31,7 +31,7 @@ kit이 보이는 글(Workspace·도구 응답·오류·새 프로젝트 템플�
 자유로운 Python 분석(DuckDB·Polars·matplotlib·plotly), 프로젝트별 uv 환경, 파일로 읽을 수 있는 기록과 정적 HTML을
 유지합니다. 개선의 기준은 분석의 연속성, 근거의 정확성, 사람의 탐색 편의, 에이전트의 문맥·토큰 비용입니다.
 모델이 새로운 방법·코드·라이브러리·그림을 선택할 자유를 보존합니다. 지원 설계의 하단 기준은 사용자 지정 **Qwen3.8 27B**이며,
-실제 모델·설정별 검증은 아직 필요합니다. 작은 문맥 수치로 모델의 능력이나 분석 범위를 강제 제한하지 않습니다.
+모델·설정별 검증의 기준과 결과는 [베타 품질 기준](docs/BETA-QUALITY-GATES.md)에 있습니다. 작은 문맥 수치로 모델의 능력이나 분석 범위를 강제 제한하지 않습니다.
 
 인접한 [Aelix Analytics Engine](https://github.com/handochan/aelix-analytics-engine)은 원장·불변 번들·선택·검증·복구의 엄격한 계약을
 검증하는 기반 프로젝트입니다. 이 저장소가 사용자 제품과 공식 확장의 대표 이름을 사용합니다.
@@ -45,7 +45,7 @@ kit이 보이는 글(Workspace·도구 응답·오류·새 프로젝트 템플�
 > 샌드박스가 아닙니다. aelix는 확장 도구를 실행하기 전에 승인을 묻지 않으므로 `analytics_run`은 확인 없이
 > 코드를 실행합니다. 실데이터에는 이 점을 알고 쓰세요. [한계](#한계)를 먼저 읽으세요.
 
-## 공식 베타 준비 문서
+## 설계와 운영 문서
 
 - [제품 방향](docs/PRODUCT.md): 정체성, 분석 발견·재사용 제안·사용 중 문제의 구별, 개선 기준.
 - [플랫폼 아키텍처](docs/ARCHITECTURE.md): Strategy 적용 영역, 포트·어댑터·의존 방향, 장기 호환성과 공개 계약, 첫 구현의 검증 기준.
@@ -60,7 +60,7 @@ kit이 보이는 글(Workspace·도구 응답·오류·새 프로젝트 템플�
 - [Skill 제안 정책](docs/SKILL-PROPOSAL-POLICY.md): 요청 시/상시 모드, 제안 임계값·빈도·별도 비용 측정. 기본 제안은 사용자 요청 시에만 수행.
 - [베타 품질 기준과 순서](docs/BETA-QUALITY-GATES.md): 출시 전 검증, 작은 문맥·규모 시험, 재실행·복구·멱등성의 후속 우선순위.
 - [지원 범위](docs/SUPPORT.md): Python·운영체제·aelix·설치 경로별로 실제 설치·실행한 범위, 그 증거와 알려진 한계.
-- [변경 이력](CHANGELOG.md): kit 버전별 변경. 아직 게시한 버전은 없습니다.
+- [변경 이력](CHANGELOG.md): kit 버전별 변경.
 - [보안 정책](SECURITY.md): 취약점을 비공개로 알리는 방법과 범위.
 - [기여 가이드](CONTRIBUTING.md): 변경의 개선 효과와 검증 근거를 남기는 방법.
 - [프로젝트 운영 정책](docs/PROJECT-OPERATIONS.md): Codex·Claude Code 공통 지침, GitHub Issue/Project 관리, 로컬 재개 상태와 인수인계.
@@ -94,8 +94,8 @@ kit은 이미 만든 프로젝트의 Pillow를 올리지 않습니다. 이전 ki
 ## 설치본(wheel)으로 쓰기
 
 체크아웃 없이 쓰는 방법입니다. Windows에서는 이것이 사람용 명령을 얻는 길입니다(`bin/analytics`는 POSIX 셸 스크립트).
-배포본은 아직 어디에도 게시하지 않았으므로 체크아웃에서 직접 만듭니다. 첫 베타부터는 같은 파일을 PyPI(`aelix-analytics`)와
-GitHub Release에 게시합니다([릴리스 절차](CONTRIBUTING.md#릴리스-절차), 아래 [게시된 배포본](#게시된-배포본)).
+배포본은 같은 파일을 PyPI(`aelix-analytics`)와 GitHub Release에 게시합니다([릴리스 절차](CONTRIBUTING.md#릴리스-절차),
+아래 [게시된 배포본](#게시된-배포본)). 체크아웃에서 직접 만들 수도 있습니다.
 
 ```sh
 cd $PACK && uv build                                   # dist/aelix_analytics-0.32.0-py3-none-any.whl
@@ -123,7 +123,7 @@ uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.32.0-
 
 ### 게시된 배포본
 
-첫 베타를 게시한 뒤에는 이름으로 설치합니다. 아직 게시한 버전은 없습니다.
+PyPI의 배포본은 이름으로 설치합니다. 게시한 버전과 그 파일의 sha256은 [GitHub Release](https://github.com/handochan/aelix-analytics/releases)에도 있습니다.
 
 ```sh
 uv tool install --python 3.12 aelix-analytics                    # 사람용 `analytics`
@@ -143,7 +143,7 @@ uv tool install --python 3.12 aelix==0.1.0b2 --with aelix-analytics --with-execu
 ## Windows에서 쓸 때
 
 측정한 Windows는 Windows Server 2025의 한 구성입니다(관리자 계정, LongPathsEnabled=1, [현재 계약](docs/CONTRACTS.md#f-실행-환경과-지원-플랫폼) F).
-아래 한계는 베타 전에 고치지 않습니다([플랫폼 보강 동결](docs/BETA-QUALITY-GATES.md#베타까지의-플랫폼-보강), 후속 [#38](https://github.com/handochan/aelix-analytics/issues/38)).
+아래 한계는 이 버전에 남아 있습니다([베타까지의 플랫폼 보강 동결](docs/BETA-QUALITY-GATES.md#베타까지의-플랫폼-보강), 후속 [#38](https://github.com/handochan/aelix-analytics/issues/38)).
 항목마다 측정한 구성과 근거는 [현재 계약 G](docs/CONTRACTS.md#g-약속하지-않는-것)의 'Windows의 한계'와
 [측정 기록](docs/verification/2026-10-02-issue-8-windows-inventory.md)에 있습니다. (추론)으로 적은 것은 Windows에서 실행하지 않았습니다.
 
@@ -482,7 +482,7 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
   자세한 것은 [계약 A1](docs/CONTRACTS.md#a1-모델에-가는-텍스트의-생략과-다시-읽을-위치)입니다.
 
 현재 4,000자는 일반 섹션 선택의 기준이며 **전체 프롬프트 주입량의 상한은 아닙니다**. 고정 섹션은 이를 넘길 수 있고,
-생략 섹션 목록과 journal 요약도 추가됩니다. 공식 베타 설계는 전체 사용량과 분석 품질을 함께 측정하며,
+생략 섹션 목록과 journal 요약도 추가됩니다. 베타 품질 기준은 전체 사용량과 분석 품질을 함께 측정하며,
 토큰 목표를 강제 제한으로 사용하지 않습니다.
 
 ## 기록 상태와 사용 중 문제 — 현재 인터페이스
@@ -494,8 +494,8 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
   프로젝트 밖 입력, 입력이 바뀐 차트, 재실행 비교 결과), Tool usage(도구별 호출·오류·시간), Possible workarounds(우회 의심 호출).
 - 기존 비교 실험의 축과 시나리오: [과거 평가 가이드](docs/EVALUATION.md).
 
-공식 베타에서는 이 탭을 **인사이트**로 전환해 분석 발견과 재사용 제안을 연결하고, 기록 품질·도구 사용은
-진단 정보로 유지할 계획입니다. 기존 workflow feedback은 사용 중 문제로 보존합니다. [설계](docs/DESIGN-CONTINUITY-AND-REUSE.md)를 참고하세요.
+이 탭을 **인사이트**로 전환해 분석 발견과 재사용 제안을 연결하고 기록 품질·도구 사용은 진단 정보로 두는 것은
+설계만 있고 이 버전에는 없습니다. 기존 workflow feedback은 사용 중 문제로 보존합니다. [설계](docs/DESIGN-CONTINUITY-AND-REUSE.md)를 참고하세요.
 
 ## 한계
 
