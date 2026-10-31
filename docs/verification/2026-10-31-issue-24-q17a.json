@@ -2,7 +2,7 @@
  "record_kind": "aelix-analytics-q17-verification",
  "observed_at": "2026-10-31",
  "issue": "https://github.com/handochan/aelix-analytics/issues/24",
- "pull_request": null,
+ "pull_request": "https://github.com/handochan/aelix-analytics/pull/145",
  "run_id": "3d4ae6db-bdef-498f-9214-3c2fa7f982c6",
  "method": "docs/verification/2026-10-22-issue-23-q17.md (#23): the same rehearsal scripts; tools/human_e2e.py as of 26c28d0 (last changed 7388ecc), where #23's rehearsal ran an earlier revision (the 965a46e work tree: another rule for leftover processes, other not_covered wording)",
  "candidate": {
