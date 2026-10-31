@@ -134,10 +134,13 @@ def chain_row(task, cond, repeat, session, recall=None, *, ok=True, calls=0, tok
             "recall_checks": recall, "analysis_calls": calls, "fact": [1, 1] if ok else [0, 1]}
 
 
+C2_RECALL = ("recall-value", "recall-direction", "recall-earlier")
+
+
 def chain(cond, repeat, recalled, *, calls=0, first_ok=True):
-    """C2's three sessions; session 3 recalls the value and the earlier number."""
+    """C2's three sessions; session 3 recalls the value, its direction and the earlier number."""
     return [chain_row("C2", cond, repeat, 1, ok=first_ok), chain_row("C2", cond, repeat, 2),
-            chain_row("C2", cond, repeat, 3, {"recall-value": recalled, "recall-earlier": recalled}, calls=calls)]
+            chain_row("C2", cond, repeat, 3, dict.fromkeys(C2_RECALL, recalled), calls=calls)]
 
 
 def test_the_chains_judge_recall_and_redundant_work(config):
@@ -147,7 +150,7 @@ def test_the_chains_judge_recall_and_redundant_work(config):
     rows = part1 + [x for r in (1, 2, 3) for x in chain("A", r, True) + chain("V", r, False, calls=4)]
     verdict = mc.judge(config, rows)["gpt-6.1-sol"]
     r4 = verdict["rules"]["R4"]
-    assert r4["verdict"] == "pass" and r4["recall"] == {"A": 1.0, "V": 0.0} and r4["pairs"] == 6
+    assert r4["verdict"] == "pass" and r4["recall"] == {"A": 1.0, "V": 0.0} and r4["pairs"] == 9
     assert r4["redundant_analysis_calls"] == {"A": 0, "V": 12}
     assert verdict["rules"]["R7"] == {"resume_A": 1.0, "recall_A": 1.0, "floor": mc.FLOOR, "verdict": "pass"}
     assert verdict["rules"]["R5"]["tasks"] == ["T07", "C2/s1"] and verdict["gate"] == "pass"
@@ -163,16 +166,35 @@ def test_a_recall_pair_with_nothing_to_recall_leaves_both_and_too_many_withhold_
     """O7: a pair where either side had nothing to recall is left out of both; past half of them, R4 waits."""
     rows = [x for r in (1, 2, 3) for x in chain("A", r, True) + chain("V", r, None)]
     r4 = mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R4"]
-    assert r4["verdict"] == "withheld" and r4["pairs"] == 0 and r4["not_applicable_pairs"] == 6
+    assert r4["verdict"] == "withheld" and r4["pairs"] == 0 and r4["not_applicable_pairs"] == 9
     rows = [x for r in (1, 2, 3) for x in chain("A", r, True) + chain("V", r, None if r == 1 else False)]
     r4 = mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R4"]
-    assert r4["verdict"] == "pass" and r4["pairs"] == 4 and r4["not_applicable_pairs"] == 2
+    assert r4["verdict"] == "pass" and r4["pairs"] == 6 and r4["not_applicable_pairs"] == 3
+    # A session that did not run had nothing to recall: its checks are pairs left out, not pairs dropped.
+    rows = [x for r in (1, 2, 3) for x in chain("A", r, True) + chain("V", r, False)]
+    rows = [x for x in rows if not (x["session"] == 3 and x["repeat"] in (1, 2))]
+    r4 = mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R4"]
+    assert r4["verdict"] == "withheld" and r4["pairs"] == 3 and r4["not_applicable_pairs"] == 6
+
+
+def test_a_chain_where_one_side_had_nothing_to_resume_is_no_difference_for_r1(config):
+    """C1's working session 2 recalls what session 1 named: where A's session 1 named nothing, the pair is
+    left out of R1 too, not counted as A's failure to resume."""
+    rows = [row("T01", c, r) for c in "AV" for r in (1, 2, 3)]
+    for r in (1, 2, 3):
+        for cond, value in (("A", None), ("V", True)):
+            rows += [chain_row("C1", cond, r, 1), chain_row("C1", cond, r, 2, {"resume-c057": value, "resume-c035": None}),
+                     chain_row("C1", cond, r, 3, {"recall-c057": value, "recall-max-z": None})]
+    r1 = mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R1"]
+    assert r1["verdict"] == "pass" and r1["A_below_V"] == []
 
 
 def test_a_chain_costs_the_sum_of_its_sessions(config):
     rows = [x for r in (1, 2, 3) for x in chain("A", r, True) + chain("V", r, False)]
     rows = [{**x, "tokens": [300, 0, 0]} if x["condition"] == "A" else x for x in rows]
     assert mc.judge(config, rows)["gpt-6.1-sol"]["rules"]["R6"]["over_1_2x"] == [{"task": "C2", "A": 900, "V": 330}]
+    # A repeat whose last session did not run is no finished chain: it has no cost to compare.
+    assert mc.successful_costs([x for x in rows if x["condition"] == "A" and x["session"] != 3], 3) == []
 
 
 def test_a_call_that_runs_an_analysis_is_counted():
@@ -182,6 +204,11 @@ def test_a_call_that_runs_an_analysis_is_counted():
     assert mc.analysis_call({"name": "analytics_query", "args": {"sql": "select 1"}})
     assert not mc.analysis_call({**bash, "args": {"command": "cat runs/x/run.json && ls scripts/"}})
     assert not mc.analysis_call({**bash, "args": {"command": "cat my_python_notes.txt"}})
+    # The program by any path counts; a word that only names it does not; reading the kit's records does not.
+    assert mc.analysis_call({**bash, "args": {"command": ".venv/bin/python scripts/recompute.py"}})
+    assert mc.analysis_call({**bash, "args": {"command": "/usr/bin/python3 scripts/recompute.py"}})
+    assert not mc.analysis_call({**bash, "args": {"command": "echo python"}})
+    assert not mc.analysis_call({**bash, "args": {"command": "uv run --project /w/project analytics status"}})
 
 
 def test_a_value_is_looked_for_as_a_text_holds_it():
@@ -255,6 +282,20 @@ def test_a_chain_s_sessions_are_runs_of_their_own(config, tmp_path):
         (c, s) for c in "AV" for s in (1, 2, 3)]
     last = next(r for r in rows if r["condition"] == "A" and r["session"] == 3)
     assert last["recall_only"] and last["recall_checks"] == {"recall-value": None} and last["recall"] == [0, 0]
+
+
+def test_a_rerun_chain_is_kept_whole(config, tmp_path):
+    """A re-run of a chain's repeat in another OUT: the attempt that ran more is kept whole, never
+    session 1 of one attempt and sessions 2-3 of the other."""
+    first, rerun = tmp_path / "out", tmp_path / "rerun"
+    for out, outcomes, at in ((first, ("success", "success", "success"), "01"), (rerun, ("success", "error", "not_run"), "05")):
+        for step, outcome in enumerate(outcomes, 1):
+            rec = record("C2", "default", 1, outcome, finished=f"2026-10-31T{at}:0{step}:00")
+            rec["run"] += f"-s{step}"
+            rec["chain"] = {"session": step, "sessions": 3, "recall_only": step == 3, "previous": None}
+            stored(out, rec["run"], rec)
+    rows, _, replaced = mc.collect(config, [first, rerun], {}, None)
+    assert {r["out"] for r in rows} == {str(first)} and len(rows) == 3 and len(replaced) == 3
 
 
 def test_another_kit_s_runs_are_listed_apart(config, tmp_path):

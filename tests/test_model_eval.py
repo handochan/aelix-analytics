@@ -1514,10 +1514,12 @@ def test_a_chain_continues_in_the_work_its_session_before_left(aelix_command, fi
     records = [json.loads((out / "runs" / n / "run.json").read_text(encoding="utf-8")) for n in names]
     assert [r["chain"] for r in records] == [
         {"session": 1, "sessions": 3, "recall_only": False, "previous": None},
-        {"session": 2, "sessions": 3, "recall_only": False, "previous": names[0]},
-        {"session": 3, "sessions": 3, "recall_only": True, "previous": names[1]}]
-    # Each session found the note the one before it left, and the kit's project with it.
+        {"session": 2, "sessions": 3, "recall_only": False, "previous": names[0], "not_carried": []},
+        {"session": 3, "sessions": 3, "recall_only": True, "previous": names[1], "not_carried": []}]
+    # Each session found the note the one before it left, and the kit's project with it, at the same
+    # path: a path written down in session 1 (the request's {input}) still holds.
     assert shell_text(out / "runs" / names[2] / "work" / "project" / "notes.txt").split() == ["seen"] * 3
+    assert len({r["work"]["root"] for r in records}) == 1 and records[0]["work"]["root"] in records[0]["requests"][0]
     assert all(r["context_block"]["bytes"] > 0 for r in records)
     checks = [{c["id"]: c["passed"] for c in r["score"]["checks"]} for r in records]
     assert checks[0] == {"compared": True, "naive": True}
@@ -1549,12 +1551,33 @@ def test_a_chain_stops_where_a_session_left_nothing(aelix_command, fixtures, tmp
     assert all(r["reason"].startswith("chain_broken: session 1 ") and "requests" not in r for r in records[1:])
 
 
+def test_an_answer_cites_its_evidence_by_an_id_or_a_file_of_the_project(tmp_path):
+    """Part II's evidence check: the kit's record or run id, or a file of the project by its path or name;
+    a file the project does not have, or none at all, is no evidence."""
+    project = tmp_path / "project"
+    (project / "scripts").mkdir(parents=True)
+    (project / "scripts" / "compare.py").write_text("print(1)\n", encoding="utf-8")
+    (project / ".venv" / "lib").mkdir(parents=True)
+    (project / ".venv" / "lib" / "site.py").write_text("", encoding="utf-8")
+    check = {"id": "source", "kind": "evidence", "type": "cites_project"}
+
+    def cited(text, ids=()):
+        ev = me.Evidence(text=text, last_turn=text, calls=[], tools={}, state={}, existing_ids=set(ids), project=project)
+        return me.run_check(check, ev, {})
+
+    assert cited("근거는 scripts/compare.py의 실행입니다.")["passed"]
+    assert cited("compare.py로 계산했습니다.")["passed"]
+    assert cited("근거는 발견 e9와 run 20261031-101500-02-compare입니다.", ["e9", "20261031-101500-02-compare"])["passed"]
+    assert not cited(".py와 .png 파일은 보존되지 않아 근거를 제시할 수 없습니다.")["passed"]
+    assert not cited("analysis.py와 site.py로 계산했습니다.")["passed"]  # not in the project, or in its environment
+
+
 def test_a_chain_is_checked_as_one(config):
     """A chain names its sessions, and a check of a later session rests only on one of an earlier one."""
     tasks = {"C1": {**config.tasks["C1"]}}
     answer = json.loads(json.dumps(config.answers["C1"]))
     assert me.check_answer(answer, "C1", tasks, config.words) == []
-    answer["checks"][2]["requires"] = ["recall-c057"]  # a session-2 check resting on session 3
+    next(c for c in answer["checks"] if c["id"] == "resume-c057")["requires"] = ["recall-c057"]  # on session 3
     answer["checks"][0].pop("session")
     assert me.check_answer(answer, "C1", tasks, config.words) == [
         "check sensors: a chain's check names its session (1-3)",

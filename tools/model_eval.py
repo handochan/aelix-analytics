@@ -187,7 +187,7 @@ CHECK_TYPES = {
     "ids_all": ("values",), "ids_any": ("values",), "stated_as_current": ("patterns", "unless"),
     "new_records": (), "new_runs": (), "new_charts": (), "chart_covers": ("values",),
     "derived_table": ("min_cells", "time_columns", "score_columns"), "context_changed": (),
-    "tool_called": ("role",),
+    "tool_called": ("role",), "cites_project": (),
 }
 SCOPES = ("clause", "sentence", "line", "paragraph")
 # What a task measures in the comparison with aelix alone (docs/design/PRODUCT-EVALUATION.md §4).
@@ -1254,6 +1254,9 @@ def run_check(check: dict, ev: Evidence, words: dict) -> dict:
         records = [r["id"] for r in ev.state.get("new_records", []) if r.get("kind") in kinds]
         passed = bool(ev.state.get("context_changed")) or bool(records)
         detail = {"context_changed": bool(ev.state.get("context_changed")), "records": records}
+    elif ctype == "cites_project":
+        cited = project_cited(text, ev)
+        passed, detail = len(cited) >= int(check.get("min", 1)), {"cited": cited[:10]}
     elif ctype == "tool_called":
         name = ev.tools.get(check["role"])
         count = sum(1 for c in ev.calls if c.get("name") == name)
@@ -1264,6 +1267,26 @@ def run_check(check: dict, ev: Evidence, words: dict) -> dict:
     if review:
         result["needs_review"] = True
     return result
+
+
+# A file a text names by its path or name: a script, a table, a chart, a note.
+# A Korean particle may follow it at once (compare.py의), so only ASCII letters and digits bound it.
+FILE_NAMED = re.compile(r"(?<![A-Za-z0-9_/.-])((?:[\w.-]+/)*[\w-][\w.-]*\.(?:py|sh|sql|ipynb|parquet|csv|json|png|svg|html|md|txt|xlsx))"
+                        r"(?![A-Za-z0-9_/-])")
+
+
+def project_cited(text: str, ev: Evidence) -> list[str]:
+    """What the text cites that is in the project: a record or run id it holds, or a file of it named by
+    its path or its name (the Python environment left out). Either condition can cite its evidence so:
+    the kit's ids, or the files aelix alone left (docs/design/PRODUCT-EVALUATION.md §5)."""
+    cited = sorted(i for i in ev.existing_ids if id_present(text, i))
+    if ev.project is not None and ev.project.is_dir():
+        files = [f.relative_to(ev.project).as_posix() for f in ev.project.rglob("*")
+                 if f.is_file() and ".venv" not in f.relative_to(ev.project).parts]
+        for named in dict.fromkeys(FILE_NAMED.findall(text)):
+            if any(f == named or f.endswith("/" + named) for f in files):
+                cited.append(named)
+    return cited
 
 
 def fabricated_ids(text: str, existing: set) -> list[str]:
@@ -1890,8 +1913,28 @@ def plain_project(kit_src: Path, project: Path, title: str) -> None:
     (project / ".python-version").write_text("3.12\n", encoding="utf-8", newline="\n")
 
 
+def carry(previous: Path, work: Path) -> list[dict]:
+    """A copy of the work root a chain's session left: regular files with their times, directories and
+    links as they are; anything else (a FIFO, a socket, a file that cannot be read) is left behind and
+    listed (relative path, why)."""
+    left: list[dict] = []
+
+    def regular(src: str, dst: str) -> None:
+        try:
+            if stat.S_ISREG(os.lstat(src).st_mode):
+                shutil.copy2(src, dst)
+                return
+            why = "not a regular file"
+        except OSError as exc:
+            why = type(exc).__name__
+        left.append({"path": Path(src).relative_to(previous).as_posix(), "why": why})
+
+    shutil.copytree(previous, work, symlinks=True, dirs_exist_ok=True, copy_function=regular)
+    return left
+
+
 def prepare_work(task: dict, fixture: Path, work: Path, kit_src: Path, env: dict, kit: bool = True,
-                 previous: Path | None = None) -> Path:
+                 previous: Path | None = None, left: list | None = None) -> Path:
     """project/ and input/ only: manifest.json and expected.json carry answers. A fixture's project is
     the same for aelix alone (the files the kit wrote, which it reads without the kit); a fresh one is a
     plain folder there (plain_project). A chain's later session continues in a copy of the work root
@@ -1903,7 +1946,7 @@ def prepare_work(task: dict, fixture: Path, work: Path, kit_src: Path, env: dict
     if previous is not None:
         if not (previous / "project").is_dir():
             raise HarnessError(f"the previous session left no project at {previous}")
-        shutil.copytree(previous, work, symlinks=True, dirs_exist_ok=True)
+        (left if left is not None else []).extend(carry(previous, work))
         return project
     if task["setup"] == "fixture":
         fixture_project(kit_src, fixture / "project", project, env)
@@ -3808,7 +3851,16 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
         # The model's work root is outside OUT (where the fixtures, with their answers, and the other
         # runs are) and holds only project/ and input/; it is kept as work/ once aelix has exited.
         session.work_parent.mkdir(parents=True, exist_ok=True)
-        work = Path(tempfile.mkdtemp(prefix=f"aelix-eval-{task['id']}-", dir=session.work_parent))
+        if chain.get("previous"):
+            # A chain's later session works where the first one did: a path the model wrote down
+            # earlier (a script reading {input}) still holds. That root moved into its run; it is free.
+            work = Path(read_json(session.out / "runs" / chain["previous"] / "run.json")["work"]["root"])
+            try:
+                work.mkdir()
+            except OSError as exc:
+                raise HarnessError(f"the chain's work root {work} could not be made again: {exc}") from exc
+        else:
+            work = Path(tempfile.mkdtemp(prefix=f"aelix-eval-{task['id']}-", dir=session.work_parent))
         record["work"] = {"root": str(work), "kept_at": "work",
                           "what": "the model's work root during the run, outside OUT; moved into the "
                                   "run's directory when aelix exited"}
@@ -3816,8 +3868,11 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
         (run_dir / "home").mkdir()
         env_probe, _ = run_env(session, run_dir, work / "project")
         previous = session.out / "runs" / chain["previous"] / "work" if chain.get("previous") else None
+        left: list[dict] = []
         project = prepare_work(task, fixture, work, Path(session.checkout["path"]) / "src", env_probe,
-                               kit=has_kit(session), previous=previous)
+                               kit=has_kit(session), previous=previous, left=left)
+        if previous is not None:
+            record["chain"]["not_carried"] = left
         if session.proposal == "always_on":
             record["proposal_mode"] = set_proposal_mode(Path(session.checkout["path"]) / "src", project, env_probe)
         if has_kit(session):

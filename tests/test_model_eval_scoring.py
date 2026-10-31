@@ -192,7 +192,7 @@ def test_each_correct_completion_passes_its_own_text_checks(task):
         parts = re.split(r"세션 (\d+):", answer["correct_completion"])[1:]
         assert [int(n) for n in parts[0::2]] == list(range(1, len(CONFIG.tasks[task]["sessions"]) + 1))
         failing = []
-        for step, part in zip(map(int, parts[0::2]), parts[1::2]):
+        for step, part in zip(map(int, parts[0::2]), parts[1::2], strict=True):
             ev = me.Evidence(text=part, last_turn=part, calls=list(QUERIED), tools=me.GENERATIONS["analytics"]["tools"],
                              state=EMPTY, existing_ids=set())
             earlier = {c["id"]: True for c in answer["checks"] if c["session"] < step}

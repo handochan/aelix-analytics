@@ -33,43 +33,88 @@
       "id": "recall-current",
       "session": 3,
       "kind": "recall",
-      "type": "percent",
+      "type": "number_near",
+      "percent": true,
       "value": 0.117849,
       "abs_tol_pp": 0.1,
+      "prefer": "nearest",
+      "words": [
+        "지금",
+        "현재",
+        "current",
+        "now"
+      ],
+      "against": [
+        "이전",
+        "예전",
+        "바꾸기 전",
+        "변경 전",
+        "원래",
+        "previous",
+        "before",
+        "earlier"
+      ],
       "requires": [
         "session-rate"
       ],
-      "what": "지금 정의의 8월 값 11.8%"
+      "what": "지금 정의의 8월 값 11.8%를 지금 값으로(가장 가까운 시점 낱말)"
     },
     {
       "id": "recall-definition",
       "session": 3,
       "kind": "recall",
-      "type": "text_any",
-      "values": [
-        "세션 기준",
-        "세션 수",
-        "세션당",
-        "per session",
-        "session-based",
-        "sessions"
+      "type": "cooccur",
+      "scope": "clause",
+      "any": [
+        [
+          "지금",
+          "현재",
+          "current",
+          "now"
+        ],
+        [
+          "세션 기준",
+          "세션당",
+          "세션 단위",
+          "per session",
+          "session-based",
+          "session based"
+        ]
       ],
       "requires": [
         "session-rate"
       ],
-      "what": "지금 정의가 세션 기준"
+      "what": "지금 정의가 세션 기준(같은 절에)"
     },
     {
       "id": "recall-previous",
       "session": 3,
       "kind": "recall",
-      "type": "percent",
+      "type": "number_near",
+      "percent": true,
       "value": 0.371176,
       "abs_tol_pp": 0.1,
+      "prefer": "nearest",
+      "words": [
+        "이전",
+        "예전",
+        "바꾸기 전",
+        "변경 전",
+        "원래",
+        "previous",
+        "before",
+        "earlier"
+      ],
+      "against": [
+        "지금",
+        "현재",
+        "current",
+        "now"
+      ],
       "requires": [
         "customer-rate"
       ],
-      "what": "이전 정의의 값 37.1%"
+      "what": "이전 정의의 값 37.1%를 이전 값으로(가장 가까운 시점 낱말)"
     },
     {
       "id": "customer-as-current",
@@ -81,13 +126,10 @@
       ],
       "unless": "@superseded_or_reason",
       "reason_words": [
-        "고객 기준",
-        "고객 수",
         "이전 정의",
         "바꾸기 전",
         "변경 전",
-        "previous",
-        "customer"
+        "previous"
       ],
       "what": "37.1%(고객 기준)를 지금의 전환율로"
     }

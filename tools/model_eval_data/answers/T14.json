@@ -38,10 +38,33 @@
     {
       "id": "current-value",
       "kind": "fact",
-      "type": "percent",
+      "type": "number_near",
+      "percent": true,
       "value": 0.098,
       "abs_tol_pp": 0.05,
-      "what": "지금 값 9.8%"
+      "prefer": "nearest",
+      "words": [
+        "지금",
+        "현재",
+        "current",
+        "now",
+        "정정 후",
+        "정정된",
+        "e287"
+      ],
+      "against": [
+        "이전",
+        "예전",
+        "바꾸기 전",
+        "변경 전",
+        "원래",
+        "previous",
+        "before",
+        "earlier",
+        "정정 전",
+        "e41"
+      ],
+      "what": "지금 값 9.8%를 지금 값으로"
     },
     {
       "id": "script",
@@ -73,21 +96,28 @@
           "지금 값"
         ],
         [
-          "run",
-          "실행",
-          "계산",
-          "코드"
-        ],
-        [
-          "없",
-          "않",
-          "남지",
+          "기록에 없",
+          "기록에는 없",
+          "run이 없",
+          "run은 없",
+          "run 기록이 없",
+          "run 기록은 없",
+          "실행이 없",
+          "실행 기록이 없",
+          "실행 기록은 없",
+          "기록되지 않",
+          "남아 있지 않",
+          "남지 않",
+          "참조하지 않",
+          "run을 참조하지",
+          "run 참조가 없",
+          "run이 기록되지",
           "no run",
           "not recorded",
-          "missing"
+          "without a run"
         ]
       ],
-      "what": "지금 값(e287)의 계산은 run이 기록되지 않았다는 한계"
+      "what": "지금 값(e287)의 계산에는 run이 기록되지 않았다는 한계"
     },
     {
       "id": "old-as-current",
