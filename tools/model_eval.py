@@ -1744,6 +1744,32 @@ def fixture_project(kit_src: Path, source: Path, project: Path, env: dict) -> st
     return done.stdout.strip().splitlines()[-1]
 
 
+# The always_on condition (Q5): the project's suggestion mode set as a person sets it (`analytics assets
+# mode always_on`, kit 0.11.0 and later, #17) before aelix starts. It appends one asset_mode record.
+PROPOSAL_MODE = """\
+import json, sys
+from pathlib import Path
+from aelix_analytics import core
+result = core.set_asset_mode(core.Project(Path(sys.argv[1])), "always_on", origin=core.Origin("human", "cli"))
+print(json.dumps({"mode": result["mode"], "changed": result["changed"], "event": result["event"]["id"]}))
+"""
+
+
+def kit_has_proposal_mode(kit_src: Path) -> bool:
+    core = kit_src / "aelix_analytics" / "core.py"
+    return core.is_file() and "def set_asset_mode(" in core.read_text(encoding="utf-8")
+
+
+def set_proposal_mode(kit_src: Path, project: Path, env: dict) -> dict:
+    """The project in always_on, by the checkout's kit as a human (PROPOSAL_MODE)."""
+    done = subprocess.run([sys.executable, "-c", PROPOSAL_MODE, str(project)], cwd=project,
+                          env={**env, "PYTHONPATH": str(kit_src)}, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", timeout=300)
+    if done.returncode != 0:
+        raise HarnessError(f"setting the always_on suggestion mode failed: {(done.stderr or done.stdout)[-1500:]}")
+    return json.loads(done.stdout.strip().splitlines()[-1])
+
+
 def prepare_work(task: dict, fixture: Path, work: Path, kit_src: Path, env: dict) -> Path:
     """project/ and input/ only: manifest.json and expected.json carry answers."""
     work.mkdir(parents=True, exist_ok=True)
@@ -2238,7 +2264,7 @@ def not_run_reason(session: Session, task: dict) -> str | None:
         return "serving_differs: " + "; ".join(session.serving.get("problems") or ["check failed"])
     if session.proposal != "unrequested" and session.proposal not in (task.get("proposal_conditions") or []):
         return f"proposal condition {session.proposal} is not defined for {task['id']}"
-    if session.proposal == "always_on":
+    if session.proposal == "always_on" and not kit_has_proposal_mode(Path(session.checkout["path"]) / "src"):
         return session.config.conditions["proposals"]["always_on"]["not_run_reason"]
     return None
 
@@ -3596,6 +3622,8 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
         (run_dir / "home").mkdir()
         env_probe, _ = run_env(session, run_dir, work / "project")
         project = prepare_work(task, fixture, work, Path(session.checkout["path"]) / "src", env_probe)
+        if session.proposal == "always_on":
+            record["proposal_mode"] = set_proposal_mode(Path(session.checkout["path"]) / "src", project, env_probe)
         before = snapshot(project)
         requests, extra_checks = task_requests(session, task, work)
         tools_argv, extension = surface_argv(session)

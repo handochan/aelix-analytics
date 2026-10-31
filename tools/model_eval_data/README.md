@@ -87,7 +87,8 @@ not_scanned`, 작업 루트 경로 포함). 로그인을 쓰는 모델은 런처
   6개, 모두 14개 — 관련 없는 유사 도구 포함), `coding`(read·bash·edit·write와 확장 6개), `analytics_read`(read와 확장 6개, bash로 돌아갈
   길이 없음). 선택적 노출·새 도구 같은 대안은 그 확장 파일을 `conditions.json`의 표면으로 더한다.
 - **제안 조건**(Q5, `--proposal`, T07·T08·T12): `unrequested`(요청 그대로), `requested`(마지막에 재사용 후보 요청을 더하고 답했는지
-  검사), `always_on`(프로젝트의 제안 모드 설정이 필요한데 kit 0.4.0에 없어 `not_run`, #17).
+  검사), `always_on`(aelix를 띄우기 전에 checkout의 kit이 사람으로서 작업 사본의 제안 모드를 `always_on`으로 바꿈: `analytics assets mode
+  always_on`과 같은 `core.set_asset_mode`, 기록 `asset_mode` 하나. run 기록의 `proposal_mode`. 그 설정이 없는 kit의 checkout이면 `not_run`, #17).
 - **이름 전환 전후**(#9, `--checkout DIR`): 다른 checkout의 확장과 kit으로 같은 과제를 돌린다. `extension/aelix_lab.py`가 있으면 옛 이름
   (`lab_*` 도구, `AELIX_LAB_*` 변수)으로 격리한다. 인자 오류·과제 완수·호출 토큰이 같은 형식으로 남아 #24가 비교한다.
 
@@ -220,12 +221,13 @@ UTF-16)에 대비해, 로그인을 쓰는 모델의 run은 런처가 끝에 로�
 `api`·`baseUrl`은 적지 않으므로 aelix가 내장 provider의 값을 쓴다(`models_json.parse_models`). context 500,000은 소유자 로그인의
 Codex CLI 0.162.0 모델 목록(2026-10-21)의 값이다. 출력 예약 128,000은 그 목록에 없어 gpt-5.6-sol의 catalog 값을 쓴다.
 소유자의 로그인으로 `aelix --offline --list-models "openai-codex gpt-6.1-sol"`이 `500K 128K`를 나열했다(2026-10-21, 호출 없음).
-§3 캠페인(#24)의 프론티어 모델을 바꾸는 결정은 아니다.
+§3 캠페인(#24)의 프론티어 모델도 이 설정이다(소유자 결정 2026-10-30, #24의 D1).
 
 [`models/qwen3.8-27b-openrouter.json`](models/qwen3.8-27b-openrouter.json): Q17-b의 Qwen3.8 27B를 로컬 ollama 대신 OpenRouter로
 부르기로 한 소유자 결정(2026-10-21, #23)의 설정이다. aelix 0.1.0b2 catalog의 `openrouter qwen/qwen3.8-27b`(context 262,144, 출력
 131,072)를 소유자의 aelix 로그인(OpenRouter 키)으로 쓴다. OpenRouter가 고르는 상위 제공자와 양자화는 고정하지 않는다
-(`openRouterRouting` 없음). 그래서 지원 하단의 로컬 기준(`qwen3.8-27b-local`)과 같은 서빙이 아니다.
+(`openRouterRouting` 없음). 그래서 지원 하단의 로컬 기준(`qwen3.8-27b-local`)과 같은 서빙이 아니다. §3 캠페인(#24)의 Qwen도 이
+설정이다(소유자 결정 2026-10-30, D2). 로컬 기준은 `not_run`으로 남고, 출시 판정 때 다시 본다.
 
 ## run 기록
 
@@ -334,7 +336,8 @@ aelix 자신이 로그인 파일 하나만 그 자리에서 읽고 갱신하며,
 ## 한계
 
 - 정답은 소유자가 확인했지만 글 기반 판정은 휴리스틱이다(필요조건, `needs_review`는 사람이 확정). 정답은 seed 0 fixture에만 있다.
-- Q12의 파생·코드만 수정한 재계산·부모 버전 변경은 지표 기록(#14)이 없어 과제가 없다. Q5의 `always_on`은 kit의 설정(#17)이 생기면 실행한다.
+- Q12의 파생·코드만 수정한 재계산·부모 버전 변경은 과제에 없다. 그 증거는 결정적 시험이다(`tests/test_metrics.py`,
+  [B6 결정적 기록](../../docs/verification/2026-10-31-issue-24-b6-deterministic.md)).
 - aelix는 요청 본문(시스템 지침·도구 schema)을 사건으로 내지 않는다. 실제 모델 run의 전체 입력 크기는 API의 입력 토큰으로만 알고, 그
   본문의 바이트 수는 같은 조건의 dry-run이 남긴다.
 - 실제 모델 실행은 macOS(이 Mac)에서만 했다. dry-run 시험은 uv와 aelix 0.1.0b2를 쓸 수 있는 모든 플랫폼에서 돈다.

@@ -30,9 +30,9 @@
                 "what": "제안 요청에 답함(후보 또는 없음)"}
     },
     "always_on": {
-      "what": "always_on: needs the project's proposal mode setting, which kit 0.4.0 does not have",
+      "what": "always_on: the project's suggestion mode set to always_on as a person sets it (analytics assets mode always_on) before the run; the kit's deterministic check and notice then run without a model call (ADR-0008)",
       "requires": "proposal_mode",
-      "not_run_reason": "kit has no proposal mode setting yet (Issue #17, ADR-0008); always_on cannot be configured"
+      "not_run_reason": "this checkout's kit has no suggestion mode setting (core.set_asset_mode, Issue #17, ADR-0008); always_on cannot be configured"
     }
   },
   "word_sets_note": "Phrases the scorer reads (tools/model_eval.py): an ASCII phrase does not start inside a word; a verdict phrase is a whole word, the longest one wins, a negated one turns supported into false and back; resolved and superseded words do not count where negated (미해결, 해결되지 않은, not resolved).",

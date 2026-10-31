@@ -534,7 +534,10 @@ def test_the_login_is_where_the_callers_aelix_keeps_it_and_aelix_starts_through_
     assert "AELIX_CODING_AGENT_DIR is not set" in source
 
 
-def test_always_on_is_not_run_until_the_kit_has_the_setting(tmp_path):
+def test_always_on_is_not_run_with_a_kit_without_the_setting(tmp_path, monkeypatch):
+    # This checkout's kit has it (#17); a checkout of an older kit does not.
+    assert me.kit_has_proposal_mode(ROOT / "src")
+    monkeypatch.setattr(me, "kit_has_proposal_mode", lambda kit_src: False)
     out = tmp_path / "out"
     assert me.main(["run", "--model", "dry-run", "--task", "T07", "--proposal", "always_on",
                     "--out", str(out)]) == 3
@@ -921,8 +924,27 @@ def aelix_command():
 
 
 SECRET = "sk-test-" + "dryrunsecret0123456789abcdef"
+
 # The launcher masks a run by the login's exact values through its pipes to the harness (POSIX).
 EXACT = os.name != "nt"
+
+
+def test_always_on_sets_the_mode_as_a_person_before_the_model_starts(aelix_command, fixtures, tmp_path):
+    """Q5's always_on (#24): the work copy's suggestion mode is always_on, set by the kit as a human
+    before aelix starts, so the run's before-snapshot holds that record and the model's records do not."""
+    root, _ = fixtures
+    out = tmp_path / "always"
+    assert me.main(["run", "--model", "dry-run", "--task", "T07", "--proposal", "always_on", "--out", str(out),
+                    "--fixtures", str(root), "--work-root", str(tmp_path / "roots")]) == 0
+    run = out / "runs" / "T07-dry-run-default-always_on-r1"
+    record = json.loads((run / "run.json").read_text(encoding="utf-8"))
+    assert record["outcome"] == "success" and record["proposal_mode"]["mode"] == "always_on"
+    assert record["proposal_mode"]["changed"] is True
+    events = [json.loads(line) for line in (run / "work" / "project" / "journal.jsonl").read_text(
+        encoding="utf-8").splitlines()]
+    [mode] = [e for e in events if e["id"] == record["proposal_mode"]["event"]]
+    assert mode["kind"] == "asset_mode" and mode["actor"] == "human" and mode["details"]["mode"] == "always_on"
+    assert all(r["kind"] != "asset_mode" for r in record["changes"]["new_records"])
 
 
 def test_the_dry_run_goes_through_aelix_and_is_scored(aelix_command, fixtures, tmp_path, monkeypatch):
