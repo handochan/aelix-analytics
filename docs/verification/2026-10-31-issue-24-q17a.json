@@ -4,12 +4,12 @@
  "issue": "https://github.com/handochan/aelix-analytics/issues/24",
  "pull_request": null,
  "run_id": "3d4ae6db-bdef-498f-9214-3c2fa7f982c6",
- "method": "docs/verification/2026-10-22-issue-23-q17.md (#23), the same tool and the same rehearsal scripts",
+ "method": "docs/verification/2026-10-22-issue-23-q17.md (#23): the same rehearsal scripts; tools/human_e2e.py as of 26c28d0 (last changed 7388ecc), where #23's rehearsal ran an earlier revision (the 965a46e work tree: another rule for leftover processes, other not_covered wording)",
  "candidate": {
   "version": "0.32.0",
   "commit": "26c28d09289718f0fc499c2975a33f1f59380a4c",
   "wheel_sha256": "203f7e10583a51e30dd361c2d8e038c73428ac95b1789ee09e8ece4a7a437440",
-  "recorded_in": "docs/releases/0.32.0.sha256",
+  "recorded_in": "docs/releases/0.32.0.sha256 (PR #143)",
   "release_run": "https://github.com/handochan/aelix-analytics/actions/runs/41150700659",
   "prepare_wheel_equals_candidate": true
  },
@@ -119,7 +119,7 @@
   "scripts_from": "#23's run (probe/rehearse-a1..a5.zsh), copied unchanged; verify-v1.zsh finds the report's first revision instead of naming it",
   "zero_model": {
    "schema": "aelix-analytics.q17-zero-model/1",
-   "checked_at": "2026-10-31T10:31:26+09:00",
+   "checked_at": "2026-10-31T10:51:22+09:00",
    "model_calls": 0,
    "model_calls_basis": "inside the sandboxed sessions: no outbound IP or Unix-domain socket connection can be made and no listed model client can be executed by its path; what runs outside them (the editor, the browser) is the owner's statement in owner-notes.md",
    "records_outside_sessions": [],
@@ -210,6 +210,11 @@
      "aelix_coding_agent": false,
      "aelix_ai": false,
      "aelix": false
+    },
+    "project_env": {
+     "aelix_coding_agent": false,
+     "aelix_ai": false,
+     "aelix": false
     }
    },
    "home_aelix_files": [
@@ -296,10 +301,14 @@
     "source_revision"
    ],
    "result": "the same output",
-   "script_input_errors_refused_as_before": [
-    "--ref busan_daily.py::chart-1 without scripts/: no version bound (none)",
-    "--based-on with run IDs only: report_input_invalid (invalid_basis)",
-    "v2 with an empty previous revision after v1 was refused: name_not_portable"
+   "script_input_errors_as_before": [
+    "--ref busan_daily.py::chart-1 without scripts/: e11 recorded, its reference bound to no version (none); the next session's e18 bound scripts/busan_daily.py::chart-1 (inferred)",
+    "--based-on with run IDs only: refused, report_input_invalid (invalid_basis)",
+    "v2 with an empty previous revision after v1 was refused: refused, name_not_portable"
+   ],
+   "script_helper_tracebacks_as_before": [
+    "session 2: KeyError 'id' twice",
+    "session 3: KeyError 'report' once"
    ]
   },
   "report_v1_check": {
@@ -315,7 +324,9 @@
   "not_measured": [
    "step 5's Workspace navigation (the agent rendered only); a person's exploration is Q6",
    "a person's usability (owner decision 2026-10-21)",
-   "Q17-b: model campaign (PR-3)"
-  ]
+   "Q17-b: added to #24's model campaign (PR-3) by this record"
+  ],
+  "zero_model_command": "tools/human_e2e.py check <OUT> --project <OUT>/work/q3-sales",
+  "zero_model_first_run": "check <OUT> without --project at 10:31:26: the same 0, but it does not look at records outside the sessions or at the project's environment (found by the reviews); the result above is the run with the project"
  }
 }
