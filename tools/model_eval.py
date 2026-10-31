@@ -982,7 +982,10 @@ def stated_as_current(check: dict, text: str, words: dict) -> tuple[list[str], l
     """The segments (sentences by default) that state a pattern as current, and all that mention it.
     A pattern counts where it is not asked, and (unless it is an id) not negated; a check with
     `together` needs one of those words in the segment too. A segment is let pass by an `unless`
-    word that is not negated, or for an id by its `resolved_by` id."""
+    word that is not negated, or for an id by its `resolved_by` id. A segment that ends as a question
+    is left out for words, not for ids: a record listed with its question's own text (`- e56 — 감소가
+    계절 효과인가?`) is said to be open, which is what an id check is for (#24 campaign). Such a segment
+    is read with the rest of its line, where a resolving id may follow (`… 인가? → e139로 해결`)."""
     scope = check.get("scope", "sentence")
     unless = words_of(check["unless"], words, check.get("reason_words", ()))
     together = check.get("together") or []
@@ -993,7 +996,10 @@ def stated_as_current(check: dict, text: str, words: dict) -> tuple[list[str], l
     for s, e in segments(text, scope):
         seg = text[s:e]
         if seg.rstrip().rstrip("*").endswith(("?", "？")):
-            continue
+            if not ids:
+                continue
+            line_end = text.find("\n", e)
+            seg = text[s:len(text) if line_end < 0 else line_end]
         hits = []
         for name, pattern in patterns:
             for m in pattern.finditer(seg):

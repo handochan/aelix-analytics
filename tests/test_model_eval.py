@@ -303,6 +303,17 @@ def test_a_right_answer_succeeds_and_a_stale_value_stated_as_current_is_critical
     assert [c["id"] for c in result["checks"] if not c["passed"]] == ["recorded"]
 
 
+def test_a_closed_question_listed_with_its_own_text_is_said_to_be_open(config):
+    """#24's campaign: an answer listed e56 under open questions with the question's text, which ends
+    with a question mark; the id check must not take that line for the model asking."""
+    check = next(c for c in config.answers["T01"]["checks"] if c["id"] == "closed-as-open")
+    listed = "### 아직 답이 나오지 않은 질문\n- e56 — 감소가 계절 효과인가, 매장 수 변화인가?\n- e87 — 계절 효과로 설명되는가?"
+    fired, mentioned = me.stated_as_current(check, listed, config.words)
+    assert fired == ["- e56 — 감소가 계절 효과인가, 매장 수 변화인가?"] and fired == mentioned
+    closed = "- e56 — 감소가 계절 효과인가, 매장 수 변화인가? → e139로 해결"
+    assert me.stated_as_current(check, closed, config.words)[0] == []
+
+
 def test_numbers_percentages_and_ids_are_read_with_their_boundaries(config):
     assert me.numbers_in("합계는 32,586,900원, 비율 0.118, e74와 C057, 2026-08-01, 4.36으로") == [
         32586900.0, 0.118, 2026.0, 8.0, 1.0, 4.36]
