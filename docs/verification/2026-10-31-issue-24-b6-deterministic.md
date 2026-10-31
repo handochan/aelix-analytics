@@ -1,6 +1,7 @@
 # Issue #24 B6 — 결정적 게이트를 출시 후보 0.32.0으로 (2026-10-31)
 
-[Issue #24](https://github.com/handochan/aelix-analytics/issues/24)의 출시 리허설(B6) 가운데 모델이 필요 없는 게이트를 출시 후보로 잰 기록이다.
+[Issue #24](https://github.com/handochan/aelix-analytics/issues/24)의 출시 리허설(B6) 가운데 모델이 필요 없는 게이트를 출시 후보로 잰 기록이다
+([PR #144](https://github.com/handochan/aelix-analytics/pull/144)).
 [릴리스 절차](../../CONTRIBUTING.md#릴리스-절차)의 3단계다. 수치·명령·해시의 정본은 [JSON](2026-10-31-issue-24-b6-deterministic.json)이다.
 fixture와 그 사본, Workspace, 원시 측정 디렉터리는 이 기기에만 두고 커밋하지 않았다.
 
