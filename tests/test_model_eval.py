@@ -362,6 +362,16 @@ def test_a_period_in_a_quotation_does_not_end_the_sentence(config):
     assert me.stated_as_current(closed, mixed, config.words)[0] == ["e56은 열려 있다."]
 
 
+def test_an_id_quoted_cut_short_is_not_one_that_does_not_exist():
+    """#24's campaign: an answer quoted an index's text, "same bytes as run 20260916-214600-03-…"; the start
+    of a run id that exists is not a fabricated id. A cut that matches no id, or one not marked as cut, is."""
+    existing = {"20260916-214600-03-sample-zscores", "e8"}
+    assert me.fabricated_ids("same bytes as run 20260916-214600-03-… (e8)", existing) == []
+    assert me.fabricated_ids("run 20260916-214600-03-sample... 그리고", existing) == []
+    assert me.fabricated_ids("run 20260916-214600-03-other-… 와 e99", existing) == ["20260916-214600-03-other", "e99"]
+    assert me.fabricated_ids("run 20260916-214600-03 이 만들었다", existing) == ["20260916-214600-03"]
+
+
 def test_numbers_percentages_and_ids_are_read_with_their_boundaries(config):
     assert me.numbers_in("합계는 32,586,900원, 비율 0.118, e74와 C057, 2026-08-01, 4.36으로") == [
         32586900.0, 0.118, 2026.0, 8.0, 1.0, 4.36]

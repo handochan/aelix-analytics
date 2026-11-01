@@ -1289,8 +1289,18 @@ def project_cited(text: str, ev: Evidence) -> list[str]:
     return cited
 
 
+# An id cut short where the text quotes it so (`20260916-214600-03-…`): the start of an id that exists.
+SHORTENED = re.compile(r"-?(?:…|\.\.\.)")
+
+
 def fabricated_ids(text: str, existing: set) -> list[str]:
-    found = set(RECORD_ID.findall(text)) | set(RUN_ID.findall(text))
+    found = set(RECORD_ID.findall(text))
+    for match in RUN_ID.finditer(text):
+        run_id = match.group(0)
+        if run_id not in existing and SHORTENED.match(text, match.end()) and any(
+                e.startswith(run_id + "-") for e in existing):
+            continue  # #24's campaign: an answer quoted an index's "same bytes as run 20260916-214600-03-…"
+        found.add(run_id)
     return sorted(i for i in found if i not in existing)
 
 
