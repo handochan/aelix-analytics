@@ -1863,11 +1863,12 @@ print(json.dumps({"mode": result["mode"], "changed": result["changed"], "event":
 # The context block the extension appends to the system prompt (extension: core.context_block), as the
 # project is when aelix starts. Kept with an A run so that the diagnosis of what a run received can
 # search it (docs/design/PRODUCT-EVALUATION.md §7).
+# UTF-8 bytes: a pipe's text encoding on Windows (cp1252) cannot write a Korean block.
 CONTEXT_BLOCK = """\
 import sys
 from pathlib import Path
 from aelix_analytics import core
-sys.stdout.write(core.context_block(core.Project(Path(sys.argv[1]))))
+sys.stdout.buffer.write(core.context_block(core.Project(Path(sys.argv[1]))).encode("utf-8"))
 """
 
 

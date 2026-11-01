@@ -161,7 +161,7 @@ for record_id in json.loads(sys.argv[2]):
         out["ids"][record_id] = core.retrieval_text(core.retrieve(p, id=name))
     except Exception as exc:  # noqa: BLE001 - an id the kit cannot read is a finding, not a failure
         out["ids"][record_id] = "unreadable: " + type(exc).__name__
-print(json.dumps(out, ensure_ascii=False))
+sys.stdout.buffer.write(json.dumps(out, ensure_ascii=False).encode("utf-8"))  # not the pipe's encoding (cp1252)
 """
 
 
