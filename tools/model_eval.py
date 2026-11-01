@@ -176,7 +176,10 @@ Q11_REQUESTS = ("single", "combination", "ambiguous", "similar_tools")
 SETUPS = ("fixture", "fresh_with_input")
 FIXTURE_KINDS = ("scale", "q10", "q13")
 ANSWER_STATUSES = ("draft", "confirmed")
-CHECK_KINDS = ("fact", "evidence", "uncertainty", "state", "behavior", "critical")
+CHECK_KINDS = ("fact", "evidence", "uncertainty", "state", "behavior", "critical", "recall")
+# A task's id: T01-T99 for one session, C1-C9 for a chain of sessions (docs/design/PRODUCT-EVALUATION.md
+# Part II: each session a new aelix over the work the one before it left).
+TASK_ID = re.compile(r"T[0-9]{2}|C[0-9]")
 # Each check type with the keys it needs.
 CHECK_TYPES = {
     "text_any": ("values",), "text_all": ("values",), "number": ("value",), "percent": ("value",),
@@ -184,7 +187,7 @@ CHECK_TYPES = {
     "ids_all": ("values",), "ids_any": ("values",), "stated_as_current": ("patterns", "unless"),
     "new_records": (), "new_runs": (), "new_charts": (), "chart_covers": ("values",),
     "derived_table": ("min_cells", "time_columns", "score_columns"), "context_changed": (),
-    "tool_called": ("role",),
+    "tool_called": ("role",), "cites_project": (),
 }
 SCOPES = ("clause", "sentence", "line", "paragraph")
 # What a task measures in the comparison with aelix alone (docs/design/PRODUCT-EVALUATION.md §4).
@@ -400,8 +403,8 @@ def check_tasks(doc) -> list[str]:
     seen = set()
     for task in tasks:
         tid = task.get("id") if isinstance(task, dict) else None
-        if not isinstance(tid, str) or not re.fullmatch(r"T[0-9]{2}", tid):
-            out.append(f"tasks.json: a task has no id like T01: {str(task)[:80]}")
+        if not isinstance(tid, str) or not TASK_ID.fullmatch(tid):
+            out.append(f"tasks.json: a task has no id like T01 or C1: {str(task)[:80]}")
             continue
         if tid in seen:
             out.append(f"tasks.json: {tid} appears twice")
@@ -411,21 +414,40 @@ def check_tasks(doc) -> list[str]:
             out.append(f"{where}: fixture {task.get('fixture')!r} is not one of {sorted(fixtures)}")
         if task.get("setup") not in SETUPS:
             out.append(f"{where}: setup is not one of {SETUPS}")
+        sessions = task.get("sessions")
         if task.get("setup") == "fresh_with_input":
             fresh = task.get("fresh_project") or {}
-            if not (fresh.get("title") and fresh.get("goal") and fresh.get("inputs")):
+            # A chain's project starts without a goal: both conditions get it in the first request.
+            goal = isinstance(fresh.get("goal"), str) if sessions is not None else fresh.get("goal")
+            if not (fresh.get("title") and goal and fresh.get("inputs")):
                 out.append(f"{where}: fresh_with_input needs fresh_project with title, goal and inputs")
         gates = task.get("gates") or []
         if not gates or any(g not in GATES for g in gates):
             out.append(f"{where}: gates must be among {GATES}")
         if task.get("q11_request") not in Q11_REQUESTS:
             out.append(f"{where}: q11_request is not one of {Q11_REQUESTS}")
-        requests = task.get("requests")
-        if not isinstance(requests, list) or not requests or not all(
-                isinstance(r, str) and r.strip() for r in requests):
-            out.append(f"{where}: requests must be non-empty strings")
-        elif any(r.lstrip().startswith(("-", "@")) for r in requests):
-            out.append(f"{where}: a request may not start with - or @ (aelix reads those as options or files)")
+        if (sessions is not None) != tid.startswith("C"):
+            out.append(f"{where}: a chain (C1) has sessions and a single task (T01) has requests")
+        if sessions is not None:
+            if "requests" in task:
+                out.append(f"{where}: a chain's requests are its sessions'")
+            if not isinstance(sessions, list) or len(sessions) < 2 or not all(isinstance(s, dict) for s in sessions):
+                out.append(f"{where}: sessions is a list of two or more sessions")
+                sessions = []
+            if task.get("proposal_conditions") not in (None, ["unrequested"]):
+                out.append(f"{where}: a chain runs unrequested only")
+            for s in sessions:
+                if not isinstance(s.get("recall_only", False), bool):
+                    out.append(f"{where}: recall_only is true or false")
+            request_lists = [s.get("requests") for s in sessions]
+        else:
+            request_lists = [task.get("requests")]
+        for requests in request_lists:
+            if not isinstance(requests, list) or not requests or not all(
+                    isinstance(r, str) and r.strip() for r in requests):
+                out.append(f"{where}: requests must be non-empty strings")
+            elif any(r.lstrip().startswith(("-", "@")) for r in requests):
+                out.append(f"{where}: a request may not start with - or @ (aelix reads those as options or files)")
         for cond in task.get("proposal_conditions") or []:
             if cond not in ("unrequested", "requested", "always_on"):
                 out.append(f"{where}: unknown proposal condition {cond}")
@@ -484,12 +506,17 @@ def check_answer(answer, task_id: str, tasks: dict, words: dict) -> list[str]:
     checks = answer.get("checks")
     if not isinstance(checks, list) or not checks:
         return out + ["checks is empty"]
+    sessions = len((tasks.get(task_id) or {}).get("sessions") or [])
     ids = set()
     for check in checks:
         cid = check.get("id")
         if not cid or cid in ids:
             out.append(f"check id {cid!r} is missing or repeated")
         ids.add(cid)
+        if sessions and not (isinstance(check.get("session"), int) and 1 <= check["session"] <= sessions):
+            out.append(f"check {cid}: a chain's check names its session (1-{sessions})")
+        if not sessions and ("session" in check or "requires" in check):
+            out.append(f"check {cid}: session and requires are for a chain's checks")
         kind, ctype = check.get("kind"), check.get("type")
         if kind not in CHECK_KINDS:
             out.append(f"check {cid}: kind {kind!r} is not one of {CHECK_KINDS}")
@@ -536,6 +563,15 @@ def check_answer(answer, task_id: str, tasks: dict, words: dict) -> list[str]:
                     out.append(f"check {cid}: claim {claim} → {verdict} is not a record id and a verdict")
         if ctype == "tool_called" and check.get("role") not in ROLES:
             out.append(f"check {cid}: role {check.get('role')!r} is not one of {ROLES}")
+    # A check of a later session can rest on one of an earlier session: what the later one recalls is
+    # what the earlier one found (docs/design/PRODUCT-EVALUATION.md §5, "해당 없음").
+    by_id = {c.get("id"): c for c in checks if isinstance(c, dict)}
+    for check in checks:
+        for need in check.get("requires") or []:
+            earlier = by_id.get(need) or {}
+            if not (isinstance(earlier.get("session"), int) and isinstance(check.get("session"), int)
+                    and earlier["session"] < check["session"]):
+                out.append(f"check {check.get('id')}: requires {need!r}, which is not a check of an earlier session")
     return out
 
 
@@ -1218,6 +1254,9 @@ def run_check(check: dict, ev: Evidence, words: dict) -> dict:
         records = [r["id"] for r in ev.state.get("new_records", []) if r.get("kind") in kinds]
         passed = bool(ev.state.get("context_changed")) or bool(records)
         detail = {"context_changed": bool(ev.state.get("context_changed")), "records": records}
+    elif ctype == "cites_project":
+        cited = project_cited(text, ev)
+        passed, detail = len(cited) >= int(check.get("min", 1)), {"cited": cited[:10]}
     elif ctype == "tool_called":
         name = ev.tools.get(check["role"])
         count = sum(1 for c in ev.calls if c.get("name") == name)
@@ -1230,24 +1269,66 @@ def run_check(check: dict, ev: Evidence, words: dict) -> dict:
     return result
 
 
+# A file a text names by its path or name: a script, a table, a chart, a note.
+# A Korean particle may follow it at once (compare.py의), so only ASCII letters and digits bound it.
+FILE_NAMED = re.compile(r"(?<![A-Za-z0-9_/.-])((?:[\w.-]+/)*[\w-][\w.-]*\.(?:py|sh|sql|ipynb|parquet|csv|json|png|svg|html|md|txt|xlsx))"
+                        r"(?![A-Za-z0-9_/-])")
+
+
+def project_cited(text: str, ev: Evidence) -> list[str]:
+    """What the text cites that is in the project: a record or run id it holds, or a file of it named by
+    its path or its name (the Python environment left out). Either condition can cite its evidence so:
+    the kit's ids, or the files aelix alone left (docs/design/PRODUCT-EVALUATION.md §5)."""
+    cited = sorted(i for i in ev.existing_ids if id_present(text, i))
+    if ev.project is not None and ev.project.is_dir():
+        files = [f.relative_to(ev.project).as_posix() for f in ev.project.rglob("*")
+                 if f.is_file() and ".venv" not in f.relative_to(ev.project).parts]
+        for named in dict.fromkeys(FILE_NAMED.findall(text)):
+            if any(f == named or f.endswith("/" + named) for f in files):
+                cited.append(named)
+    return cited
+
+
+# An id cut short where the text quotes it so (`20260916-214600-03-…`): the start of an id that exists.
+SHORTENED = re.compile(r"-?(?:…|\.\.\.)")
+
+
 def fabricated_ids(text: str, existing: set) -> list[str]:
-    found = set(RECORD_ID.findall(text)) | set(RUN_ID.findall(text))
+    found = set(RECORD_ID.findall(text))
+    for match in RUN_ID.finditer(text):
+        run_id = match.group(0)
+        if run_id not in existing and SHORTENED.match(text, match.end()) and any(
+                e.startswith(run_id + "-") for e in existing):
+            continue  # #24's campaign: an answer quoted an index's "same bytes as run 20260916-214600-03-…"
+        found.add(run_id)
     return sorted(i for i in found if i not in existing)
 
 
 # The checks on what the answer says, which aelix alone can pass as well as the extension: the result of
 # a comparison of the two (docs/design/PRODUCT-EVALUATION.md). `state` and `behavior` checks read what
 # the kit recorded or which of its tools was called, which only the extension can do.
-ANSWER_KINDS = ("fact", "evidence", "uncertainty")
+ANSWER_KINDS = ("fact", "evidence", "uncertainty", "recall")
 
 
-def score(answer: dict, ev: Evidence, words: dict, extra_checks=()) -> dict:
-    checks = [run_check(c, ev, words) for c in [*answer["checks"], *extra_checks]]
-    required = [c for c in checks if c["required"] and c["kind"] != "critical"]
-    critical = [c["id"] for c in checks if c["kind"] == "critical" and not c["passed"]]
-    facts = [c for c in checks if c["kind"] == "fact"]
-    evidence = [c for c in checks if c["kind"] == "evidence"]
-    limits = [c for c in checks if c["kind"] == "uncertainty"]
+def score(answer: dict, ev: Evidence, words: dict, extra_checks=(), earlier: dict | None = None) -> dict:
+    """earlier: a chain's earlier sessions' checks and whether they passed. A check that requires one
+    that did not pass is not applicable (`passed: None`): there was nothing to recall."""
+    checks = []
+    for check in [*answer["checks"], *extra_checks]:
+        result = run_check(check, ev, words)
+        unmet = [need for need in check.get("requires") or [] if (earlier or {}).get(need) is not True]
+        if unmet:
+            result.update(passed=None, would_pass=result["passed"],
+                          not_applicable=f"an earlier session's check did not pass: {', '.join(unmet)}")
+            result.pop("needs_review", None)
+        checks.append(result)
+    applicable = [c for c in checks if c["passed"] is not None]
+    required = [c for c in applicable if c["required"] and c["kind"] != "critical"]
+    critical = [c["id"] for c in applicable if c["kind"] == "critical" and not c["passed"]]
+    facts = [c for c in applicable if c["kind"] == "fact"]
+    evidence = [c for c in applicable if c["kind"] == "evidence"]
+    limits = [c for c in applicable if c["kind"] == "uncertainty"]
+    recall = [c for c in checks if c["kind"] == "recall"]
     success = all(c["passed"] for c in required) and not critical
     answer_success = all(c["passed"] for c in required if c["kind"] in ANSWER_KINDS) and not critical
     fabricated = fabricated_ids(ev.text, ev.existing_ids)
@@ -1264,6 +1345,9 @@ def score(answer: dict, ev: Evidence, words: dict, extra_checks=()) -> dict:
         "checks": checks,
         "fact_recall": {"passed": sum(c["passed"] for c in facts), "total": len(facts)},
         "limits": {"passed": sum(c["passed"] for c in limits), "total": len(limits)},
+        "recall": {"passed": sum(c["passed"] is True for c in recall),
+                   "total": sum(c["passed"] is not None for c in recall),
+                   "not_applicable": sum(c["passed"] is None for c in recall)},
         "evidence": {"passed": sum(c["passed"] for c in evidence), "total": len(evidence),
                      "cited": [i for i in answer.get("evidence_ids", []) if id_present(ev.text, i)]},
         "fabricated_ids": fabricated,
@@ -1789,11 +1873,12 @@ print(json.dumps({"mode": result["mode"], "changed": result["changed"], "event":
 # The context block the extension appends to the system prompt (extension: core.context_block), as the
 # project is when aelix starts. Kept with an A run so that the diagnosis of what a run received can
 # search it (docs/design/PRODUCT-EVALUATION.md §7).
+# UTF-8 bytes: a pipe's text encoding on Windows (cp1252) cannot write a Korean block.
 CONTEXT_BLOCK = """\
 import sys
 from pathlib import Path
 from aelix_analytics import core
-sys.stdout.write(core.context_block(core.Project(Path(sys.argv[1]))))
+sys.stdout.buffer.write(core.context_block(core.Project(Path(sys.argv[1]))).encode("utf-8"))
 """
 
 
@@ -1839,14 +1924,41 @@ def plain_project(kit_src: Path, project: Path, title: str) -> None:
     (project / ".python-version").write_text("3.12\n", encoding="utf-8", newline="\n")
 
 
-def prepare_work(task: dict, fixture: Path, work: Path, kit_src: Path, env: dict, kit: bool = True) -> Path:
+def carry(previous: Path, work: Path) -> list[dict]:
+    """A copy of the work root a chain's session left: regular files with their times, directories and
+    links as they are; anything else (a FIFO, a socket, a file that cannot be read) is left behind and
+    listed (relative path, why)."""
+    left: list[dict] = []
+
+    def regular(src: str, dst: str) -> None:
+        try:
+            if stat.S_ISREG(os.lstat(src).st_mode):
+                shutil.copy2(src, dst)
+                return
+            why = "not a regular file"
+        except OSError as exc:
+            why = type(exc).__name__
+        left.append({"path": Path(src).relative_to(previous).as_posix(), "why": why})
+
+    shutil.copytree(previous, work, symlinks=True, dirs_exist_ok=True, copy_function=regular)
+    return left
+
+
+def prepare_work(task: dict, fixture: Path, work: Path, kit_src: Path, env: dict, kit: bool = True,
+                 previous: Path | None = None, left: list | None = None) -> Path:
     """project/ and input/ only: manifest.json and expected.json carry answers. A fixture's project is
     the same for aelix alone (the files the kit wrote, which it reads without the kit); a fresh one is a
-    plain folder there (plain_project)."""
+    plain folder there (plain_project). A chain's later session continues in a copy of the work root
+    the session before it left (`previous`, its run's work/), whatever the model put there."""
     work.mkdir(parents=True, exist_ok=True)
     if any(work.iterdir()):
         raise HarnessError(f"the work root {work} is not empty")
     project = work / "project"
+    if previous is not None:
+        if not (previous / "project").is_dir():
+            raise HarnessError(f"the previous session left no project at {previous}")
+        (left if left is not None else []).extend(carry(previous, work))
+        return project
     if task["setup"] == "fixture":
         fixture_project(kit_src, fixture / "project", project, env)
         if (fixture / "input").is_dir():
@@ -2339,6 +2451,8 @@ def task_requests(session: Session, task: dict, work: Path) -> tuple[list[str], 
 
 
 def not_run_reason(session: Session, task: dict) -> str | None:
+    if (task.get("chain") or {}).get("blocked"):
+        return task["chain"]["blocked"]
     env = session.model.get("api_key_env")
     if env and not os.environ.get(env):
         return f"api_key_missing: {env} is not set"
@@ -2392,12 +2506,44 @@ def write_models_json(model: dict, agent_dir: Path, port: int | None) -> None:
     write_json(agent_dir / "models.json", {"providers": {model["provider"]: provider}})
 
 
-def run_name(task_id: str, model_id: str, surface: str, proposal: str, repeat: int) -> str:
-    return f"{task_id}-{model_id}-{surface}-{proposal}-r{repeat}"
+def run_name(task_id: str, model_id: str, surface: str, proposal: str, repeat: int, step: int | None = None) -> str:
+    return f"{task_id}-{model_id}-{surface}-{proposal}-r{repeat}" + (f"-s{step}" if step else "")
 
 
-def run_key(session: Session, task_id: str, repeat: int) -> str:
-    return run_name(task_id, session.model["id"], session.surface, session.proposal, repeat)
+def run_key(session: Session, task_id: str, repeat: int, step: int | None = None) -> str:
+    return run_name(task_id, session.model["id"], session.surface, session.proposal, repeat, step)
+
+
+def run_names(task: dict, model_id: str, surface: str, proposal: str, repeat: int) -> list[str]:
+    """The run directories of a task's repeat: one, or one per session of a chain."""
+    steps = range(1, len(task["sessions"]) + 1) if task.get("sessions") else [None]
+    return [run_name(task["id"], model_id, surface, proposal, repeat, s) for s in steps]
+
+
+def chain_step(task: dict, step: int, previous: str | None = None, blocked: str | None = None) -> dict:
+    """One session of a chain as a task of its own: its requests, its place in the chain, and the run
+    whose work root it continues (`previous`). `blocked` makes it not_run: an earlier session ended
+    without a result to continue from."""
+    spec = task["sessions"][step - 1]
+    chain = {"session": step, "sessions": len(task["sessions"]), "recall_only": bool(spec.get("recall_only")),
+             "previous": previous}
+    return {**task, "requests": spec["requests"], "chain": {**chain, **({"blocked": blocked} if blocked else {})}}
+
+
+def earlier_checks(runs: Path, chain: dict) -> dict:
+    """The checks of a chain's earlier sessions with whether each passed, read from their records
+    (None: not applicable, or the session was never scored)."""
+    found, key, seen = {}, chain.get("previous"), set()
+    while key and key not in seen:
+        seen.add(key)
+        try:
+            record = read_json(runs / key / "run.json")
+        except UsageError:
+            break
+        for check in (record.get("score") or {}).get("checks") or []:
+            found.setdefault(check["id"], check.get("passed"))
+        key = (record.get("chain") or {}).get("previous")
+    return found
 
 
 def base_record(session: Session, task: dict, repeat: int, key: str) -> dict:
@@ -2416,6 +2562,7 @@ def base_record(session: Session, task: dict, repeat: int, key: str) -> dict:
                  "machine": platform.machine()},
         "kit": session.checkout,
         "conditions": {"surface": session.surface, "proposal": session.proposal, "kit": has_kit(session)},
+        **({"chain": {k: v for k, v in task["chain"].items() if k != "blocked"}} if task.get("chain") else {}),
         "fixture": {**session.config.fixtures[task["fixture"]], "seed": session.seed},
         "answer": {"status": answer["status"], "confirmed_by": answer.get("confirmed_by")},
     }
@@ -3676,7 +3823,9 @@ def check_record(path: Path, record: dict) -> None:
 
 
 def run_one(session: Session, task: dict, repeat: int) -> dict:
-    key = run_key(session, task["id"], repeat)
+    """One run: a task, or one session of a chain (chain_step)."""
+    chain = task.get("chain") or {}
+    key = run_key(session, task["id"], repeat, chain.get("session"))
     run_dir = session.out / "runs" / key
     if run_dir.exists():
         raise UsageError(f"{run_dir} exists already: use a new --out or another repeat range")
@@ -3713,15 +3862,28 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
         # The model's work root is outside OUT (where the fixtures, with their answers, and the other
         # runs are) and holds only project/ and input/; it is kept as work/ once aelix has exited.
         session.work_parent.mkdir(parents=True, exist_ok=True)
-        work = Path(tempfile.mkdtemp(prefix=f"aelix-eval-{task['id']}-", dir=session.work_parent))
+        if chain.get("previous"):
+            # A chain's later session works where the first one did: a path the model wrote down
+            # earlier (a script reading {input}) still holds. That root moved into its run; it is free.
+            work = Path(read_json(session.out / "runs" / chain["previous"] / "run.json")["work"]["root"])
+            try:
+                work.mkdir()
+            except OSError as exc:
+                raise HarnessError(f"the chain's work root {work} could not be made again: {exc}") from exc
+        else:
+            work = Path(tempfile.mkdtemp(prefix=f"aelix-eval-{task['id']}-", dir=session.work_parent))
         record["work"] = {"root": str(work), "kept_at": "work",
                           "what": "the model's work root during the run, outside OUT; moved into the "
                                   "run's directory when aelix exited"}
         write_json(run_dir / "run.json", provisional(record))  # names the work root for `scan OUT`
         (run_dir / "home").mkdir()
         env_probe, _ = run_env(session, run_dir, work / "project")
+        previous = session.out / "runs" / chain["previous"] / "work" if chain.get("previous") else None
+        left: list[dict] = []
         project = prepare_work(task, fixture, work, Path(session.checkout["path"]) / "src", env_probe,
-                               kit=has_kit(session))
+                               kit=has_kit(session), previous=previous, left=left)
+        if previous is not None:
+            record["chain"]["not_carried"] = left
         if session.proposal == "always_on":
             record["proposal_mode"] = set_proposal_mode(Path(session.checkout["path"]) / "src", project, env_probe)
         if has_kit(session):
@@ -3735,7 +3897,8 @@ def run_one(session: Session, task: dict, repeat: int) -> dict:
         (run_dir / "agent").mkdir(parents=True, exist_ok=True)
         scripted = session.model["serving"].get("backend") == "fake"
         timeout = session.timeout or task["timeout_s"]
-        fake = ScriptedModel(load_script(task["id"], session.script), tools) if scripted else None
+        script_id = task["id"] + (f"-s{chain['session']}" if chain else "")
+        fake = ScriptedModel(load_script(script_id, session.script), tools) if scripted else None
         with fake or contextlib.nullcontext():
             write_models_json(session.model, run_dir / "agent", fake.port if fake else None)
             argv = build_argv(session, requests, extension_path, tools_argv, link,
@@ -3868,7 +4031,12 @@ def finish_record(session: Session, task: dict, record: dict, run_dir: Path, pro
                   calls=tr.calls, tools=tools, state=state, existing_ids=set(state["existing_ids"]),
                   project=project)
     answer = session.config.answers[task["id"]]
-    result = score(answer, ev, session.config.words, extra_checks)
+    chain = record.get("chain")
+    earlier = None
+    if chain:  # a chain's session: its own checks, with what the sessions before it found
+        answer = {**answer, "checks": [c for c in answer["checks"] if c.get("session") == chain["session"]]}
+        earlier = earlier_checks(run_dir.parent, chain)
+    result = score(answer, ev, session.config.words, extra_checks, earlier)
     # Paths the model's tool calls used outside its work root (where it ran).
     root = (record.get("work") or {}).get("root") or str(run_dir / "work")
     roots = [root, os.path.realpath(root)]
@@ -4067,12 +4235,12 @@ def summarize(out: Path) -> dict:
             "run": record.get("run") or run_dir.name, "task": record.get("task"),
             "model": (record.get("model") or {}).get("config"),
             "surface": conditions.get("surface"), "proposal": conditions.get("proposal"),
-            "kit": conditions.get("kit", True),
+            "kit": conditions.get("kit", True), "session": (record.get("chain") or {}).get("session"),
             "repeat": record.get("repeat"), "outcome": record.get("outcome"),
             "answer_result": sc.get("answer_result"),
             "reason": record.get("reason") or (record.get("harness_error") if record.get("provisional") else None),
             "answer_status": (record.get("answer") or {}).get("status"), "fact_recall": sc.get("fact_recall"),
-            "limits": sc.get("limits"),
+            "limits": sc.get("limits"), "recall": sc.get("recall"),
             "evidence": {k: (sc.get("evidence") or {}).get(k) for k in ("passed", "total")},
             "critical": sc.get("critical"), "needs_review": sc.get("needs_review"),
             "fabricated_ids": sc.get("fabricated_ids"),
@@ -4086,7 +4254,8 @@ def summarize(out: Path) -> dict:
             "elapsed_s": record.get("elapsed_s"), "record": str(path.relative_to(out))})
     groups: dict[tuple, list] = {}
     for run in runs:
-        groups.setdefault((run["model"], run["task"], run["surface"], run["proposal"]), []).append(run)
+        task = f"{run['task']}/s{run['session']}" if run.get("session") else run["task"]
+        groups.setdefault((run["model"], task, run["surface"], run["proposal"]), []).append(run)
     aggregate = []
     for (model, task, surface, proposal), items in sorted(groups.items(), key=lambda g: tuple(map(str, g[0]))):
         executed = [r for r in items if r["outcome"] != "not_run"]
@@ -4301,7 +4470,8 @@ def cmd_run(args) -> int:
             raise UsageError(f"--work-root {work_parent} is inside {place}")
     # Every run's directory is checked before the first run: nothing is run when one exists.
     taken = [name for t in task_ids for r in range(args.first_repeat, args.first_repeat + args.repeats)
-             if (out / "runs" / (name := run_name(t, model["id"], args.surface, args.proposal, r))).exists()]
+             for name in run_names(config.tasks[t], model["id"], args.surface, args.proposal, r)
+             if (out / "runs" / name).exists()]
     if taken:
         raise UsageError(f"runs already in {out / 'runs'}: {', '.join(taken)}; nothing was run: use a new "
                          "--out or another --first-repeat")
@@ -4331,19 +4501,23 @@ def cmd_run(args) -> int:
                 session.aelix_version = aelix_version(command)
                 session.uv = link_uv(out)
             for task_id in task_ids:
+                task = config.tasks[task_id]
                 for repeat in range(args.first_repeat, args.first_repeat + args.repeats):
-                    record = run_one(session, config.tasks[task_id], repeat)
-                    records.append(record)
-                    print(f"{record['run']}: {record['outcome']}"
-                          + (f" ({record['reason']})" if record.get("reason") else "")
-                          + (f" — {record['score']['fact_recall']['passed']}/"
-                             f"{record['score']['fact_recall']['total']} facts, "
-                             f"{record['tool_summary']['calls']} calls, "
-                             f"{record['tool_summary']['argument_errors']} argument errors, "
-                             f"{record['elapsed_s']} s" if record.get("score") else "")
-                          + (f" — secret scan {record['secret_scan']['status']}"
-                             if record.get("secret_scan") else ""), flush=True)
-                    raise_if_stopped()
+                    if not task.get("sessions"):
+                        records.append(report(run_one(session, task, repeat)))
+                        raise_if_stopped()
+                        continue
+                    # A chain: each session a new aelix over the work the one before it left. A session
+                    # that ended without a result (error, not_run) leaves nothing to continue from.
+                    previous = blocked = None
+                    for step in range(1, len(task["sessions"]) + 1):
+                        record = report(run_one(session, chain_step(task, step, previous, blocked), repeat))
+                        records.append(record)
+                        previous = record["run"]
+                        if blocked is None and record["outcome"] in ("error", "not_run"):
+                            blocked = (f"chain_broken: session {step} ({record['run']}) ended {record['outcome']}, "
+                                       "so there is no work to continue")
+                        raise_if_stopped()
         finally:
             with deferred():
                 summary = summarize(out)
@@ -4366,6 +4540,19 @@ def cmd_run(args) -> int:
               "searches a run left unscanned)", file=sys.stderr)
         return 1
     return 0
+
+
+def report(record: dict) -> dict:
+    print(f"{record['run']}: {record['outcome']}"
+          + (f" ({record['reason']})" if record.get("reason") else "")
+          + (f" — {record['score']['fact_recall']['passed']}/"
+             f"{record['score']['fact_recall']['total']} facts, "
+             f"{record['tool_summary']['calls']} calls, "
+             f"{record['tool_summary']['argument_errors']} argument errors, "
+             f"{record['elapsed_s']} s" if record.get("score") else "")
+          + (f" — secret scan {record['secret_scan']['status']}"
+             if record.get("secret_scan") else ""), flush=True)
+    return record
 
 
 def check_login_path(auth_file: Path) -> None:
@@ -4420,6 +4607,8 @@ def cmd_score(args) -> int:
                           timeout=None, script=None, serving=record["model"].get("serving_check"),
                           uv=None, secrets=[])
         task = config.tasks[record["task"]]
+        if record.get("chain"):  # in name order, a chain's earlier sessions are scored first
+            task = chain_step(task, record["chain"]["session"], record["chain"].get("previous"))
         _, extra = task_requests(session, task, path.parent / "work")
         record["answer"] = {"status": config.answers[task["id"]]["status"],
                             "confirmed_by": config.answers[task["id"]].get("confirmed_by")}

@@ -1,0 +1,140 @@
+{
+  "schema": "aelix-analytics.model-eval-answer/1",
+  "task": "T14",
+  "status": "draft",
+  "author": "Claude Code (agent) from the seed-0 fixtures of tools/eval_fixtures.py, 2026-10-31 (#24, E3 of docs/design/PRODUCT-EVALUATION.md); to be confirmed by the owner",
+  "fixture": {
+    "kind": "scale",
+    "scale": "S",
+    "seed": 0,
+    "generator_version": 1
+  },
+  "correct_completion": "정정 전의 값은 e41의 12.4%(세종 3분기 성장률, 전 지역 중 가장 높음)이고, run 20260803-092257-k01-region-summary에서 나왔다. 코드는 scripts/k01_region_summary.py, 입력은 data/raw/sales_kr.parquet(sha256 c0e58e31…)이다. 지금 값은 e287의 9.8%로, 중복 주문을 지운 뒤 다시 계산했다고 적혀 있지만 그 계산의 run은 기록에 없다. 그래서 9.8%는 기록된 실행으로 되돌아갈 수 없다.",
+  "evidence_ids": [
+    "e41",
+    "e287",
+    "20260803-092257-k01-region-summary"
+  ],
+  "checks": [
+    {
+      "id": "cites",
+      "kind": "evidence",
+      "type": "ids_all",
+      "values": [
+        "e41",
+        "e287",
+        "20260803-092257-k01-region-summary"
+      ],
+      "what": "원래 발견, 정정, 원래 값의 run"
+    },
+    {
+      "id": "old-value",
+      "kind": "fact",
+      "type": "percent",
+      "value": 0.124,
+      "abs_tol_pp": 0.05,
+      "what": "정정 전의 값 12.4%"
+    },
+    {
+      "id": "current-value",
+      "kind": "fact",
+      "type": "number_near",
+      "percent": true,
+      "value": 0.098,
+      "abs_tol_pp": 0.05,
+      "prefer": "nearest",
+      "words": [
+        "지금",
+        "현재",
+        "current",
+        "now",
+        "정정 후",
+        "정정된",
+        "e287"
+      ],
+      "against": [
+        "이전",
+        "예전",
+        "바꾸기 전",
+        "변경 전",
+        "원래",
+        "previous",
+        "before",
+        "earlier",
+        "정정 전",
+        "e41"
+      ],
+      "what": "지금 값 9.8%를 지금 값으로"
+    },
+    {
+      "id": "script",
+      "kind": "fact",
+      "type": "text_any",
+      "values": [
+        "k01_region_summary.py"
+      ],
+      "what": "원래 값의 코드"
+    },
+    {
+      "id": "input",
+      "kind": "fact",
+      "type": "text_any",
+      "values": [
+        "sales_kr"
+      ],
+      "what": "원래 값의 입력 데이터"
+    },
+    {
+      "id": "no-run",
+      "kind": "uncertainty",
+      "type": "cooccur",
+      "any": [
+        [
+          "9.8",
+          "e287",
+          "정정",
+          "지금 값"
+        ],
+        [
+          "기록에 없",
+          "기록에는 없",
+          "run이 없",
+          "run은 없",
+          "run 기록이 없",
+          "run 기록은 없",
+          "실행이 없",
+          "실행 기록이 없",
+          "실행 기록은 없",
+          "기록되지 않",
+          "남아 있지 않",
+          "남지 않",
+          "참조하지 않",
+          "run을 참조하지",
+          "run 참조가 없",
+          "run이 기록되지",
+          "no run",
+          "not recorded",
+          "without a run"
+        ]
+      ],
+      "what": "지금 값(e287)의 계산에는 run이 기록되지 않았다는 한계"
+    },
+    {
+      "id": "old-as-current",
+      "kind": "critical",
+      "type": "stated_as_current",
+      "patterns": [
+        "12\\.4\\s*%"
+      ],
+      "unless": "@superseded_or_reason",
+      "reason_words": [
+        "정정",
+        "중복",
+        "대체",
+        "이전",
+        "원래"
+      ],
+      "what": "12.4%를 지금 값으로"
+    }
+  ]
+}

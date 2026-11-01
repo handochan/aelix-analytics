@@ -21,6 +21,12 @@ another kit than the one most of its compared runs used (an older checkout's, #9
   model). A rule is `not_run` when its data is missing: Part II's recall before its chains run, or a task of
   its scope that has not run the same repeats in both conditions (incomplete). One whose verdict would
   change if a person confirmed or rejected the critical checks that fired is `provisional`.
+- A chain (Part II) gives one run per session, and a re-run's repeat is kept whole. R4 pairs each recall
+  check of the chain's answer in each repeat either condition ran (a session that did not run had nothing
+  to recall), leaves out a pair where either side had nothing to recall, and is `withheld` when more than
+  half are left out; redundant work is the analysis calls of the sessions that only ask what earlier ones
+  found. R1 adds the pairs of the working sessions, R5 counts each chain's first session as an analysis
+  task, R6 a finished chain's repeat as the sum of its sessions, R7 A's recall.
 - Diagnosis: for each failed fact or evidence check with values a text can hold (ids and numbers), whether
   the run received them (its tool results and, for A, its starting context block), whether the kit's reads
   would have given them (its context block, status and the reads of the task's ids, on a fresh copy of the
@@ -50,8 +56,18 @@ COMPARED = {"default": "A", "vanilla": "V"}
 FLOOR = 2 / 3
 COST_FACTOR = 1.2
 HARM_ALLOWANCE = 1  # runs per task
+# R4 is withheld when more than this share of the A-V pairs of recall checks is not applicable (O7).
+WITHHELD_SHARE = 1 / 2
 # Calls that read the kit's own files directly (journal, run records, the state directory).
 RAW_FILE = re.compile(r"journal\.jsonl|run\.json|\.analytics/|(?:^|[\s/\"'])runs/")
+# A call that runs an analysis (§6 redundant work): the kit's run and query tools (both generations of
+# names), or a shell command whose program is Python or DuckDB (by any path, also through `uv run`), or
+# the kit's own run and query commands.
+ANALYSIS_TOOLS = ("analytics_run", "analytics_query", "lab_run", "lab_query")
+SHELL_SEPARATOR = re.compile(r"&&|\|\||[;|&\n(){}`]|\$\(")
+PROGRAM = re.compile(r"python(?:\d+(?:\.\d+)?)?|duckdb")
+# uv's options that take a value, before the program it runs.
+UV_VALUE_OPTIONS = {"--project", "--directory", "--with", "--python", "-p", "--env-file", "--group", "--extra", "--package"}
 HANGUL = re.compile(r"[가-힣]")
 HAN = re.compile(r"[一-鿿]")
 KANA = re.compile(r"[ぁ-ゟ゠-ヿ]")
@@ -145,7 +161,7 @@ for record_id in json.loads(sys.argv[2]):
         out["ids"][record_id] = core.retrieval_text(core.retrieve(p, id=name))
     except Exception as exc:  # noqa: BLE001 - an id the kit cannot read is a finding, not a failure
         out["ids"][record_id] = "unreadable: " + type(exc).__name__
-print(json.dumps(out, ensure_ascii=False))
+sys.stdout.buffer.write(json.dumps(out, ensure_ascii=False).encode("utf-8"))  # not the pipe's encoding (cp1252)
 """
 
 
@@ -183,7 +199,7 @@ def availability(config: me.Config, record: dict, run_dir: Path, fixtures: Path 
     # asks the model to compute (E6) is not something a read could have given.
     recorded = bool(set(config.tasks[record["task"]].get("areas") or []) & {"E1", "E2", "E3"})
     failed = [c for c in sc.get("checks") or []
-              if c.get("required") and not c.get("passed")
+              if c.get("required") and c.get("passed") is False
               and (c.get("kind") == "evidence" or (c.get("kind") == "fact" and recorded))]
     if not failed:
         return []
@@ -210,6 +226,29 @@ def availability(config: me.Config, record: dict, run_dir: Path, fixtures: Path 
         out.append({"check": check["id"], "kind": check["kind"], "where": where,
                     "missing": [t for t in tokens if t not in got], "needed": need})
     return out
+
+
+def analysis_call(call: dict) -> bool:
+    if call.get("name") in ANALYSIS_TOOLS:
+        return True
+    if call.get("name") != "bash":
+        return False
+    for part in SHELL_SEPARATOR.split(str((call.get("args") or {}).get("command") or "")):
+        words = part.split()
+        while words and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=\S*", words[0]):  # VAR=value before a program
+            words.pop(0)
+        if words[:2] == ["uv", "run"]:
+            words = words[2:]
+            while words and words[0].startswith("-"):
+                words = words[2:] if words[0] in UV_VALUE_OPTIONS else words[1:]
+        if not words:
+            continue
+        program = words[0].rsplit("/", 1)[-1]
+        if PROGRAM.fullmatch(program) or program.endswith(".py"):
+            return True
+        if program in ("analytics", "lab") and words[1:2] and words[1] in ("run", "query"):
+            return True
+    return False
 
 
 def kit_id(record: dict) -> str:
@@ -247,6 +286,10 @@ def run_row(config: me.Config, out_dir: Path, run_dir: Path, record: dict, confi
         applied = [c for c in checks if c.get("kind") == kind and c.get("required") and c.get("passed") is not None]
         return [sum(bool(c["passed"]) for c in applied), len(applied)]
 
+    chain = record.get("chain") or {}
+    recall = {c["id"]: c.get("passed") for c in checks if c.get("kind") == "recall"}
+    recalled = [sum(v is True for v in recall.values()), sum(v is not None for v in recall.values())]
+
     return {
         "run": name, "out": str(out_dir), "model": model_id, "task": record.get("task"), "kit": kit_id(record),
         "condition": COMPARED.get(conditions.get("surface")), "surface": conditions.get("surface"),
@@ -254,7 +297,12 @@ def run_row(config: me.Config, out_dir: Path, run_dir: Path, record: dict, confi
         "proposal": conditions.get("proposal"), "repeat": record.get("repeat"),
         "outcome": record.get("outcome"), "reason": record.get("reason"), "executed": executed,
         "answer_success": bool(answer_success), "answer_success_if_misread": bool(if_misread),
+        "session": chain.get("session"), "recall_only": bool(chain.get("recall_only")),
         "fact": counts("fact"), "evidence": counts("evidence"),
+        # Resumption (R1): a task's state facts; in a chain, what a working session recalls of the ones before it.
+        "resume": counts("fact") if not chain else [0, 0] if chain.get("recall_only") else recalled,
+        "recall": recalled, "recall_checks": recall,
+        "analysis_calls": sum(analysis_call(c) for c in calls),
         "limits": counts("uncertainty"), "critical_fired": fired, "critical_real": real,
         "critical_unconfirmed": unconfirmed, "stale_confirmation": stale,
         "fabricated_ids": sc.get("fabricated_ids") or [],
@@ -273,7 +321,7 @@ def run_row(config: me.Config, out_dir: Path, run_dir: Path, record: dict, confi
 
 
 def collect(config: me.Config, outs: list[Path], confirmations: dict, fixtures: Path | None):
-    rows, replaced = {}, []
+    attempts: dict = defaultdict(lambda: defaultdict(list))
     cache: dict = {}
     for out in outs:
         for run_dir, record in me.stored_runs(out):
@@ -282,17 +330,19 @@ def collect(config: me.Config, outs: list[Path], confirmations: dict, fixtures: 
             row = run_row(config, out, run_dir, record, confirmations, fixtures, cache)
             compared = row["condition"] is not None and row["proposal"] == "unrequested"
             key = (compared, row["model"], row["kit"], row["task"], row["surface"], row["proposal"], row["repeat"])
-            kept = rows.get(key)
-            if kept is None:
-                rows[key] = row
-            elif (row["executed"] and row["outcome"] != "error", row["finished_at"] or "") > (
-                    kept["executed"] and kept["outcome"] != "error", kept["finished_at"] or ""):
-                replaced.append(kept["run"] + " in " + kept["out"])
-                rows[key] = row
-            else:
-                replaced.append(row["run"] + " in " + row["out"])
-    compared = [r for k, r in rows.items() if k[0]]
-    other = [r for k, r in rows.items() if not k[0]]
+            attempts[key][str(out)].append(row)
+    # The same run in more than one OUT: the attempt that executed is kept (a chain's repeat whole, never
+    # one session from one attempt and the next from another), between two that executed the later.
+    rows, replaced = {}, []
+    for key, by_out in attempts.items():
+        def merit(runs):
+            return (sum(r["executed"] and r["outcome"] != "error" for r in runs),
+                    max((r["finished_at"] or "") for r in runs))
+        best = max(by_out, key=lambda o: merit(by_out[o]))
+        rows[key] = by_out[best]
+        replaced += [r["run"] + " in " + r["out"] for o, runs in by_out.items() if o != best for r in runs]
+    compared = [r for k, runs in rows.items() if k[0] for r in runs]
+    other = [r for k, runs in rows.items() if not k[0] for r in runs]
     # One kit per model: the one most of its compared runs used; the others' runs are listed apart.
     main_kit = {m: Counter(r["kit"] for r in compared if r["model"] == m).most_common(1)[0][0]
                 for m in {r["model"] for r in compared}}
@@ -314,6 +364,20 @@ def total_tokens(row: dict) -> int | None:
     return sum(row["tokens"]) if row["tokens"] else None
 
 
+def successful_costs(runs: list[dict], sessions: int = 0) -> list:
+    """The total tokens of each answer-successful run; a chain's repeat is one run, its sessions' sum, and
+    successful when every one of its sessions ran and answered."""
+    if not sessions:
+        return [total_tokens(r) for r in runs if r["answer_success"]]
+    out = []
+    for repeat in sorted({r["repeat"] for r in runs}):
+        steps = [r for r in runs if r["repeat"] == repeat]
+        if len(steps) == sessions and all(r["answer_success"] for r in steps):
+            costs = [total_tokens(r) for r in steps]
+            out.append(None if None in costs else sum(costs))
+    return out
+
+
 def median(values: list) -> float | None:
     values = [v for v in values if v is not None]
     return statistics.median(values) if values else None
@@ -329,17 +393,51 @@ def judge(config: me.Config, rows: list[dict]) -> dict:
         by = {(t, c): [r for r in mine if r["task"] == t and r["condition"] == c] for t in tasks for c in "AV"}
         # A task is compared when both conditions ran the same repeats; in any other, a rule over it
         # would rest on one condition's runs alone, so the rule is not_run.
-        incomplete = [t for t in tasks if sorted(r["repeat"] for r in by[(t, "A")])
-                      != sorted(r["repeat"] for r in by[(t, "V")])]
+        incomplete = [t for t in tasks if sorted((r["repeat"], r["session"] or 0) for r in by[(t, "A")])
+                      != sorted((r["repeat"], r["session"] or 0) for r in by[(t, "V")])]
+        chains = [t for t in tasks if config.tasks[t].get("sessions")]
         upper = tier(config.models.get(model, {})) == "upper"
         rules = {}
 
         def pooled(selected, key, cond, by=by):
             return rate([r for t in selected for r in by[(t, cond)]], key)
 
-        def below(selected, key, by=by):
-            """The tasks where A's pooled rate is under V's (a tie, both full, is no difference: O6)."""
-            return [t for t in selected if (ratio(rate(by[(t, "A")], key)) or 0) < (ratio(rate(by[(t, "V")], key)) or 0)]
+        def below(selected, key, by=by, counts=None):
+            """The tasks where A's rate is under V's (a tie, both full, is no difference: O6); a task where
+            either side had no check to count is not compared."""
+            out = []
+            for t in selected:
+                a, v = (ratio(counts(t, c) if counts else rate(by[(t, c)], key)) for c in "AV")
+                if a is not None and v is not None and a < v:
+                    out.append(t)
+            return out
+
+        everything = [r for r in rows if r["model"] == model]
+
+        def recall_pairs(t, working_only=False, by=by, everything=everything):
+            """Each recall check of a chain's answer (for R1, of its working sessions only) in each repeat
+            either condition ran: a pair when both sides had something to recall, else left out of both
+            (O7). A session that did not run, or was not scored, had nothing to recall."""
+            counts, left = {"A": [0, 0], "V": [0, 0]}, 0
+            specs = [c for c in config.answers[t]["checks"] if c.get("kind") == "recall" and not (
+                working_only and config.tasks[t]["sessions"][c["session"] - 1].get("recall_only"))]
+            for repeat in sorted({r["repeat"] for r in everything if r["task"] == t}):
+                for spec in specs:
+                    got = {}
+                    for cond in "AV":
+                        run = next((r for r in by[(t, cond)] if (r["repeat"], r["session"]) == (repeat, spec["session"])), None)
+                        got[cond] = (run or {}).get("recall_checks", {}).get(spec["id"])
+                    if got["A"] is None or got["V"] is None:
+                        left += 1
+                        continue
+                    for cond in "AV":
+                        counts[cond][0] += bool(got[cond])
+                        counts[cond][1] += 1
+            return counts, left
+
+        def resumed(t, cond, by=by, chains=chains):
+            """R1's counts of a task: its state facts; a chain's paired recall checks of its working sessions."""
+            return tuple(recall_pairs(t, working_only=True)[0][cond]) if t in chains else rate(by[(t, cond)], "resume")
 
         def missing(scope, what, incomplete=incomplete):
             if not scope:
@@ -351,11 +449,12 @@ def judge(config: me.Config, rows: list[dict]) -> dict:
             return None
 
         resume = [t for t in tasks if areas[t] & {"E1", "E3"}]
-        a, v = ratio(pooled(resume, "fact", "A")), ratio(pooled(resume, "fact", "V"))
+        a, v = (ratio((sum(resumed(t, c)[0] for t in resume), sum(resumed(t, c)[1] for t in resume))) for c in "AV")
+        worse_resume = below(resume, "resume", counts=resumed)
         rules["R1"] = missing(resume, "E1 or E3") or (
             {"verdict": "not_run", "reason": "no required fact check"} if a is None or v is None else
-            {"verdict": "pass" if a >= v and not below(resume, "fact") else "fail",
-             "A": a, "V": v, "tasks": resume, "A_below_V": below(resume, "fact")})
+            {"verdict": "pass" if a >= v and not worse_resume else "fail",
+             "A": a, "V": v, "tasks": resume, "A_below_V": worse_resume})
         evidence_tasks = [t for t in tasks if "E2" in areas[t]]
         fabricated = {c: sum(len(r["fabricated_ids"]) for t in evidence_tasks for r in by[(t, c)]) for c in "AV"}
         ea, ev = ratio(pooled(evidence_tasks, "evidence", "A")), ratio(pooled(evidence_tasks, "evidence", "V"))
@@ -389,42 +488,70 @@ def judge(config: me.Config, rows: list[dict]) -> dict:
         else:
             r3["verdict"] = "fail" if sure_fail else "provisional" if may_fail else "pass"
         rules["R3"] = r3
-        rules["R4"] = {"verdict": "not_run", "reason": "Part II's chains (recall, redundant work) have not run"}
-        harm_tasks = [t for t in tasks if "E6" in areas[t]]
+        # R4: each recall check of a chain's repeat in both conditions is a pair; a pair where either side
+        # had nothing to recall (not applicable) leaves both (O7), and is counted apart.
+        pairs, left_out = {"A": [0, 0], "V": [0, 0]}, 0
+        for t in chains:
+            counts, left = recall_pairs(t)
+            left_out += left
+            for cond in "AV":
+                pairs[cond] = [pairs[cond][0] + counts[cond][0], pairs[cond][1] + counts[cond][1]]
+        redundant = {c: sum(r["analysis_calls"] for t in chains for r in by[(t, c)] if r["recall_only"]) for c in "AV"}
+        total_pairs = pairs["A"][1] + left_out
+        r4 = {"recall": {c: ratio(tuple(pairs[c])) for c in "AV"}, "pairs": pairs["A"][1], "not_applicable_pairs": left_out,
+              "redundant_analysis_calls": redundant, "chains": chains}
+        gap = missing(chains, "Part II")
+        if gap is not None:
+            rules["R4"] = gap
+        elif total_pairs == 0 or left_out > WITHHELD_SHARE * total_pairs:
+            rules["R4"] = {**r4, "verdict": "withheld",
+                           "reason": "more than half of the recall pairs had nothing to recall in one condition"}
+        else:
+            ok = r4["recall"]["A"] > r4["recall"]["V"] and redundant["A"] <= redundant["V"]
+            rules["R4"] = {**r4, "verdict": "pass" if ok else "fail"}
+        # R5's units: each analysis task, and each chain's first session (the analysis the chain starts from).
+        harm_tasks = [t for t in tasks if "E6" in areas[t] and t not in chains] + [f"{t}/s1" for t in chains]
 
-        def successes(t, cond, key, by=by):
-            return sum(r[key] for r in by[(t, cond)])
+        def unit(t, cond, by=by):
+            if "/s" in t:
+                task, step = t.split("/s")
+                return [r for r in by[(task, cond)] if r["session"] == int(step)]
+            return by[(t, cond)]
+
+        def successes(t, cond, key):
+            return sum(r[key] for r in unit(t, cond))
         # Short for sure: even were every unconfirmed critical check of A misread and V's real; maybe: the other way.
         sure_short = [t for t in harm_tasks if successes(t, "A", "answer_success_if_misread")
                       < successes(t, "V", "answer_success") - HARM_ALLOWANCE]
         may_short = [t for t in harm_tasks if successes(t, "A", "answer_success")
                      < successes(t, "V", "answer_success_if_misread") - HARM_ALLOWANCE]
-        rules["R5"] = missing(harm_tasks, "E6") or {
+        rules["R5"] = missing([t.split("/s")[0] for t in harm_tasks], "E6 or Part II") or {
             "verdict": "fail" if sure_short else "provisional" if may_short else "pass",
             "tasks": harm_tasks, "A_short": sure_short, "A_maybe_short": may_short,
             "answer_success": {t: {c: successes(t, c, "answer_success") for c in "AV"} for t in harm_tasks}}
         costly = []
         for t in compared:
-            ca = median([total_tokens(r) for r in by[(t, "A")] if r["answer_success"]])
-            cv = median([total_tokens(r) for r in by[(t, "V")] if r["answer_success"]])
+            ca, cv = (median(successful_costs(by[(t, c)], len(config.tasks[t].get("sessions") or []))) for c in "AV")
             if ca is not None and cv is not None and ca > COST_FACTOR * cv:
                 costly.append({"task": t, "A": ca, "V": cv})
         rules["R6"] = {"verdict": "report", "over_1_2x": costly}
-        # R7 is A's own floor: every A run of the resume tasks, whatever V ran.
-        resume_a = ratio(pooled(resume, "fact", "A"))
-        r7 = {"resume_A": resume_a, "recall_A": None, "floor": FLOOR}
+        # R7 is A's own floor: every A run of the resume tasks and of the chains, whatever V ran.
+        resume_a = ratio(pooled(resume, "resume", "A"))
+        recall_a = ratio(pooled(chains, "recall", "A"))
+        r7 = {"resume_A": resume_a, "recall_A": recall_a, "floor": FLOOR}
         if not upper:
             r7["verdict"] = "report"
-        elif resume_a is None:
-            r7["verdict"] = "not_run"
-        elif resume_a < FLOOR:
+        elif (resume_a is not None and resume_a < FLOOR) or (recall_a is not None and recall_a < FLOOR):
             r7["verdict"] = "fail"
+        elif resume_a is None or recall_a is None:
+            r7["verdict"] = "not_run"
         else:
-            r7["verdict"] = "not_run"  # the recall floor waits for Part II
+            r7["verdict"] = "pass"
         rules["R7"] = r7
         required = ["R1", "R2", "R3", "R4", "R5"] + (["R7"] if upper else [])
         verdicts = [rules[k]["verdict"] for k in required]
-        gate = "fail" if "fail" in verdicts else ("pending" if any(v in ("not_run", "provisional") for v in verdicts) else "pass")
+        gate = "fail" if "fail" in verdicts else ("pending" if any(v in ("not_run", "provisional", "withheld")
+                                                                  for v in verdicts) else "pass")
         out[model] = {"tier": "upper" if upper else "lower", "tasks": tasks, "incomplete": incomplete,
                       "rules": rules, "gate": gate}
     return out
@@ -432,6 +559,7 @@ def judge(config: me.Config, rows: list[dict]) -> dict:
 
 def summary_rows(rows: list[dict]) -> list[dict]:
     out = []
+    rows = [{**r, "task": f"{r['task']}/s{r['session']}" if r.get("session") else r["task"]} for r in rows]
     for (model, task, cond), items in sorted(_group(rows, ("model", "task", "condition")).items()):
         executed = [r for r in items if r["executed"]]
         out.append({"model": model, "task": task, "condition": cond, "runs": len(items),
@@ -445,7 +573,9 @@ def summary_rows(rows: list[dict]) -> list[dict]:
                     "median_tool_calls": median([r["tool_calls"] for r in executed]),
                     "median_elapsed_s": median([r["elapsed_s"] for r in executed]),
                     "tool_errors": sum(r["tool_errors"] for r in executed),
-                    "raw_reads": sum(r["raw_reads"] for r in executed)})
+                    "raw_reads": sum(r["raw_reads"] for r in executed),
+                    "recall": list(rate(executed, "recall")),
+                    "analysis_calls": sum(r["analysis_calls"] for r in executed)})
     return out
 
 
@@ -516,13 +646,14 @@ def markdown(result: dict) -> str:
             detail = {k: v for k, v in rule.items() if k not in ("verdict",)}
             lines.append(f"| {key} | {rule['verdict']} | {json.dumps(detail, ensure_ascii=False)[:300]} |")
         lines.append("")
-    lines += ["## 과제별", "", "| 모델 | 과제 | 조건 | run | 답 성공 | 사실 | 근거 | 한계 | 맥락 오류 | 없는 ID | 토큰 중앙값 | 호출 중앙값 | 시간 중앙값(초) | 도구 오류 | 원시 파일 읽기 |",
-              "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    lines += ["## 과제별", "", "| 모델 | 과제 | 조건 | run | 답 성공 | 사실 | 근거 | 한계 | 회수 | 맥락 오류 | 없는 ID | 토큰 중앙값 | 호출 중앙값 | 분석 실행 | 시간 중앙값(초) | 도구 오류 | 원시 파일 읽기 |",
+              "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for s in result["tasks"]:
         lines.append("| " + " | ".join(fmt(x) for x in (
             s["model"], s["task"], s["condition"], s["runs"], s["answer_success"], "/".join(map(str, s["fact"])),
-            "/".join(map(str, s["evidence"])), "/".join(map(str, s["limits"])), s["context_errors"],
-            s["fabricated_ids"], s["median_tokens"], s["median_tool_calls"], s["median_elapsed_s"],
+            "/".join(map(str, s["evidence"])), "/".join(map(str, s["limits"])), "/".join(map(str, s["recall"])),
+            s["context_errors"], s["fabricated_ids"], s["median_tokens"], s["median_tool_calls"], s["analysis_calls"],
+            s["median_elapsed_s"],
             s["tool_errors"], s["raw_reads"])) + " |")
     d = result["diagnosis"]
     lines += ["", "## 진단", "", "### 정보 가용성", ""]
