@@ -1,17 +1,18 @@
 # 실제 모델 평가 (Issue #40)
 
 [`tools/model_eval.py`](../model_eval.py)가 실제 모델로 평가 과제를 실행하고 정답 파일로 채점한다. [베타 품질 기준](../../docs/BETA-QUALITY-GATES.md)
-§3의 "12개 과제 × 3회 × 두 모델"(Q2·Q3·Q5·Q11·Q12·Q13) 측정을 준비한다. 캠페인 실행과 결과표는 #24의 일이다. 데이터는 #41의
-[평가 fixture](../eval_fixtures_data/README.md)(seed 0)만 쓴다.
+§3의 모델 측정, 곧 [제품 효과 평가 설계](../../docs/design/PRODUCT-EVALUATION.md)의 확장 유무 비교(A: aelix-analytics, V: aelix만)를
+준비한다. [`tools/model_eval_compare.py`](../model_eval_compare.py)가 두 조건을 그 설계의 규칙으로 비교하고 진단한다(아래 [조건 비교](#조건-비교)).
+캠페인 실행과 결과표는 #24의 일이다. 데이터는 #41의 [평가 fixture](../eval_fixtures_data/README.md)(seed 0)만 쓴다.
 
 ## 파일
 
 | 파일 | 내용 |
 |---|---|
-| [`tasks.json`](tasks.json) | 과제 12개: 사용자 요청 글, fixture, 준비 방식, 게이트, Q11 요청 유형, Q5 조건, 제한 시간. 소유자가 과제 목록을 확인했다(`status: confirmed`, 2026-10-18). 하네스는 이 값을 읽지 않는다 |
+| [`tasks.json`](tasks.json) | 과제 12개: 사용자 요청 글, fixture, 준비 방식, 게이트, 측정 영역(`areas`, 설계의 E1–E6), Q11 요청 유형, Q5 조건, 제한 시간. 소유자가 과제 목록을 확인했다(`status: confirmed`, 2026-10-18). 하네스는 `status`를 읽지 않는다 |
 | [`answers/`](answers/) | 과제별 정답: 바른 완료(글), 근거 ID, 채점 검사, 쓴 fixture의 seed. 에이전트가 쓴 초안을 소유자가 모두 확인했다(`status: confirmed`, 2026-10-17). T12는 `always_review`(아래 채점) |
 | [`models/`](models/) | 모델 설정: [로컬 Qwen](models/qwen3.8-27b-local.json), [프론티어](models/gpt-5.6-sol.json), [Q17-b의 gpt-6.1-sol](models/gpt-6.1-sol.json), [OpenRouter의 Qwen](models/qwen3.8-27b-openrouter.json), [dry-run](models/dry-run.json) |
-| [`conditions.json`](conditions.json) | 도구 표면(Q11), 제안 조건(Q5), 글 판정에 쓰는 낱말 묶음 |
+| [`conditions.json`](conditions.json) | 도구 표면(Q11과 aelix만의 `vanilla`), 제안 조건(Q5), 글 판정에 쓰는 낱말 묶음 |
 | [`dry_run/`](dry_run/) | dry-run의 가짜 모델이 따르는 스크립트(과제별, 없으면 상태 확인 뒤 답 하나) |
 
 정답은 에이전트가 fixture를 읽고 쓴 초안이었고, 소유자가 12개를 모두 확인했다(2026-10-17, #40): `status`는 `confirmed`, `confirmed_by`는 확인한 사람이다.
@@ -68,6 +69,8 @@ uv run --locked python tools/model_eval.py scan <dir>                         # 
 비밀 검사가 통과하지 못함, `OUT`에 검사하지 않은 run이 남음, 또는 신호로 멈춤), 2(사용법·설정 오류, 아무것도 실행하지 않음),
 3(전제가 없어 실행하지 않음: 모델의 aelix 로그인이 없거나 API가 그 로그인을 거절함, 키 없음, 서빙이 고정 설정과 다름, kit에 없는 조건.
 `summary.json`에 `not_run`과 이유, 로그인 문제면 로그인 방법과 실행할 명령).
+provider가 요청을 거절해(aelix가 적은 오류 `Error code: 402`, 예: OpenRouter의 크레딧 부족) 모델이 도구 호출도 답도 usage가 보고된
+응답도 내기 전에 끝난 run은 모델의 실패가 아니라 `not_run`(`provider_refused`)이다. 작업 도중에 거절되면 `error`로 남는다.
 
 **멈춤과 강제 종료.** SIGTERM·SIGHUP·SIGINT(에이전트의 명령 시간 제한이나 작업 중지가 보내는 것)를 받으면 하네스는 진행 중인 run을
 끝까지 닫는다: aelix를 멈추고, 작업 루트를 정리해 옮기고, 모든 파일을 검사하고, 기록을 쓴 뒤 종료 코드 1로 끝난다(정리 중에 온 두 번째
@@ -86,8 +89,14 @@ not_scanned`, 작업 루트 경로 포함). 로그인을 쓰는 모델은 런처
 - **도구 표면**(Q11, `--surface`): `default`(aelix 0.1.0b2의 기본 목록 그대로: `aelix_status`·read·bash·edit·write·grep·find·ls와 확장
   6개, 모두 14개 — 관련 없는 유사 도구 포함), `coding`(read·bash·edit·write와 확장 6개), `analytics_read`(read와 확장 6개, bash로 돌아갈
   길이 없음). 선택적 노출·새 도구 같은 대안은 그 확장 파일을 `conditions.json`의 표면으로 더한다.
+- **aelix만**(`--surface vanilla`, 설계의 V): aelix 0.1.0b2의 기본 목록 그대로이고 확장도 kit도 없다(`-e`를 주지 않고, 신뢰 목록·
+  프로젝트·uv의 kit 변수도 두지 않음). fixture 과제는 A와 같은 프로젝트 파일의 사본에서 일한다. 새 프로젝트로 시작하는 과제(T12)는
+  `analytics init` 대신 같은 의존성의 `pyproject.toml`(kit 템플릿에 이름을 채움)과 `.python-version`만 있는 폴더에서 시작한다. run 기록의
+  `conditions.kit`이 `false`다. 표면의 `kit: false`는 확장·도구 목록을 둘 수 없다(`validate`).
 - **제안 조건**(Q5, `--proposal`, T07·T08·T12): `unrequested`(요청 그대로), `requested`(마지막에 재사용 후보 요청을 더하고 답했는지
-  검사), `always_on`(프로젝트의 제안 모드 설정이 필요한데 kit 0.4.0에 없어 `not_run`, #17).
+  검사), `always_on`(aelix를 띄우기 전에 checkout의 kit이 사람으로서 작업 사본의 제안 모드를 `always_on`으로 바꿈: `analytics assets mode
+  always_on`과 같은 `core.set_asset_mode`, 기록 `asset_mode` 하나. run 기록의 `proposal_mode`. 그 설정이 없는 kit의 checkout이나 aelix만의
+  표면이면 `not_run`, #17).
 - **이름 전환 전후**(#9, `--checkout DIR`): 다른 checkout의 확장과 kit으로 같은 과제를 돌린다. `extension/aelix_lab.py`가 있으면 옛 이름
   (`lab_*` 도구, `AELIX_LAB_*` 변수)으로 격리한다. 인자 오류·과제 완수·호출 토큰이 같은 형식으로 남아 #24가 비교한다.
 
@@ -170,7 +179,9 @@ TOKEN·KEY·SECRET·PASSWORD·CREDENTIAL·COOKIE)의 값도 같은 방식으로 
 둘), `Bearer` 토큰, 값이 있는 `refresh`·`access`·`*_token`·`api_key`·`client_secret`·`secret`·`password` 항목(앞에 다른 낱말이 붙은
 이름 `GEMINI_CLI_IDE_AUTH_TOKEN=`, 따옴표가 이스케이프된 JSON 사건 줄 포함), `sk-` 키, 대·소문자와 숫자가 섞인 32–256자의 무작위
 base64url 토큰(이름·코드·`sha256=` digest·codex의 암호화된 reasoning `gAAAAA…`·base64 그림 조각은 빼도록 모양을 가림), 그런 모양의
-파일 이름. 찾은 것은 같은 길이 표시로 덮어쓰고 값 없이 파일·줄·종류·길이만 `secret_scan`에 적는다. **파일을 그 자리에서 고쳐 쓰지
+파일 이름. kit 자신의 값은 빼도록 모양을 가린다: 조회의 다음 쪽 `cursor` 값, 이름이 정확히 `token`이고 값 뒤에 `::`가 오는
+Visualization 토큰, 그리고 kit이 묶지 못한 참조의 `token`(`"type": "visualization_version"`이나 `"dataset_import"` 바로 뒤, 모델이
+적은 이름). 2026-10-31 캠페인에서 모델이 돈 24 run의 486개는 모두 이 셋이었다(`cursor` 226, `::` 토큰 236, 묶지 못한 참조 24). 찾은 것은 같은 길이 표시로 덮어쓰고 값 없이 파일·줄·종류·길이만 `secret_scan`에 적는다. **파일을 그 자리에서 고쳐 쓰지
 않는다**: 고친 내용을 같은 디렉터리의 임시 파일에 쓰고 `os.replace`로 바꾼다(하드 링크로 이어진 다른 이름이 남아 있어도 그 파일에는
 쓰지 않음). 검사 전에 run 밖으로 이어진 링크를 lstat만으로 찾아(파일을 열지 않음) 그 이름을 지운다: run 밖을 가리키는 심볼릭 링크,
 run 밖에도 이름이 있는 파일(하드 링크: 링크 수가 run 안의 이름 수보다 많음), 로그인 파일과 같은 파일(장치·inode). 작업 루트에서는
@@ -220,12 +231,13 @@ UTF-16)에 대비해, 로그인을 쓰는 모델의 run은 런처가 끝에 로�
 `api`·`baseUrl`은 적지 않으므로 aelix가 내장 provider의 값을 쓴다(`models_json.parse_models`). context 500,000은 소유자 로그인의
 Codex CLI 0.162.0 모델 목록(2026-10-21)의 값이다. 출력 예약 128,000은 그 목록에 없어 gpt-5.6-sol의 catalog 값을 쓴다.
 소유자의 로그인으로 `aelix --offline --list-models "openai-codex gpt-6.1-sol"`이 `500K 128K`를 나열했다(2026-10-21, 호출 없음).
-§3 캠페인(#24)의 프론티어 모델을 바꾸는 결정은 아니다.
+§3 캠페인(#24)의 프론티어 모델도 이 설정이다(소유자 결정 2026-10-30, #24의 D1).
 
 [`models/qwen3.8-27b-openrouter.json`](models/qwen3.8-27b-openrouter.json): Q17-b의 Qwen3.8 27B를 로컬 ollama 대신 OpenRouter로
 부르기로 한 소유자 결정(2026-10-21, #23)의 설정이다. aelix 0.1.0b2 catalog의 `openrouter qwen/qwen3.8-27b`(context 262,144, 출력
 131,072)를 소유자의 aelix 로그인(OpenRouter 키)으로 쓴다. OpenRouter가 고르는 상위 제공자와 양자화는 고정하지 않는다
-(`openRouterRouting` 없음). 그래서 지원 하단의 로컬 기준(`qwen3.8-27b-local`)과 같은 서빙이 아니다.
+(`openRouterRouting` 없음). 그래서 지원 하단의 로컬 기준(`qwen3.8-27b-local`)과 같은 서빙이 아니다. §3 캠페인(#24)의 Qwen도 이
+설정이다(소유자 결정 2026-10-30, D2). 로컬 기준은 `not_run`으로 남고, 출시 판정 때 다시 본다.
 
 ## run 기록
 
@@ -254,8 +266,9 @@ Codex CLI 0.162.0 모델 목록(2026-10-21)의 값이다. 출력 예약 128,000�
 - **호스트·kit**: aelix 버전, 띄운 명령(`launch`, 로그인을 쓰는 모델이면 런처와 그 sha256), Python·플랫폼, checkout 경로·commit·dirty,
   kit 버전, 확장 파일 sha256, 이름 세대. checkout이 자기 저장소의
   최상위가 아니면(다른 저장소 안에 풀어 둔 사본 등) commit·dirty는 `null`이고 이유(`commit_reason`)를 적는다.
-- **조건**: 과제, 반복 번호, seed, fixture(종류·생성기 버전·digest), 표면, 제안 조건, 정답 상태, 제공된 도구 목록(dry-run에서 관측, 그 밖엔
-  `--tools` 또는 aelix 기본).
+- **조건**: 과제, 반복 번호, seed, fixture(종류·생성기 버전·digest), 표면, kit이 있는지(`kit`), 제안 조건, 정답 상태, 제공된 도구 목록
+  (dry-run에서 관측, 그 밖엔 `--tools` 또는 aelix 기본). kit이 있는 run은 aelix를 띄우기 전 작업 사본의 맥락 블록(확장이 첫 요청에
+  붙이는 것)을 `context_block.txt`로 남기고 그 크기를 `context_block`에 적는다.
 - **실행**: 시작·끝·걸린 시간, 종료 코드, 시간 초과, 요청과 답(턴마다), 모델 요청 수, 자동 재시도, 압축, 작업 루트(`work.root`).
   하네스가 aelix가 끝난 뒤 실패하면 `outcome: error`와 `harness_error`를 적은 기록을 남긴다.
 - **도구 호출**: 이름·역할·인자·결과 앞부분·`error_class`. 인자 오류는 `unknown_tool`(없는 도구), `schema`(aelix의 인자 검증 실패),
@@ -276,8 +289,10 @@ Codex CLI 0.162.0 모델 목록(2026-10-21)의 값이다. 출력 예약 128,000�
   스크립트가 정한 값이며 측정이 아니다.
 - **프로젝트의 변화**: 새 기록, 새 run(상태·차트와 그 파일·데이터 열·출력 표의 행 수와 열), CONTEXT.md 변경, 실패한 run을 뒤의 run이
   고쳤는지.
-- **채점**: `outcome`(`success`·`failure`·`error`·`timeout`·`not_run`), 검사별 결과, 필수 사실 회수율, 근거 검사, 답에 나온 없는 ID
-  (`fabricated_ids`), 중대 오판(`critical`), 사람이 확인할 것(`needs_review`).
+- **채점**: `outcome`(`success`·`failure`·`error`·`timeout`·`not_run`), 검사별 결과, 필수 사실 회수율, 근거 검사, 한계 표시(`limits`,
+  `uncertainty` 검사), 답에 나온 없는 ID(`fabricated_ids`), 중대 오판(`critical`), 사람이 확인할 것(`needs_review`), 답의 결과
+  (`answer_result`: 답의 검사(`fact`·`evidence`·`uncertainty`)와 중대 오판만 본 성공. kit만 기록할 수 있는 상태 검사와 도구 사용 검사는
+  빼서 aelix만의 run과 비교한다).
 - **로그인·비밀**: 로그인을 쓰는 모델이면 `model.auth`(출처, provider, 파일 경로, `login_check`: aelix가 나열한 행과 그 에이전트
   디렉터리의 검사 결과)와 `login`(로그인 파일의 메타데이터: run 전 `before`, aelix 종료 때 `after_exit`, 검사 뒤 마지막 `final`.
   수정 시각·inode·이름 수, run의 에이전트 디렉터리에 저장소가 생겼는지 `agent_dir_store`), `login_mentions`(로그인을 가리킨 도구 호출).
@@ -301,7 +316,9 @@ Codex CLI 0.162.0 모델 목록(2026-10-21)의 값이다. 출력 예약 128,000�
   T08: 20.6%에 가장 가까운 방향 낱말이 증가여야 함).
 - 중대 오판(`stated_as_current`)은 문장 단위다: 패턴이 부정되지 않고 물음이 아닌 채 나온 문장에, 부정되지 않은 정정·철회·원인 낱말
   (`unless`)이나 그 기록을 닫은 기록 ID(T01의 `resolved_by`, 예: `e56 → e139`)가 없으면 발생한다. 패턴이 나온 문장은 발생하지 않았어도
-  모두 `needs_review`다.
+  모두 `needs_review`다. 물음표로 끝나는 줄도 ID 패턴(T01의 닫힌 질문)은 본다: 닫힌 질문을 그 질문의 글과 함께 열린 질문으로 나열한
+  줄은 모델이 물은 것이 아니다. 이때 닫은 기록 ID는 그 줄의 끝까지 찾는다.
+- 문장 단위 검사는 한 줄 안의 인용(“…”, 「…」, "…") 속 마침표에서 문장을 끊지 않는다(e74의 마지막 글 "…낮다. 센"을 인용한 문장).
 - 주장 판정(`claim_verdicts`)은 문장마다 판정 표현을 가장 긴 것부터 낱말 단위로 찾고(`not supported`·`뒷받침되지 않`이 `supported`·
   `뒷받침`보다 먼저, 부정되면 뒷받침↔거짓), 접속어로만 이어진 ID들(`e15와 e20은 거짓`)이 판정을 나눠 가진다. 판정은 앞쪽의 가장 가까운
   ID 묶음에, 판정이 머리에 오면(`Supported: e8`) 뒤의 묶음에 붙는다. 판정이 없는 ID 한 줄(제목)은 다음 ID 줄 전까지의 판정을 받는다.
@@ -315,6 +332,39 @@ Codex CLI 0.162.0 모델 목록(2026-10-21)의 값이다. 출력 예약 128,000�
   세고, 토큰 중앙값은 모든 요청이 usage를 보고한 run만으로 낸다(`token_runs`, 뺀 run은 `partial_usage_runs`). `summary.md`는 부분 값에
   `(partial)`을 붙이고, `not_run` 행의 칸은 모두 `—`다.
 - 모델의 자기평가는 쓰지 않는다. 같은 코드·같은 방법을 요구하지 않는다(T12는 결과물과 기록으로 본다).
+
+## 조건 비교
+
+```sh
+uv run --locked python tools/model_eval_compare.py OUT [OUT ...] --out DIR [--fixtures DIR] [--confirmations FILE]
+```
+
+캠페인의 모든 출력(모델마다, 재실행)을 함께 준다. 표면 `default`(A)와 `vanilla`(V)의 `unrequested` run을 비교하고, 그 밖의 조건(Q5·Q11)은
+따로 적는다. 같은 run(모델·kit·과제·조건·반복)이 여러 출력에 있으면 실행된 것(`error`·`not_run`이 아닌 것, 그다음 늦게 끝난 것)을 쓰고
+나머지는 `replaced`에 적는다. 모델마다 비교하는 run 대부분이 쓴 kit(세대·버전·commit) 하나만 비교하고, 다른 kit의 run(#9의 이름 전환 전
+checkout)은 따로 적는다. `DIR/comparison.json`과 `comparison.md`를 쓴다.
+
+- **지표**: run마다 답의 결과(필수인 사실·근거·한계 검사와 중대 오판만 본 성공, `success`·`failure`로 끝난 run만), 필수인 사실·근거·한계
+  검사의 통과 수, 중대 오판, 없는 ID, 토큰, 요청·도구 호출·오류, A가 확장을 두고 kit의 원시 파일(`journal.jsonl`, `run.json`,
+  `.analytics/`)을 직접 읽은 호출, 요청과 다른 문자의 답(한자 `han`, 가나 `kana`).
+- **사람의 확정**: 발생한 중대 오판은 사람이 확정하기 전까지 맥락 오류로 센다. `--confirmations FILE`(`{"schema":
+  "aelix-analytics.model-eval-confirmations/1", "confirmed_by": "...", "runs": {RUN: {"finished_at": "...", "checks": {CHECK: "real" |
+  "misread"}}}}`)에서 `misread`로 확정한 검사는 빼고, 그것만으로 실패한 답은 성공이다. 확정은 `finished_at`이 같은 run, 곧 사람이 본 그
+  run에만 적용한다. 같은 이름으로 다시 돈 run에는 적용하지 않고 `stale_confirmations`에 적는다.
+- **규칙**: 설계 8절의 R1–R7을 모델마다 판정한다. 모델 설정의 `role`이 `frontier`면 상위 모델이다. 수치(2/3, 1.2배, 반복 1회분)는 소유자가
+  정했다. R2의 없는 ID는 근거 과제(E2)에서 센다. 규칙은 다음일 때 `not_run`이다.
+  - 데이터가 없을 때(Part II 전의 R4).
+  - 그 범위의 어떤 과제가 두 조건에서 같은 반복을 돌지 않았을 때(`incomplete`). 한 조건의 run만으로 판정하지 않는다.
+  - 단, A에 확정된 맥락 오류가 있으면 상위 모델의 R3은 V와 관계없이 `fail`이다. R7은 A만의 하한이라 A의 run으로 판정한다.
+
+  사람이 발생한 중대 오판을 확정하거나 기각하면 판정이 바뀔 수 있는 규칙(R3, R5)은 `provisional`이다. 이런 규칙이 남아 있는 동안
+  게이트는 `pending`이다.
+- **진단**(설계 7절): 실패한 근거 검사와 기록된 상태를 묻는 과제(E1–E3)의 실패한 사실 검사 가운데 글이 담을 수 있는 값(ID·수)을 가진
+  것마다, 그 run이 받았는지(도구 결과와 A의 맥락 블록), 받지 않았지만 kit의 읽기로 얻을 수 있었는지(`--fixtures`: fixture의 새 사본에서
+  맥락 블록·상태·정답 ID의 읽기), 어느 쪽도 아닌지(제품의 공백)를 가린다. `ids_any`는 그 최소 개수, 수는 다른 수의 일부가 아닌 곳만
+  본다. 낱말로 판정하는 검사와 모델이 계산하는 값(E6)은 대상이 아니다. 근거 ID는 그 ID의 읽기가 늘 그 ID를 담으므로, 읽을 수 있는 ID는
+  `not_available`이 되지 않는다. 그 경우는 모델이 그 ID를 찾아 읽을지가 문제다(발견 가능성). 조건별 도구 흐름과 개선 후보도 낸다. 개선
+  후보는 kit이 있던 run(A, Q11 표면)만으로 만든다.
 
 ## 격리
 
@@ -334,7 +384,10 @@ aelix 자신이 로그인 파일 하나만 그 자리에서 읽고 갱신하며,
 ## 한계
 
 - 정답은 소유자가 확인했지만 글 기반 판정은 휴리스틱이다(필요조건, `needs_review`는 사람이 확정). 정답은 seed 0 fixture에만 있다.
-- Q12의 파생·코드만 수정한 재계산·부모 버전 변경은 지표 기록(#14)이 없어 과제가 없다. Q5의 `always_on`은 kit의 설정(#17)이 생기면 실행한다.
+- OpenRouter가 고르는 상위 제공자는 aelix의 사건에 남지 않는다. 그래서 #24의 캠페인은 같은 `OUT`에 `run`을 과제·반복마다 A와 V로
+  번갈아 불러 그 차이를 두 조건에 고르게 퍼뜨린다(`run` 한 번은 표면 하나).
+- Q12의 파생·코드만 수정한 재계산·부모 버전 변경은 과제에 없다. 그 증거는 결정적 시험이다(`tests/test_metrics.py`,
+  [B6 결정적 기록](../../docs/verification/2026-10-31-issue-24-b6-deterministic.md)).
 - aelix는 요청 본문(시스템 지침·도구 schema)을 사건으로 내지 않는다. 실제 모델 run의 전체 입력 크기는 API의 입력 토큰으로만 알고, 그
   본문의 바이트 수는 같은 조건의 dry-run이 남긴다.
 - 실제 모델 실행은 macOS(이 Mac)에서만 했다. dry-run 시험은 uv와 aelix 0.1.0b2를 쓸 수 있는 모든 플랫폼에서 돈다.

@@ -269,11 +269,15 @@ not_measured입니다. JSON·Markdown과 정확한 UTF-8 payload, 합성 프로�
 디렉터리는 `--out` 안의 것만 쓰고, 모델이 일하는 작업 루트는 `--out` 밖(`--work-root`, 기본은 시스템 임시 디렉터리)에 만들었다가 aelix가
 끝나면 run 안으로 옮깁니다(그때 kit이 uv로 만든 프로젝트의 `.venv`는 지웁니다). aelix는 run의 HOME으로 띄우고, 이름이 자격 증명을 뜻하는
 변수는 넘기지 않습니다. 하네스는 `~/.aelix` 아래 파일을 열거나 쓰지 않습니다(로그인 파일은 메타데이터만 봄). 정답은 seed 0
-fixture의 것이라 다른 `--seed`는 거절합니다.
+fixture의 것이라 다른 `--seed`는 거절합니다. `--surface vanilla`는 확장도 kit도 없는 aelix만으로 같은 과제를 돌리고,
+`tools/model_eval_compare.py`가 두 조건을 [제품 효과 평가 설계](docs/design/PRODUCT-EVALUATION.md)의 규칙으로 비교·진단합니다
+(`tests/test_model_eval_compare.py`).
 
 ```sh
 uv run --locked python tools/model_eval.py validate --fixtures <dir>
 uv run --locked python tools/model_eval.py run --model dry-run --task T06 --out <dir>
+uv run --locked python tools/model_eval.py run --model dry-run --task T06 --surface vanilla --out <dir>   # aelix만
+uv run --locked python tools/model_eval_compare.py <out> [<out> ...] --out <dir>
 uv run --locked python tools/model_eval.py serving-check --model qwen3.8-27b-local   # 고정 설정으로 ollama를 띄운 뒤
 uv run --locked python tools/model_eval.py run --model qwen3.8-27b-local --task T06 --out <dir>
 uv run --locked python tools/model_eval.py run --model gpt-5.6-sol --task T06 --out <dir>       # 소유자의 aelix 로그인으로
