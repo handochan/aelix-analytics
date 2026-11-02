@@ -1,0 +1,230 @@
+{
+  "schema": "aelix-analytics.model-eval-answer/1",
+  "task": "C2",
+  "status": "draft",
+  "author": "Claude Code (agent) from the seed-0 fixtures of tools/eval_fixtures.py, 2026-10-31 (#24, E3 of docs/design/PRODUCT-EVALUATION.md); to be confirmed by the owner",
+  "fixture": {
+    "kind": "q10",
+    "seed": 0,
+    "generator_version": 1
+  },
+  "correct_completion": "세션 1: 8월과 9월 주문 금액을 비교한다(9월 합계 67,465,500원은 8월 86,496,600원보다 22.0% 적다. 9월이 20일까지임을 알아채면 같은 일수로 비교해도 좋다). 세션 2: 9월이 20일까지이므로 같은 일수(1–20일)끼리 비교하면 9월 67,465,500원 대 8월 55,947,100원으로 20.6% 증가다(일평균 비교는 20.9%). 앞의 22.0% 감소를 바로잡는다. 세션 3: 새로 계산하지 않고, 계획에 쓸 숫자는 같은 일수 비교의 20.6% 증가라고 그 근거(세션 2의 비교 코드 .py와 그 실행)와 함께 말한다. 앞서 나온 22.0% 감소는 9월이 20일까지인 부분 월을 한 달과 비교한 값이라 쓰지 않는다.",
+  "evidence_ids": [],
+  "checks": [
+    {
+      "id": "compared",
+      "session": 1,
+      "kind": "fact",
+      "type": "text_any",
+      "values": [
+        "22.0%",
+        "22.0 %",
+        "-22.0",
+        "−22.0",
+        "20.6%",
+        "20.6 %",
+        "+20.6",
+        "20.9%",
+        "20.9 %",
+        "+20.9"
+      ],
+      "what": "9월을 8월과 비교한 변화율: 22.0%(한 달 대 부분 월) 또는 같은 일수의 20.6%·일평균 20.9%"
+    },
+    {
+      "id": "naive",
+      "session": 1,
+      "kind": "fact",
+      "type": "text_any",
+      "required": false,
+      "values": [
+        "22.0%",
+        "22.0 %",
+        "-22.0",
+        "−22.0",
+        "22% 감소",
+        "22 % 감소"
+      ],
+      "what": "세션 1이 22.0%(감소)를 냄. 필수 아님: 세션 3이 앞선 숫자를 회수하는지가 기대는 값"
+    },
+    {
+      "id": "same-days",
+      "session": 2,
+      "kind": "fact",
+      "type": "percent",
+      "value": 0.20588,
+      "abs_tol_pp": 0.4,
+      "what": "같은 일수 비교 20.6% 증가(일평균 20.9%도)"
+    },
+    {
+      "id": "same-days-direction",
+      "session": 2,
+      "kind": "fact",
+      "type": "number_near",
+      "percent": true,
+      "value": 0.20588,
+      "abs_tol_pp": 0.4,
+      "prefer": "nearest",
+      "words": [
+        "증가",
+        "늘었",
+        "늘어",
+        "늘",
+        "많았",
+        "많다",
+        "상승",
+        "높았",
+        "높다",
+        "높아",
+        "올랐",
+        "increase",
+        "grew",
+        "growth",
+        "higher",
+        "rose"
+      ],
+      "against": [
+        "감소",
+        "줄었",
+        "줄어",
+        "줄",
+        "적었",
+        "적다",
+        "하락",
+        "낮았",
+        "낮다",
+        "낮아",
+        "떨어",
+        "decrease",
+        "decline",
+        "dropped",
+        "drop",
+        "lower",
+        "fell"
+      ],
+      "what": "그 값이 증가라고 말함"
+    },
+    {
+      "id": "recall-value",
+      "session": 3,
+      "kind": "recall",
+      "type": "percent",
+      "value": 0.20588,
+      "abs_tol_pp": 0.4,
+      "requires": [
+        "same-days"
+      ],
+      "what": "세션 2의 같은 일수 비교 값"
+    },
+    {
+      "id": "recall-direction",
+      "session": 3,
+      "kind": "recall",
+      "type": "number_near",
+      "percent": true,
+      "value": 0.20588,
+      "abs_tol_pp": 0.4,
+      "prefer": "nearest",
+      "words": [
+        "증가",
+        "늘었",
+        "늘어",
+        "늘",
+        "많았",
+        "많다",
+        "상승",
+        "높았",
+        "높다",
+        "높아",
+        "올랐",
+        "increase",
+        "grew",
+        "growth",
+        "higher",
+        "rose"
+      ],
+      "against": [
+        "감소",
+        "줄었",
+        "줄어",
+        "줄",
+        "적었",
+        "적다",
+        "하락",
+        "낮았",
+        "낮다",
+        "낮아",
+        "떨어",
+        "decrease",
+        "decline",
+        "dropped",
+        "drop",
+        "lower",
+        "fell"
+      ],
+      "requires": [
+        "same-days-direction"
+      ],
+      "what": "그 값이 증가"
+    },
+    {
+      "id": "recall-earlier",
+      "session": 3,
+      "kind": "recall",
+      "type": "cooccur",
+      "scope": "paragraph",
+      "any": [
+        [
+          "22.0",
+          "22%",
+          "22 %"
+        ],
+        [
+          "20일",
+          "일수",
+          "부분",
+          "partial",
+          "같은 기간"
+        ]
+      ],
+      "requires": [
+        "naive"
+      ],
+      "what": "세션 1의 22.0%와 무엇이 달랐는지(부분 월)"
+    },
+    {
+      "id": "source",
+      "session": 3,
+      "kind": "evidence",
+      "type": "cites_project",
+      "what": "결과가 나온 근거를 프로젝트에 있는 것으로 하나 이상 댐: kit의 기록·run ID, 또는 프로젝트의 파일(스크립트·표·차트)을 경로나 이름으로(두 조건 공정, 설계 5절)"
+    },
+    {
+      "id": "decline-as-current",
+      "session": 3,
+      "kind": "critical",
+      "type": "stated_as_current",
+      "patterns": [
+        "22\\.0\\s*%",
+        "22\\s*%\\s*감소"
+      ],
+      "unless": "@superseded_or_reason",
+      "reason_words": [
+        "부분",
+        "20일",
+        "일수",
+        "partial",
+        "쓰면 안",
+        "안 됩",
+        "안 된",
+        "쓸 수 없",
+        "쓰지 말",
+        "should not",
+        "shouldn't",
+        "must not",
+        "cannot",
+        "can't be used"
+      ],
+      "what": "22.0% 감소를 계획에 쓸 값으로"
+    }
+  ]
+}

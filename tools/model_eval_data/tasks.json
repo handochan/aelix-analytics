@@ -2,7 +2,7 @@
   "schema": "aelix-analytics.model-eval-tasks/1",
   "status": "confirmed",
   "confirmed_by": "handochan (owner), 2026-10-18, Issue #40",
-  "note": "Issue #40. Requests and setup of the 12 real-model tasks; the answers are in answers/<id>.json. Requests never name a tool, so the same text serves every tool surface (Q11) and both generations of names (#9). {input} is replaced with the absolute path of the run's input directory. `areas` (#24, docs/design/PRODUCT-EVALUATION.md §5) names what each task measures in the comparison with aelix alone: E1 resume, E2 evidence, E3 judgment history, E6 analysis (no harm); it is metadata for the comparison and changes no request or answer.",
+  "note": "Issue #40. Requests and setup of the 12 real-model tasks; the answers are in answers/<id>.json. Requests never name a tool, so the same text serves every tool surface (Q11) and both generations of names (#9). {input} is replaced with the absolute path of the run's input directory. `areas` (#24, docs/design/PRODUCT-EVALUATION.md §5) names what each task measures in the comparison with aelix alone: E1 resume, E2 evidence, E3 judgment history, E6 analysis (no harm); it is metadata for the comparison and changes no request or answer. C1-C3 are chains (Part II of the design): each session is a new aelix over the work root the session before it left, and `recall_only` marks a session that only asks what earlier ones found. T13-T14 (the design's N1-N2) and the chains are drafts (#24, E3) until the owner confirms their requests and answers.",
   "fixtures": {
     "S": {"kind": "scale", "scale": "S", "seed": 0, "generator_version": 1},
     "Q10": {"kind": "q10", "seed": 0, "generator_version": 1},
@@ -182,6 +182,85 @@
         "pressure 하나만 보지 말고 모든 센서에 대해 같은 밴드 그림을 그려 줘."
       ],
       "timeout_s": 3600
+    },
+    {
+      "id": "T13",
+      "title": "A finding back to its run, code, chart and input version",
+      "fixture": "Q13",
+      "setup": "fixture",
+      "gates": ["Q2", "Q3"],
+      "areas": ["E2"],
+      "q11_request": "combination",
+      "scenario": "근거 추적(설계의 N1)",
+      "requests": [
+        "pressure의 C057이 이상 후보라는 발견이 있지. 그 발견이 어느 실행에서 나왔는지, 그때의 코드와 차트, 그리고 그때 읽은 입력 데이터가 어떤 버전이었는지 알려 줘."
+      ],
+      "timeout_s": 1200
+    },
+    {
+      "id": "T14",
+      "title": "A corrected finding's original evidence",
+      "fixture": "S",
+      "setup": "fixture",
+      "gates": ["Q2"],
+      "areas": ["E2", "E3"],
+      "q11_request": "combination",
+      "scenario": "판단 이력과 근거(설계의 N2)",
+      "requests": [
+        "세종 지역 성장률이 정정된 적이 있지. 정정 전의 값은 어느 실행과 코드, 입력 데이터에서 나왔는지, 그리고 지금 값의 근거는 무엇인지 알려 줘."
+      ],
+      "timeout_s": 1200
+    },
+    {
+      "id": "C1",
+      "title": "Chain: exploration carried across sessions",
+      "fixture": "Q13",
+      "setup": "fresh_with_input",
+      "fresh_project": {"title": "장비 트레이스 분석", "goal": "", "inputs": ["traces.csv"]},
+      "gates": ["Q2", "Q13"],
+      "areas": ["E1", "E2", "E4", "E6"],
+      "q11_request": "ambiguous",
+      "scenario": "탐색 이어 가기: EDA → (새 세션) 이어서 프로파일·점수 → (새 세션) 발견 정리",
+      "sessions": [
+        {"requests": ["이 분석은 여러 날에 걸쳐 새 세션으로 이어 갈 거야. 목표는 학습 트레이스에서 장비 이상 후보를 찾고, 후보를 판단할 지표를 정하는 거야. 오늘은 장비 트레이스 데이터({input}/traces.csv)를 가져와서 EDA를 해 줘. 센서별 분포와 이상해 보이는 후보가 궁금해."]},
+        {"requests": ["지난번에 이 분석을 어디까지 했는지 먼저 짧게 알려 줘. 그다음 이어서 스텝별 프로파일을 만들고, 시점마다 얼마나 벗어나는지 점수로 계산해 줘."]},
+        {"requests": ["지금까지 찾은 이상 후보와 지표를 근거와 함께 정리해 줘. 각 결과가 어느 작업(코드·실행·파일)에서 나왔는지도 알려 줘."], "recall_only": true}
+      ],
+      "timeout_s": 2400
+    },
+    {
+      "id": "C2",
+      "title": "Chain: a correction carried to the plan",
+      "fixture": "Q10",
+      "setup": "fresh_with_input",
+      "fresh_project": {"title": "월별 주문 추세", "goal": "", "inputs": ["orders.csv"]},
+      "gates": ["Q2", "Q12"],
+      "areas": ["E2", "E3", "E4"],
+      "q11_request": "combination",
+      "scenario": "정정 전파: 월 비교 → (새 세션) 9월이 20일까지임을 알리고 다시 비교 → (새 세션) 계획에 쓸 숫자",
+      "sessions": [
+        {"requests": ["이 분석은 여러 날에 걸쳐 새 세션으로 이어 갈 거야. 목표는 다음 분기 계획에 쓸 월별 주문 추세를 정하는 거야. 오늘은 주문 데이터({input}/orders.csv)로 8월과 9월의 주문 금액을 비교해 줘."]},
+        {"requests": ["지난번 비교를 이어서 보자. 참고로 9월 데이터는 20일까지만 있어. 이걸 감안해서 다시 비교하고, 앞의 결론이 바뀌면 바로잡아 줘."]},
+        {"requests": ["다음 분기 계획에 쓸 8월 대비 9월 주문 금액의 변화와 그 근거를 알려 줘. 앞서 다른 숫자가 나온 적이 있으면 무엇이 달랐는지도 알려 줘."], "recall_only": true}
+      ],
+      "timeout_s": 1500
+    },
+    {
+      "id": "C3",
+      "title": "Chain: a metric's definition changed",
+      "fixture": "Q10",
+      "setup": "fresh_with_input",
+      "fresh_project": {"title": "전환율 지표", "goal": "", "inputs": ["sessions.csv"]},
+      "gates": ["Q2", "Q12"],
+      "areas": ["E1", "E3", "E4"],
+      "q11_request": "combination",
+      "scenario": "지표 정의 변경: 고객 기준 전환율 → (새 세션) 세션 기준으로 정의 수정 → (새 세션) 지금 정의·이유·이전 값",
+      "sessions": [
+        {"requests": ["이 분석은 여러 날에 걸쳐 새 세션으로 이어 갈 거야. 목표는 8월 전환율 지표를 정하는 거야. 오늘은 세션 데이터({input}/sessions.csv)로 8월 전환율을 계산해 줘. 전환율은 주문한 고객 수를 방문한 고객 수로 나눈 값으로 하자."]},
+        {"requests": ["전환율 정의를 바꾸자. 주문으로 이어진 세션 수를 전체 세션 수로 나누는 세션 기준으로 하고, 8월 값을 다시 계산해 줘. 정의가 바뀐 것을 나중에 알 수 있게 남겨 줘."]},
+        {"requests": ["지금 쓰는 전환율 정의와 그 8월 값, 정의를 바꾼 이유, 이전 정의와 그 값을 알려 줘."], "recall_only": true}
+      ],
+      "timeout_s": 1500
     }
   ]
 }
