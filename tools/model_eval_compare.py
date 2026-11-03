@@ -118,9 +118,8 @@ def check_tokens(check: dict) -> list[str]:
     if ctype in ("ids_all", "ids_any"):
         return [str(v) for v in check.get("values") or []]
     if ctype == "percent" or (ctype == "number_near" and check.get("percent")):
-        value = check.get("value")
-        if isinstance(value, (int, float)):
-            return [f"{value * 100:.1f}"]
+        values = [v for v in check.get("values") or [check.get("value")] if isinstance(v, (int, float))]
+        return sorted({f"{abs(v) * 100:.1f}" for v in values})
     if ctype in ("number", "number_near"):
         value = check.get("value")
         if isinstance(value, (int, float)):

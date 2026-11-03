@@ -16,35 +16,27 @@
       "id": "compared",
       "session": 1,
       "kind": "fact",
-      "type": "text_any",
+      "type": "percent",
       "values": [
-        "22.0%",
-        "22.0 %",
-        "-22.0",
-        "−22.0",
-        "20.6%",
-        "20.6 %",
-        "+20.6",
-        "20.9%",
-        "20.9 %",
-        "+20.9"
+        0.220021,
+        -0.220021,
+        0.20588,
+        0.208967
       ],
+      "abs_tol_pp": 0.05,
       "what": "9월을 8월과 비교한 변화율: 22.0%(한 달 대 부분 월) 또는 같은 일수의 20.6%·일평균 20.9%"
     },
     {
       "id": "naive",
       "session": 1,
       "kind": "fact",
-      "type": "text_any",
+      "type": "percent",
       "required": false,
       "values": [
-        "22.0%",
-        "22.0 %",
-        "-22.0",
-        "−22.0",
-        "22% 감소",
-        "22 % 감소"
+        0.220021,
+        -0.220021
       ],
+      "abs_tol_pp": 0.05,
       "what": "세션 1이 22.0%(감소)를 냄. 필수 아님: 세션 3이 앞선 숫자를 회수하는지가 기대는 값"
     },
     {
@@ -81,7 +73,9 @@
         "grew",
         "growth",
         "higher",
-        "rose"
+        "rose",
+        "높습",
+        "많습"
       ],
       "against": [
         "감소",
@@ -100,9 +94,12 @@
         "dropped",
         "drop",
         "lower",
-        "fell"
+        "fell",
+        "낮습",
+        "적습"
       ],
-      "what": "그 값이 증가라고 말함"
+      "what": "그 값이 증가라고 말함",
+      "signed": true
     },
     {
       "id": "recall-value",
@@ -141,7 +138,9 @@
         "grew",
         "growth",
         "higher",
-        "rose"
+        "rose",
+        "높습",
+        "많습"
       ],
       "against": [
         "감소",
@@ -160,12 +159,15 @@
         "dropped",
         "drop",
         "lower",
-        "fell"
+        "fell",
+        "낮습",
+        "적습"
       ],
       "requires": [
         "same-days-direction"
       ],
-      "what": "그 값이 증가"
+      "what": "그 값이 증가",
+      "signed": true
     },
     {
       "id": "recall-earlier",

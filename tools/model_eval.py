@@ -182,7 +182,7 @@ CHECK_KINDS = ("fact", "evidence", "uncertainty", "state", "behavior", "critical
 TASK_ID = re.compile(r"T[0-9]{2}|C[0-9]")
 # Each check type with the keys it needs.
 CHECK_TYPES = {
-    "text_any": ("values",), "text_all": ("values",), "number": ("value",), "percent": ("value",),
+    "text_any": ("values",), "text_all": ("values",), "number": (), "percent": (),
     "number_near": ("value", "words"), "cooccur": (), "claim_verdicts": ("claims",),
     "ids_all": ("values",), "ids_any": ("values",), "stated_as_current": ("patterns", "unless"),
     "new_records": (), "new_runs": (), "new_charts": (), "chart_covers": ("values",),
@@ -547,6 +547,8 @@ def check_answer(answer, task_id: str, tasks: dict, words: dict) -> list[str]:
             for closed, resolver in (check.get("resolved_by") or {}).items():
                 if not (RECORD_ID.fullmatch(closed) and RECORD_ID.fullmatch(str(resolver))):
                     out.append(f"check {cid}: resolved_by {closed} -> {resolver} is not two record ids")
+        if ctype in ("number", "percent") and ("value" in check) == ("values" in check):
+            out.append(f"check {cid}: {ctype} needs value or values (any of them), not both")
         if ctype == "cooccur" and not (check.get("all") or check.get("any")):
             out.append(f"check {cid}: cooccur needs all (words) or any (groups of words)")
         if ctype == "number_near" and check.get("prefer", "preceding") not in ("preceding", "nearest"):
@@ -653,6 +655,10 @@ SPLITTERS = {
 # holds no other kind of quotation mark and is at most 300 characters, so that a mark left unpaired
 # does not join the sentences after it.
 QUOTED = re.compile(r"“[^“”\"\n]{0,300}”|「[^「」\n]{0,300}」|『[^『』\n]{0,300}』|\"[^\"“”\n]{0,300}\"")
+# A table row: a value in it is said of its row's label however many periods its cells hold (#24's chains:
+# "| 현재: 세션 기준 | 주문으로 이어진 세션 수 ÷ 전체 세션 수. 같은 고객의 … | 11.78% |"). Only a value's
+# words read rows; verdicts and negation keep sentences, so a hedge in one cell stays apart from another.
+TABLE_ROW = re.compile(r"^[ \t]*\|.*\|[ \t]*$", re.MULTILINE)
 CLAUSE_BOUNDARY = re.compile(r"\n|(?<=[.!?。？])\s|,\s|;|:\s|\s[—–]\s")
 STRIP = ".,!?\"'`*()[]{}<>“”‘’「」『』|"
 # Korean and English negation: after a word (해결되지 않은, 맞지 않다, 사실이 아니다, 안 됨, is not) or
@@ -701,12 +707,21 @@ def contains_any(text: str, values) -> list[str]:
     return [v for v in values if v.casefold() in low]
 
 
+def is_label(text: str) -> bool:
+    """A short heading before a colon (현재, 변경 이유, **이전**): what follows it is said of it."""
+    label = text.strip().strip(STRIP + " \t")
+    return 0 < len(label) <= 12 and len(label.split()) <= 3
+
+
 def segments(text: str, scope: str) -> list[tuple[int, int]]:
-    """(start, end) of each non-empty paragraph, line, sentence or clause of text."""
+    """(start, end) of each non-empty paragraph, line, sentence or clause of text. A quotation on one
+    line is one sentence; a short label keeps its clause (현재: 세션 기준)."""
     quoted = [m.span() for m in QUOTED.finditer(text)] if scope == "sentence" else []
     out, pos = [], 0
     for m in SPLITTERS[scope].finditer(text):
         if any(s < m.start() < e for s, e in quoted):
+            continue
+        if scope == "clause" and text[m.start()] == ":" and is_label(text[pos:m.start()]):
             continue
         if text[pos:m.start()].strip():
             out.append((pos, m.start()))
@@ -929,19 +944,26 @@ def asserted_values(text: str, check: dict, *, percent: bool) -> list[tuple[int,
 
 
 def bound_to_words(text: str, check: dict, *, percent: bool) -> list[str]:
-    """Where the value is said with its own words nearest: in the smallest of clause, sentence (and
-    paragraph, when the check's scope is paragraph) that holds any of `words` or `against`, the
-    nearest preceding one decides (`prefer: nearest`: the nearest either side)."""
+    """Where the value is said with its own words nearest: in the smallest of clause, table row,
+    sentence (and paragraph, when the check's scope is paragraph) that holds any of `words` or
+    `against`, the nearest preceding one decides (`prefer: nearest`: the nearest either side). With
+    `signed`, a plus written before the value is its own word (+20.59%: an increase)."""
     own, against = check["words"], check.get("against") or []
-    scopes = ["clause", "sentence"] + (["paragraph"] if check.get("scope") == "paragraph" else [])
+    scopes = ["clause", "row", "sentence"] + (["paragraph"] if check.get("scope") == "paragraph" else [])
     prefer = check.get("prefer", "preceding")
     found = []
     for ps, pe, rel_s, rel_e in asserted_values(text, check, percent=percent):
         para = text[ps:pe]
-        decided = None
-        for scope in scopes:
-            lo, hi = containing(segments(para, scope), rel_s, (0, len(para))) if scope != "paragraph" \
-                else (0, len(para))
+        decided = "own" if check.get("signed") and para.startswith("+", rel_s) else None
+        for scope in scopes if decided is None else ():
+            if scope == "row":
+                rows = [m.span() for m in TABLE_ROW.finditer(para) if m.start() <= rel_s < m.end()]
+                if not rows:
+                    continue
+                lo, hi = rows[0]
+            else:
+                lo, hi = containing(segments(para, scope), rel_s, (0, len(para))) if scope != "paragraph" \
+                    else (0, len(para))
             seg = para[lo:hi]
             marks = [(s + lo, e + lo, "own") for s, e, _ in find_phrases(seg, own, negation=True)]
             marks += [(s + lo, e + lo, "against") for s, e, _ in find_phrases(seg, against, negation=True)]
@@ -1160,7 +1182,8 @@ def run_check(check: dict, ev: Evidence, words: dict) -> dict:
             missing = [v for v in check["values"] if v.casefold() not in folded]
             passed, detail = not missing, {"missing": missing}
     elif ctype in ("number", "percent"):
-        found = asserted_values(text, check, percent=ctype == "percent")
+        found = [f for value in check.get("values") or [check["value"]]
+                 for f in asserted_values(text, {**check, "value": value}, percent=ctype == "percent")]
         passed = bool(found)
         detail = {"found": [text[ps + s:ps + e] for ps, _, s, e in found][:5]}
     elif ctype == "number_near":

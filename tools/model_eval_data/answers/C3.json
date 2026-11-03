@@ -43,7 +43,12 @@
         "지금",
         "현재",
         "current",
-        "now"
+        "now",
+        "현행",
+        "변경 후",
+        "바꾼 뒤",
+        "바꾼 후",
+        "새 정의"
       ],
       "against": [
         "이전",
@@ -53,7 +58,9 @@
         "원래",
         "previous",
         "before",
-        "earlier"
+        "earlier",
+        "기존",
+        "종전"
       ],
       "requires": [
         "session-rate"
@@ -71,7 +78,12 @@
           "지금",
           "현재",
           "current",
-          "now"
+          "now",
+          "현행",
+          "변경 후",
+          "바꾼 뒤",
+          "바꾼 후",
+          "새 정의"
         ],
         [
           "세션 기준",
@@ -104,13 +116,20 @@
         "원래",
         "previous",
         "before",
-        "earlier"
+        "earlier",
+        "기존",
+        "종전"
       ],
       "against": [
         "지금",
         "현재",
         "current",
-        "now"
+        "now",
+        "현행",
+        "변경 후",
+        "바꾼 뒤",
+        "바꾼 후",
+        "새 정의"
       ],
       "requires": [
         "customer-rate"

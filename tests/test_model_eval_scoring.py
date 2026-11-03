@@ -180,6 +180,74 @@ def test_a_right_answer_written_another_way_passes(task, text, state, calls):
     assert result["result"] == "success", (failed_checks(result), result["critical"])
 
 
+def scored_session(task: str, step: int, text: str) -> dict:
+    """One session of a chain, with the checks of the sessions before it passed."""
+    answer = CONFIG.answers[task]
+    ev = me.Evidence(text=text, last_turn=text, calls=list(QUERIED), tools=me.GENERATIONS["analytics"]["tools"],
+                     state=EMPTY, existing_ids=set())
+    own = {**answer, "checks": [c for c in answer["checks"] if c["session"] == step]}
+    return me.score(own, ev, CONFIG.words, earlier={c["id"]: True for c in answer["checks"] if c["session"] < step})
+
+
+C3_TABLE = ("| 구분 | 전환율 정의 | 8월 값 |\n|---|---|---|\n"
+            "| **{now}: {now_def}** | {now_text}. 동일 고객의 여러 세션도 각각 집계 | **{now_value}** |\n"
+            "| {before}: {before_def} | {before_text}. 고객별 중복 제거 | **{before_value}** |\n\n"
+            "**변경 이유:** 사용자 요청으로 고객 기준에서 세션 기준으로 변경했습니다.")
+C3_RIGHT = C3_TABLE.format(now="현행", now_def="세션 기준", now_text="주문으로 이어진 세션 수 ÷ 전체 세션 수",
+                           now_value="688 / 5,838 = 11.78%", before="이전", before_def="고객 기준",
+                           before_text="주문한 고유 고객 수 ÷ 방문한 고유 고객 수", before_value="546 / 1,471 = 37.12%")
+C3_SWAPPED = C3_TABLE.format(now="현재", now_def="고객 기준", now_text="주문한 고유 고객 수 ÷ 방문한 고유 고객 수",
+                             now_value="546 / 1,471 = 37.12%", before="이전", before_def="세션 기준",
+                             before_text="주문으로 이어진 세션 수 ÷ 전체 세션 수", before_value="688 / 5,838 = 11.78%")
+T14_HEAD = ("### 정정 전: 12.4% — e41\n- 실행: 20260803-092257-k01-region-summary\n- 코드: scripts/k01_region_summary.py\n"
+            "- 입력: data/raw/sales_kr.parquet\n\n### 현재 기록된 값: 9.8% — e287\n")
+# Right answers of #24's campaign that the first checks missed: a limit said as "not linked", a value in a
+# table row whose cells hold periods, a label before a colon, a rate rounded to two decimals, a plus sign.
+RIGHT_SESSIONS = [
+    ("T14", None, T14_HEAD + "그러나 **e287에는 정정 계산의 실행·코드·입력 데이터가 연결되어 있지 않고, e41만 참조**되어 있습니다."),
+    ("T14", None, T14_HEAD + "하지만 **e287에는 재계산 실행·코드·정제 데이터의 참조가 없습니다.** 계산을 재현할 증거는 부족합니다."),
+    ("C3", 3, C3_RIGHT),
+    ("C2", 1, "**같은 기간(1~20일) 기준, 9월 주문 금액은 8월보다 20.59% 증가했습니다.**"),
+    ("C2", 2, "| 지표 | 8월 1~20일 | 9월 1~20일 | 증감 |\n|---|---:|---:|---:|\n"
+              "| 주문 금액 | 55,947,100원 | 67,465,500원 | **+20.59%** |\n\n같은 기간 기준으로는 오히려 증가했습니다."),
+    ("C2", 2, "**각 월 1~20일로 맞춰 다시 비교해도, 9월 주문 금액은 8월보다 20.59% 높습니다.**"),
+]
+WRONG_SESSIONS = [
+    ("T14", None, T14_HEAD + "e287의 9.8%는 중복 주문을 지운 run 20260804-135600-k01-region-summary에서 나왔습니다.", "no-run"),
+    ("C3", 3, C3_SWAPPED, "recall-current"),
+    ("C3", 3, C3_SWAPPED, "recall-definition"),
+    ("C2", 2, "같은 1~20일끼리 비교해도 9월 주문 금액은 8월보다 20.59% 낮습니다.", "same-days-direction"),
+]
+
+
+@pytest.mark.parametrize("task, step, text", RIGHT_SESSIONS, ids=[f"{r[0]}-{i}" for i, r in enumerate(RIGHT_SESSIONS)])
+def test_a_right_answer_in_a_table_a_label_or_with_a_sign_passes(task, step, text):
+    result = scored(task, text, calls=QUERIED) if step is None else scored_session(task, step, text)
+    assert result["result"] == "success", (failed_checks(result), result["critical"])
+
+
+@pytest.mark.parametrize("task, step, text, catches", WRONG_SESSIONS,
+                         ids=[f"{w[0]}-{i}" for i, w in enumerate(WRONG_SESSIONS)])
+def test_the_same_forms_still_catch_a_wrong_answer(task, step, text, catches):
+    result = scored(task, text, calls=QUERIED) if step is None else scored_session(task, step, text)
+    assert catches in failed_checks(result)
+
+
+def test_a_label_keeps_its_clause_and_a_row_its_value():
+    def parts(text, scope):
+        return [text[s:e] for s, e in me.segments(text, scope)]
+
+    # A row's cells stay sentences of their own (a hedge in one cell is not a verdict of another), but a
+    # value in the row is said of the row's label.
+    row = "| 현재: 세션 기준 | 세션 수 ÷ 전체. 고객별로 셈 | 11.8% |"
+    assert parts(row, "sentence") == ["| 현재: 세션 기준 | 세션 수 ÷ 전체.", "고객별로 셈 | 11.8% |"]
+    check = {"value": 0.118, "abs_tol_pp": 0.1, "words": ["현재"], "against": ["이전"], "prefer": "nearest"}
+    assert me.bound_to_words(row, check, percent=True)
+    assert not me.bound_to_words(row.replace("현재", "이전"), check, percent=True)
+    assert parts("현재: 세션 기준, 이전: 고객 기준", "clause") == ["현재: 세션 기준", "이전: 고객 기준"]
+    assert parts("e287에는 다시 계산한 기록이 있다: 9.8%", "clause") == ["e287에는 다시 계산한 기록이 있다", "9.8%"]
+
+
 @pytest.mark.parametrize("task", sorted(CONFIG.answers))
 def test_each_correct_completion_passes_its_own_text_checks(task):
     """The answer's own text, scored without the project: every text check it can pass, it passes. A
