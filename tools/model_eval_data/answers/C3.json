@@ -39,11 +39,17 @@
       "value": 0.117849,
       "abs_tol_pp": 0.1,
       "prefer": "nearest",
+      "headings": true,
       "words": [
         "지금",
         "현재",
         "current",
-        "now"
+        "now",
+        "현행",
+        "변경 후",
+        "바꾼 뒤",
+        "바꾼 후",
+        "새 정의"
       ],
       "against": [
         "이전",
@@ -53,7 +59,9 @@
         "원래",
         "previous",
         "before",
-        "earlier"
+        "earlier",
+        "기존",
+        "종전"
       ],
       "requires": [
         "session-rate"
@@ -66,12 +74,18 @@
       "kind": "recall",
       "type": "cooccur",
       "scope": "clause",
+      "headings": true,
       "any": [
         [
           "지금",
           "현재",
           "current",
-          "now"
+          "now",
+          "현행",
+          "변경 후",
+          "바꾼 뒤",
+          "바꾼 후",
+          "새 정의"
         ],
         [
           "세션 기준",
@@ -81,6 +95,18 @@
           "session-based",
           "session based"
         ]
+      ],
+      "against": [
+        "이전",
+        "예전",
+        "바꾸기 전",
+        "변경 전",
+        "원래",
+        "기존",
+        "종전",
+        "previous",
+        "before",
+        "earlier"
       ],
       "requires": [
         "session-rate"
@@ -96,6 +122,7 @@
       "value": 0.371176,
       "abs_tol_pp": 0.1,
       "prefer": "nearest",
+      "headings": true,
       "words": [
         "이전",
         "예전",
@@ -104,13 +131,20 @@
         "원래",
         "previous",
         "before",
-        "earlier"
+        "earlier",
+        "기존",
+        "종전"
       ],
       "against": [
         "지금",
         "현재",
         "current",
-        "now"
+        "now",
+        "현행",
+        "변경 후",
+        "바꾼 뒤",
+        "바꾼 후",
+        "새 정의"
       ],
       "requires": [
         "customer-rate"
@@ -130,7 +164,10 @@
         "이전 정의",
         "바꾸기 전",
         "변경 전",
-        "previous"
+        "previous",
+        "기존",
+        "종전",
+        "폐기"
       ],
       "what": "37.1%(고객 기준)를 지금의 전환율로"
     }

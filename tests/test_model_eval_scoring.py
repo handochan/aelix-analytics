@@ -131,6 +131,8 @@ RIGHT = [
     ("T09", "서울 지역 주문 금액 합계는 3,258만 6,900원입니다(e10). 8월 전체 매출은 4억 4,596만 9,600원입니다(e14). e8은 품목 "
      "결합으로 중복, e12는 천원 단위를 원으로 바꾸지 않음.", None, None),
     ("T09", "서울은 3,258.69만원(e10), 8월 전체 매출은 44,596.96만원(e14). 품목 join과 단위 오류를 정정했습니다.", None, None),
+    ("T09", "서울·8월 전체 매출: 32,586,900원(서울), 445,969,600원(8월 전체). e10, e14. 품목 결합과 천원 단위 오류를 정정했습니다.",
+     None, None),
     ("T09", "### 서울 지역 주문 금액 합계\n- 값: 32,586,900원 (e10)\n- e8의 68,551,800원은 품목 결합으로 중복된 값\n"
      "### 8월 전체 매출\n- 값: 445,969,600원 (e14)\n- e12는 천원 단위를 바꾸지 않은 값", None, None),
     ("T07", "맞는 값은 0.118(688/5,838, e18)입니다. e16은 분모를 고객 수로 나눠 틀렸습니다.", recorded("0.118"), None),
@@ -178,6 +180,122 @@ def test_a_right_answer_written_another_way_passes(task, text, state, calls):
         state = T08_RECORD
     result = scored(task, text, state, calls)
     assert result["result"] == "success", (failed_checks(result), result["critical"])
+
+
+def scored_session(task: str, step: int, text: str) -> dict:
+    """One session of a chain, with the checks of the sessions before it passed."""
+    answer = CONFIG.answers[task]
+    ev = me.Evidence(text=text, last_turn=text, calls=list(QUERIED), tools=me.GENERATIONS["analytics"]["tools"],
+                     state=EMPTY, existing_ids=set())
+    own = {**answer, "checks": [c for c in answer["checks"] if c["session"] == step]}
+    return me.score(own, ev, CONFIG.words, earlier={c["id"]: True for c in answer["checks"] if c["session"] < step})
+
+
+C3_TABLE = ("| 구분 | 전환율 정의 | 8월 값 |\n|---|---|---|\n"
+            "| **{now}: {now_def}** | {now_text}. 동일 고객의 여러 세션도 각각 집계 | **{now_value}** |\n"
+            "| {before}: {before_def} | {before_text}. 고객별 중복 제거 | **{before_value}** |\n\n"
+            "**변경 이유:** 사용자 요청으로 고객 기준에서 세션 기준으로 변경했습니다.")
+C3_RIGHT = C3_TABLE.format(now="현행", now_def="세션 기준", now_text="주문으로 이어진 세션 수 ÷ 전체 세션 수",
+                           now_value="688 / 5,838 = 11.78%", before="이전", before_def="고객 기준",
+                           before_text="주문한 고유 고객 수 ÷ 방문한 고유 고객 수", before_value="546 / 1,471 = 37.12%")
+C3_SWAPPED = C3_TABLE.format(now="현재", now_def="고객 기준", now_text="주문한 고유 고객 수 ÷ 방문한 고유 고객 수",
+                             now_value="546 / 1,471 = 37.12%", before="이전", before_def="세션 기준",
+                             before_text="주문으로 이어진 세션 수 ÷ 전체 세션 수", before_value="688 / 5,838 = 11.78%")
+C3_HEADINGS = ("## {now} 정의 (2026-11-04부터, decision e11)\n\n- **전환율 = {now_text}** ({now_def}, 주문여부 = true)\n"
+               "- **8월 값 = {now_value}**\n\n**{before} 정의 (폐기됨)**\n- 전환율 = {before_text} ({before_def})\n"
+               "- 8월 값: **{before_value}**\n\n변경 이유: 사용자 요청으로 바꿨습니다.")
+C3_UNDER_HEADINGS = C3_HEADINGS.format(now="현재", now_def="세션 기준", now_text="주문으로 이어진 세션 수 ÷ 전체 세션 수",
+                                       now_value="11.78%", before="이전", before_def="고객 기준",
+                                       before_text="주문한 고유 고객 수 ÷ 방문한 고유 고객 수", before_value="546 / 1,471 = 37.12%")
+C3_SWAPPED_HEADINGS = C3_HEADINGS.format(now="현재", now_def="고객 기준", now_text="주문한 고유 고객 수 ÷ 방문한 고유 고객 수",
+                                         now_value="37.12%", before="이전", before_def="세션 기준",
+                                         before_text="주문으로 이어진 세션 수 ÷ 전체 세션 수", before_value="688 / 5,838 = 11.78%")
+T14_HEAD = ("### 정정 전: 12.4% — e41\n- 실행: 20260803-092257-k01-region-summary\n- 코드: scripts/k01_region_summary.py\n"
+            "- 입력: data/raw/sales_kr.parquet\n\n### 현재 기록된 값: 9.8% — e287\n")
+# Right answers of #24's campaign that the first checks missed: a limit said as "not linked", a value in a
+# table row whose cells hold periods, a label before a colon, a rate rounded to two decimals, a plus sign.
+RIGHT_SESSIONS = [
+    ("T14", None, T14_HEAD + "그러나 **e287에는 정정 계산의 실행·코드·입력 데이터가 연결되어 있지 않고, e41만 참조**되어 있습니다."),
+    ("T14", None, T14_HEAD + "하지만 **e287에는 재계산 실행·코드·정제 데이터의 참조가 없습니다.** 계산을 재현할 증거는 부족합니다."),
+    ("C3", 3, C3_RIGHT),
+    ("C3", 3, C3_UNDER_HEADINGS),
+    ("C2", 1, "**같은 기간(1~20일) 기준, 9월 주문 금액은 8월보다 20.59% 증가했습니다.**"),
+    ("C2", 2, "| 지표 | 8월 1~20일 | 9월 1~20일 | 증감 |\n|---|---:|---:|---:|\n"
+              "| 주문 금액 | 55,947,100원 | 67,465,500원 | **+20.59%** |\n\n같은 기간 기준으로는 오히려 증가했습니다."),
+    ("C2", 2, "**각 월 1~20일로 맞춰 다시 비교해도, 9월 주문 금액은 8월보다 20.59% 높습니다.**"),
+    ("C2", 1, "| 비교 | 변화율(%) |\n|---|---|\n| 9월 vs 8월 | -22.0 |"),
+    ("C3", 3, "현행: 세션 기준 11.8%. 종전: 고객 기준 37.1%."),
+]
+WRONG_SESSIONS = [
+    ("T14", None, T14_HEAD + "e287의 9.8%는 중복 주문을 지운 run 20260804-135600-k01-region-summary에서 나왔습니다.", "no-run"),
+    ("C3", 3, C3_SWAPPED, "recall-current"),
+    ("C3", 3, C3_SWAPPED, "recall-definition"),
+    ("C3", 3, C3_SWAPPED_HEADINGS, "recall-current"),
+    ("C3", 3, C3_SWAPPED_HEADINGS, "recall-definition"),
+    ("C2", 2, "같은 1~20일끼리 비교해도 9월 주문 금액은 8월보다 20.59% 낮습니다.", "same-days-direction"),
+    ("C2", 2, "같은 일수 비교 결과 9월 주문 금액은 8월보다 +20.59% 감소했습니다.", "same-days-direction"),
+    ("T14", None, T14_HEAD + "현재 e287의 9.8%는 차트 참조가 없지만 정정 계산은 run 20260804-135600-k01-region-summary에 "
+     "연결됩니다.", "no-run"),
+    ("C3", 3, "## 현재 정의\n- 고객 기준입니다. 현재 값은 11.78%입니다.\n- 이전 정의는 세션 기준입니다. 이전 값은 37.12%입니다.",
+     "recall-definition"),
+    # a heading that names both sides, and a heading over a section that says both itself
+    ("C3", 3, "**현재 정의 (2026-11-04부터, decision e11)**\n- 전환율 = 주문한 고유 고객 수 ÷ 방문한 고유 고객 수 (고객 기준)\n"
+     "- 8월 값: 37.12%\n\n**이전 정의 (e8, 현재 폐기됨)**\n- 전환율 = 주문으로 이어진 세션 수 ÷ 전체 세션 수 (세션 기준)\n"
+     "- 8월 값: 11.78%", "recall-current"),
+    ("C3", 3, "**현재 정의 (2026-11-04부터, decision e11)**\n- 전환율 = 주문한 고유 고객 수 ÷ 방문한 고유 고객 수 (고객 기준)\n"
+     "- 8월 값: 37.12%\n\n**이전 정의 (e8, 현재 폐기됨)**\n- 전환율 = 주문으로 이어진 세션 수 ÷ 전체 세션 수 (세션 기준)\n"
+     "- 8월 값: 11.78%", "recall-definition"),
+    ("C3", 3, "## 현재 전환율 정의 정리\n\n지금 정의는 고객 기준입니다. 이전에는 세션 기준이었습니다.\n\n| 정의 | 8월 값 |\n"
+     "|---|---|\n| 고객 기준 | 37.12% |\n| 세션 기준 | 11.78% |", "recall-current"),
+    ("C3", 3, "## 현재 전환율 정의 정리\n\n지금 정의는 고객 기준입니다. 이전에는 세션 기준이었습니다.\n\n| 정의 | 8월 값 |\n"
+     "|---|---|\n| 고객 기준 | 37.12% |\n| 세션 기준 | 11.78% |", "recall-definition"),
+]
+
+
+@pytest.mark.parametrize("task, step, text", RIGHT_SESSIONS, ids=[f"{r[0]}-{i}" for i, r in enumerate(RIGHT_SESSIONS)])
+def test_a_right_answer_in_a_table_a_label_or_with_a_sign_passes(task, step, text):
+    result = scored(task, text, calls=QUERIED) if step is None else scored_session(task, step, text)
+    assert result["result"] == "success", (failed_checks(result), result["critical"])
+
+
+@pytest.mark.parametrize("task, step, text, catches", WRONG_SESSIONS,
+                         ids=[f"{w[0]}-{i}" for i, w in enumerate(WRONG_SESSIONS)])
+def test_the_same_forms_still_catch_a_wrong_answer(task, step, text, catches):
+    result = scored(task, text, calls=QUERIED) if step is None else scored_session(task, step, text)
+    assert catches in failed_checks(result)
+
+
+def test_a_candidate_is_its_own_sensors():
+    """C1's candidates: C057 named beside another sensor's candidate is not pressure's (a Qwen EDA said
+    there were none: "flow C057 +2.20σ, pressure C043 −2.04σ")."""
+    said = {c["id"]: c["passed"] for c in scored_session("C1", 1, "센서 4종(flow·pressure·rf_power·temperature)의 "
+            "분포를 봤습니다. 이상 후보는 사실상 없음: flow C057 +2.20σ, pressure C043 −2.04σ.")["checks"]}
+    assert said["sensors"] and not said["c057"]
+    for right in ("1. **C057 pressure — 1순위 후보**", "이상 후보: C057 — pressure (z=4.01).",
+                  "이상 후보는 C057, pressure 센서(z≈4.01)였습니다."):
+        assert {c["id"]: c["passed"] for c in scored_session("C1", 1, right)["checks"]}["c057"], right
+    for right in ("세션 1의 EDA 후보: **C057** — pressure 트레이스 평균 z=4.01. 세션 2의 최대 이탈: **C035** — rf_power, "
+                  "|z|=4.36.", "이상 후보는 C057, pressure 센서(z≈4.01)였고 최대 이탈은 C035, rf_power(|z| 4.36)입니다."):
+        said = {c["id"]: c["passed"] for c in scored_session("C1", 3, right)["checks"]}
+        assert said["recall-c057"] and said["recall-max-z"], right
+
+
+def test_a_label_keeps_its_clause_and_a_row_its_value():
+    def parts(text, scope, labels=False):
+        return [text[s:e] for s, e in me.segments(text, scope, labels=labels)]
+
+    # A row's cells stay sentences of their own (a hedge in one cell is not a verdict of another), but a
+    # value in the row is said of the row's label.
+    row = "| 현재: 세션 기준 | 세션 수 ÷ 전체. 고객별로 셈 | 11.8% |"
+    assert parts(row, "sentence") == ["| 현재: 세션 기준 | 세션 수 ÷ 전체.", "고객별로 셈 | 11.8% |"]
+    check = {"value": 0.118, "abs_tol_pp": 0.1, "words": ["현재"], "against": ["이전"], "prefer": "nearest"}
+    assert me.bound_to_words(row, check, percent=True)
+    assert not me.bound_to_words(row.replace("현재", "이전"), check, percent=True)
+    # Labels keep their clauses where cooccur reads clauses; a value's words leave them apart, so T09's
+    # "서울·8월 전체 매출: 32,586,900원(서울)" keeps 서울 the value's nearest word.
+    assert parts("현재: 세션 기준, 이전: 고객 기준", "clause", labels=True) == ["현재: 세션 기준", "이전: 고객 기준"]
+    assert parts("현재: 세션 기준, 이전: 고객 기준", "clause") == ["현재", "세션 기준", "이전", "고객 기준"]
+    assert parts("e287에는 다시 계산한 기록이 있다: 9.8%", "clause", labels=True) == ["e287에는 다시 계산한 기록이 있다", "9.8%"]
 
 
 @pytest.mark.parametrize("task", sorted(CONFIG.answers))
