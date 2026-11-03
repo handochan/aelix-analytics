@@ -199,6 +199,15 @@ C3_RIGHT = C3_TABLE.format(now="현행", now_def="세션 기준", now_text="주�
 C3_SWAPPED = C3_TABLE.format(now="현재", now_def="고객 기준", now_text="주문한 고유 고객 수 ÷ 방문한 고유 고객 수",
                              now_value="546 / 1,471 = 37.12%", before="이전", before_def="세션 기준",
                              before_text="주문으로 이어진 세션 수 ÷ 전체 세션 수", before_value="688 / 5,838 = 11.78%")
+C3_HEADINGS = ("## {now} 정의 (2026-11-04부터, decision e11)\n\n- **전환율 = {now_text}** ({now_def}, 주문여부 = true)\n"
+               "- **8월 값 = {now_value}**\n\n**{before} 정의 (폐기됨)**\n- 전환율 = {before_text} ({before_def})\n"
+               "- 8월 값: **{before_value}**\n\n변경 이유: 사용자 요청으로 바꿨습니다.")
+C3_UNDER_HEADINGS = C3_HEADINGS.format(now="현재", now_def="세션 기준", now_text="주문으로 이어진 세션 수 ÷ 전체 세션 수",
+                                       now_value="11.78%", before="이전", before_def="고객 기준",
+                                       before_text="주문한 고유 고객 수 ÷ 방문한 고유 고객 수", before_value="546 / 1,471 = 37.12%")
+C3_SWAPPED_HEADINGS = C3_HEADINGS.format(now="현재", now_def="고객 기준", now_text="주문한 고유 고객 수 ÷ 방문한 고유 고객 수",
+                                         now_value="37.12%", before="이전", before_def="세션 기준",
+                                         before_text="주문으로 이어진 세션 수 ÷ 전체 세션 수", before_value="688 / 5,838 = 11.78%")
 T14_HEAD = ("### 정정 전: 12.4% — e41\n- 실행: 20260803-092257-k01-region-summary\n- 코드: scripts/k01_region_summary.py\n"
             "- 입력: data/raw/sales_kr.parquet\n\n### 현재 기록된 값: 9.8% — e287\n")
 # Right answers of #24's campaign that the first checks missed: a limit said as "not linked", a value in a
@@ -207,6 +216,7 @@ RIGHT_SESSIONS = [
     ("T14", None, T14_HEAD + "그러나 **e287에는 정정 계산의 실행·코드·입력 데이터가 연결되어 있지 않고, e41만 참조**되어 있습니다."),
     ("T14", None, T14_HEAD + "하지만 **e287에는 재계산 실행·코드·정제 데이터의 참조가 없습니다.** 계산을 재현할 증거는 부족합니다."),
     ("C3", 3, C3_RIGHT),
+    ("C3", 3, C3_UNDER_HEADINGS),
     ("C2", 1, "**같은 기간(1~20일) 기준, 9월 주문 금액은 8월보다 20.59% 증가했습니다.**"),
     ("C2", 2, "| 지표 | 8월 1~20일 | 9월 1~20일 | 증감 |\n|---|---:|---:|---:|\n"
               "| 주문 금액 | 55,947,100원 | 67,465,500원 | **+20.59%** |\n\n같은 기간 기준으로는 오히려 증가했습니다."),
@@ -216,6 +226,8 @@ WRONG_SESSIONS = [
     ("T14", None, T14_HEAD + "e287의 9.8%는 중복 주문을 지운 run 20260804-135600-k01-region-summary에서 나왔습니다.", "no-run"),
     ("C3", 3, C3_SWAPPED, "recall-current"),
     ("C3", 3, C3_SWAPPED, "recall-definition"),
+    ("C3", 3, C3_SWAPPED_HEADINGS, "recall-current"),
+    ("C3", 3, C3_SWAPPED_HEADINGS, "recall-definition"),
     ("C2", 2, "같은 1~20일끼리 비교해도 9월 주문 금액은 8월보다 20.59% 낮습니다.", "same-days-direction"),
 ]
 
@@ -231,6 +243,16 @@ def test_a_right_answer_in_a_table_a_label_or_with_a_sign_passes(task, step, tex
 def test_the_same_forms_still_catch_a_wrong_answer(task, step, text, catches):
     result = scored(task, text, calls=QUERIED) if step is None else scored_session(task, step, text)
     assert catches in failed_checks(result)
+
+
+def test_a_candidate_is_its_own_sensors():
+    """C1's candidates: C057 named beside another sensor's candidate is not pressure's (a Qwen EDA said
+    there were none: "flow C057 +2.20σ, pressure C043 −2.04σ")."""
+    said = {c["id"]: c["passed"] for c in scored_session("C1", 1, "센서 4종(flow·pressure·rf_power·temperature)의 "
+            "분포를 봤습니다. 이상 후보는 사실상 없음: flow C057 +2.20σ, pressure C043 −2.04σ.")["checks"]}
+    assert said["sensors"] and not said["c057"]
+    said = {c["id"]: c["passed"] for c in scored_session("C1", 1, "1. **C057 pressure — 1순위 후보**")["checks"]}
+    assert said["c057"]
 
 
 def test_a_label_keeps_its_clause_and_a_row_its_value():

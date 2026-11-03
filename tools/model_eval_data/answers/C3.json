@@ -39,6 +39,7 @@
       "value": 0.117849,
       "abs_tol_pp": 0.1,
       "prefer": "nearest",
+      "headings": true,
       "words": [
         "지금",
         "현재",
@@ -73,6 +74,7 @@
       "kind": "recall",
       "type": "cooccur",
       "scope": "clause",
+      "headings": true,
       "any": [
         [
           "지금",
@@ -108,6 +110,7 @@
       "value": 0.371176,
       "abs_tol_pp": 0.1,
       "prefer": "nearest",
+      "headings": true,
       "words": [
         "이전",
         "예전",

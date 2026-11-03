@@ -30,6 +30,7 @@
       "session": 1,
       "kind": "fact",
       "type": "cooccur",
+      "scope": "clause",
       "any": [
         [
           "C057"
@@ -47,6 +48,7 @@
       "session": 1,
       "kind": "fact",
       "type": "cooccur",
+      "scope": "clause",
       "required": false,
       "any": [
         [
@@ -95,6 +97,7 @@
       "session": 2,
       "kind": "fact",
       "type": "cooccur",
+      "scope": "clause",
       "required": false,
       "any": [
         [
@@ -113,6 +116,7 @@
       "session": 3,
       "kind": "recall",
       "type": "cooccur",
+      "scope": "clause",
       "any": [
         [
           "C057"
@@ -132,6 +136,7 @@
       "session": 3,
       "kind": "recall",
       "type": "cooccur",
+      "scope": "clause",
       "any": [
         [
           "C035"

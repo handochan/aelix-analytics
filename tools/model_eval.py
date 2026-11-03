@@ -659,6 +659,9 @@ QUOTED = re.compile(r"“[^“”\"\n]{0,300}”|「[^「」\n]{0,300}」|『[^�
 # "| 현재: 세션 기준 | 주문으로 이어진 세션 수 ÷ 전체 세션 수. 같은 고객의 … | 11.78% |"). Only a value's
 # words read rows; verdicts and negation keep sentences, so a hedge in one cell stays apart from another.
 TABLE_ROW = re.compile(r"^[ \t]*\|.*\|[ \t]*$", re.MULTILINE)
+# A heading line (## 현재 정의, **이전 정의 (폐기됨)**): with a check's `headings`, what a heading says holds
+# for the lines under it, up to the next heading.
+SECTION_HEADING = re.compile(r"^[ \t]{0,3}(?:#{1,6}[ \t]+\S.*|\*\*[^*\n]+\*\*[ \t]*:?)[ \t]*$", re.MULTILINE)
 CLAUSE_BOUNDARY = re.compile(r"\n|(?<=[.!?。？])\s|,\s|;|:\s|\s[—–]\s")
 STRIP = ".,!?\"'`*()[]{}<>“”‘’「」『』|"
 # Korean and English negation: after a word (해결되지 않은, 맞지 않다, 사실이 아니다, 안 됨, is not) or
@@ -711,6 +714,16 @@ def is_label(text: str) -> bool:
     """A short heading before a colon (현재, 변경 이유, **이전**): what follows it is said of it."""
     label = text.strip().strip(STRIP + " \t")
     return 0 < len(label) <= 12 and len(label.split()) <= 3
+
+
+def heading_of(text: str, pos: int) -> str:
+    """The heading line `pos` falls under: the last one that starts at or before it ("" if none)."""
+    last = ""
+    for m in SECTION_HEADING.finditer(text):
+        if m.start() > pos:
+            break
+        last = m.group(0)
+    return last
 
 
 def segments(text: str, scope: str) -> list[tuple[int, int]]:
@@ -947,7 +960,8 @@ def bound_to_words(text: str, check: dict, *, percent: bool) -> list[str]:
     """Where the value is said with its own words nearest: in the smallest of clause, table row,
     sentence (and paragraph, when the check's scope is paragraph) that holds any of `words` or
     `against`, the nearest preceding one decides (`prefer: nearest`: the nearest either side). With
-    `signed`, a plus written before the value is its own word (+20.59%: an increase)."""
+    `signed`, a plus written before the value is its own word (+20.59%: an increase); with `headings`,
+    a value whose own words are none takes its heading's last word (## 현재 정의 … 11.78%)."""
     own, against = check["words"], check.get("against") or []
     scopes = ["clause", "row", "sentence"] + (["paragraph"] if check.get("scope") == "paragraph" else [])
     prefer = check.get("prefer", "preceding")
@@ -976,6 +990,11 @@ def bound_to_words(text: str, check: dict, *, percent: bool) -> list[str]:
                 decided = (max(before, key=lambda m: m[1]) if before
                            else min(marks, key=lambda m: m[0]))[2]
             break
+        if decided is None and check.get("headings"):
+            head = heading_of(text, ps + rel_s)
+            marks = [(e, "own") for _, e, _ in find_phrases(head, own, negation=True)]
+            marks += [(e, "against") for _, e, _ in find_phrases(head, against, negation=True)]
+            decided = max(marks)[1] if marks else None
         if decided == "own":
             found.append(para[max(0, rel_s - 60):rel_e + 20].strip())
     return found
@@ -1194,8 +1213,11 @@ def run_check(check: dict, ev: Evidence, words: dict) -> dict:
         hits = []
         for s, e in segments(text, check.get("scope", "sentence")):
             seg = text[s:e]
+            # with `headings`, a word of the segment's heading counts as the segment's (## 현재 정의 / 세션 기준)
+            head = heading_of(text, s) if check.get("headings") else ""
             if all(find_phrases(seg, [w], negation=negation) for w in check.get("all", [])) and \
-                    all(find_phrases(seg, group, negation=negation) for group in check.get("any", [])):
+                    all(find_phrases(seg, group, negation=negation) or find_phrases(head, group, negation=negation)
+                        for group in check.get("any", [])):
                 hits.append(seg.strip()[:160])
         passed, detail = bool(hits), {"segments": hits[:3]}
     elif ctype == "claim_verdicts":
