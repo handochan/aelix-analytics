@@ -131,6 +131,8 @@ RIGHT = [
     ("T09", "서울 지역 주문 금액 합계는 3,258만 6,900원입니다(e10). 8월 전체 매출은 4억 4,596만 9,600원입니다(e14). e8은 품목 "
      "결합으로 중복, e12는 천원 단위를 원으로 바꾸지 않음.", None, None),
     ("T09", "서울은 3,258.69만원(e10), 8월 전체 매출은 44,596.96만원(e14). 품목 join과 단위 오류를 정정했습니다.", None, None),
+    ("T09", "서울·8월 전체 매출: 32,586,900원(서울), 445,969,600원(8월 전체). e10, e14. 품목 결합과 천원 단위 오류를 정정했습니다.",
+     None, None),
     ("T09", "### 서울 지역 주문 금액 합계\n- 값: 32,586,900원 (e10)\n- e8의 68,551,800원은 품목 결합으로 중복된 값\n"
      "### 8월 전체 매출\n- 값: 445,969,600원 (e14)\n- e12는 천원 단위를 바꾸지 않은 값", None, None),
     ("T07", "맞는 값은 0.118(688/5,838, e18)입니다. e16은 분모를 고객 수로 나눠 틀렸습니다.", recorded("0.118"), None),
@@ -221,6 +223,8 @@ RIGHT_SESSIONS = [
     ("C2", 2, "| 지표 | 8월 1~20일 | 9월 1~20일 | 증감 |\n|---|---:|---:|---:|\n"
               "| 주문 금액 | 55,947,100원 | 67,465,500원 | **+20.59%** |\n\n같은 기간 기준으로는 오히려 증가했습니다."),
     ("C2", 2, "**각 월 1~20일로 맞춰 다시 비교해도, 9월 주문 금액은 8월보다 20.59% 높습니다.**"),
+    ("C2", 1, "| 비교 | 변화율(%) |\n|---|---|\n| 9월 vs 8월 | -22.0 |"),
+    ("C3", 3, "현행: 세션 기준 11.8%. 종전: 고객 기준 37.1%."),
 ]
 WRONG_SESSIONS = [
     ("T14", None, T14_HEAD + "e287의 9.8%는 중복 주문을 지운 run 20260804-135600-k01-region-summary에서 나왔습니다.", "no-run"),
@@ -229,6 +233,22 @@ WRONG_SESSIONS = [
     ("C3", 3, C3_SWAPPED_HEADINGS, "recall-current"),
     ("C3", 3, C3_SWAPPED_HEADINGS, "recall-definition"),
     ("C2", 2, "같은 1~20일끼리 비교해도 9월 주문 금액은 8월보다 20.59% 낮습니다.", "same-days-direction"),
+    ("C2", 2, "같은 일수 비교 결과 9월 주문 금액은 8월보다 +20.59% 감소했습니다.", "same-days-direction"),
+    ("T14", None, T14_HEAD + "현재 e287의 9.8%는 차트 참조가 없지만 정정 계산은 run 20260804-135600-k01-region-summary에 "
+     "연결됩니다.", "no-run"),
+    ("C3", 3, "## 현재 정의\n- 고객 기준입니다. 현재 값은 11.78%입니다.\n- 이전 정의는 세션 기준입니다. 이전 값은 37.12%입니다.",
+     "recall-definition"),
+    # a heading that names both sides, and a heading over a section that says both itself
+    ("C3", 3, "**현재 정의 (2026-11-04부터, decision e11)**\n- 전환율 = 주문한 고유 고객 수 ÷ 방문한 고유 고객 수 (고객 기준)\n"
+     "- 8월 값: 37.12%\n\n**이전 정의 (e8, 현재 폐기됨)**\n- 전환율 = 주문으로 이어진 세션 수 ÷ 전체 세션 수 (세션 기준)\n"
+     "- 8월 값: 11.78%", "recall-current"),
+    ("C3", 3, "**현재 정의 (2026-11-04부터, decision e11)**\n- 전환율 = 주문한 고유 고객 수 ÷ 방문한 고유 고객 수 (고객 기준)\n"
+     "- 8월 값: 37.12%\n\n**이전 정의 (e8, 현재 폐기됨)**\n- 전환율 = 주문으로 이어진 세션 수 ÷ 전체 세션 수 (세션 기준)\n"
+     "- 8월 값: 11.78%", "recall-definition"),
+    ("C3", 3, "## 현재 전환율 정의 정리\n\n지금 정의는 고객 기준입니다. 이전에는 세션 기준이었습니다.\n\n| 정의 | 8월 값 |\n"
+     "|---|---|\n| 고객 기준 | 37.12% |\n| 세션 기준 | 11.78% |", "recall-current"),
+    ("C3", 3, "## 현재 전환율 정의 정리\n\n지금 정의는 고객 기준입니다. 이전에는 세션 기준이었습니다.\n\n| 정의 | 8월 값 |\n"
+     "|---|---|\n| 고객 기준 | 37.12% |\n| 세션 기준 | 11.78% |", "recall-definition"),
 ]
 
 
@@ -251,13 +271,18 @@ def test_a_candidate_is_its_own_sensors():
     said = {c["id"]: c["passed"] for c in scored_session("C1", 1, "센서 4종(flow·pressure·rf_power·temperature)의 "
             "분포를 봤습니다. 이상 후보는 사실상 없음: flow C057 +2.20σ, pressure C043 −2.04σ.")["checks"]}
     assert said["sensors"] and not said["c057"]
-    said = {c["id"]: c["passed"] for c in scored_session("C1", 1, "1. **C057 pressure — 1순위 후보**")["checks"]}
-    assert said["c057"]
+    for right in ("1. **C057 pressure — 1순위 후보**", "이상 후보: C057 — pressure (z=4.01).",
+                  "이상 후보는 C057, pressure 센서(z≈4.01)였습니다."):
+        assert {c["id"]: c["passed"] for c in scored_session("C1", 1, right)["checks"]}["c057"], right
+    for right in ("세션 1의 EDA 후보: **C057** — pressure 트레이스 평균 z=4.01. 세션 2의 최대 이탈: **C035** — rf_power, "
+                  "|z|=4.36.", "이상 후보는 C057, pressure 센서(z≈4.01)였고 최대 이탈은 C035, rf_power(|z| 4.36)입니다."):
+        said = {c["id"]: c["passed"] for c in scored_session("C1", 3, right)["checks"]}
+        assert said["recall-c057"] and said["recall-max-z"], right
 
 
 def test_a_label_keeps_its_clause_and_a_row_its_value():
-    def parts(text, scope):
-        return [text[s:e] for s, e in me.segments(text, scope)]
+    def parts(text, scope, labels=False):
+        return [text[s:e] for s, e in me.segments(text, scope, labels=labels)]
 
     # A row's cells stay sentences of their own (a hedge in one cell is not a verdict of another), but a
     # value in the row is said of the row's label.
@@ -266,8 +291,11 @@ def test_a_label_keeps_its_clause_and_a_row_its_value():
     check = {"value": 0.118, "abs_tol_pp": 0.1, "words": ["현재"], "against": ["이전"], "prefer": "nearest"}
     assert me.bound_to_words(row, check, percent=True)
     assert not me.bound_to_words(row.replace("현재", "이전"), check, percent=True)
-    assert parts("현재: 세션 기준, 이전: 고객 기준", "clause") == ["현재: 세션 기준", "이전: 고객 기준"]
-    assert parts("e287에는 다시 계산한 기록이 있다: 9.8%", "clause") == ["e287에는 다시 계산한 기록이 있다", "9.8%"]
+    # Labels keep their clauses where cooccur reads clauses; a value's words leave them apart, so T09's
+    # "서울·8월 전체 매출: 32,586,900원(서울)" keeps 서울 the value's nearest word.
+    assert parts("현재: 세션 기준, 이전: 고객 기준", "clause", labels=True) == ["현재: 세션 기준", "이전: 고객 기준"]
+    assert parts("현재: 세션 기준, 이전: 고객 기준", "clause") == ["현재", "세션 기준", "이전", "고객 기준"]
+    assert parts("e287에는 다시 계산한 기록이 있다: 9.8%", "clause", labels=True) == ["e287에는 다시 계산한 기록이 있다", "9.8%"]
 
 
 @pytest.mark.parametrize("task", sorted(CONFIG.answers))

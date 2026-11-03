@@ -96,6 +96,18 @@
           "session based"
         ]
       ],
+      "against": [
+        "이전",
+        "예전",
+        "바꾸기 전",
+        "변경 전",
+        "원래",
+        "기존",
+        "종전",
+        "previous",
+        "before",
+        "earlier"
+      ],
       "requires": [
         "session-rate"
       ],
@@ -152,7 +164,10 @@
         "이전 정의",
         "바꾸기 전",
         "변경 전",
-        "previous"
+        "previous",
+        "기존",
+        "종전",
+        "폐기"
       ],
       "what": "37.1%(고객 기준)를 지금의 전환율로"
     }

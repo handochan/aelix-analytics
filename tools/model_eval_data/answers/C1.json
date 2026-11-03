@@ -30,7 +30,6 @@
       "session": 1,
       "kind": "fact",
       "type": "cooccur",
-      "scope": "clause",
       "any": [
         [
           "C057"
@@ -40,6 +39,15 @@
           "압력"
         ]
       ],
+      "nearest_against": [
+        "rf_power",
+        "rf power",
+        "RF",
+        "flow",
+        "유량",
+        "temperature",
+        "온도"
+      ],
       "what": "pressure의 C057을 이상 후보로(트레이스 평균 3σ 밖). 필수 아님: EDA가 다른 후보를 들 수 있고, 뒤 세션의 회수가 기대는 값",
       "required": false
     },
@@ -48,7 +56,6 @@
       "session": 1,
       "kind": "fact",
       "type": "cooccur",
-      "scope": "clause",
       "required": false,
       "any": [
         [
@@ -59,6 +66,14 @@
           "rf power",
           "RF"
         ]
+      ],
+      "nearest_against": [
+        "pressure",
+        "압력",
+        "flow",
+        "유량",
+        "temperature",
+        "온도"
       ],
       "what": "rf_power의 C035를 이상 후보로(시점별 최대 이탈). 필수 아님: 뒤 세션의 회수가 기대는 값"
     },
@@ -97,7 +112,6 @@
       "session": 2,
       "kind": "fact",
       "type": "cooccur",
-      "scope": "clause",
       "required": false,
       "any": [
         [
@@ -109,6 +123,14 @@
           "RF"
         ]
       ],
+      "nearest_against": [
+        "pressure",
+        "압력",
+        "flow",
+        "유량",
+        "temperature",
+        "온도"
+      ],
       "what": "최대 |z|가 C035의 rf_power(기준 방법). 방법에 따라 다를 수 있어 필수가 아니고, 세션 3의 회수가 기대는 값"
     },
     {
@@ -116,7 +138,6 @@
       "session": 3,
       "kind": "recall",
       "type": "cooccur",
-      "scope": "clause",
       "any": [
         [
           "C057"
@@ -125,6 +146,15 @@
           "pressure",
           "압력"
         ]
+      ],
+      "nearest_against": [
+        "rf_power",
+        "rf power",
+        "RF",
+        "flow",
+        "유량",
+        "temperature",
+        "온도"
       ],
       "requires": [
         "c057"
@@ -136,7 +166,6 @@
       "session": 3,
       "kind": "recall",
       "type": "cooccur",
-      "scope": "clause",
       "any": [
         [
           "C035"
@@ -146,6 +175,14 @@
           "rf power",
           "RF"
         ]
+      ],
+      "nearest_against": [
+        "pressure",
+        "압력",
+        "flow",
+        "유량",
+        "temperature",
+        "온도"
       ],
       "requires": [
         "max-z"
