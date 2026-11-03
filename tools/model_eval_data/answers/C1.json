@@ -1,8 +1,9 @@
 {
   "schema": "aelix-analytics.model-eval-answer/1",
   "task": "C1",
-  "status": "draft",
+  "status": "confirmed",
   "author": "Claude Code (agent) from the seed-0 fixtures of tools/eval_fixtures.py, 2026-10-31 (#24, E3 of docs/design/PRODUCT-EVALUATION.md); to be confirmed by the owner",
+  "confirmed_by": "handochan (owner), 2026-11-03, Issue #24 (requests, answers and checks as drafted; the six scoring choices as recommended)",
   "fixture": {
     "kind": "q13",
     "seed": 0,

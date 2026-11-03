@@ -120,12 +120,14 @@ def test_a_v2_fixture_is_not_taken_for_the_v1_answers(tmp_path):
 def test_the_configuration_has_twelve_tasks_with_confirmed_answers_and_both_models(config):
     assert sorted(config.tasks) == ["C1", "C2", "C3"] + [f"T{i:02d}" for i in range(1, 15)]
     assert sorted(config.answers) == sorted(config.tasks)
-    # The agent wrote the answers as drafts and the owner confirmed the first twelve (Issue #40,
-    # 2026-10-17); the two new tasks and the chains of #24 (E3) are drafts until the owner confirms them.
+    # The agent wrote the answers as drafts; the owner confirmed the first twelve (Issue #40, 2026-10-17),
+    # then the two new tasks and the chains of #24 (E3, 2026-11-03).
     confirmed = [f"T{i:02d}" for i in range(1, 13)]
     assert {config.answers[t]["status"] for t in confirmed} == {"confirmed"}
     assert all(config.answers[t]["confirmed_by"] == "handochan (owner), 2026-10-17, Issue #40" for t in confirmed)
-    assert {t for t, a in config.answers.items() if a["status"] == "draft"} == {"T13", "T14", "C1", "C2", "C3"}
+    later = ["T13", "T14", "C1", "C2", "C3"]
+    assert {config.answers[t]["status"] for t in later} == {"confirmed"}
+    assert all(config.answers[t]["confirmed_by"].startswith("handochan (owner), 2026-11-03, Issue #24") for t in later)
     gates = {g for t in config.tasks.values() for g in t["gates"]}
     assert gates == set(me.GATES)
     assert {t["q11_request"] for t in config.tasks.values()} >= {"single", "combination", "ambiguous"}
