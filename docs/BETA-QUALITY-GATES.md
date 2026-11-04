@@ -197,7 +197,7 @@ kit의 telemetry(kit 0.8.0부터 `.analytics/telemetry.jsonl`, 옛 배치 `.lab/
 필요조건이고 `needs_review`는 사람이 확정한다. 정답은 에이전트가 쓴 초안을 소유자가 확인했으며(2026-10-17, #40), 하네스와 정답은 측정 준비이지
 Q2·Q3·Q5·Q11·Q12·Q13의 통과 증거가 아니다.
 위 과제와 하네스는 시범 캠페인(2026-10-31)에 썼다. 확장 유무의 비교에 필요한 순정 조건·연속 세션·진단은 [제품 효과 평가 설계](design/PRODUCT-EVALUATION.md)
-10절의 단계로 더하며, 그 측정은 아직 하지 않았다.
+10절의 단계로 더했고, 2026-11-01·11-04에 쟀다([측정 기록](verification/2026-11-04-issue-24-product-eval.md)). 두 모델 모두 모델 게이트를 통과하지 못했다(§7).
 
 ### 제안 옵션과 도구 표면의 별도 측정
 
@@ -403,14 +403,14 @@ PR에는 문제를 재현하는 입력, 변경 후 행동, 바뀐 계약, 비교
 | Q7 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), macOS 26.6.2 arm64 로컬, 모델 없음(S·M `v1` 전환) | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | — |
 | Q8 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492) | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | — |
 | Q9 | pass(측정 범위) | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`), 도구 `056760d`·`80a8510` | macOS 26.6.2 arm64 로컬, 모델 없음, Chromium 156 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | Linux·Windows·L 규모·읽은 파일량 미측정. M에서 run 끝의 전체 빌드 6.3초 |
-| Q10 | 표시 경계 pass, 분석 검사 not run | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), macOS 26.6.2 arm64 로컬, 모델 없음, Chromium 156 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | 분석 검사 예제(T07–T09)의 판정은 확장 유무 비교의 해 없음(R5)으로 보고하고 판정 기준으로 쓰지 않는다([제품 효과 평가 설계](design/PRODUCT-EVALUATION.md)) |
+| Q10 | 표시 경계 pass, 분석 검사는 판정 없음(T07–T09는 R5로 보고) | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`), 모델 과제는 위 모델 게이트 행과 같음 | CI 세 OS(41150692492), macOS 26.6.2 arm64 로컬, 모델 없음, Chromium 156. 모델 과제는 위 모델 게이트 행과 같음 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md), [2026-11-04-issue-24-product-eval](verification/2026-11-04-issue-24-product-eval.md) | 분석 검사 예제(T07–T09)는 확장 유무 비교의 해 없음(R5)으로만 보고했다(답 성공 A:V, gpt T07 2:0·T08 0:0·T09 3:3, Qwen T07 3:1·T08 3:3·T09 3:2). 설계대로 판정 기준으로 쓰지 않는다([제품 효과 평가 설계](design/PRODUCT-EVALUATION.md)) |
 | Q12 | 결정적 사례 pass, 새 세션 재개(C3) 두 모델의 A·V 회수 9/9 | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`), 모델 과제는 위 모델 게이트 행과 같음 | CI 세 OS(41150692492), 모델 과제는 aelix 0.1.0b2, gpt-6.1-sol, Qwen3.8 27B(OpenRouter, 서빙 미고정), macOS 26.6.2 arm64 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md), [2026-11-04-issue-24-product-eval](verification/2026-11-04-issue-24-product-eval.md) | 정의 변경 하나만 잼. A와 V의 차이는 없음 |
 | Q14 | not run(아래 #20·#21 몫은 pass) | — | — | — | — | 소유자의 다른 기기 열람 |
 | Q15 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), floor 3.11 세 OS | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | — |
 | Q16 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), macOS 26.6.2 arm64 로컬, 모델 없음 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | 사람의 Reports 탐색은 Q6 |
 | Q17-a 기능 | pass(Workspace 이동 미측정) | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`). 처음 잰 것은 kit 0.25.0 wheel `660beb63…` | macOS 26.6.2, sandbox, 모델 없음 | 에이전트(2026-10-21 소유자 결정으로 갈음) | [2026-10-31-issue-24-q17a](verification/2026-10-31-issue-24-q17a.md), [2026-10-22-issue-23-q17](verification/2026-10-22-issue-23-q17.md) | 측정 범위의 `not_covered` |
 | Q17-a 사람의 사용성 | not_run | — | — | — | 같음 | 소유자 결정으로 갈음(#39를 좁힘) |
-| Q17-b | pass | kit 0.25.0 wheel `660beb63…`, aelix 0.1.0b2 | gpt-6.1-sol, Qwen3.8 27B(OpenRouter) | 에이전트 세션 + 소유자 검토 | [2026-10-22-issue-23-q17](verification/2026-10-22-issue-23-q17.md) | 세션은 터미널 없이 에이전트가 띄움. OpenRouter 서빙 미고정. 후보로 다시 재는 것은 모델 캠페인(#24 PR-3) |
+| Q17-b | pass | kit 0.25.0 wheel `660beb63…`, aelix 0.1.0b2 | gpt-6.1-sol, Qwen3.8 27B(OpenRouter) | 에이전트 세션 + 소유자 검토 | [2026-10-22-issue-23-q17](verification/2026-10-22-issue-23-q17.md) | 세션은 터미널 없이 에이전트가 띄움. OpenRouter 서빙 미고정. 후보로는 다시 재지 않았다(#24의 모델 캠페인은 Q17-b를 재지 않음) |
 | Q14의 #20 몫(받은 사본) | pass(측정 범위). Q14 자체는 not_run | kit 0.28.0 `ad509b2`(시험·CI `5b8114c`) | macOS 26.6.2 로컬(Chromium·Firefox·WebKit), CI 세 OS와 Linux Chromium | 에이전트 | [2026-10-27-issue-20-reader](verification/2026-10-27-issue-20-reader.md) | P1 게시(#21), 다른 기기의 열람(#24), OS 보관 도구, Safari·모바일, M의 Linux·Windows는 not_run |
 | Q14의 #21 몫(폴더 게시) | pass(측정 범위). Q14 자체는 not_run | kit 0.31.0 `7286182`(접근·CI `f5825e4`) | macOS 26.6.2 로컬(Chromium·Firefox·WebKit, exFAT 이미지), CI 세 OS의 두 번째 OS 계정, Windows 루프백 SMB, Linux Chromium | 에이전트 | [2026-10-29-issue-21-publish-channel](verification/2026-10-29-issue-21-publish-channel.md), [PR-2](verification/2026-10-27-issue-21-publish-steps.md) | 다른 기기의 열람(#24), 다른 기기의 공유·동기화 폴더, Safari·모바일, Windows ACL, 측정 도구의 Linux·Windows는 not_run |
 

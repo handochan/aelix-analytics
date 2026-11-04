@@ -79,7 +79,7 @@ CI-main에서 확인한 것(이 실행의 artifact는 2027-01-05에 지워지므
 | 0.1.0b2의 프로세스에 체크아웃의 확장을 줌(`aelix --mode json -p … -e <확장>`) | `verified`(Linux·Windows): 정해진 답을 돌려주는 가짜 모델 서버로 도구를 부르는 평가 하네스의 시험(`tests/test_model_eval.py`의 dry-run). macOS는 인용할 기록이 없어 `expected` | CI-main |
 | 0.1.0b2보다 새 버전 | `not run`(2026-10-07에 PyPI에 없음) | |
 | 사람이 쓰는 대화형 세션 | `not run`: 위 시험은 로더·도구를 직접 부르거나 가짜 모델로 돈다. Windows의 실제 aelix 세션도 실행하지 않았다 | [현재 계약 F·G](CONTRACTS.md#g-약속하지-않는-것) |
-| 실제 모델과의 실행 | 판정 없음: 아래 '모델' | |
+| 실제 모델과의 실행 | 지원 판정 없음: 제품 효과 평가에서 두 모델 모두 모델 게이트 fail. 아래 '모델' | [측정 기록](verification/2026-11-04-issue-24-product-eval.md) |
 
 ## 설치 경로
 
@@ -107,8 +107,10 @@ macOS 열에 `d23ddb8`로 적은 `verified`는 그 commit의 결과다. 그때�
 
 ## 모델
 
-검증한 모델은 아직 없다. 주 검증 대상의 설정 — 로컬 Qwen3.8 27B와 프론티어 모델 — 은 #40이 고정했고, 그 설정으로 측정한 결과는
-#24의 출시 리허설(B6)이 낸다([베타 품질 기준 §1](BETA-QUALITY-GATES.md#1-출시할-약속)). 설정을 고정한 것은 검증 결과가 아니다.
+검증한 모델은 아직 없다. 주 검증 대상의 설정 — 로컬 Qwen3.8 27B와 프론티어 모델 — 은 #40이 고정했다. 설정을 고정한 것은 검증 결과가 아니다.
+#24의 출시 리허설(B6)에서 [제품 효과 평가](design/PRODUCT-EVALUATION.md)로 쟀고([측정 기록](verification/2026-11-04-issue-24-product-eval.md), 2026-11-01·11-04),
+gpt-6.1-sol과 Qwen3.8 27B(OpenRouter) 모두 모델 게이트를 통과하지 못했다. 지원 하단의 로컬 Qwen은 재지 않았다(not run).
+이 결과는 출시 보류 사유이며([베타 품질 기준 §7](BETA-QUALITY-GATES.md#7-기여출시-기록의-형식)), 지원하는 모델을 정한 것이 아니다.
 [PR #71](https://github.com/handochan/aelix-analytics/pull/71)에서 두 모델이 평가 하네스로 과제 하나(T06)를 개발 기기에서 끝까지 실행한
 것은 하네스의 동작 확인이며, 이 지원표의 증거나 모델의 판정이 아니다.
 

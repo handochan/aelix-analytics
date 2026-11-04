@@ -12,7 +12,7 @@
     },
     "harness_checkout": "77a170d (clean): the same for every run, since the comparison sets runs of another kit commit apart",
     "kit_same_as_candidate": "src/ and extension/ at 77a170d equal the 0.32.0 candidate 26c28d0 and main 5db7477",
-    "scoring": "tools/model_eval.py score at main 5db7477 over every run (#151's readings; Part I unchanged)",
+    "scoring": "tools/model_eval.py score at main 5db7477 over every run (#151's readings; T01-T12 unchanged, T13 none, T14 gpt 6 and Qwen 1 checks)",
     "comparison": "tools/model_eval_compare.py at main 5db7477",
     "answers_confirmed": {
       "T01-T12": "owner 2026-10-17 (#40)",
@@ -24,8 +24,8 @@
   },
   "confirmations": {
     "file": "docs/verification/2026-11-04-issue-24-product-eval-confirmations.json",
-    "file_sha256": "14f89dd5740f5b7e69af37a5fdd0be89b0f418dc082e762fceb5862b8b14157d",
-    "confirmed_by": "Part I: handochan (owner), 2026-11-03, #24 decision page https://claude.ai/artifact/TDs49n4GU4BvZxR7jX5ssZ (18 judgments, each as the agent's first reading); part 2: handochan (owner), 2026-11-04, the same page (12 judgments k01-k12, each as the agent's first reading)",
+    "file_sha256": "7ee47231f89bc2706acaa1e8e90fc0783c0e506e6c5f2454c7640616c184511f",
+    "confirmed_by": "T01-T12 (first campaign, 18 judgments): handochan (owner), 2026-11-03, the #24 decision page; T13, T14 and C1-C3 (second campaign, 12 judgments k01-k12): handochan (owner), 2026-11-04 (stored 2026-11-03T23:46Z-2026-11-04T00:11Z), the same page. Each verdict as the agent's first reading",
     "checks": 30,
     "real": [
       "T01-qwen3.8-27b-openrouter-vanilla-unrequested-r1 closed-as-open"
@@ -238,11 +238,14 @@
       "secret_scan": {
         "passed": 138
       },
+      "secret_scan_exact": {
+        "passed, findings 0, values compared 9": 138
+      },
       "kit": {
-        "analytics 0.32.0 77a170db07b3 dirty=False": 138
+        "analytics 0.32.0 77a170db07b3 dirty=False extension_sha256=78f9011636bf51b5a9cfa4b09a6d8d238cc90c36b0657d53b6a2cc854e9c8b36": 138
       },
       "host": {
-        "aelix 0.1.0b2, gpt-6.1-sol": 138
+        "aelix 0.1.0b2, gpt-6.1-sol, macOS-26.6.2-arm64-arm-64bit, python 3.12.13": 138
       },
       "window_utc": {
         "first_T01-T12": {
@@ -504,11 +507,14 @@
         "passed": 134,
         "failed": 4
       },
+      "secret_scan_exact": {
+        "passed, findings 0, values compared 9": 138
+      },
       "kit": {
-        "analytics 0.32.0 77a170db07b3 dirty=False": 138
+        "analytics 0.32.0 77a170db07b3 dirty=False extension_sha256=78f9011636bf51b5a9cfa4b09a6d8d238cc90c36b0657d53b6a2cc854e9c8b36": 138
       },
       "host": {
-        "aelix 0.1.0b2, qwen/qwen3.8-27b": 138
+        "aelix 0.1.0b2, qwen/qwen3.8-27b, macOS-26.6.2-arm64-arm-64bit, python 3.12.13": 138
       },
       "window_utc": {
         "first_T01-T12": {

@@ -62,23 +62,25 @@ R4의 "해당 없음"은 앞 세션이 그 값을 내지 못한 회수 검사다
   - Part I: 14과제(T01–T14) × 3회 × 2조건 = 모델마다 84 run
   - Part II: 체인 3개(C1–C3) × 세션 3 × 3회 × 2조건 = 모델마다 54 세션
   - 체인의 요청 글은 두 조건 모두에 여러 세션에 걸쳐 이어 간다고 알린다(O1). 세션 사이에 작업 폴더는 같은 경로로 이어지고 대화는 이어지지 않는다.
-- **순서**: A와 V를 과제마다 번갈아 돌리고, 먼저 도는 쪽을 반복마다 바꿨다(O8). Part I(T01–T12)은 2026-11-01 12:31–13:47 KST, 2부(T13·T14·체인)는 2026-11-04 00:10–01:40 KST에 돌았다. 두 모델은 병렬로 돌았다.
+- **순서**: A와 V를 과제마다 번갈아 돌리고, 먼저 도는 쪽을 반복마다 바꿨다(O8). 두 차례로 나눠 돌았다. 1부(T01–T12)는 2026-11-01 12:31–13:47 KST, 2부(T13·T14·체인)는 2026-11-04 00:10–01:40 KST다. 두 모델은 병렬로 돌았다.
 - **kit**: 0.32.0, 확장 sha256 `78f90116…`. 출시 후보(`26c28d0`)와 `src/`·`extension/`이 같다. 하네스 checkout은 `77a170d`(clean)다.
-  비교 도구가 kit 커밋이 다른 run을 따로 떼어 내므로, 2부도 Part I과 같은 checkout에서 돌렸다.
+  비교 도구가 kit 커밋이 다른 run을 따로 떼어 내므로, 2부도 1부와 같은 checkout에서 돌렸다. aelix 0.1.0b2, Python 3.12.13, macOS 26.6.2 arm64다.
 - **모델**: gpt-6.1-sol(aelix 로그인), `qwen/qwen3.8-27b`(OpenRouter, 업스트림 공급자는 요청마다 OpenRouter가 고름).
 - **결과**: 276 run 모두 실행됐다. `error`·`not_run`은 0이다.
   - 비밀 검사는 gpt 138/138 통과, Qwen 134/138 통과다.
   - Qwen의 실패 4건 가운데 셋은 긴 토큰 모양(`long_token`)이다. A 2건은 run의 `events.jsonl`(모델이 받거나 쓴 글)에서, V 1건(T12)은 모델이 run의 HOME에 pip으로 설치한
-    패키지 파일에서 나왔다. 나머지 1건(T12 A)은 aelix가 끝난 뒤 남은 프로세스(`writers_left`)다. 자격 증명 형태(jwt·bearer·키·자격 증명 필드)는 없다.
+    패키지 파일에서 나왔다. 나머지 1건(T12 A)은 aelix가 끝난 뒤 남은 프로세스(`writers_left`)다.
+  - run 기록은 모양 검사의 발견을 앞의 200건까지만 남긴다. 남은 목록은 모두 `long_token`이고, 목록을 넘는 발견(T01 A 348건, T12 V 8,602건)의 종류는 기록되지 않았다.
+    로그인의 값(9개)과 바이트 단위로 같은 글은 276 run 모두에서 0건이다.
 - **채점**: main `5db7477`로 모든 run을 다시 채점했다.
   - 정답은 소유자가 확정했다(T01–T12 2026-10-17, T13·T14·C1–C3 2026-11-03, [#150](https://github.com/handochan/aelix-analytics/pull/150)).
   - 2부에서 새 과제의 검사가 맞는 답을 놓친 것을 고쳤다([#151](https://github.com/handochan/aelix-analytics/pull/151): 표의 행, 라벨, 제목, 반올림 자리, 부호, 같은 뜻의 다른 말).
-  - 다시 채점해 바뀐 것은 새 과제의 검사(gpt 27, Qwen 26)뿐이고 Part I은 그대로다.
+  - 다시 채점해 바뀐 것은 새 과제의 검사뿐이다. gpt 27(T14 6, C2 9, C3 12), Qwen 26(T14 1, C1 3, C2 8, C3 14)이고, T01–T12와 T13은 그대로다.
 - **맥락 오류**: 중대 오판 검사가 걸린 30건을 사람이 확정했다.
-  - Part I 18건(소유자 2026-11-03): 실제 1건(Qwen T01 V 반복 1). 나머지 17건은 옛 값을 부정하거나, 출처를 설명하거나, 맞는 값과 견준 문장이다.
+  - 1부 18건(소유자 2026-11-03): 실제 1건(Qwen T01 V 반복 1). 나머지 17건은 옛 값을 부정하거나, 출처를 설명하거나, 맞는 값과 견준 문장이다.
   - 2부 12건(소유자 2026-11-04): 실제 0건. T14 9건은 정정된 12.4%(e41)를 인용하거나 그 출처를 설명한 줄이고,
     C2 3건은 단순 비교의 −22.0%를 쓰지 않는 이유나 이력으로 든 줄이다.
-- **비교**: `tools/model_eval_compare.py`(main `5db7477`)를 두 모델의 OUT과 확정 판단 파일로 돌렸다.
+- **비교**: `tools/model_eval_compare.py`(main `5db7477`)를 두 모델의 OUT, 캠페인의 fixture(`--fixtures`, 진단의 `discoverability`에 씀)와 확정 판단 파일로 돌렸다.
   판단 파일은 [confirmations](2026-11-04-issue-24-product-eval-confirmations.json)이고, 해시는 JSON에 있다.
 
 ## 진단과 개선 후보
@@ -87,10 +89,10 @@ R4의 "해당 없음"은 앞 세션이 그 값을 내지 못한 회수 검사다
 
 | 부품 | 보인 것 | 사례 | 처분 |
 |---|---|---|---|
-| 이어 가기의 이점(상위 모델) | gpt V는 세션마다 노트 파일(`ANALYSIS_NOTES.md` 등)을 남기고 다시 읽어 회수가 만점이었다. A도 만점이지만 체인의 토큰은 C1 1.6배, C3 2.6배다 | R4·R6 | [#152](https://github.com/handochan/aelix-analytics/issues/152) |
-| 근거가 남는가 | V는 C2 세션 3에서 근거로 프로젝트의 파일을 대지 못했다(gpt 3/3, Qwen 2/3). 프로젝트에 스크립트를 남기지 않고 입력 CSV를 다시 계산했다. A는 6/6이다 | R2 근거 A 1.00 · V 0.88 | 보고(확장의 강점) |
+| 이어 가기의 이점(상위 모델) | gpt V는 작업 세션 18개 가운데 15개에서 노트 파일(`REPORT.md`, `ANALYSIS_NOTES.md` 등)을 남겼고(C2 세션 2는 남기지 않음), 뒤 세션 18개 모두 앞의 파일을 다시 읽었다. 회수는 만점이었다. A도 만점이지만 체인의 토큰은 C1 1.6배, C3 2.6배다 | R4·R6 | [#152](https://github.com/handochan/aelix-analytics/issues/152) |
+| 근거가 남는가 | V는 C2 세션 3에서 근거로 프로젝트의 파일을 대지 못했다(gpt 3/3, Qwen 2/3). 프로젝트에 스크립트를 남기지 않고 입력 CSV를 다시 계산했다. A는 6/6이다 | R2 근거 A 1.00 · V 0.88(Qwen V의 나머지 1건은 T13) | 보고(확장의 강점) |
 | 원시 파일 읽기 | 두 모델의 A run 138개 가운데 67개가 kit의 원시 파일(journal, run 기록)을 직접 읽었다. 모델이 찾은 것을 읽기 도구로 줄 수 있다 | 진단 `interface` | [#153](https://github.com/handochan/aelix-analytics/issues/153) |
-| 도구의 인자·형식(하위 모델) | Qwen A의 도구 오류 175건(V 101) 가운데 kit 도구의 인자·형식 오류가 57이다. 상태 조회 36(`retrieval arguments require part` 29, 없는 기록 5, 커서 2), 지표 기록 21(필드 9가지, `unresolved is a list of strings` 6 등). 나머지는 모델 코드의 실행 실패 58, SQL 35, 편집 13, 셸 11이다 | 도구 흐름 | [#154](https://github.com/handochan/aelix-analytics/issues/154) |
+| 도구의 인자·형식(하위 모델) | Qwen A의 도구 오류 175건(V 101) 가운데 kit 도구가 인자나 형식을 거절한 것이 57이다. 상태 조회 36(`retrieval arguments require part` 29, 없는 기록 5, 커서 2), 지표 기록 21(필드 9가지, `unresolved is a list of strings` 6 등). 나머지는 모델 코드의 실행 실패 58, SQL 35, 편집 13, 셸 11, 읽기 1이다. JSON의 `argument_errors` 7은 하네스가 따로 센 SQL 구문 오류(SQL 35에 듦)다 | 도구 흐름 | [#154](https://github.com/handochan/aelix-analytics/issues/154) |
 | 새 프로젝트의 비용(하위 모델) | Qwen C1 세션 1의 A 토큰 중앙값 853k · V 88k, 분석 실행 73 · 39 | 과제별 표 | [#155](https://github.com/handochan/aelix-analytics/issues/155) |
 | 받은 값을 답에 쓰기 | 두 모델의 A run에서, T08·T10은 run이 받은 근거 ID를 답이 쓰지 않았고(T08 3, T10 6), T02는 kit의 읽기에 있는 값을 run이 받지 못했다(1) | 진단 `use`·`discoverability` | 보류 |
 | 길이의 단위 | Qwen T04 A의 한 run이 잘림은 맞게 짚었지만 길이를 8,958바이트로 말했다(검사는 4,000자). 상태 조회는 글의 길이를 주지 않아 모델이 직접 셌다 | R2 한계 | [#156](https://github.com/handochan/aelix-analytics/issues/156) |
