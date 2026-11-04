@@ -1,0 +1,171 @@
+{
+  "schema": "aelix-analytics.model-eval-confirmations/1",
+  "confirmed_by": "T01-T12 (first campaign, 18 judgments): handochan (owner), 2026-11-03, the #24 decision page; T13, T14 and C1-C3 (second campaign, 12 judgments k01-k12): handochan (owner), 2026-11-04 (stored 2026-11-03T23:46Z-2026-11-04T00:11Z), the same page. Each verdict as the agent's first reading",
+  "runs": {
+    "T01-qwen3.8-27b-openrouter-default-unrequested-r1": {
+      "finished_at": "2026-11-01T03:32:02Z",
+      "checks": {
+        "closed-as-open": "misread"
+      }
+    },
+    "T01-qwen3.8-27b-openrouter-vanilla-unrequested-r1": {
+      "finished_at": "2026-11-01T03:32:47Z",
+      "checks": {
+        "closed-as-open": "real"
+      }
+    },
+    "T02-qwen3.8-27b-openrouter-default-unrequested-r2": {
+      "finished_at": "2026-11-01T03:55:43Z",
+      "checks": {
+        "old-decision": "misread"
+      }
+    },
+    "T02-qwen3.8-27b-openrouter-vanilla-unrequested-r1": {
+      "finished_at": "2026-11-01T03:33:34Z",
+      "checks": {
+        "old-decision": "misread"
+      }
+    },
+    "T02-qwen3.8-27b-openrouter-vanilla-unrequested-r2": {
+      "finished_at": "2026-11-01T03:55:10Z",
+      "checks": {
+        "old-rate": "misread"
+      }
+    },
+    "T02-qwen3.8-27b-openrouter-vanilla-unrequested-r3": {
+      "finished_at": "2026-11-01T04:26:16Z",
+      "checks": {
+        "old-rate": "misread",
+        "old-decision": "misread"
+      }
+    },
+    "T05-qwen3.8-27b-openrouter-vanilla-unrequested-r2": {
+      "finished_at": "2026-11-01T03:58:10Z",
+      "checks": {
+        "unchanged-claim": "misread"
+      }
+    },
+    "T07-qwen3.8-27b-openrouter-default-unrequested-r1": {
+      "finished_at": "2026-11-01T03:37:15Z",
+      "checks": {
+        "wrong-rate": "misread"
+      }
+    },
+    "T08-qwen3.8-27b-openrouter-default-unrequested-r1": {
+      "finished_at": "2026-11-01T03:39:07Z",
+      "checks": {
+        "decline-as-current": "misread"
+      }
+    },
+    "T08-qwen3.8-27b-openrouter-default-unrequested-r2": {
+      "finished_at": "2026-11-01T04:02:28Z",
+      "checks": {
+        "decline-as-current": "misread"
+      }
+    },
+    "T08-qwen3.8-27b-openrouter-vanilla-unrequested-r1": {
+      "finished_at": "2026-11-01T03:40:03Z",
+      "checks": {
+        "decline-as-current": "misread"
+      }
+    },
+    "T08-qwen3.8-27b-openrouter-vanilla-unrequested-r2": {
+      "finished_at": "2026-11-01T04:01:46Z",
+      "checks": {
+        "decline-as-current": "misread"
+      }
+    },
+    "T09-qwen3.8-27b-openrouter-default-unrequested-r1": {
+      "finished_at": "2026-11-01T03:40:26Z",
+      "checks": {
+        "join-as-current": "misread"
+      }
+    },
+    "T09-qwen3.8-27b-openrouter-vanilla-unrequested-r1": {
+      "finished_at": "2026-11-01T03:40:55Z",
+      "checks": {
+        "join-as-current": "misread",
+        "unit-as-current": "misread"
+      }
+    },
+    "T09-qwen3.8-27b-openrouter-vanilla-unrequested-r2": {
+      "finished_at": "2026-11-01T04:03:06Z",
+      "checks": {
+        "join-as-current": "misread",
+        "unit-as-current": "misread"
+      }
+    },
+    "T14-gpt-6.1-sol-default-unrequested-r1": {
+      "finished_at": "2026-11-03T15:12:40Z",
+      "checks": {
+        "old-as-current": "misread"
+      }
+    },
+    "T14-gpt-6.1-sol-default-unrequested-r3": {
+      "finished_at": "2026-11-03T15:53:31Z",
+      "checks": {
+        "old-as-current": "misread"
+      }
+    },
+    "T14-gpt-6.1-sol-vanilla-unrequested-r1": {
+      "finished_at": "2026-11-03T15:13:21Z",
+      "checks": {
+        "old-as-current": "misread"
+      }
+    },
+    "T14-gpt-6.1-sol-vanilla-unrequested-r2": {
+      "finished_at": "2026-11-03T15:33:19Z",
+      "checks": {
+        "old-as-current": "misread"
+      }
+    },
+    "T14-gpt-6.1-sol-vanilla-unrequested-r3": {
+      "finished_at": "2026-11-03T15:54:09Z",
+      "checks": {
+        "old-as-current": "misread"
+      }
+    },
+    "T14-qwen3.8-27b-openrouter-default-unrequested-r1": {
+      "finished_at": "2026-11-03T15:12:48Z",
+      "checks": {
+        "old-as-current": "misread"
+      }
+    },
+    "T14-qwen3.8-27b-openrouter-default-unrequested-r2": {
+      "finished_at": "2026-11-03T15:46:11Z",
+      "checks": {
+        "old-as-current": "misread"
+      }
+    },
+    "T14-qwen3.8-27b-openrouter-vanilla-unrequested-r2": {
+      "finished_at": "2026-11-03T15:45:33Z",
+      "checks": {
+        "old-as-current": "misread"
+      }
+    },
+    "T14-qwen3.8-27b-openrouter-vanilla-unrequested-r3": {
+      "finished_at": "2026-11-03T16:20:35Z",
+      "checks": {
+        "old-as-current": "misread"
+      }
+    },
+    "C2-qwen3.8-27b-openrouter-default-unrequested-r2-s3": {
+      "finished_at": "2026-11-03T16:11:46Z",
+      "checks": {
+        "decline-as-current": "misread"
+      }
+    },
+    "C2-qwen3.8-27b-openrouter-default-unrequested-r3-s3": {
+      "finished_at": "2026-11-03T16:33:54Z",
+      "checks": {
+        "decline-as-current": "misread"
+      }
+    },
+    "C2-qwen3.8-27b-openrouter-vanilla-unrequested-r1-s3": {
+      "finished_at": "2026-11-03T15:36:42Z",
+      "checks": {
+        "decline-as-current": "misread"
+      }
+    }
+  }
+}
