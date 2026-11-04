@@ -2,7 +2,7 @@
   "record_kind": "aelix-analytics-product-eval-verification",
   "observed_at": "2026-11-04",
   "issue": "https://github.com/handochan/aelix-analytics/issues/24",
-  "pull_request": null,
+  "pull_request": "https://github.com/handochan/aelix-analytics/pull/157",
   "run_id": "3d4ae6db-bdef-498f-9214-3c2fa7f982c6",
   "method": {
     "design": "docs/design/PRODUCT-EVALUATION.md (adopted 2026-10-31; rules R1-R7, O1-O8)",
