@@ -2,7 +2,7 @@
   "record_kind": "aelix-analytics-q5-q11-verification",
   "observed_at": "2026-11-04",
   "issue": "https://github.com/handochan/aelix-analytics/issues/24",
-  "pull_request": null,
+  "pull_request": "https://github.com/handochan/aelix-analytics/pull/159",
   "run_id": "3d4ae6db-bdef-498f-9214-3c2fa7f982c6",
   "why": "the owner chose on 2026-11-04 to measure Q5 and Q11 before the first beta",
   "method": {
