@@ -1122,11 +1122,12 @@
     "T08-qwen3.8-27b-openrouter-default-requested-r3 decline-as-current"
   ],
   "verdicts": {
-    "Q5": "pass within what was measured: no proposal mention and no proposal turn without a request; every request answered, its tokens counted apart; always_on set in every run, no notice (no candidate reached the threshold) and no model call for it; required facts kept against unrequested; the policy's deterministic tests pass on three OS",
-    "Q11": "pass within what was measured: on the host's whole list (14 tools) both models made no argument error and finished every task the narrower surfaces finished; no new tool in this release"
+    "Q5": "pass within what was measured (part of BETA sections 2 and 3): no proposal mention and no proposal turn without a request; every request answered (a keyword check: it does not judge validity), its tokens counted apart; always_on set in every run with no model call for suggestions, but no asset_candidate was recorded, so the threshold and notice path did not run in a live session; required facts not fewer than unrequested; the policy's deterministic tests pass on three OS",
+    "Q11": "pass in the agent's judgment: the narrower surfaces finished nothing the host's whole list (14 tools) did not; the harness's argument errors (unknown tool, schema, a tool's argument refusal such as run_args) are 0 on the whole list; the kit's bad_query refusals count as tool errors only: Qwen T03 on the whole list 10 (9 in r2), analytics_read T11 1; one repeat on the narrower surfaces cannot tell a surface's share"
   },
   "not_measured": [
-    "an always_on notice in a live session (no candidate reached the threshold in these runs)",
+    "always_on's threshold and notice path in a live session (no asset_candidate recorded in these runs); the publication, window and cancel are covered by the deterministic tests only",
+    "proposal validity and duplication (BETA section 3), unrequested detailed reviews after a notice and the valid proposal rate per surface (ADR-0008 decision 9), one registration and one hold example (BETA section 2, Q5)",
     "Qwen T12 requested (402) and Qwen T12 repeats 2-3 (owner's choice)",
     "more than one repeat on the coding and analytics_read surfaces",
     "the tool-schema and system-prompt bytes (aelix 0.1.0b2 emits no request body)",

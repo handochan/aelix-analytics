@@ -253,7 +253,7 @@ Codex CLI 0.162.0 모델 목록(2026-10-21)의 값이다. 출력 예약 128,000�
 부르기로 한 소유자 결정(2026-10-21, #23)의 설정이다. aelix 0.1.0b2 catalog의 `openrouter qwen/qwen3.8-27b`(context 262,144, 출력
 131,072)를 소유자의 aelix 로그인(OpenRouter 키)으로 쓴다. OpenRouter가 고르는 상위 제공자와 양자화는 고정하지 않는다
 (`openRouterRouting` 없음). 그래서 지원 하단의 로컬 기준(`qwen3.8-27b-local`)과 같은 서빙이 아니다. §3 캠페인(#24)의 Qwen도 이
-설정이다(소유자 결정 2026-10-30, D2). 로컬 기준은 `not_run`으로 남고, 출시 판정 때 다시 본다.
+설정이다(소유자 결정 2026-10-30, D2). 로컬 기준은 `not_run`이고, 2026-11-04 소유자가 재지 않기로 했다([설계](../../docs/design/PRODUCT-EVALUATION.md) O10).
 
 ## run 기록
 

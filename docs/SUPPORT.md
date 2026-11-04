@@ -28,7 +28,8 @@ Aelix Analytics를 어떤 Python·운영체제·aelix·설치 경로에서 **실
 
 후보 0.32.0의 파일은 `docs/releases/0.32.0.sha256`에 있다: wheel `aelix_analytics-0.32.0-py3-none-any.whl`(`203f7e10583a51e3…`),
 sdist `aelix_analytics-0.32.0.tar.gz`(`b243bc417675205a…`). 빌드가 재현되므로 `26c28d0`의 `src/`·`extension/`은 후보 wheel의 kit·확장과 같은
-바이트다([B6 결정적 기록](verification/2026-10-31-issue-24-b6-deterministic.md#후보와-측정의-연결)). 아래 칸은 모두 이 후보의 결과다.
+바이트다([B6 결정적 기록](verification/2026-10-31-issue-24-b6-deterministic.md#후보와-측정의-연결)). 아래의 `verified` 칸은 모두 이 후보의 결과다
+(3.13·3.14의 `expected`는 그보다 앞선 R-8w의 결과).
 
 | 이름 | 무엇 | 검사한 코드·파일 |
 |---|---|---|
@@ -41,6 +42,8 @@ CI-0.32.0에서 확인한 것(artifact가 지워지므로 여기에 요약한다
 
 - 환경. Linux는 GitHub 호스트 이미지 `ubuntu24` 20261026.354.1(x64), Windows는 `win25-vs2026` 20261021.278.1(Windows Server 2025
   Datacenter, build 26100 x64, 관리자, Developer Mode 켬, LongPathsEnabled=1), macOS는 `macos26` 20261026.0455.2(macOS 26.6.2 arm64). uv 0.11.19.
+  macOS의 `floor` 작업은 `macos26` 20261021.0445.8이었고, REL-0.32.0의 `verify`는 Linux `ubuntu24` 20261025.353.1, Windows `win25-vs2026`
+  20261030.294.1, macOS `macos26` 20261026.0455.2에서 돌았다.
   설치 환경과 aelix 시험의 Python은 CPython 3.11.15·3.12.3(Linux), 3.11.9·3.12.10(Windows·macOS)이고, `floor` 작업은 3.11.17(Linux)·3.11.9다.
   aelix는 PyPI의 0.1.0b2다.
 - 저장소 시험(배포본 end-to-end 포함, `AELIX_ANALYTICS_TEST_INSTALL=1`): Linux 3,119 통과·112 건너뜀, macOS 3,120 통과·111 건너뜀, Windows
@@ -82,7 +85,8 @@ CI-0.32.0에서 확인한 것(artifact가 지워지므로 여기에 요약한다
 
 ## 설치 경로
 
-모든 `verified` 칸은 후보의 파일을 설치한 REL-0.32.0의 결과다. 각 시험은 `tests/test_packaging.py`에 있다.
+체크아웃의 파일을 쓰는 두 행(`bin/analytics`, `aelix -e`)을 빼면, `verified` 칸은 후보의 파일을 설치한 REL-0.32.0의 결과이고 각 시험은
+`tests/test_packaging.py`에 있다. 그 두 행은 `26c28d0`의 CI-0.32.0이 근거다.
 
 | 경로 | Linux | Windows | macOS | 증거(시험) |
 |---|---|---|---|---|
