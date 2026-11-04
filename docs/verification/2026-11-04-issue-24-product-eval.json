@@ -567,6 +567,14 @@
       }
     }
   },
+  "owner_decisions": {
+    "decided_at": "2026-11-04",
+    "gate": {
+      "gpt-6.1-sol": "pass: R4 with both conditions at full marks is a ceiling, not a failure (O9); the lower model's R4 (A > V) is the evidence of accumulation",
+      "qwen3.8-27b-openrouter": "R2 accepted with its known causes (O11); release 0.32.0 and fix #156 and #158 in 0.32.1"
+    },
+    "local_qwen_floor": "not measured; not a release-hold reason (O10)"
+  },
   "diagnosis": {
     "availability": {
       "A available_not_received": 1,
@@ -653,7 +661,9 @@
     },
     {
       "candidate": "the scorer counts a run id shortened without an ellipsis as fabricated",
-      "disposition": "hold"
+      "disposition": "hold",
+      "then": "issue for 0.32.1 (owner, 2026-11-04, with the R2 decision)",
+      "issue": "https://github.com/handochan/aelix-analytics/issues/158"
     },
     {
       "candidate": "an answer leaves out evidence ids its run received (diagnosis use, discoverability)",
@@ -669,8 +679,8 @@
     }
   ],
   "not_measured": [
-    "the local Qwen floor (D2): not_run, a release-hold reason",
-    "Q5 proposal conditions and Q11 tool surfaces (outside this campaign; pilot data not reused, O8)",
+    "the local Qwen floor (D2): not_run; the owner decided on 2026-11-04 not to measure it and not to hold the release for it (design O10)",
+    "Q5 proposal conditions and Q11 tool surfaces: outside this campaign; measured apart the same day (docs/verification/2026-11-04-issue-24-q5-q11.md)",
     "a vanilla baseline with a notes convention (O2) and the human comparison E7 (O4)",
     "aelix on Linux and Windows, other fixture seeds, more than three repeats",
     "pinning OpenRouter's upstream provider",
