@@ -293,6 +293,12 @@ CASES = [
     (["record", "finding", "text"], ["record", "finding", "text"]),
     (["render"], ["render"]),
     (["render", "--if-changed"], ["render", "--if-changed"]),
+    # #160: a Report write rebuilds the Workspace, so it runs where record does.
+    (["reports", "save", "q3", "--files", "out", "--entry", "index.html", "--title", "Q3", "--previous", "none"],
+     ["reports", "save", "q3", "--files", "out", "--entry", "index.html", "--title", "Q3", "--previous", "none"]),
+    (["reports", "update", "q3@R", "--expected-state", "current", "--state", "withdrawn", "--reason", "r"],
+     ["reports", "update", "q3@R", "--expected-state", "current", "--state", "withdrawn", "--reason", "r"]),
+    (["reports", "clean", "--prepared", "q3@R"], ["reports", "clean", "--prepared", "q3@R"]),
 ]
 
 
@@ -311,6 +317,16 @@ def test_each_command_reaches_the_kit_in_the_project_environment(fake, tmp_path,
     assert call["env"] == {"PYTHONPATH": str(KIT), "MPLBACKEND": "Agg",
                            "PYTHONDONTWRITEBYTECODE": "1", "AELIX_ANALYTICS_ACTOR": None,
                            "VIRTUAL_ENV": None}
+
+
+@pytest.mark.parametrize("which", WHICH)
+@pytest.mark.parametrize("args", [["reports", "list"], ["reports", "show", "q3@R"], ["reports"]])
+def test_report_reads_reach_the_stdlib_kit_without_preparing_the_project(fake, tmp_path, which, args):
+    project = project_dir(tmp_path)
+    done = launch(fake, *args, cwd=project, which=which)
+    assert done.returncode == 0, done.stderr
+    [call] = calls(fake)
+    assert uv_args(call) == outside_call(project, *args)
 
 
 @pytest.mark.parametrize("which", WHICH)

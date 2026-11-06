@@ -360,11 +360,15 @@ def test_cli_report_writes_rebuild_the_workspace(case):
     def pages():
         return "".join(p.read_text(encoding="utf-8") for p in (root / "workspace").rglob("*.html"))
 
+    def tab():
+        text = index.read_text(encoding="utf-8")
+        return text[text.index('<section id="reports"'):][:120]
+
+    assert kit_cli(root, "render")[0] == 0 and 'data-count="0"' in tab()  # a Workspace there already
     code, saved = kit_cli(root, "reports", "save", "weekly", "--files", str(case[1]), "--entry", "요약.md",
                           "--title", "요약", "--previous", "none")
     assert code == 0 and saved["outcome"] == "saved" and "error" not in saved["workspace"], saved
-    text = index.read_text(encoding="utf-8")
-    assert Path(saved["workspace"]["path"]) == index and 'data-count="1"' in text[text.index('<section id="reports"'):][:120]
+    assert Path(saved["workspace"]["path"]) == index and 'data-count="1"' in tab() and "요약" in pages()
     code, updated = kit_cli(root, "reports", "update", f"weekly@{saved['report']['revision_id']}", "--expected-state", "current",
                             "--state", "withdrawn", "--reason", "검토")
     assert code == 0 and updated["workspace"]["build"] != saved["workspace"]["build"], updated

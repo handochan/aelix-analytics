@@ -258,7 +258,11 @@ case $cmd in
   assets|reports)
     refuse_renamed
     proj=$(find_project)
-    kit_outside "$proj" "$cmd" "$@"
+    # A Report write rebuilds the Workspace (#160), which needs the project's environment, as record does.
+    case "$cmd ${1-}" in
+      "reports save"|"reports update"|"reports clean") run_kit "$proj" "$cmd" "$@" ;;
+      *) kit_outside "$proj" "$cmd" "$@" ;;
+    esac
     ;;
   migrate)
     refuse_renamed

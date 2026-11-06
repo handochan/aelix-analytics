@@ -241,7 +241,9 @@ def _command(args: list[str], kit: Path | None, uv_argv: list[str] | None,
     uv = uv_argv or _uv(processes)
     if uv is None:
         return 127
-    if command in ("assets", "reports"):
+    # A Report write rebuilds the Workspace (#160), which needs the project's environment, as record
+    # does; the other asset and Report commands use the standard library only.
+    if command == "assets" or (command == "reports" and args[:1] not in (["save"], ["update"], ["clean"])):
         return children.run(kit_outside(uv, project, command, *args), env)
     kit_call = kit_outside if outside else kit_argv
     if command in ("status", "context"):
