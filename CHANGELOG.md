@@ -15,6 +15,16 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#배포와-운영-결정)).
 
+## [0.32.1] - 2026-11-06
+
+### Changed
+
+- #161: 에이전트가 Report를 저장하는 법을 압니다. `analytics_run`의 Script API에 `analytics.save_report`가 있고, guideline이 독자용 문서는
+  `workspace/` 밖에 써서 run 안에서 저장하며 report ID는 소문자·숫자·`-`, 첫 버전은 `previous_revision=None`이라고 말합니다. 도구 설명과
+  프롬프트 맥락은 Workspace를 "report"라 부르지 않습니다(맥락의 머리 줄이 `report:`에서 `workspace:`로). 도구 글은 551자(약 5%) 늘었습니다.
+- #161: report ID를 거절할 때(`name_not_portable`) hint가 쓸 수 있는 예를 줍니다(`monthly_report` → `monthly-report`). README의 스크립트 API에
+  Report 저장과 `analytics reports save`·`list` 사용법이 있습니다.
+
 ## [0.32.0] - 2026-10-30
 
 이 번호부터 PyPI(`aelix-analytics`)와 GitHub Release에 게시합니다. 공식 베타입니다(#24). 이전 번호는 게시하지 않았고, 그 변경은

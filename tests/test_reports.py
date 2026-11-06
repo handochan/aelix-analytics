@@ -351,6 +351,17 @@ def test_injected_filesystem_without_exclusive_directory_rename_has_no_fallback(
     assert (case[1] / "요약.md").read_bytes()
 
 
+@pytest.mark.parametrize(("given", "example"), [("monthly_report", "monthly-report"), ("Q3 Review", "q3-review"),
+                                                ("_", "monthly-report"), ("보고서", "monthly-report")])
+def test_a_report_id_refusal_says_how_to_write_one(case, given, example):
+    """#161: dataset and script names take '_', a Report id does not; the refusal gives an id that works."""
+    p, source = case
+    refused = error("name_not_portable", lambda: core.save_report(p, given, files=source, entry="요약.md", title="t",
+                                                                  previous_revision=None, origin=HUMAN))
+    assert refused.hint.endswith(f"e.g. {example!r}") and "lower-case ASCII letters, digits and '-'" in refused.hint
+    assert relations.report_name(example) and not (p.root / "artifacts/reports").exists()
+
+
 def test_cli_sdk_equivalence_and_reports_callable_survives_imports(case, monkeypatch):
     monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(case[0].root))
     monkeypatch.setenv("AELIX_ANALYTICS_ACTOR", HUMAN.actor)

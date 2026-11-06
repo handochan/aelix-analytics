@@ -1,6 +1,6 @@
 [project]
 name = "aelix-analytics"
-version = "0.32.0"
+version = "0.32.1"
 description = "Agent-native analytics projects with durable context, metrics, evidence, and reports"
 # README, as the build rewrites its links ([tool.hatch.metadata.hooks.fancy-pypi-readme] below).
 dynamic = ["readme"]

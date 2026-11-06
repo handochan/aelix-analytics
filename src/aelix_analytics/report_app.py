@@ -8,6 +8,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import re
 import secrets
 import shutil
 import stat
@@ -162,7 +163,13 @@ class Reports:
     def save(self, report_id, *, files, entry, title, previous_revision, request_id=None, based_on=None, metadata=None):
         self.writer.admit("save_report")
         if not relations.report_name(report_id):
-            _fail("name_not_portable", "report_id must be a portable lower-case ASCII name")
+            # The fix a model or a person can make from the answer alone (#161): dataset and script
+            # names take '_', a Report id does not.
+            near = re.sub(r"[^a-z0-9]+", "-", report_id.lower()).strip("-")[:64] if isinstance(report_id, str) else ""
+            raise writer.AnalyticsError(
+                "name_not_portable", "report_id must be a portable lower-case ASCII name",
+                hint="use 1 to 64 lower-case ASCII letters, digits and '-', starting with a letter or digit, "
+                     f"e.g. {near if relations.report_name(near) else 'monthly-report'!r}")
         for name in (previous_revision, request_id):
             if name is not None:
                 writer.check_request_id(name)
