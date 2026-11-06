@@ -164,6 +164,22 @@ def test_prompt_text_fits_aelix_limits_and_schemas_are_plain():
         assert tool.execution_mode == "sequential"
 
 
+def test_the_model_is_told_how_to_save_a_report_and_the_workspace_is_not_called_report():
+    """#161: the run tool names analytics.save_report and where a document goes; no tool text calls the
+    Workspace "the report" (a model took a run's rebuilt page for a saved Report)."""
+    tools = {tool.name: tool for tool in fresh_module().TOOLS}
+    run = tools["analytics_run"]
+    words = " ".join([run.description, run.prompt_snippet, *run.prompt_guidelines])
+    assert "analytics.save_report(" in run.description and "Reports tab" in run.description
+    assert any("outside workspace/" in g and "analytics.save_report" in g for g in run.prompt_guidelines)
+    assert any("previous_revision: None" in g and "lower-case ASCII" in g and "head true" in g for g in run.prompt_guidelines)
+    assert "rebuilds the Workspace" in run.prompt_snippet and "Workspace" in words
+    for tool in tools.values():
+        text = " ".join([tool.description, tool.prompt_snippet, *tool.prompt_guidelines])
+        for phrase in ("HTML report", "the report", "from the report", "in the report"):
+            assert phrase not in text, (tool.name, phrase)
+
+
 def test_no_project_is_a_clear_tool_error(tmp_path, monkeypatch):
     module = fresh_module()
     monkeypatch.delenv("AELIX_ANALYTICS_PROJECT", raising=False)
