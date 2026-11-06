@@ -502,8 +502,9 @@ def _command(argv) -> int:
         elif args.command == "demo":
             from . import demo
 
-            _emit({"ok": True, **demo.populate(project, origin=origin),
-                   "request_id": core.request_id_of(origin)})
+            made = demo.populate(project, origin=origin)
+            _emit({"ok": True, **made, "request_id": core.request_id_of(origin)})
+            _tell_unmanaged(made.get("workspace"))
         return 0
     except core.AnalyticsError as exc:
         _emit(exc.to_json())

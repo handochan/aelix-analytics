@@ -21,6 +21,7 @@ import json
 import os
 import re
 import shutil
+import stat
 from collections import Counter, defaultdict
 from importlib import resources
 from pathlib import Path
@@ -1088,17 +1089,17 @@ def _write(path: Path, text: str, platform: _platform.Platform) -> None:
 
 # The mark of a page a kit wrote: its <html> tag holds data-root and data-build (every kit since
 # 0.1.0) and, since 2026-10-11, data-page naming the page itself (#163).
-_HTML_TAG = re.compile(rb"<html\b([^>]*)>", re.IGNORECASE)
+_HTML_TAG = re.compile(rb"<html\b([^>]*)", re.IGNORECASE)
 _ATTRIBUTE = re.compile(rb'\s([a-z][a-z-]*)="([^"]*)"')
 UNMANAGED_SHOWN = 20
 
 
 def kit_page(path: Path, page: str) -> bool:
     """Whether the file at `path`, Workspace path `page`, is a page a kit wrote. A file a person or
-    another tool put there is not, whatever made it, and neither is a link (#163). Reads the start of
-    the file only."""
+    another tool put there is not, whatever made it (#163). Only a regular file is opened (a FIFO
+    would wait for a writer), and only its start is read."""
     try:
-        if path.is_symlink():
+        if not stat.S_ISREG(path.lstat().st_mode):
             return False
         with open(path, "rb") as fh:
             head = fh.read(4096)
@@ -1115,12 +1116,17 @@ def kit_page(path: Path, page: str) -> bool:
 
 def _prune(directory: Path, keep: set[str], kept: list[str]) -> None:
     """Remove the pages of `directory` an earlier build made and this one did not. Any other file
-    stays and is named in `kept` (#163): the kit removes only what it made."""
+    stays and is named in `kept` (#163): the kit removes only what it made. A link is removed as a
+    link, as before: what it points at is not touched."""
     for p in directory.glob("*.html"):
         if p.name in keep:
             continue
         page = f"{directory.name}/{p.name}"
-        if kit_page(p, page):
+        try:
+            linked = _platform.is_link(p.lstat())
+        except OSError:
+            continue  # gone since the listing
+        if linked or kit_page(p, page):
             with contextlib.suppress(OSError):
                 p.unlink()
         else:
