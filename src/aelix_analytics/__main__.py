@@ -399,6 +399,11 @@ def _command(argv) -> int:
                                                 new=args.state, reason=args.reason, origin=origin)
                 else:
                     result = core.clean_report_prepared(project, report_id, revision_id, origin=origin)
+            if action in ("save", "update", "clean"):
+                from . import workspace
+
+                # The Reports tab shows what was just written, as after a record or an import (#160).
+                result["workspace"] = _safe_render(workspace, project)
             _emit({"ok": True, **result})
         elif args.command == "status":
             options = {name: getattr(args, name) for name in

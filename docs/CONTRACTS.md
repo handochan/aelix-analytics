@@ -974,6 +974,9 @@ Workspace의 kit 문구(탭·제목·배지·버튼·빈 화면·안내·tooltip
 - `analytics reports clean --prepared ID@REV`와 `analytics.clean_report_prepared(ID, REV)`는 시도 잠금 → journal 잠금 순서로 기다린 뒤
   지정한 staging 하나만 지웁니다. 완료/미완료 버전·다른 시도는 지우지 않고 오래됐다는 이유로 작업자를 인수하지 않습니다.
   잠금 파일은 `.analytics/report-attempts/<revision_id>.lock`에 두며 자동 삭제하지 않습니다.
+- kit 0.32.1부터 CLI의 `reports save`·`update`·`clean`은 `record`·`import`처럼 끝나기 전에 Workspace를 다시 빌드하고 그 결과를 키 `workspace`에 담습니다
+  ([D](#d-kit-cli), #160). 빌드가 실패해도 이미 끝난 저장·상태 변경·정리는 그대로이며 `{error}`로 알립니다. `list`·`show`는 빌드하지 않습니다.
+  SDK의 `save_report`·`update_report`·`clean_report_prepared`는 SDK `record`처럼 빌드하지 않습니다(run 안에서 부르면 run이 끝난 뒤 빌드됩니다).
   manifest 작성 전 멈춘 시도도 목록의 `prepared`/`manifest_unavailable`로 찾아 정리할 수 있으며 완료나 파일 무결성으로 올리지 않습니다.
 - rename은 같은 파일 시스템의 서로 다른 부모 사이에서 파일/디렉터리를 배타적으로 옮깁니다. 기존 목적지를 덮지 않으며
   지원하지 않는 파일 시스템은 `no_exclusive_rename`으로 거절합니다. 비원자적 복사로 대체하지 않습니다.
@@ -1217,7 +1220,8 @@ Windows에서는 `analytics.exe`)로 부릅니다(kit 0.3.0 전의 `bin/lab`). �
 - 명령: `init` `status` `context` `run` `import` `query` `record` `render [--if-changed]` `demo`, kit 0.8.0의 `migrate --to DEST [--dry-run]`.
   kit 0.3.0 전의 `note`·`report`는
   사용법 오류(2)입니다. Workspace를 다시 빌드한 결과는 결과 JSON의 키 `workspace`에 있습니다(kit 0.6.0부터. 그 전은 `report`): `render`는
-  `{path, pages, build}`(`--if-changed`가 건너뛰면 `{path, skipped: true}`), `import`·`record`는 같은 값이거나 빌드가 실패하면 `{error}`,
+  `{path, pages, build}`(`--if-changed`가 건너뛰면 `{path, skipped: true}`), `import`·`record`와 kit 0.32.1의 `reports save`·`update`·`clean`
+  ([C16](#c16-불변-report-저장등록버전-kit-0210-19-pr1))은 같은 값이거나 빌드가 실패하면 `{error}`,
   `demo`는 같은 값입니다. `run`은 같은 값이거나, 빌드가 실패하면 그 글을 키 `workspace_error`(그 전은 `report_error`)에 담습니다.
   `status`의 `workspace`(그 전은 `report`)는 Workspace의 `index.html` 경로입니다. 값의 경로는 `workspace/…`입니다(kit 0.8.0 전과, 0.8.0의
   `lab.json` 프로젝트는 `report/…`).

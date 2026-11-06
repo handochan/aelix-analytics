@@ -351,6 +351,51 @@ def test_injected_filesystem_without_exclusive_directory_rename_has_no_fallback(
     assert (case[1] / "요약.md").read_bytes()
 
 
+def test_cli_report_writes_rebuild_the_workspace(case):
+    """#160: a Report saved, withdrawn or cleaned on the command line is in the Workspace when the
+    command ends, as after a record or an import; reading a Report builds nothing."""
+    root = case[0].root
+    index = root / "workspace/index.html"
+
+    def pages():
+        return "".join(p.read_text(encoding="utf-8") for p in (root / "workspace").rglob("*.html"))
+
+    code, saved = kit_cli(root, "reports", "save", "weekly", "--files", str(case[1]), "--entry", "요약.md",
+                          "--title", "요약", "--previous", "none")
+    assert code == 0 and saved["outcome"] == "saved" and "error" not in saved["workspace"], saved
+    text = index.read_text(encoding="utf-8")
+    assert Path(saved["workspace"]["path"]) == index and 'data-count="1"' in text[text.index('<section id="reports"'):][:120]
+    code, updated = kit_cli(root, "reports", "update", f"weekly@{saved['report']['revision_id']}", "--expected-state", "current",
+                            "--state", "withdrawn", "--reason", "검토")
+    assert code == 0 and updated["workspace"]["build"] != saved["workspace"]["build"], updated
+    assert "The latest version of this Report is withdrawn." in pages()
+    attempt = report_app.revision_id()
+    (root / "artifacts/reports/draft/.staging" / attempt / "content").mkdir(parents=True)
+    assert kit_cli(root, "render")[0] == 0 and attempt in pages()
+    code, cleaned = kit_cli(root, "reports", "clean", "--prepared", f"draft@{attempt}")
+    assert code == 0 and "error" not in cleaned["workspace"] and attempt not in pages(), cleaned
+    build = index.read_bytes()
+    for read in (("reports", "list"), ("reports", "show", f"weekly@{saved['report']['revision_id']}")):
+        code, answer = kit_cli(root, *read)
+        assert code == 0 and "workspace" not in answer, answer
+    assert index.read_bytes() == build
+
+
+def test_a_failed_workspace_build_does_not_undo_a_saved_report(case, monkeypatch, capsys):
+    """#160: the save is done when the build after it fails; the answer says so, as for a record."""
+    from aelix_analytics import __main__ as entry
+    from aelix_analytics import workspace
+
+    def broken(project, **options):
+        raise OSError("disk full")
+    monkeypatch.setattr(workspace, "build", broken)
+    code = entry.main(["--project", str(case[0].root), "reports", "save", "weekly", "--files", str(case[1]),
+                       "--entry", "요약.md", "--title", "요약", "--previous", "none"])
+    answer = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert code == 0 and answer["outcome"] == "saved" and answer["workspace"] == {"error": "OSError: disk full"}, answer
+    assert [row["revision_id"] for row in core.reports(case[0])["reports"]] == [answer["report"]["revision_id"]]
+
+
 def test_cli_sdk_equivalence_and_reports_callable_survives_imports(case, monkeypatch):
     monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(case[0].root))
     monkeypatch.setenv("AELIX_ANALYTICS_ACTOR", HUMAN.actor)
