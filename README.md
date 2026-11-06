@@ -98,9 +98,9 @@ kit은 이미 만든 프로젝트의 Pillow를 올리지 않습니다. 이전 ki
 아래 [게시된 배포본](#게시된-배포본)). 체크아웃에서 직접 만들 수도 있습니다.
 
 ```sh
-cd $PACK && uv build                                   # dist/aelix_analytics-0.32.0-py3-none-any.whl
-uv tool install --python 3.12 dist/aelix_analytics-0.32.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
-uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.32.0-py3-none-any.whl   # aelix와 함께
+cd $PACK && uv build                                   # dist/aelix_analytics-0.32.1-py3-none-any.whl
+uv tool install --python 3.12 dist/aelix_analytics-0.32.1-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
+uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.32.1-py3-none-any.whl   # aelix와 함께
 ```
 
 새 wheel로 바꿀 때는 같은 줄을 새 파일로 다시 실행합니다. 이전 wheel의 파일은 남지 않습니다.
