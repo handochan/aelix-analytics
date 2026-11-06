@@ -656,7 +656,8 @@ def _error_info(exc: BaseException, filename: str) -> dict:
     summary = f"{type(exc).__name__}: {message}".strip()[:SUMMARY_CHARS]
     info = {"type": type(exc).__name__, "message": message[:2000], "line": line,
             "summary": summary}
-    hint = api_hint(summary)
+    # A kit error raised in the script (analytics.save_report, say) keeps its own hint (#161).
+    hint = api_hint(summary) or (exc.hint if isinstance(exc, core.AnalyticsError) else None)
     if hint:
         info["hint"] = hint
     return info

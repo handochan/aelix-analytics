@@ -401,7 +401,8 @@ def test_a_failed_workspace_build_does_not_undo_a_saved_report(case, monkeypatch
 
 
 @pytest.mark.parametrize(("given", "example"), [("monthly_report", "monthly-report"), ("Q3 Review", "q3-review"),
-                                                ("_", "monthly-report"), ("보고서", "monthly-report")])
+                                                ("_", "monthly-report"), ("보고서", "monthly-report"), (5, "monthly-report"),
+                                                ("con", "monthly-report"), ("a" * 63 + "_b", "a" * 63)])
 def test_a_report_id_refusal_says_how_to_write_one(case, given, example):
     """#161: dataset and script names take '_', a Report id does not; the refusal gives an id that works."""
     p, source = case
@@ -409,6 +410,19 @@ def test_a_report_id_refusal_says_how_to_write_one(case, given, example):
                                                                   previous_revision=None, origin=HUMAN))
     assert refused.hint.endswith(f"e.g. {example!r}") and "lower-case ASCII letters, digits and '-'" in refused.hint
     assert relations.report_name(example) and not (p.root / "artifacts/reports").exists()
+
+
+def test_a_refusal_in_a_run_keeps_its_hint(case):
+    """#161: saving in a run is what the model is told to do; a refused id there still says how to write one."""
+    p, source = case
+    (p.root / "scripts").mkdir(exist_ok=True)
+    (p.root / "scripts" / "save.py").write_text(
+        "import aelix_analytics as analytics\n"
+        f"analytics.save_report('monthly_report', files={str(source)!r}, entry='요약.md', title='t', previous_revision=None)\n",
+        encoding="utf-8")
+    code, answer = kit_cli(p.root, "run", "scripts/save.py", "--title", "save")
+    error = answer["run"]["error"]
+    assert code != 0 and error["type"] == "AnalyticsError" and error["hint"].endswith("e.g. 'monthly-report'"), answer
 
 
 def test_cli_sdk_equivalence_and_reports_callable_survives_imports(case, monkeypatch):

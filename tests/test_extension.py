@@ -172,7 +172,7 @@ def test_the_model_is_told_how_to_save_a_report_and_the_workspace_is_not_called_
     words = " ".join([run.description, run.prompt_snippet, *run.prompt_guidelines])
     assert "analytics.save_report(" in run.description and "Reports tab" in run.description
     assert any("outside workspace/" in g and "analytics.save_report" in g for g in run.prompt_guidelines)
-    assert any("previous_revision=None" in g and "lower-case" in g for g in run.prompt_guidelines)
+    assert any("previous_revision: None" in g and "lower-case ASCII" in g and "head true" in g for g in run.prompt_guidelines)
     assert "rebuilds the Workspace" in run.prompt_snippet and "Workspace" in words
     for tool in tools.values():
         text = " ".join([tool.description, tool.prompt_snippet, *tool.prompt_guidelines])

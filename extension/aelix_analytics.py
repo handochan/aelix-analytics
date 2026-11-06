@@ -1088,7 +1088,7 @@ TOOLS = [
         "Figure/Axes or plotly Figure (id: short ASCII, stable across versions); analytics.record('finding', "
         "text) links a journal entry to this run; analytics.save_report('q3-review', files='reports_out/q3', "
         "entry='index.html', title=..., previous_revision=None) registers a document you wrote as a Report "
-        "(the Workspace's Reports tab: a file only written is none). Plain pl.read_parquet('data/...'), DuckDB SQL over "
+        "(listed in the Workspace's Reports tab; a file only written is not). Plain pl.read_parquet('data/...'), DuckDB SQL over "
         "'data/...parquet' literals, plt.show() and fig.show() are captured too, but only analytics.visualize "
         "with data= records exactly what was plotted. matplotlib has a Korean-capable font preset.",
         {"title": {**STR, "description": "What this run is for, in one line (shown in the journal)."},
@@ -1112,8 +1112,8 @@ TOOLS = [
             "so its code and input data are recorded and linked from the Workspace.",
             "Write a document for readers (an HTML or Markdown report) outside workspace/, which is rebuilt "
             "from the records, and register it with analytics.save_report in a run.",
-            "Report ids use lower-case letters, digits and '-'; previous_revision=None the first time, then the "
-            "head revision_id from analytics.reports(id).",
+            "Report ids use lower-case ASCII letters, digits and '-'. previous_revision: None the first time, else "
+            "the revision_id of the row with head true in analytics.reports(id)['reports'].",
             "In scripts prefer analytics.read/analytics.sql for data and analytics.visualize(fig, id, title=, caption=, "
             "data=plotted_df) for charts; one script per question, re-run it to version its charts.",
             "Record findings, decisions, assumptions, questions and todos with analytics_record as soon as they "
