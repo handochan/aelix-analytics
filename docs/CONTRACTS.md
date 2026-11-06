@@ -1103,7 +1103,8 @@ ReportRenderer는 교체 계약과 원본 불변성 검증을 마친 내부 adap
     선택 속성 `cache_key`(문자열)로 출력을 이름 짓고 출력이 바뀌면 키를 바꿉니다. kit의 StaticReportRenderer는
     `aelix_analytics.StaticReportRenderer/1`입니다. 키가 없는 renderer의 문서는 빌드마다 다시 만들고, 그런 빌드는 `--if-changed`로 건너뛰지 않습니다.
     키는 Workspace 지문에도 들어갑니다.
-  - 없어진 버전의 폴더는 지웁니다. `workspace/reports/` 아래의 링크(symlink·junction)는 따라가지 않습니다. 링크는 링크만 지우고, 링크인 보기
+  - 없어진 버전의 폴더는 지웁니다. kit 0.32.1부터 지우는 것은 kit의 표식 `view.json`이 있는 보기 폴더뿐이며, `reports/<이름>/` 아래의 다른 폴더는
+    무엇이 만들었든 남기고 알립니다(#163, [C21](#c21-workspace의-정리-kit-0321-163)). `workspace/reports/` 아래의 링크(symlink·junction)는 따라가지 않습니다. 링크는 링크만 지우고, 링크인 보기
     폴더에는 본문을 쓰지 않습니다. 다시 빌드해도 `artifacts/reports`의 원본은 바뀌지 않습니다.
   - 버전 구역의 앵커는 그 버전의 접힌 `<details>`이며, 주소가 그 버전을 가리키면 열립니다. `Based on`의 CONTEXT.md 버전은 보존된 버전일 때만
     링크하고, 아니면 이름과 '보존되지 않음'을 적습니다. Report를 가리키지 않는 손상된 manifest는 페이지를 만들지 않습니다.
@@ -1126,6 +1127,20 @@ publication 참조 배지와 관계 카드도 원래 참조 판정(`resolved` �
 폴더의 모든 파일 바이트와 해시는 매번 다시 읽고 대조하므로 크기·mtime을 보존한 변조도 관찰합니다. 한 번의 생성에서는
 fingerprint와 화면이 같은 기록 모델·폴더 관찰을 사용하며, 같은 바이트·역할·경로의 파싱 결과만 메모리에서 재사용합니다.
 이 재사용은 디스크 캐시나 stat으로 바이트 검사를 생략하지 않습니다.
+
+### C21. Workspace의 정리 (kit 0.32.1, #163)
+
+Workspace를 다시 빌드할 때 kit은 자기가 만든 것만 지웁니다. 사람이나 다른 도구(skill·bash·쓰기 도구 등)가 둔 파일은 무엇이 만들었든 남깁니다.
+- 페이지 폴더(`runs/`·`data/`·`relations/`·`lists/`·`scripts/`·`reports/`)에서 이번 빌드가 만들지 않은 `*.html`은 kit 페이지일 때만 지웁니다.
+  kit 페이지는 `<html>` 태그에 `data-root`와 `data-build`가 있고(kit 0.1.0부터), `data-page`가 있으면 그 값이 그 파일의 Workspace 안 경로입니다(2026-10-11부터).
+  파일 앞 4 KiB만 읽으며 링크는 kit 페이지가 아닙니다. 다른 이름으로 복사한 kit 페이지도 남깁니다.
+- `reports/<이름>/` 아래에서 지금 버전의 것이 아닌 폴더는 kit의 `view.json`이 있을 때만 지웁니다([C19](#c19-workspace의-reports-탭과-페이지-kit-0250-19-pr3)).
+  빈 폴더는 전처럼 지웁니다. 링크는 전처럼 링크만 지우고 대상은 건드리지 않습니다. kit이 만든 보기 폴더 안은 kit의 것으로 보고 다시 씁니다.
+- 남긴 것은 빌드 결과의 `unmanaged`(`{count, paths}`, 경로는 정렬한 앞의 20개, 폴더는 `/`로 끝남)에 있고, kit CLI가 JSON 줄 뒤에 stderr로,
+  확장이 `/analytics render`와 `analytics_run`의 응답에 한 줄로 알립니다(`core.unmanaged_line`). Workspace는 기록에서 다시 만드는 화면이라
+  그 파일을 Report로 보이지 않으니 문서는 Report로 저장하라는 안내입니다. 막거나 실패시키지 않습니다. `--if-changed`가 건너뛴 빌드는 알리지 않습니다.
+- 한계: 표식을 남기기 전에 멈춘 kit의 보기 폴더(`view.json` 없음)는 그 버전을 다시 빌드할 때까지 남고 알림에 듭니다. `workspace/` 최상위와 `.html`이 아닌
+  파일은 전에도 지우지 않았습니다. 남긴 파일은 Workspace에 보이지 않고, 기본 `.gitignore`가 `workspace/`를 제외하므로 git에도 남지 않습니다.
 
 ## D. kit CLI
 
@@ -1220,7 +1235,7 @@ Windows에서는 `analytics.exe`)로 부릅니다(kit 0.3.0 전의 `bin/lab`). �
 - 명령: `init` `status` `context` `run` `import` `query` `record` `render [--if-changed]` `demo`, kit 0.8.0의 `migrate --to DEST [--dry-run]`.
   kit 0.3.0 전의 `note`·`report`는
   사용법 오류(2)입니다. Workspace를 다시 빌드한 결과는 결과 JSON의 키 `workspace`에 있습니다(kit 0.6.0부터. 그 전은 `report`): `render`는
-  `{path, pages, build}`(`--if-changed`가 건너뛰면 `{path, skipped: true}`), `import`·`record`와 kit 0.32.1의 `reports save`·`update`·`clean`
+  `{path, pages, build}`(kit 0.32.1부터 남긴 파일이 있으면 `unmanaged`도, [C21](#c21-workspace의-정리-kit-0321-163); `--if-changed`가 건너뛰면 `{path, skipped: true}`), `import`·`record`와 kit 0.32.1의 `reports save`·`update`·`clean`
   ([C16](#c16-불변-report-저장등록버전-kit-0210-19-pr1))은 같은 값이거나 빌드가 실패하면 `{error}`,
   `demo`는 같은 값입니다. `run`은 같은 값이거나, 빌드가 실패하면 그 글을 키 `workspace_error`(그 전은 `report_error`)에 담습니다.
   `status`의 `workspace`(그 전은 `report`)는 Workspace의 `index.html` 경로입니다. 값의 경로는 `workspace/…`입니다(kit 0.8.0 전과, 0.8.0의

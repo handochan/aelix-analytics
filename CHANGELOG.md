@@ -22,6 +22,10 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 - #160: CLI의 `analytics reports save`·`update`·`clean`이 `record`·`import`처럼 끝나기 전에 Workspace를 다시 만듭니다. 전에는 저장이 성공해도
   다음 재생성 전까지 Reports 탭에 보이지 않았고, `analytics open`이 그 예전 화면을 열었습니다. 결과 JSON의 `workspace`에 빌드 결과가 있고,
   빌드가 실패해도 저장은 그대로입니다(`{error}`). SDK의 `save_report`는 전처럼 빌드하지 않습니다(run 안에서는 run이 끝난 뒤 빌드됩니다).
+- #163: Workspace를 다시 만들 때 kit이 만든 페이지와 보기 폴더만 지웁니다. 전에는 페이지 폴더(`reports/`·`runs/` 등)의 `*.html`과
+  `reports/<이름>/` 아래 폴더를 누가 만들었는지 보지 않고 지워, skill·bash 등으로 그곳에 옮긴 HTML 보고서와 그 그림·CSS가 사라졌습니다.
+  이제 그런 파일은 남고, 빌드 결과의 `unmanaged`와 CLI의 stderr, `/analytics render`·`analytics_run`의 응답이 남긴 것과 Report로 저장하는
+  방법을 알립니다. 이미 지워진 파일은 kit이 되살리지 못합니다.
 
 ## [0.32.0] - 2026-10-30
 
