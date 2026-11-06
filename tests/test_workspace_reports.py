@@ -20,12 +20,13 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 from html import unescape
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 import pytest
-from conftest import analytics_project
+from conftest import analytics_project, kit_env
 from report_renderer_doubles import RecordingReportRenderer
 
 from aelix_analytics import (
@@ -242,12 +243,64 @@ def test_building_again_keeps_the_preserved_bytes_reuses_views_and_prunes_stale_
     stale = p.workspace_dir / "reports" / "gone-0123456789" / "01OLD"
     stale.mkdir(parents=True)
     (stale / "view.json").write_text("{}", encoding="utf-8")
-    (p.workspace_dir / "reports" / "gone-0123456789.html").write_text("old", encoding="utf-8")
+    (p.workspace_dir / "reports" / "gone-0123456789.html").write_text(kit_page("reports/gone-0123456789.html"), encoding="utf-8")
     workspace.build(p)
     assert stamp.stat().st_mtime_ns == made  # the same bytes by the same renderer: kept as it is
     assert not stale.parent.exists() and not (p.workspace_dir / "reports" / "gone-0123456789.html").exists()
     after = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in artifacts.rglob("*") if path.is_file()}
     assert after == before  # completion condition 2: v1's bytes and evidence after v2 and a rebuild
+
+
+def kit_page(page, *, named=True):
+    """The start of a page a kit wrote: data-root and data-build on <html> (every kit), data-page since 2026-10-11."""
+    tag = f' data-page="{page}"' if named else ""
+    return f'<!doctype html>\n<html lang="en" data-root="../" data-build="20260101-000000-000000"{tag}>\n<head></head></html>\n'
+
+
+def test_a_build_removes_only_what_the_kit_made_and_names_the_rest(reports):
+    """#163: what a person or another tool put where the Workspace prunes its pages stays, whatever made it,
+    and the build names it; the kit's own old pages and view folders still go."""
+    p = reports["p"]
+    w = p.workspace_dir
+    workspace.build(p)
+    theirs = {"reports/q3.html": b"<!doctype html><html lang=\"ko\"><h1>Q3</h1></html>",
+              "runs/notes.html": b"made with bash",
+              "lists/copy.html": kit_page("runs/elsewhere.html").encode(),  # a kit page under another name
+              "reports/q3/index.html": b"<html></html>",
+              "reports/q3/assets/chart.png": bytes(range(16)),
+              "reports/q3/assets/style.css": b"h1{}",
+              "reports/weekly-0123456789/notes/a.md": b"# their notes"}
+    ours = {"runs/20260101-000000-gone.html": kit_page("runs/20260101-000000-gone.html"),
+            "data/old.html": kit_page("data/old.html", named=False),  # a page from a kit before data-page
+            "reports/gone-0123456789/01OLD/view.json": "{}"}
+    for name, value in {**theirs, **ours}.items():
+        (w / name).parent.mkdir(parents=True, exist_ok=True)
+        (w / name).write_bytes(value if isinstance(value, bytes) else value.encode())
+    built = workspace.build(p)
+    assert {name: (w / name).read_bytes() for name in theirs} == theirs
+    assert not any((w / name).exists() for name in ours) and not (w / "reports/gone-0123456789").exists()
+    named = ["lists/copy.html", "reports/q3.html", "reports/q3/assets/", "reports/weekly-0123456789/notes/", "runs/notes.html"]
+    assert built["unmanaged"] == {"count": 5, "paths": named}, built
+    line = core.unmanaged_line(built)
+    assert line.startswith("kept 5 item(s) in workspace/ that the kit did not make (lists/copy.html, ") and "reports save" in line
+    assert "unmanaged" not in workspace.build(p, if_changed=True)  # nothing built: nothing said
+
+
+def test_the_notice_names_at_most_twenty_and_the_command_line_says_it_on_stderr(reports):
+    """#163: the answer names the first 20 left behind and counts them all; the kit command line says it after its JSON."""
+    p = reports["p"]
+    workspace.build(p)
+    for n in range(23):
+        (p.workspace_dir / "runs" / f"mine-{n:02d}.html").write_text("mine", encoding="utf-8")
+    built = workspace.build(p)
+    assert built["unmanaged"]["count"] == 23 and len(built["unmanaged"]["paths"]) == 20
+    assert core.unmanaged_line(built).count(", …") == 1
+    done = subprocess.run([sys.executable, "-m", "aelix_analytics", "--project", str(p.root), "render"],
+                          capture_output=True, env=kit_env(), timeout=300, **_platform.text_kwargs())
+    assert done.returncode == 0, done.stderr
+    assert json.loads(done.stdout.strip().splitlines()[-1])["workspace"]["unmanaged"]["count"] == 23
+    assert "analytics: kept 23 item(s) in workspace/ that the kit did not make (runs/mine-00.html" in done.stderr
+    assert core.unmanaged_line({"path": "x", "pages": 1, "build": "b"}) is None
 
 
 def test_the_injected_renderer_receives_only_bytes_an_entry_and_paths(reports):

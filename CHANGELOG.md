@@ -15,6 +15,15 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 없음. 병합된 변경은 그 PR이 병합될 때의 kit 번호 절에 적고, kit 번호를 올리는 PR은 새 절을 엽니다
 ([기여 가이드](CONTRIBUTING.md#배포와-운영-결정)).
 
+## [0.32.1] - 2026-11-06
+
+### Fixed
+
+- #163: Workspace를 다시 만들 때 kit이 만든 페이지와 보기 폴더만 지웁니다. 전에는 페이지 폴더(`reports/`·`runs/` 등)의 `*.html`과
+  `reports/<이름>/` 아래 폴더를 누가 만들었는지 보지 않고 지워, skill·bash 등으로 그곳에 옮긴 HTML 보고서와 그 그림·CSS가 사라졌습니다.
+  이제 그런 파일은 남고, 빌드 결과의 `unmanaged`와 CLI의 stderr, `/analytics render`·`analytics_run`의 응답이 남긴 것과 Report로 저장하는
+  방법을 알립니다. 이미 지워진 파일은 kit이 되살리지 못합니다.
+
 ## [0.32.0] - 2026-10-30
 
 이 번호부터 PyPI(`aelix-analytics`)와 GitHub Release에 게시합니다. 공식 베타입니다(#24). 이전 번호는 게시하지 않았고, 그 변경은

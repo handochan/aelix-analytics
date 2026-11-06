@@ -690,6 +690,9 @@ def render_run(project, value: dict, attached: tuple[int, int] | None = None) ->
     lines.append(f"journal: {value.get('event')} · report: {page}")
     if value.get("workspace_error"):
         lines.append(f"report build failed: {value['workspace_error']}")
+    kept = core.unmanaged_line(value.get("workspace"))
+    if kept:
+        lines.append(kept)
     return _clip("\n".join(lines), f"the run page is {page}; the whole record: read {record}")
 
 
@@ -1897,6 +1900,7 @@ async def analytics_command(args, ctx=None):
                                           means="command")
                 if not ok:
                     return render_error("/analytics render", value)
+                kept = core.unmanaged_line(value.get("workspace"))
             if sub == "open":
                 try:
                     project.platform.processes.open_document(index, wait=False)
@@ -1907,7 +1911,7 @@ async def analytics_command(args, ctx=None):
                     return (f"opened {index} (not updated: this kit reads {project.root} and does "
                             "not write to it; /analytics status says why)")
                 return f"opened {index}"
-            return f"report rebuilt: {index}"
+            return f"report rebuilt: {index}" + (f"\n{kept}" if kept else "")
         if sub == "build":
             project, _ = resolve_project()
             await asyncio.to_thread(core.readable, project, "inspect publication")
