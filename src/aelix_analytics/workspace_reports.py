@@ -462,7 +462,8 @@ class Reports:
             if kept.get("written"):
                 keep.add(name)
         if not unsafe:
-            self.unmanaged = _prune_views(folder_root, keep)
+            known = {view_folder(rid, rev) for rid, rev in self.by_revision}
+            self.unmanaged = _prune_views(folder_root, keep, known)
         return len(keep)
 
     def _render(self, version: dict, files: list[dict], folder: Path, stamp: dict) -> dict:
@@ -540,11 +541,26 @@ def _read_stamp(path: Path) -> dict | None:
     return value if isinstance(value, dict) else None
 
 
-def _prune_views(root: Path, keep: set[str]) -> list[str]:
-    """Remove the view folders no version has now (`<page stem>/<revision>` with the kit's `view.json`),
-    and a page stem's folder left empty (it holds no file); the pages (`*.html` beside them) are pruned by the
-    build. Any other folder stays and is returned (#163): the kit removes only what it made. A link
-    under reports/ is removed as a link: nothing it points at is listed or deleted."""
+def _kit_view(folder: Path, name: str, known: set[str]) -> bool:
+    """Whether `folder` (`<page stem>/<revision>` under reports/) is a view folder the kit made: the
+    folder of a version the records have, or one whose `view.json` is the kit's stamp naming that
+    very folder. A folder of someone else's stays, even with a file of that name in it (#163)."""
+    if name in known:
+        return True
+    if _linked(folder / STAMP) or not (folder / STAMP).is_file():  # a FIFO there would wait for a writer
+        return False
+    stamp = (_read_stamp(folder / STAMP) or {}).get("stamp")
+    return (isinstance(stamp, dict) and isinstance(stamp.get("report_id"), str)
+            and isinstance(stamp.get("revision_id"), str)
+            and view_folder(stamp["report_id"], stamp["revision_id"]) == name)
+
+
+def _prune_views(root: Path, keep: set[str], known: set[str]) -> list[str]:
+    """Remove the view folders no version has now (`_kit_view`), and a page stem's folder left
+    empty (it holds no file); the pages (`*.html` beside them) are pruned by the build. Any other
+    folder under a page stem stays, even an empty one, and is returned (#163): the kit removes only
+    what it made. A link under reports/ is removed as a link: nothing it points at is listed or
+    deleted."""
     kept: list[str] = []
     for stem in root.iterdir() if root.is_dir() else []:
         if _linked(stem):
@@ -557,7 +573,7 @@ def _prune_views(root: Path, keep: set[str]) -> list[str]:
             if _linked(revision):
                 revision.unlink()
             elif revision.is_dir() and f"{stem.name}/{revision.name}" not in keep:
-                if _linked(revision / STAMP) or not (revision / STAMP).is_file():
+                if not _kit_view(revision, f"{stem.name}/{revision.name}", known):
                     kept.append(f"{REPORT_DIR}/{stem.name}/{revision.name}/")
                     continue
                 shutil.rmtree(revision, ignore_errors=True)

@@ -1103,7 +1103,7 @@ ReportRenderer는 교체 계약과 원본 불변성 검증을 마친 내부 adap
     선택 속성 `cache_key`(문자열)로 출력을 이름 짓고 출력이 바뀌면 키를 바꿉니다. kit의 StaticReportRenderer는
     `aelix_analytics.StaticReportRenderer/1`입니다. 키가 없는 renderer의 문서는 빌드마다 다시 만들고, 그런 빌드는 `--if-changed`로 건너뛰지 않습니다.
     키는 Workspace 지문에도 들어갑니다.
-  - 없어진 버전의 폴더는 지웁니다. kit 0.32.1부터 지우는 것은 kit의 표식 `view.json`이 있는 보기 폴더뿐이며, `reports/<이름>/` 아래의 다른 폴더는
+  - 없어진 버전의 폴더는 지웁니다. kit 0.32.1부터 지우는 것은 kit의 보기 폴더뿐이며, `reports/<이름>/` 아래의 다른 폴더는
     무엇이 만들었든 남기고 알립니다(#163, [C21](#c21-workspace의-정리-kit-0321-163)). `workspace/reports/` 아래의 링크(symlink·junction)는 따라가지 않습니다. 링크는 링크만 지우고, 링크인 보기
     폴더에는 본문을 쓰지 않습니다. 다시 빌드해도 `artifacts/reports`의 원본은 바뀌지 않습니다.
   - 버전 구역의 앵커는 그 버전의 접힌 `<details>`이며, 주소가 그 버전을 가리키면 열립니다. `Based on`의 CONTEXT.md 버전은 보존된 버전일 때만
@@ -1132,14 +1132,20 @@ fingerprint와 화면이 같은 기록 모델·폴더 관찰을 사용하며, �
 
 Workspace를 다시 빌드할 때 kit은 자기가 만든 것만 지웁니다. 사람이나 다른 도구(skill·bash·쓰기 도구 등)가 둔 파일은 무엇이 만들었든 남깁니다.
 - 페이지 폴더(`runs/`·`data/`·`relations/`·`lists/`·`scripts/`·`reports/`)에서 이번 빌드가 만들지 않은 `*.html`은 kit 페이지일 때만 지웁니다.
-  kit 페이지는 `<html>` 태그에 `data-root`와 `data-build`가 있고(kit 0.1.0부터), `data-page`가 있으면 그 값이 그 파일의 Workspace 안 경로입니다(2026-10-11부터).
-  파일 앞 4 KiB만 읽으며 링크는 kit 페이지가 아닙니다. 다른 이름으로 복사한 kit 페이지도 남깁니다.
-- `reports/<이름>/` 아래에서 지금 버전의 것이 아닌 폴더는 kit의 `view.json`이 있을 때만 지웁니다([C19](#c19-workspace의-reports-탭과-페이지-kit-0250-19-pr3)).
-  빈 폴더는 전처럼 지웁니다. 링크는 전처럼 링크만 지우고 대상은 건드리지 않습니다. kit이 만든 보기 폴더 안은 kit의 것으로 보고 다시 씁니다.
-- 남긴 것은 빌드 결과의 `unmanaged`(`{count, paths}`, 경로는 정렬한 앞의 20개, 폴더는 `/`로 끝남)에 있고, kit CLI가 JSON 줄 뒤에 stderr로,
-  확장이 `/analytics render`와 `analytics_run`의 응답에 한 줄로 알립니다(`core.unmanaged_line`). Workspace는 기록에서 다시 만드는 화면이라
-  그 파일을 Report로 보이지 않으니 문서는 Report로 저장하라는 안내입니다. 막거나 실패시키지 않습니다. `--if-changed`가 건너뛴 빌드는 알리지 않습니다.
-- 한계: 표식을 남기기 전에 멈춘 kit의 보기 폴더(`view.json` 없음)는 그 버전을 다시 빌드할 때까지 남고 알림에 듭니다. `workspace/` 최상위와 `.html`이 아닌
+  kit 페이지는 일반 파일이고(FIFO 등은 열지 않음), 앞 4 KiB 안의 `<html` 태그에 `data-root`와 `data-build`가 있으며(kit 0.1.0부터),
+  `data-page`가 있으면 그 값이 그 파일의 Workspace 안 경로입니다(2026-10-11부터). 그래서 `data-page`가 있는 kit 페이지를 다른 이름으로 복사한 것은 남고,
+  그 전 kit의 페이지(`data-page` 없음)는 이름으로 구별하지 못해 사본도 지웁니다. 이름의 대소문자만 바꾼 kit 페이지도 사본처럼 남습니다.
+  링크는 전처럼 링크만 지우고 대상은 건드리지 않습니다(kit은 페이지를 링크로 쓰지 않음).
+- `reports/<이름>/` 아래에서 지금 버전의 것이 아닌 폴더는 kit의 보기 폴더일 때만 지웁니다([C19](#c19-workspace의-reports-탭과-페이지-kit-0250-19-pr3)):
+  기록에 있는 Report 버전의 보기 폴더 이름(`<페이지 이름>/<revision_id>`)이거나, 그 안의 `view.json`이 kit의 표식으로 바로 그 폴더의 Report와 버전을
+  가리킬 때입니다. 그래서 표식을 쓰기 전에 멈춘 빌드의 폴더도 그 버전의 바이트가 바뀌면 지워지고, 사용자 폴더에 우연히 있는 `view.json`은 표식이 아닙니다.
+  비어 있는 `reports/<이름>/` 자체는 전처럼 지우고, 그 아래의 다른 폴더는 비어 있어도 남깁니다. 링크는 전처럼 링크만 지우고 대상은 건드리지 않습니다.
+  kit이 만든 보기 폴더 안은 kit의 것으로 보고 다시 씁니다.
+- 남긴 것은 빌드 결과의 `unmanaged`(`{count, paths}`, 경로는 정렬한 앞의 20개, 폴더는 `/`로 끝남)에 있습니다. kit CLI(`render`·`run`·`import`·`record`·`demo`)가
+  JSON 줄 뒤에 stderr로, 확장이 `/analytics render`와 `analytics_run`·`analytics_import`의 응답 머리에 한 줄로 알립니다(`core.unmanaged_line`, 경로의
+  제어 문자는 이스케이프). Workspace는 기록에서 다시 만드는 화면이라 그 파일을 Report로 보이지 않으니 문서는 Report로 저장하라는 안내입니다.
+  막거나 실패시키지 않습니다. `--if-changed`가 건너뛴 빌드는 알리지 않습니다.
+- 한계: 기록에서 사라진 Report 버전의 폴더 가운데 표식을 쓰기 전에 멈춘 것은 남고 알림에 듭니다. `workspace/` 최상위와 `.html`이 아닌
   파일은 전에도 지우지 않았습니다. 남긴 파일은 Workspace에 보이지 않고, 기본 `.gitignore`가 `workspace/`를 제외하므로 git에도 남지 않습니다.
 
 ## D. kit CLI

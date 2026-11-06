@@ -773,7 +773,7 @@ def test_the_run_reply_and_render_say_what_the_build_left(lab, monkeypatch):
              "event": "e1", "page": "workspace/runs/x.html",
              "workspace": {"path": "workspace/index.html", "pages": 3, "build": "b", "unmanaged": left}}
     line = "kept 2 item(s) in workspace/ that the kit did not make (reports/q3.html, reports/q3/assets/)."
-    assert line in module.render_run(project, value)
+    assert module.render_run(project, value).split("\n")[1].startswith(line)  # near the top: a cut reply keeps it
     assert "kept " not in module.render_run(project, {**value, "workspace": {"path": "x", "pages": 3, "build": "b"}})
 
     async def kit(project, argv, **options):

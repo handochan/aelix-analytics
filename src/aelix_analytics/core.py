@@ -3548,7 +3548,8 @@ def unmanaged_line(built) -> str | None:
     info = built.get("unmanaged") if isinstance(built, dict) else None
     if not isinstance(info, dict) or not info.get("count"):
         return None
-    paths = [str(p) for p in info.get("paths") or []]
+    # One line, whatever a file is named: a control character in a path is shown escaped.
+    paths = ["".join(ch if ch.isprintable() else ascii(ch)[1:-1] for ch in str(p)) for p in info.get("paths") or []]
     shown = ", ".join(paths) + (", …" if info["count"] > len(paths) else "")
     return (f"kept {info['count']} item(s) in workspace/ that the kit did not make ({shown}). The Workspace "
             "is rebuilt from the records and shows no file put there as a Report: to keep a document for its "
