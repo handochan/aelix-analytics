@@ -17,15 +17,17 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
+import sys
 from html import unescape
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 import pytest
-from conftest import analytics_project
+from conftest import analytics_project, kit_env
 from report_renderer_doubles import RecordingReportRenderer
 
 from aelix_analytics import (
@@ -239,15 +241,118 @@ def test_building_again_keeps_the_preserved_bytes_reuses_views_and_prunes_stale_
     workspace.build(p)
     stamp = p.workspace_dir / "reports" / workspace_reports.view_folder("weekly", first["revision_id"]) / "view.json"
     made = stamp.stat().st_mtime_ns
-    stale = p.workspace_dir / "reports" / "gone-0123456789" / "01OLD"
+    stale = p.workspace_dir / "reports" / workspace_reports.view_folder("gone", "01OLD")
     stale.mkdir(parents=True)
-    (stale / "view.json").write_text("{}", encoding="utf-8")
-    (p.workspace_dir / "reports" / "gone-0123456789.html").write_text("old", encoding="utf-8")
+    (stale / "view.json").write_text(stale_stamp("gone", "01OLD"), encoding="utf-8")
+    gone = p.workspace_dir / "reports" / workspace_reports.report_page("gone")
+    gone.write_text(kit_page(f"reports/{gone.name}"), encoding="utf-8")
     workspace.build(p)
     assert stamp.stat().st_mtime_ns == made  # the same bytes by the same renderer: kept as it is
-    assert not stale.parent.exists() and not (p.workspace_dir / "reports" / "gone-0123456789.html").exists()
+    assert not stale.parent.exists() and not gone.exists()
     after = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in artifacts.rglob("*") if path.is_file()}
     assert after == before  # completion condition 2: v1's bytes and evidence after v2 and a rebuild
+
+
+def kit_page(page, *, named=True):
+    """The start of a page a kit wrote: data-root and data-build on <html> (every kit), data-page since 2026-10-11."""
+    tag = f' data-page="{page}"' if named else ""
+    return f'<!doctype html>\n<html lang="en" data-root="../" data-build="20260101-000000-000000"{tag}>\n<head></head></html>\n'
+
+
+def stale_stamp(report_id, revision_id):
+    """The view.json the kit writes in a version's view folder (workspace_reports.Reports._render)."""
+    return json.dumps({"stamp": {"report_id": report_id, "revision_id": revision_id, "entry": "r.md", "files": [],
+                                 "renderer": None, "kit": "0.25.0"}, "written": True, "reasons": [], "outputs": {}})
+
+
+def test_a_build_removes_only_what_the_kit_made_and_names_the_rest(reports):
+    """#163: what a person or another tool put where the Workspace prunes its pages stays, whatever made it,
+    and the build names it; the kit's own old pages and view folders still go."""
+    p = reports["p"]
+    w = p.workspace_dir
+    workspace.build(p)
+    folders = ("runs", "data", "relations", "lists", "scripts", "reports")
+    made = [f for name in folders if (w / name).is_dir() for f in (w / name).glob("*.html")]
+    assert len(made) > 10 and all(workspace.kit_page(f, f.relative_to(w).as_posix()) for f in made)  # the real pages
+    weekly = workspace_reports.report_page("weekly")[:-5]
+    theirs = {"reports/q3.html": b"<!doctype html><html lang=\"ko\"><h1>Q3</h1></html>",
+              "runs/notes.html": b"made with bash",
+              "lists/copy.html": kit_page("runs/elsewhere.html").encode(),  # a kit page under another name
+              "reports/q3/index.html": b"<html></html>",
+              "reports/q3/assets/chart.png": bytes(range(16)),
+              "reports/q3/assets/style.css": b"h1{}",
+              "reports/q3/charts/view.json": b'{"mark": "bar"}',  # their file of the kit's stamp name
+              f"reports/{weekly}/notes/a.md": b"# their notes, in a Report's own folder"}
+    ours = {"runs/20260101-000000-gone.html": kit_page("runs/20260101-000000-gone.html"),
+            "data/old.html": kit_page("data/old.html", named=False),  # a page from a kit before data-page
+            f"reports/{workspace_reports.view_folder('gone', '01OLD')}/view.json": stale_stamp("gone", "01OLD")}
+    for name, value in {**theirs, **ours}.items():
+        (w / name).parent.mkdir(parents=True, exist_ok=True)
+        (w / name).write_bytes(value if isinstance(value, bytes) else value.encode())
+    (w / "reports/q3/empty").mkdir()
+    built = workspace.build(p)
+    assert {name: (w / name).read_bytes() for name in theirs} == theirs and (w / "reports/q3/empty").is_dir()
+    assert not any((w / name).exists() for name in ours)
+    named = ["lists/copy.html", "reports/q3.html", "reports/q3/assets/", "reports/q3/charts/", "reports/q3/empty/",
+             f"reports/{weekly}/notes/", "runs/notes.html"]
+    assert built["unmanaged"] == {"count": 7, "paths": named}, built
+    line = core.unmanaged_line(built)
+    assert line.startswith("kept 7 item(s) in workspace/ that the kit did not make (lists/copy.html, ") and "reports save" in line
+    assert "unmanaged" not in workspace.build(p, if_changed=True)  # nothing built: nothing said
+
+
+def test_a_view_a_stopped_build_left_goes_once_its_bytes_change(reports):
+    """#163 review: a build stopped before the view's stamp leaves a folder without it; when that version's
+    saved bytes later change, no body is made for them and the old body goes (C19), stamp or not."""
+    p = reports["p"]
+    member = core.reports(p, "region-0")["reports"][0]["revision_id"]
+    workspace.build(p)
+    view = p.workspace_dir / "reports" / workspace_reports.view_folder("region-0", member)
+    assert (view / "view.json").is_file() and (view / "preview/report.html").is_file()
+    (view / "view.json").unlink()
+    (p.root / "artifacts/reports/region-0" / member / "content/r.md").write_text("# 바뀐 글\n", encoding="utf-8")
+    built = workspace.build(p)
+    assert not view.exists() and "unmanaged" not in built, built
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFOs and these names are POSIX's")
+def test_a_link_goes_as_a_link_and_a_fifo_or_an_odd_name_stays_on_one_line(reports, tmp_path):
+    """#163: a link in a page folder is removed as a link (its target stays), as before; a FIFO named
+    *.html is not opened (it would wait for a writer) and stays; a name with a line end is shown escaped."""
+    p = reports["p"]
+    w = p.workspace_dir
+    workspace.build(p)
+    target = tmp_path / "elsewhere.html"
+    target.write_text("theirs", encoding="utf-8")
+    try:
+        (w / "runs" / "link.html").symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"This runner cannot create symlinks: {exc}")
+    os.mkfifo(w / "runs" / "pipe.html")
+    (w / "runs" / "a\nb.html").write_text("theirs", encoding="utf-8")
+    built = workspace.build(p)
+    assert not (w / "runs" / "link.html").is_symlink() and target.read_text(encoding="utf-8") == "theirs"
+    assert (w / "runs" / "pipe.html").exists() and (w / "runs" / "a\nb.html").exists()
+    assert built["unmanaged"]["paths"] == ["runs/a\nb.html", "runs/pipe.html"]
+    line = core.unmanaged_line(built)
+    assert "\n" not in line and "runs/a\\nb.html" in line
+
+
+def test_the_notice_names_at_most_twenty_and_the_command_line_says_it_on_stderr(reports):
+    """#163: the answer names the first 20 left behind and counts them all; the kit command line says it after its JSON."""
+    p = reports["p"]
+    workspace.build(p)
+    for n in range(23):
+        (p.workspace_dir / "runs" / f"mine-{n:02d}.html").write_text("mine", encoding="utf-8")
+    built = workspace.build(p)
+    assert built["unmanaged"]["count"] == 23 and len(built["unmanaged"]["paths"]) == 20
+    assert core.unmanaged_line(built).count(", …") == 1
+    done = subprocess.run([sys.executable, "-m", "aelix_analytics", "--project", str(p.root), "render"],
+                          capture_output=True, env=kit_env(), timeout=300, **_platform.text_kwargs())
+    assert done.returncode == 0, done.stderr
+    assert json.loads(done.stdout.strip().splitlines()[-1])["workspace"]["unmanaged"]["count"] == 23
+    assert "analytics: kept 23 item(s) in workspace/ that the kit did not make (runs/mine-00.html" in done.stderr
+    assert core.unmanaged_line({"path": "x", "pages": 1, "build": "b"}) is None
 
 
 def test_the_injected_renderer_receives_only_bytes_an_entry_and_paths(reports):

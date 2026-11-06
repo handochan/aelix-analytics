@@ -21,6 +21,7 @@ import json
 import os
 import re
 import shutil
+import stat
 from collections import Counter, defaultdict
 from importlib import resources
 from pathlib import Path
@@ -1015,6 +1016,7 @@ def _build_locked(project: core.Project, if_changed: bool, report_renderer=None)
     site = Site(project, report_renderer, model=model, cache=cache,
                 publication_observations=observations)
     out = project.workspace_dir
+    kept: list[str] = []  # what the pruning left because the kit did not make it (#163)
     (out / "runs").mkdir(parents=True, exist_ok=True)
     (out / "data").mkdir(parents=True, exist_ok=True)
     (out / "relations").mkdir(parents=True, exist_ok=True)
@@ -1035,7 +1037,7 @@ def _build_locked(project: core.Project, if_changed: bool, report_renderer=None)
     for name, script in scripts.items():
         _write(out / site.history.directory / name, site.history.script_html(script), project.platform)
         pages += 1
-    _prune(out / site.history.directory, set(scripts))
+    _prune(out / site.history.directory, set(scripts), kept)
     relation_names = set()
     for identity in sorted(site.relations.identities):
         count = len(site.model.reference_neighborhood(identity))
@@ -1044,7 +1046,7 @@ def _build_locked(project: core.Project, if_changed: bool, report_renderer=None)
             _write(out / "relations" / filename, site.relations.render(identity, n), project.platform)
             relation_names.add(filename)
             pages += 1
-    _prune(out / "relations", relation_names)
+    _prune(out / "relations", relation_names, kept)
     # A page per Report (#19 PR3), after the bodies its versions open (their view folders beside it).
     site.reports.write_views(out)
     report_names = set()
@@ -1053,13 +1055,13 @@ def _build_locked(project: core.Project, if_changed: bool, report_renderer=None)
         _write(out / site.reports.directory / name, site.reports.page_html(history), project.platform)
         report_names.add(name)
         pages += 1
-    _prune(out / site.reports.directory, report_names)
-    pages += write_list_pages(site, out)
+    _prune(out / site.reports.directory, report_names, kept)
+    pages += write_list_pages(site, out, kept)
     _write(out / "context.html", context_page(site), project.platform)
     _write(index, index_page(site), project.platform)
     pages += 2
-    _prune(out / "runs", {f"{r['id']}.html" for r in site.runs})
-    _prune(out / "data", {f"{v}.html" for v in site.views})
+    _prune(out / "runs", {f"{r['id']}.html" for r in site.runs}, kept)
+    _prune(out / "data", {f"{v}.html" for v in site.views}, kept)
     for name in OLD_ASSETS:  # after the pages: none of them loads these any more
         with contextlib.suppress(OSError):
             (out / "assets" / name).unlink()
@@ -1070,7 +1072,11 @@ def _build_locked(project: core.Project, if_changed: bool, report_renderer=None)
     site.cache.save()
     project.cache.mkdir(parents=True, exist_ok=True)
     core.write_text(stamp_file, current)
-    return {"path": str(index), "pages": pages, "build": site.build}
+    built = {"path": str(index), "pages": pages, "build": site.build}
+    kept = sorted([*kept, *site.reports.unmanaged])
+    if kept:
+        built["unmanaged"] = {"count": len(kept), "paths": kept[:UNMANAGED_SHOWN]}
+    return built
 
 
 def _write(path: Path, text: str, platform: _platform.Platform) -> None:
@@ -1081,11 +1087,50 @@ def _write(path: Path, text: str, platform: _platform.Platform) -> None:
     platform.files.replace(tmp, path)
 
 
-def _prune(directory: Path, keep: set[str]) -> None:
+# The mark of a page a kit wrote: its <html> tag holds data-root and data-build (every kit since
+# 0.1.0) and, since 2026-10-11, data-page naming the page itself (#163).
+_HTML_TAG = re.compile(rb"<html\b([^>]*)", re.IGNORECASE)
+_ATTRIBUTE = re.compile(rb'\s([a-z][a-z-]*)="([^"]*)"')
+UNMANAGED_SHOWN = 20
+
+
+def kit_page(path: Path, page: str) -> bool:
+    """Whether the file at `path`, Workspace path `page`, is a page a kit wrote. A file a person or
+    another tool put there is not, whatever made it (#163). Only a regular file is opened (a FIFO
+    would wait for a writer), and only its start is read."""
+    try:
+        if not stat.S_ISREG(path.lstat().st_mode):
+            return False
+        with open(path, "rb") as fh:
+            head = fh.read(4096)
+    except OSError:
+        return False
+    tag = _HTML_TAG.search(head)
+    if tag is None:
+        return False
+    attributes = dict(_ATTRIBUTE.findall(tag.group(1)))
+    named = attributes.get(b"data-page")
+    return (b"data-root" in attributes and b"data-build" in attributes
+            and (named is None or named.decode("utf-8", "replace") == href(page)))
+
+
+def _prune(directory: Path, keep: set[str], kept: list[str]) -> None:
+    """Remove the pages of `directory` an earlier build made and this one did not. Any other file
+    stays and is named in `kept` (#163): the kit removes only what it made. A link is removed as a
+    link, as before: what it points at is not touched."""
     for p in directory.glob("*.html"):
-        if p.name not in keep:
+        if p.name in keep:
+            continue
+        page = f"{directory.name}/{p.name}"
+        try:
+            linked = _platform.is_link(p.lstat())
+        except OSError:
+            continue  # gone since the listing
+        if linked or kit_page(p, page):
             with contextlib.suppress(OSError):
                 p.unlink()
+        else:
+            kept.append(page)
 
 
 def _write_assets(site: Site, out: Path) -> None:
@@ -1584,7 +1629,7 @@ def list_page(site: Site, out: Path, filename: str, heading: str, scope: str, co
            site.p.platform)
 
 
-def write_list_pages(site: Site, out: Path) -> int:
+def write_list_pages(site: Site, out: Path, kept: list[str]) -> int:
     """The pages that continue the index's lists (`lists/<family>-<n>.html`), and each journal
     kind's own list (`lists/kind-<kind>-<n>.html`, design 8.2, owner decision A of 2026-10-14) that
     the kind filters of the Timeline and Insights link to: every record of the kind, newest first."""
@@ -1647,7 +1692,7 @@ def write_list_pages(site: Site, out: Path) -> int:
                       site.kind_nav("timeline", 1, current=kind) + site.events_html(subset, 1), nav,
                       back="timeline", title_key=f"kind.{kind}" if named else "", title="" if named else str(kind))
             keep.add(filename)
-    _prune(out / "lists", keep)
+    _prune(out / "lists", keep, kept)
     return len(keep)
 
 

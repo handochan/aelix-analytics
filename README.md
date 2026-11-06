@@ -98,9 +98,9 @@ kit은 이미 만든 프로젝트의 Pillow를 올리지 않습니다. 이전 ki
 아래 [게시된 배포본](#게시된-배포본)). 체크아웃에서 직접 만들 수도 있습니다.
 
 ```sh
-cd $PACK && uv build                                   # dist/aelix_analytics-0.32.0-py3-none-any.whl
-uv tool install --python 3.12 dist/aelix_analytics-0.32.0-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
-uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.32.0-py3-none-any.whl   # aelix와 함께
+cd $PACK && uv build                                   # dist/aelix_analytics-0.32.1-py3-none-any.whl
+uv tool install --python 3.12 dist/aelix_analytics-0.32.1-py3-none-any.whl        # 사람용 `analytics` (Windows: analytics.exe)
+uv tool install --python 3.12 aelix==0.1.0b2 --with dist/aelix_analytics-0.32.1-py3-none-any.whl   # aelix와 함께
 ```
 
 새 wheel로 바꿀 때는 같은 줄을 새 파일로 다시 실행합니다. 이전 wheel의 파일은 남지 않습니다.
@@ -424,7 +424,7 @@ my-analysis/
     code/                  실행된 코드 스냅샷 (+ import된 로컬 모듈)
     visualizations/        Visualization 파일 + <id>.data.parquet (플롯 데이터)
     stdout.txt, stderr.txt
-  workspace/               생성된 HTML (index·runs/·data/·context.html) — 직접 편집하지 않음
+  workspace/               생성된 HTML (index·runs/·data/·context.html) — 직접 편집하지 않음. kit이 만들지 않은 파일은 지우지 않지만 Report로 보이지 않음
   .analytics/              context 버전, telemetry, query 로그, 캐시, 잠금, 전환 기록(migration/)
   .gitignore, .gitattributes   git 설정 (.gitattributes는 kit 0.4.0부터 새 프로젝트에)
 ```

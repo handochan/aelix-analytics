@@ -47,7 +47,7 @@ from .writer import migration_record as migration_record
 from .writer import new_request_id as new_request_id
 from .writer import present_marker as present_marker
 
-KIT_VERSION = "0.32.0"
+KIT_VERSION = "0.32.1"
 # The marker and the record families of the projects this kit writes: the new format's, through
 # the common writer (writer.Writer, Issue #13 PR 3; writer.FAMILIES). A project is found by either
 # marker, analytics.json or lab.json, and judged by writer.marker_state: a lab.json project
@@ -3540,6 +3540,21 @@ def read_only_line(refusal: dict, skipped=()) -> str:
     if refusal.get("hint"):
         line += f"; {refusal['hint'].rstrip('.')}"
     return line + ("; skipped: " + ", ".join(skipped) if skipped else "")
+
+
+def unmanaged_line(built) -> str | None:
+    """The line that tells of the files a Workspace build left where it prunes its pages because the
+    kit did not make them (#163), or None. It informs only: nothing is refused."""
+    info = built.get("unmanaged") if isinstance(built, dict) else None
+    if not isinstance(info, dict) or not info.get("count"):
+        return None
+    # One line, whatever a file is named: a control character in a path is shown escaped.
+    paths = ["".join(ch if ch.isprintable() else ascii(ch)[1:-1] for ch in str(p)) for p in info.get("paths") or []]
+    shown = ", ".join(paths) + (", …" if info["count"] > len(paths) else "")
+    return (f"kept {info['count']} item(s) in workspace/ that the kit did not make ({shown}). The Workspace "
+            "is rebuilt from the records and shows no file put there as a Report: to keep a document for its "
+            "readers, save it as a Report (analytics reports save ID --files DIR --entry FILE --title TEXT "
+            "--previous none; in a run, analytics.save_report)")
 
 
 def _records_lines(st: dict, journal: Path) -> list[str]:
