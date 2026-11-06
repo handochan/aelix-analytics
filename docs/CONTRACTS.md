@@ -957,7 +957,8 @@ Workspace의 kit 문구(탭·제목·배지·버튼·빈 화면·안내·tooltip
   rename 뒤 완료 이벤트가 없으면 head가 그대로일 때 `resumed`로 완료하며, head가 달라졌으면 `revision_conflict`입니다.
   다른 Report의 같은 request ID는 독립입니다. 요청 ID를 생략하면 응답에 새 ID를 돌려줍니다.
   저장 중 I/O 실패는 `report_io`와 재시도할 request ID를 돌려줍니다.
-- report ID는 1–64자의 소문자 ASCII 영숫자·하이픈이며 영숫자로 시작하고 장치명이 아닙니다.
+- report ID는 1–64자의 소문자 ASCII 영숫자·하이픈이며 영숫자로 시작하고 장치명이 아닙니다. 어기면 `name_not_portable`이고,
+  kit 0.32.1부터 그 hint가 쓸 수 있는 예(준 이름을 소문자와 `-`로 고친 것, 안 되면 `monthly-report`)를 줍니다(#161).
   응답은 원본 `source`·목적 `path`·`preserved_path`를 구분하며 원본 위치를 manifest에 자동 추가하지 않습니다.
   보존 경로는 ADR-0006 §7의 NFC·이식 가능한 상대 경로입니다. 파일 전체와 모든 부모 경로는 casefold 기준 한 철자만 쓰며 `_analytics/`는 예약합니다.
   링크·junction·일반 파일이 아닌 항목은 거절합니다. 목록·정체성·크기/시각·해시의 복사 전후 관측이 달라지면 실패합니다.
