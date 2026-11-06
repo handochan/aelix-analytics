@@ -165,7 +165,7 @@ class Reports:
         if not relations.report_name(report_id):
             # The fix a model or a person can make from the answer alone (#161): dataset and script
             # names take '_', a Report id does not.
-            near = re.sub(r"[^a-z0-9]+", "-", report_id.lower()).strip("-")[:64] if isinstance(report_id, str) else ""
+            near = re.sub(r"[^a-z0-9]+", "-", report_id.lower()).strip("-")[:64].rstrip("-") if isinstance(report_id, str) else ""
             raise writer.AnalyticsError(
                 "name_not_portable", "report_id must be a portable lower-case ASCII name",
                 hint="use 1 to 64 lower-case ASCII letters, digits and '-', starting with a letter or digit, "

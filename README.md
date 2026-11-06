@@ -316,7 +316,8 @@ analytics.save_report("q3-review", files="reports_out/q3", entry="index.html",
 저장이 아닙니다(`workspace/`는 기록에서 다시 만드는 화면입니다). 문서는 `workspace/` 밖 폴더에 쓰고 저장합니다. 셸에서는
 `analytics reports save q3-review --files reports_out/q3 --entry index.html --title "3분기 검토" --previous none`, 목록은 `analytics reports list`입니다.
 report ID는 소문자 영숫자와 `-`만 씁니다(`q3_review`는 거절). 같은 Report의 다음 버전은 `previous_revision`(셸은 `--previous`)에
-지금 최신 버전의 `revision_id`를 줍니다(`analytics.reports("q3-review")`·`analytics reports list`의 `head`). 저장한 버전은 고치지 않고 새 버전을 만듭니다.
+지금 최신 버전의 `revision_id`를 줍니다. `analytics.reports("q3-review")["reports"]`(셸은 `analytics reports list`)에서 `head`가 참인 행의 값이며,
+한 번에 20개까지 읽으므로 이력이 길면 `next_offset`으로 이어 읽습니다. 저장한 버전은 고치지 않고 새 버전을 만듭니다.
 HTML은 Workspace 안에서 열어 보이지 않고 원본 다운로드로 제공합니다. 계약은 [C16](docs/CONTRACTS.md#c16-불변-report-저장등록버전-kit-0210-19-pr1)·[C19](docs/CONTRACTS.md#c19-workspace의-reports-탭과-페이지-kit-0250-19-pr3)입니다.
 
 run을 시작한 명령(`analytics`, `bin/analytics`, aelix 도구)이 이 package를 run에 줍니다. kit 0.2.0 전의 이름 `import labkit as lab`은

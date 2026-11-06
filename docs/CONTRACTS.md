@@ -958,7 +958,8 @@ Workspace의 kit 문구(탭·제목·배지·버튼·빈 화면·안내·tooltip
   다른 Report의 같은 request ID는 독립입니다. 요청 ID를 생략하면 응답에 새 ID를 돌려줍니다.
   저장 중 I/O 실패는 `report_io`와 재시도할 request ID를 돌려줍니다.
 - report ID는 1–64자의 소문자 ASCII 영숫자·하이픈이며 영숫자로 시작하고 장치명이 아닙니다. 어기면 `name_not_portable`이고,
-  kit 0.32.1부터 그 hint가 쓸 수 있는 예(준 이름을 소문자와 `-`로 고친 것, 안 되면 `monthly-report`)를 줍니다(#161).
+  kit 0.32.1부터 저장(`reports save`·`save_report`)의 그 거절은 hint로 쓸 수 있는 예(준 이름을 소문자와 `-`로 고친 것, 안 되면 `monthly-report`)를
+  줍니다(#161). run 안의 저장이 거절되면 run 오류의 `hint`에도 그 글이 있습니다. `update`·`clean`의 거절에는 hint가 없습니다.
   응답은 원본 `source`·목적 `path`·`preserved_path`를 구분하며 원본 위치를 manifest에 자동 추가하지 않습니다.
   보존 경로는 ADR-0006 §7의 NFC·이식 가능한 상대 경로입니다. 파일 전체와 모든 부모 경로는 casefold 기준 한 철자만 쓰며 `_analytics/`는 예약합니다.
   링크·junction·일반 파일이 아닌 항목은 거절합니다. 목록·정체성·크기/시각·해시의 복사 전후 관측이 달라지면 실패합니다.
@@ -1261,7 +1262,7 @@ Windows에서는 `analytics.exe`)로 부릅니다(kit 0.3.0 전의 `bin/lab`). �
   kit 0.7.0부터 표식의 판정(B)이 `project.marker`(판정한 표식 파일 이름, 표식이 둘이거나 없으면 null)·`project.format`(그 `schema`, `schema` 없는
   `lab.json`은 `lab.project/1`, 판정할 수 없으면 null)·`project.writable`·`project.write_refusal`(쓰지 않을 때의 오류 `{code, message, hint?,
   details?}`)에, 이 읽기가 건너뛴 부수 쓰기가 `writes_skipped`(`["hash_cache"]` 또는 빈 목록)에 있고, `title`·`created_at`은 판정한 표식에서
-  읽습니다. 쓰지 않는 프로젝트이면 글의 머리에 `read only: <code> — <message>; <hint>` 줄이 있고, 맥락 블록에는 `report:` 줄 대신 같은 줄이
+  읽습니다. 쓰지 않는 프로젝트이면 글의 머리에 `read only: <code> — <message>; <hint>` 줄이 있고, 맥락 블록에는 `workspace:` 줄(kit 0.32.1 전은 `report:`) 대신 같은 줄이
   있습니다(이 kit은 그 프로젝트의 Workspace를 만들거나 다시 만들지 않습니다). `project.context_updated`는 `.analytics/context/`와
   `.lab/context/`의 CONTEXT 버전 가운데 마지막 것의 시각입니다(E "CONTEXT 이력"). 전환으로 만든 프로젝트(표식의 `migration`, #13의 둘째 PR)는
   `project.migration`이 `{id, report, mapping, applied}`이고, 매핑을 적용하지 않았으면 `applied: false`와 `reason`(`invalid`·`report_missing`·
