@@ -405,6 +405,7 @@ def _command(argv) -> int:
                 # The Reports tab shows what was just written, as after a record or an import (#160).
                 result["workspace"] = _safe_render(workspace, project)
             _emit({"ok": True, **result})
+            _tell_unmanaged(result.get("workspace"))
         elif args.command == "status":
             options = {name: getattr(args, name) for name in
                        ("part", "query", "id", "cursor", "kind", "state", "since", "until", "direction", "depth",

@@ -1141,7 +1141,7 @@ Workspace를 다시 빌드할 때 kit은 자기가 만든 것만 지웁니다. �
   가리킬 때입니다. 그래서 표식을 쓰기 전에 멈춘 빌드의 폴더도 그 버전의 바이트가 바뀌면 지워지고, 사용자 폴더에 우연히 있는 `view.json`은 표식이 아닙니다.
   비어 있는 `reports/<이름>/` 자체는 전처럼 지우고, 그 아래의 다른 폴더는 비어 있어도 남깁니다. 링크는 전처럼 링크만 지우고 대상은 건드리지 않습니다.
   kit이 만든 보기 폴더 안은 kit의 것으로 보고 다시 씁니다.
-- 남긴 것은 빌드 결과의 `unmanaged`(`{count, paths}`, 경로는 정렬한 앞의 20개, 폴더는 `/`로 끝남)에 있습니다. kit CLI(`render`·`run`·`import`·`record`·`demo`)가
+- 남긴 것은 빌드 결과의 `unmanaged`(`{count, paths}`, 경로는 정렬한 앞의 20개, 폴더는 `/`로 끝남)에 있습니다. kit CLI(`render`·`run`·`import`·`record`·`demo`·`reports save`·`update`·`clean`)가
   JSON 줄 뒤에 stderr로, 확장이 `/analytics render`와 `analytics_run`·`analytics_import`의 응답 머리에 한 줄로 알립니다(`core.unmanaged_line`, 경로의
   제어 문자는 이스케이프). Workspace는 기록에서 다시 만드는 화면이라 그 파일을 Report로 보이지 않으니 문서는 Report로 저장하라는 안내입니다.
   막거나 실패시키지 않습니다. `--if-changed`가 건너뛴 빌드는 알리지 않습니다.
