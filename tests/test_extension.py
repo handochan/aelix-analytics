@@ -762,6 +762,28 @@ def test_a_run_over_many_inputs_still_shows_stdout_and_says_what_it_hid():
     assert "images:" not in module.render_run(project, value, (0, 0))
 
 
+def test_the_run_reply_and_render_say_what_the_build_left(lab, monkeypatch):
+    """#163: the agent's run reply and a person's /analytics render name the files the Workspace build
+    left because the kit did not make them, and say how to keep a document; nothing else changes."""
+    module, root = lab
+    project = module.core.Project(root)
+    left = {"count": 2, "paths": ["reports/q3.html", "reports/q3/assets/"]}
+    value = {"run": {"id": "20260916-100727-01-build", "status": "ok", "duration_s": 1.0, "title": "t",
+                     "script": {"path": "scripts/01_build.py", "sha256": "a" * 64}},
+             "event": "e1", "page": "workspace/runs/x.html",
+             "workspace": {"path": "workspace/index.html", "pages": 3, "build": "b", "unmanaged": left}}
+    line = "kept 2 item(s) in workspace/ that the kit did not make (reports/q3.html, reports/q3/assets/)."
+    assert module.render_run(project, value).split("\n")[1].startswith(line)  # near the top: a cut reply keeps it
+    assert "kept " not in module.render_run(project, {**value, "workspace": {"path": "x", "pages": 3, "build": "b"}})
+
+    async def kit(project, argv, **options):
+        assert argv == ["render"]
+        return True, {"ok": True, "workspace": {"path": "workspace/index.html", "pages": 3, "build": "b", "unmanaged": left}}
+    monkeypatch.setattr(module, "run_kit", kit)
+    reply = asyncio.run(module.analytics_command("render"))
+    assert reply.startswith("report rebuilt: ") and line in reply and "analytics reports save" in reply
+
+
 def test_lab_import_takes_a_tilde_name_by_the_rule_lab_import_follows(lab, tmp_path, monkeypatch):
     """Review 12, rest-5: the agent's analytics_import expanded its source with pathlib, which ended a
     `~name` with no home in 'RuntimeError: Could not determine home directory' on POSIX and read a

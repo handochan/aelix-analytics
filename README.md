@@ -424,7 +424,7 @@ my-analysis/
     code/                  실행된 코드 스냅샷 (+ import된 로컬 모듈)
     visualizations/        Visualization 파일 + <id>.data.parquet (플롯 데이터)
     stdout.txt, stderr.txt
-  workspace/               생성된 HTML (index·runs/·data/·context.html) — 직접 편집하지 않음
+  workspace/               생성된 HTML (index·runs/·data/·context.html) — 직접 편집하지 않음. kit이 만들지 않은 파일은 지우지 않지만 Report로 보이지 않음
   .analytics/              context 버전, telemetry, query 로그, 캐시, 잠금, 전환 기록(migration/)
   .gitignore, .gitattributes   git 설정 (.gitattributes는 kit 0.4.0부터 새 프로젝트에)
 ```

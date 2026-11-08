@@ -273,7 +273,9 @@ def test_a_script_page_that_no_longer_has_a_script_is_removed(tmp_path):
     p, _ = versions_project(tmp_path)
     workspace.build(p)
     stale = p.workspace_dir / "scripts" / "gone.py-0000000000.html"
-    stale.write_text("old", encoding="utf-8")
+    # A page an earlier build made carries the kit's mark (#163: only such a page is removed).
+    stale.write_text('<!doctype html>\n<html lang="en" data-root="../" data-build="b" '
+                     'data-page="scripts/gone.py-0000000000.html">\n', encoding="utf-8")
     workspace.build(p)
     assert not stale.exists()
 

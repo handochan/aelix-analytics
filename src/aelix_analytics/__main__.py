@@ -405,6 +405,7 @@ def _command(argv) -> int:
                 # The Reports tab shows what was just written, as after a record or an import (#160).
                 result["workspace"] = _safe_render(workspace, project)
             _emit({"ok": True, **result})
+            _tell_unmanaged(result.get("workspace"))
         elif args.command == "status":
             options = {name: getattr(args, name) for name in
                        ("part", "query", "id", "cursor", "kind", "state", "since", "until", "direction", "depth",
@@ -441,6 +442,7 @@ def _command(argv) -> int:
                                     declared_inputs=args.inputs, timeout=args.timeout,
                                     rerun_of=args.rerun_of, origin=origin, result_follows=True)
             _emit({"ok": True, **result})
+            _tell_unmanaged(result.get("workspace"))
             return 0 if result["run"]["status"] == "ok" else 3
         elif args.command == "import":
             from . import data, workspace
@@ -450,6 +452,7 @@ def _command(argv) -> int:
                                       description=args.description, origin=origin)
             result["workspace"] = _safe_render(workspace, project)
             _emit({"ok": True, **result})
+            _tell_unmanaged(result["workspace"])
         elif args.command == "query":
             from . import data
 
@@ -474,7 +477,9 @@ def _command(argv) -> int:
                 core.sync_context(project, origin=core.system_origin(origin))
             written = core.record(project, args.kind, args.text, refs=refs,
                                   resolves=args.resolves, details=args.details_json, origin=origin)
-            _emit({"ok": True, **written.to_json(), "workspace": _safe_render(workspace, project)})
+            built = _safe_render(workspace, project)
+            _emit({"ok": True, **written.to_json(), "workspace": built})
+            _tell_unmanaged(built)
         elif args.command == "assets":
             action = args.asset_action
             if action in ("list", "show"):
@@ -497,13 +502,15 @@ def _command(argv) -> int:
             from . import workspace
 
             core.sync_context(project, origin=core.system_origin(origin))
-            _emit({"ok": True, "workspace": workspace.build(project, if_changed=args.if_changed),
-                   "request_id": core.request_id_of(origin)})
+            built = workspace.build(project, if_changed=args.if_changed)
+            _emit({"ok": True, "workspace": built, "request_id": core.request_id_of(origin)})
+            _tell_unmanaged(built)
         elif args.command == "demo":
             from . import demo
 
-            _emit({"ok": True, **demo.populate(project, origin=origin),
-                   "request_id": core.request_id_of(origin)})
+            made = demo.populate(project, origin=origin)
+            _emit({"ok": True, **made, "request_id": core.request_id_of(origin)})
+            _tell_unmanaged(made.get("workspace"))
         return 0
     except core.AnalyticsError as exc:
         _emit(exc.to_json())
@@ -655,6 +662,13 @@ def _publish_command(args):
     if result.get("access_note"):
         print(result["access_note"], file=sys.stderr)
     return 130 if result.get("outcome") == "interrupted" else 0 if result.get("ok") else 1
+
+
+def _tell_unmanaged(built) -> None:
+    """After the JSON line, on stderr: the files the build left because the kit did not make them (#163)."""
+    line = core.unmanaged_line(built)
+    if line:
+        print(f"analytics: {line}", file=sys.stderr)
 
 
 def _safe_render(workspace, project) -> dict:
