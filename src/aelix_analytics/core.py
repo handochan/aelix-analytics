@@ -3827,10 +3827,10 @@ def context_block(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHAR
     if marker.state == writer.LEGACY:
         parts.append(OLDER_FORMAT_LINE)
     if refused is None:
-        parts.append(f"report: {project.workspace_dir / 'index.html'} (rebuilt after runs, imports "
-                     "and notes)")
+        parts.append(f"workspace: {project.workspace_dir / 'index.html'} (pages rebuilt from the records "
+                     "after runs, imports and notes; a document for readers is saved as a Report)")
     else:
-        # This kit builds no Workspace where it does not write: no report line, the reason instead.
+        # This kit builds no Workspace where it does not write: no workspace line, the reason instead.
         parts.append(read_only_line(refused.to_json()["error"]))
     checkpoint = checkpoint_view(model, limit=4)
     if checkpoint is not None:

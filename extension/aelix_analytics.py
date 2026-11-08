@@ -1076,7 +1076,7 @@ TOOLS = [
         "Execute a Python analysis script in the project's own uv environment (DuckDB, Polars, PyArrow, "
         "matplotlib, plotly) with the project root as working directory, and record its provenance: "
         "exact code snapshot + sha256, input files + sha256, files it wrote, charts with their plotted "
-        "data, stdout/stderr, timing and package versions. The HTML report is rebuilt afterwards; "
+        "data, stdout/stderr, timing and package versions. The Workspace (the project's HTML pages) is rebuilt afterwards; "
         "every chart links to that code and data. Give exactly one of: `script` (a .py under scripts/, "
         "preferred: write it with the write tool, then run it; edit and re-run the same script to "
         "version its charts), `code` + `name` (saved to scripts/<name>.py, overwriting), or `rerun_of` "
@@ -1086,7 +1086,9 @@ TOOLS = [
         "for Polars); analytics.save(df, 'monthly_sales') -> data/derived/monthly_sales.parquet; "
         "analytics.visualize(fig, 'monthly-revenue', title=..., caption=..., data=plotted_df) for a matplotlib "
         "Figure/Axes or plotly Figure (id: short ASCII, stable across versions); analytics.record('finding', "
-        "text) links a journal entry to this run. Plain pl.read_parquet('data/...'), DuckDB SQL over "
+        "text) links a journal entry to this run; analytics.save_report('q3-review', files='reports_out/q3', "
+        "entry='index.html', title=..., previous_revision=None) registers a document you wrote as a Report "
+        "(listed in the Workspace's Reports tab; a file only written is not). Plain pl.read_parquet('data/...'), DuckDB SQL over "
         "'data/...parquet' literals, plt.show() and fig.show() are captured too, but only analytics.visualize "
         "with data= records exactly what was plotted. matplotlib has a Korean-capable font preset.",
         {"title": {**STR, "description": "What this run is for, in one line (shown in the journal)."},
@@ -1102,12 +1104,16 @@ TOOLS = [
                            "description": "Return PNG charts as images when the model accepts images "
                                           "(default true)."}},
         ["title"], tool_run,
-        "run a Python analysis script with recorded code, data and charts; rebuilds the HTML report",
+        "run a Python analysis script with recorded code, data and charts; rebuilds the Workspace",
         guidelines=(
             "Analysis data is Parquet: data/imported is imported and never modified; derived tables go to "
             "data/derived via analytics.save. Process data with DuckDB and Polars, not pandas.",
             "Make every chart and derived dataset with analytics_run, never by running python through bash, "
-            "so its code and input data are recorded and linked from the report.",
+            "so its code and input data are recorded and linked from the Workspace.",
+            "Write a document for readers (an HTML or Markdown report) outside workspace/, which is rebuilt "
+            "from the records, and register it with analytics.save_report in a run.",
+            "Report ids use lower-case ASCII letters, digits and '-'. previous_revision: None the first time, else "
+            "the revision_id of the row with head true in analytics.reports(id)['reports'].",
             "In scripts prefer analytics.read/analytics.sql for data and analytics.visualize(fig, id, title=, caption=, "
             "data=plotted_df) for charts; one script per question, re-run it to version its charts.",
             "Record findings, decisions, assumptions, questions and todos with analytics_record as soon as they "
@@ -1118,7 +1124,7 @@ TOOLS = [
     ),
     _tool(
         "analytics_record",
-        "Append an entry to the project journal, the time-ordered history shown in the report. kind: "
+        "Append an entry to the project journal, the time-ordered history shown in the Workspace. kind: "
         "finding (an established result), decision, assumption, question, todo, note, "
         "workflow_feedback (a missing capability or friction in this analysis tooling), metric_definition "
         "(a versioned draft or specified definition), analysis_focus (purpose and exact definitions), "

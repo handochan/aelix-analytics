@@ -236,6 +236,9 @@ def test_notes_resolution_and_context_history(project):
                           "state_after": "resolved"}]
     block = core.context_block(p)
     assert "3월에 넘었다" in block and "언제 넘었나?" not in block
+    # #161: the context names the Workspace as such, and where a document for readers goes.
+    assert f"workspace: {p.workspace_dir / 'index.html'} (pages rebuilt from the records" in block
+    assert "saved as a Report" in block and "report:" not in block
     before = len(core.context_versions(p))
     p.context.write_text(p.context.read_text(encoding="utf-8") + "\n- 새 정의\n", encoding="utf-8")
     event = core.sync_context(p, origin=core.Origin("test", "sdk"))
