@@ -1320,8 +1320,8 @@ TOOLS = [
             "kind=workflow_feedback (this tooling is being evaluated).",
             # The owner's split of 2026-11-09 (#162): ordinary work through the tools and the kit's
             # command line; what a person confirms stays in their /analytics panel.
-            "Other kit operations run in bash as `analytics COMMAND` (see `analytics --help`); leave publish, "
-            "trust, asset mode and registration, and migrate to the user (/analytics).",
+            "Other kit operations run in bash as `analytics COMMAND` (`bin/analytics` in a checkout; see --help); "
+            "leave publish, trust, asset mode and registration, and migrate to the user (/analytics).",
         ),
     ),
     _tool(
@@ -2534,6 +2534,9 @@ def on_agent_end(event, ctx):
 
 # --- human command ---
 
+# `/analytics record --literal KIND TEXT`: TEXT is recorded as it is, never read for options (#162).
+RECORD_LITERAL = "--literal"
+
 HELP = """/analytics — Aelix Analytics project
   /analytics                    the panel in aelix's interactive screen; without one (-p, json,
                                 rpc) the status, as /analytics status
@@ -2552,7 +2555,8 @@ HELP = """/analytics — Aelix Analytics project
   /analytics publish --switch-to ID --to FOLDER       point its channel back to a version there
   /analytics record KIND TEXT   journal entry as a human (finding, decision, question, ...);
                                 KIND workflow_feedback: something this analysis workflow lacked
-                                or made awkward
+                                or made awkward. record --literal KIND TEXT: TEXT as it is, even
+                                where it starts with a quote and holds --refs-json or --details-json
   /analytics context            the context block injected into prompts
   /analytics assets list | show ID | review [ID]
   /analytics assets mode on_demand|always_on [--scope project|session]
@@ -2560,6 +2564,8 @@ HELP = """/analytics — Aelix Analytics project
   /analytics assets register EVENT --name NAME
   /analytics settings [unknown_projects ask|always|never | not_asked_in add|remove DIR]
                                 your settings for projects aelix finds where it starts
+In reports, build, publish, assets and settings, quote a path with spaces or backslashes
+(Windows): --to 'C:\\shared\\q3 out'.
 A project of the older record format (lab.json) is read only here: a person copies it into the
 current format in a terminal (analytics migrate --to DIR, preview with --dry-run), then
 /analytics use DIR."""
@@ -2570,6 +2576,12 @@ async def analytics_command(args, ctx=None):
     sub, _, rest = text.partition(" ")
     rest = rest.strip()
     try:
+        if ctx is not None:
+            # The person's command says which session it is in (current_session), also before the
+            # session's first prompt: a record, a Report or a render it makes, from the panel as well,
+            # carries that session (#162 review).
+            STATE["session"] = current_session(ctx)
+            put_the_session_in_the_environment(STATE["session"])
         if sub not in ("use", "init", "demo", "help", "-h", "--help", "settings"):
             # A command before the session's first prompt finds the project as that prompt would.
             # Not `settings`: changing what aelix does with a project it finds must not ask about one.
@@ -2709,12 +2721,17 @@ async def analytics_command(args, ctx=None):
             # Kinds as the common writer has them (writer.RECORD_KINDS): `/analytics record gap TEXT`,
             # what `/lab gap TEXT` was, is bad_kind with its new name, workflow_feedback (design 2.8).
             project, _ = resolve_project()
+            # `record --literal KIND TEXT` takes TEXT as it is, never as options: what the panel's
+            # editor gives (#162). Without it a first word in quotes may be followed by options.
+            literal = rest.startswith(f"{RECORD_LITERAL} ")
+            if literal:
+                rest = rest[len(RECORD_LITERAL):].lstrip(" ")
             kind, _, body = rest.partition(" ")
             details, refs = None, []
             argv = []
             # Metadata options follow one explicitly quoted text argument. Preserve existing
             # prose verbatim, including literal flag mentions, quotes and unmatched apostrophes.
-            if body.lstrip().startswith(("'", '"')):
+            if not literal and body.lstrip().startswith(("'", '"')):
                 with contextlib.suppress(ValueError):
                     argv = shlex.split(rest)
             if len(argv) > 2 and argv[2] in ("--details-json", "--refs-json"):
@@ -2944,8 +2961,10 @@ def _discover_project_skill(directory):
 # a publish, a project added to the trust list, the setting that uses unknown projects without
 # asking, an asset's registration.
 
-PANEL_WIDTH = 72  # cells of a line, so that a page fits an 80-column terminal with the dialog's frame
-PANEL_LINES = 12  # lines of a page
+# A page fits aelix 0.1.0b2's dialog on a 24-row, 80-column terminal: the dialog takes at most the
+# terminal's rows less 5, and its frame, title, choices, counter and hint take about 8 of them.
+PANEL_WIDTH = 64  # cells of a line
+PANEL_LINES = 8  # lines of a page
 PANEL_LIST = 100  # entries of a list read at once (core.reports' bound)
 BACK, CLOSE, MORE = "Back", "Close", "More"
 NEXT_PAGE, PREVIOUS_PAGE = "Next page", "Previous page"
@@ -3009,6 +3028,21 @@ def _line(value, width: int = PANEL_WIDTH) -> str:
     return "".join(out) + "…"
 
 
+def _tail(path, width: int) -> str:
+    """A path on one line of at most `width` cells, cut at its start where it is longer: the folders
+    that tell two paths apart are at its end."""
+    text = " ".join(_screen(path).split())
+    if sum(map(_cells, text)) <= width:
+        return text
+    out, used = [], 0
+    for ch in reversed(text):
+        if used + _cells(ch) > width - 1:
+            break
+        out.append(ch)
+        used += _cells(ch)
+    return "…" + "".join(reversed(out))
+
+
 def page_lines(value, width: int = PANEL_WIDTH) -> list[str]:
     """`value`'s lines, each cut into lines of at most `width` cells."""
     lines = []
@@ -3049,7 +3083,7 @@ async def open_panel(ctx) -> str:
     async def execute(line: str) -> str:
         return await analytics_command(line, ctx)
 
-    return await AnalyticsPanel(ctx.ui, execute, session=current_session(ctx)).open()
+    return await AnalyticsPanel(ctx.ui, execute, session=current_session(ctx)).start()
 
 
 class AnalyticsPanel:
@@ -3059,6 +3093,22 @@ class AnalyticsPanel:
 
     def __init__(self, ui, execute, *, session=None):
         self.ui, self.execute, self.session = ui, execute, session
+
+    # -- aelix's dialogs: every title and message goes through _screen, so a folder's or a record's
+    #    name cannot put a control or a direction character on aelix's screen. The options are the
+    #    panel's own labels, already one line each (_line, _numbered).
+
+    async def _select(self, title: str, options: list) -> str | None:
+        return await self.ui.select(_screen(title), options)
+
+    async def _input(self, title: str) -> str | None:
+        return await self.ui.input(_screen(title))
+
+    async def _editor(self, title: str) -> str | None:
+        return await self.ui.editor(_screen(title))
+
+    async def _confirm(self, title: str, message: str) -> bool:
+        return bool(await self.ui.confirm(_line(title), _screen(message)))
 
     # -- what every screen does --
 
@@ -3071,7 +3121,7 @@ class AnalyticsPanel:
             options = ([NEXT_PAGE] if index + 1 < len(pages) else []) + ([PREVIOUS_PAGE] if index else []) + [BACK]
             heading = (_line(title) if len(pages) == 1
                        else f"{_line(title, PANEL_WIDTH - 12)} ({index + 1}/{len(pages)})")
-            choice = await self.ui.select(heading + "\n" + "\n".join(pages[index]), options)
+            choice = await self._select(heading + "\n" + "\n".join(pages[index]), options)
             if choice == NEXT_PAGE:
                 index += 1
             elif choice == PREVIOUS_PAGE:
@@ -3087,23 +3137,23 @@ class AnalyticsPanel:
 
     async def ask(self, title: str) -> str | None:
         """A line the person types, stripped; None when the dialog is dismissed or left empty."""
-        answer = await self.ui.input(title)
+        answer = await self._input(title)
         return answer.strip() if isinstance(answer, str) and answer.strip() else None
 
     async def menu(self, title: str, actions: dict) -> None:
         """Choose among `actions` (label: coroutine function) until Back, or until an action
         answers True: what the menu is about changed (a new revision, a registration)."""
         while True:
-            choice = await self.ui.select(title, [*actions, BACK])
+            choice = await self._select(title, [*actions, BACK])
             if choice not in actions or await actions[choice]() is True:
                 return
 
     # -- the first screen --
 
-    async def open(self) -> str:
+    async def start(self) -> str:
         while True:
             heading, actions = await self.first_screen()
-            choice = await self.ui.select(heading, [*actions, CLOSE])
+            choice = await self._select(heading, [*actions, CLOSE])
             if choice not in actions:
                 return PANEL_CLOSED
             try:
@@ -3167,15 +3217,15 @@ class AnalyticsPanel:
     # -- records and Reports --
 
     async def record(self) -> None:
-        choice = await self.ui.select("Record in the journal as yourself — which kind of entry?",
+        choice = await self._select("Record in the journal as yourself — which kind of entry?",
                                       [*PANEL_RECORD_KINDS, BACK])
         kind = PANEL_RECORD_KINDS.get(choice)
         if kind is None:
             return
-        text = await self.ui.editor(f"{kind}: the entry, self-contained")
+        text = await self._editor(f"{kind}: the entry, self-contained")
         if text is None or not text.strip():
             return
-        await self.run(f"Record {kind}", f"record {kind} {text.strip()}")
+        await self.run(f"Record {kind}", f"record {RECORD_LITERAL} {kind} {text.strip()}")
 
     async def reports(self) -> None:
         offset, new = 0, "Save a new Report from a folder…"
@@ -3190,7 +3240,7 @@ class AnalyticsPanel:
             options = [new, *labels, *([MORE] if value.get("next_offset") is not None else []), BACK]
             shown = (f"{offset + 1:,}–{offset + len(rows):,} of {value.get('total', len(rows)):,}"
                      if rows else "none yet")
-            choice = await self.ui.select(
+            choice = await self._select(
                 f"Reports — saved revisions: {shown}\nA Report is a document saved from a folder of "
                 "files; each save is a revision that stays.", options)
             if choice == new:
@@ -3255,14 +3305,14 @@ class AnalyticsPanel:
             return
         labels = _numbered(f"{r.get('publication_id')} — {r.get('recording_status')}, folder "
                            f"{r.get('folder_status')}, {r.get('scope')} / {r.get('profile')}" for r in rows)
-        choice = await self.ui.select("Builds — choose one to publish or zip", [*labels, BACK])
+        choice = await self._select("Builds — choose one to publish or zip", [*labels, BACK])
         if choice in labels:
             await self.build(rows[labels.index(choice)]["publication_id"])
 
     async def build(self, publication_id: str) -> None:
         async def publish() -> None:
             folder = await self.ask(f"Folder to publish {publication_id} to — from the project root, or absolute")
-            if folder is None or not await self.ui.confirm(
+            if folder is None or not await self._confirm(
                     f"Publish {publication_id}?",
                     f"It is published into {folder}: whoever can read that folder can read what it shares "
                     "(Preview shows what a build shares)."):
@@ -3291,7 +3341,7 @@ class AnalyticsPanel:
                 return
             items = value["assets"]
             labels = _numbered(f"{a.get('asset_id')} — {a.get('title')} [{a.get('state')}]" for a in items)
-            choice = await self.ui.select(
+            choice = await self._select(
                 f"Analysis assets — {_count(len(items), 'candidate', 'candidates')}\nReusable analysis "
                 "made from this project's runs; registering one copies it into the project.",
                 [*labels, review, BACK])
@@ -3308,7 +3358,7 @@ class AnalyticsPanel:
         async def register() -> bool:
             name = await self.ask(f"Name to register {asset_id} under — lower-case ASCII letters, digits, "
                                   "'_' and '-'")
-            if name is None or not await self.ui.confirm(
+            if name is None or not await self._confirm(
                     f"Register {asset_id}?",
                     f"Version {event_id} is copied into this project as {name} (.aelix/skills/ for a skill, "
                     "lib/ otherwise), where aelix sessions in the project can use it."):
@@ -3342,7 +3392,7 @@ class AnalyticsPanel:
                        _line(str(core.settings_file()))]
             if settings["ignored"]:
                 heading.append(_line(f"not used: it {core.SETTINGS_PROBLEMS[settings['ignored']]}"))
-            choice = await self.ui.select("\n".join(heading), [*actions, BACK])
+            choice = await self._select("\n".join(heading), [*actions, BACK])
             if choice not in actions:
                 return
             await actions[choice]()
@@ -3355,11 +3405,11 @@ class AnalyticsPanel:
         return now["mode"] + (" (this session)" if now.get("scope") == "session" else "")
 
     async def unknown_projects(self, now: str) -> None:
-        choice = await self.ui.select(
+        choice = await self._select(
             f"A project found where aelix starts that is not on the trust list (now: {now})",
             [*PANEL_UNKNOWN_PROJECTS, BACK])
         mode = PANEL_UNKNOWN_PROJECTS.get(choice)
-        if mode is None or (mode == "always" and not await self.ui.confirm(
+        if mode is None or (mode == "always" and not await self._confirm(
                 "Use unknown projects without asking?",
                 f"{WHY_TRUST} With always, a project found where aelix starts is used without asking, also "
                 "in a run that cannot ask (-p, json, rpc).")):
@@ -3367,9 +3417,9 @@ class AnalyticsPanel:
         await self.run("Settings", f"settings unknown_projects {mode}")
 
     async def not_asked_in(self, folders: list, cwd: str, asked: bool) -> None:
-        labels = _numbered(f"Ask again in {folder}" for folder in folders)
-        here = _line(f"Don't ask when aelix starts in {cwd}")
-        choice = await self.ui.select("Folders where aelix does not ask about the projects it finds",
+        labels = _numbered(f"Ask again in {_tail(folder, PANEL_WIDTH - 24)}" for folder in folders)
+        here = f"Don't ask when aelix starts in {_tail(cwd, PANEL_WIDTH - 31)}"
+        choice = await self._select("Folders where aelix does not ask about the projects it finds",
                                       [*labels, *([here] if asked else []), BACK])
         if choice in labels:
             await self.run("Settings", shlex.join(["settings", "not_asked_in", "remove",
@@ -3378,7 +3428,7 @@ class AnalyticsPanel:
             await self.run("Settings", shlex.join(["settings", "not_asked_in", "add", cwd]))
 
     async def asset_mode(self, now: str) -> None:
-        choice = await self.ui.select(
+        choice = await self._select(
             f"Asset suggestions (now: {now}) — model-free suggestions of reusable analysis",
             [*PANEL_ASSET_MODES, BACK])
         if choice in PANEL_ASSET_MODES:
@@ -3387,38 +3437,47 @@ class AnalyticsPanel:
 
     # -- projects and details --
 
-    async def use_project(self) -> None:
-        found = [str(root) for root in STATE["passed"][:MAX_LIST]]
-        labels = _numbered(f"Use {root}" for root in found)
+    async def use_project(self) -> bool:
+        """`use DIR`, confirmed; True once it ran, so that the first screen shows the project now."""
+        try:
+            active = str(resolve_project()[0].root)
+        except core.AnalyticsError:
+            active = None
+        # What the look where aelix started found and did not activate, less the one in use now.
+        found = [str(root) for root in STATE["passed"] if str(root) != active][:MAX_LIST]
+        labels = _numbered(f"Use {_tail(root, PANEL_WIDTH - 12)}" for root in found)
         other = "A project in another folder…"
-        choice = await self.ui.select("Use a project — one found where aelix started, or another",
+        choice = await self._select("Use a project — one found where aelix started, or another",
                                       [*labels, other, BACK]) if found else other
         if choice in labels:
             root = found[labels.index(choice)]
         elif choice == other:
             root = await self.ask("Folder of the project — from aelix's working directory, or absolute")
         else:
-            return
-        if root is None or not await self.ui.confirm(
+            return False
+        if root is None or not await self._confirm(
                 "Use this project?", f"{root}\n{WHY_TRUST} It is added to the trust list, so aelix uses it "
                                      "without asking when it starts there."):
-            return
+            return False
         await self.run("Project", f"use {root}")
+        return True
 
-    async def create_project(self) -> None:
+    async def create_project(self) -> bool:
+        """`init DIR [title]`; True once it ran, so that the first screen shows the new project."""
         folder = await self.ask("Folder for the new project — new or empty; from aelix's working "
                                 "directory, or absolute")
         if folder is None:
-            return
+            return False
         if any(ch.isspace() for ch in folder):
             # /analytics init DIR [title] ends DIR at its first space.
             await self.show("New project", "/analytics init takes a folder whose path has no spaces. Create "
                                            "this one in a terminal (analytics init 'DIR'), then use it here.")
-            return
-        title = await self.ui.input("Title of the project (may be left empty)")
+            return False
+        title = await self._input("Title of the project (may be left empty)")
         if title is None:
-            return
+            return False
         await self.run("New project", f"init {folder} {title.strip()}".strip())
+        return True
 
     async def details(self) -> None:
         await self.menu("Where, context and command help", {

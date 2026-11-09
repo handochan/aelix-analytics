@@ -197,20 +197,23 @@ Documents 같은 폴더를 읽을 때 사람에게 권한을 물을 수 있음).
 동작마다 사람이 칠 수 있는 명령줄을 같은 명령 처리(`analytics_command`, 같은 명령 맥락)로 돌리고 그 명령의 답을 보이므로, 같은 명령과
 같은 기록(`human`·`command`)·결과를 냅니다. 패널이 직접 읽는 것은 메뉴를 그리는 데 쓰는 것뿐입니다: 활성 프로젝트와 `core.status`의 개수,
 고를 목록(`reports list`·`build --list`·`assets list`의 답), 사용자 설정(B), 자산 제안 모드. 쓰는 aelix API는 `ctx.ui`의 `select`·`input`·
-`editor`·`confirm`뿐이고(import를 더하지 않음), 긴 답은 72칸·12줄씩 쪽으로 넘기며 제어·서식 문자(색, 커서 이동, 방향 바꿈)는 보이지 않습니다.
+`editor`·`confirm`뿐입니다(import를 더하지 않음). 긴 답은 64칸·8줄씩 쪽으로 넘깁니다: aelix 0.1.0b2의 대화는 터미널 높이에서 5줄을 뺀 만큼까지
+쓰므로 24줄 터미널에도 들어가게 했습니다(실제 TUI에서는 사람이 확인). 대화의 제목·확인 글에는 제어·서식 문자(색, 커서 이동, 방향 바꿈)가
+가지 않습니다: 사람이 입력한 폴더 이름이나 기록의 글에 있어도 빼고 보입니다. 긴 경로의 선택지는 앞을 줄여 끝의 폴더 이름을 남깁니다.
 label은 영어입니다([용어](TERMINOLOGY-AND-LANGUAGE.md)).
 - 첫 화면의 제목은 프로젝트의 제목·경로·찾은 방법과 dataset·run·chart·열린 질문과 할 일의 수이고, 쓰지 않는 프로젝트는 `read only:` 줄을
   더합니다. 항목은 순서대로 Status(`status`), Open the Workspace in the browser(`open`), Rebuild the Workspace(`render`), Reports(`reports
-  list`·`show`·`save`), Record a note, finding, decision …(`record KIND TEXT`, 글만으로 쓰는 note·finding·decision·assumption·question·todo·
-  workflow_feedback, 편집기에서), Share: build and publish(`build --preview`·`build`·`build --list`·`publish --build ID --to FOLDER`·
+  list`·`show`·`save`), Record a note, finding, decision …(`record --literal KIND TEXT`, 글만으로 쓰는 note·finding·decision·assumption·question·todo·
+  workflow_feedback, 편집기에서. 편집기의 글은 따옴표나 `--refs-json` 같은 낱말이 있어도 그대로 기록), Share: build and publish(`build --preview`·`build`·`build --list`·`publish --build ID --to FOLDER`·
   `build --zip-of ID --zip PATH`·`publish --list`), Analysis assets(`assets list`·`show`·`review`·`register`), Settings, Switch or create a
   project(`use DIR`·`init DIR [title]`), Where, context and command help(`where`·`context`·`help`), Close입니다. `lab.json` 프로젝트는
   Status 다음에 kit의 전환 안내(`migration_hint`)를 보이는 항목이 있고, 전환 자체는 전처럼 사람이 터미널에서 합니다(아래 B "프로젝트 전환").
   활성 프로젝트가 없으면 Use a project…, Create a new project…, Settings, Where…, Close입니다. Use a project…는 작업 디렉터리 아래에서 찾고
-  활성화하지 않은 프로젝트를 먼저 보입니다.
+  활성화하지 않은 프로젝트(지금 쓰는 것은 빼고)를 먼저 보이고, `use`나 `init`이 돈 뒤에는 바로 첫 화면으로 돌아가 그 프로젝트를 보입니다.
 - 확인(`ctx.ui.confirm`)을 거치는 동작: 게시(밖으로 나감), 프로젝트를 신뢰 목록에 더하는 `use`(그 CONTEXT.md가 프롬프트에 들고
   `analytics_run`이 그 코드를 실행한다는 글과 함께), 처음 보는 프로젝트를 묻지 않고 쓰는 설정 `always`, 자산 등록(프로젝트의 `.aelix/skills/`나
-  `lib/`로 복사). 거절하면 명령을 돌리지 않습니다. 비공개 빌드·zip·Report 저장·기록은 입력 대화가 곧 확인입니다(비우거나 닫으면 돌리지 않음).
+  `lib/`로 복사). 거절하면 명령을 돌리지 않습니다. 비공개 빌드(Build a publication privately)는 고르면 바로 돕니다: 프로젝트 안의
+  `.analytics/publications/`에만 쓰고 밖으로 나가지 않습니다. zip·Report 저장·기록은 입력 대화가 곧 확인입니다(비우거나 닫으면 돌리지 않음).
 - Settings는 사용자 설정(B)의 `unknown_projects`와 `not_asked_in`(목록의 폴더에서 다시 묻기, aelix를 켠 폴더에서 묻지 않기), 활성 프로젝트의
   자산 제안 모드(`assets mode on_demand|always_on --scope project|session`)를 바꿉니다.
 - Create a new project…는 경로에 공백이 있으면 돌리지 않습니다: `/analytics init DIR [title]`이 첫 공백에서 DIR을 끝내기 때문입니다.
@@ -223,10 +226,18 @@ label은 영어입니다([용어](TERMINOLOGY-AND-LANGUAGE.md)).
   --previous none|REV`: kit의 `analytics reports`와 같은 Report 저장(`core.reports`·`core.save_report`, C16)을 aelix 프로세스
   안에서 부르고 그 JSON으로 답합니다. `--files`의 상대 경로는 프로젝트 루트에서 읽습니다(확장이 프로젝트에서 돌리는 kit 명령, run 안의
   `analytics.save_report`와 같음). 저장의 작성 출처는 `human`·`command`이고, `record`처럼 Workspace 다시 빌드를 분리해 예약합니다(그래서 답에
-  `workspace`가 없음). `--based-on`·`--metadata`·`--request-id`와 `update`·`clean`은 셸의 `analytics reports`로 합니다.
+  `workspace`가 없음). kit의 `analytics reports`에 있고 이 명령에 없는 것 — `save`의 `--based-on`·`--metadata`·`--request-id`, `show`의
+  `--file`·`--file-offset`·`--file-limit`, `list`·`show`의 `--verify-files`, 그리고 `update`·`clean` — 은 셸의 `analytics reports`로 합니다
+  (주면 `bad_query`).
+- `/analytics record --literal KIND TEXT`: TEXT를 옵션으로 읽지 않고 그대로 기록합니다(패널의 편집기가 씀). `--literal` 없이는 전처럼,
+  따옴표로 시작한 첫 낱말 뒤의 `--details-json`·`--refs-json`을 옵션으로 읽습니다. 전에 `--literal`은 kind로 읽혀 `bad_kind`였습니다.
 
-에이전트와 사람의 나눔(같은 소유자 결정): `analytics_run`의 지침 한 줄이 그 밖의 kit 동작은 bash의 `analytics COMMAND`(`analytics --help`)로
-하고 게시·신뢰·자산 제안 모드와 등록·전환은 사용자에게 맡기라고 알립니다. 지침이므로 bash의 `analytics publish`를 막지는 않습니다. 사용자
+`/analytics`의 명령은 그 맥락의 세션을 작성 출처에 넣습니다(kit 0.32.1, #162): 세션의 첫 프롬프트 전에 패널이나 텍스트 명령으로 쓴 기록·Report와
+시작한 렌더도 그 세션입니다(전에는 `status`·`assets`만 맥락의 세션을 넣고, 다른 명령은 첫 프롬프트가 넣은 세션을 썼으므로 그 전에는 세션이 없었습니다). `reports`·`build`·
+`publish`·`assets`·`settings`는 인자를 셸처럼 나누므로 공백이나 역슬래시(Windows 경로)가 있는 경로는 따옴표로 묶습니다(`--to 'C:\shared\q3 out'`).
+
+에이전트와 사람의 나눔(같은 소유자 결정): `analytics_run`의 지침 한 줄이 그 밖의 kit 동작은 bash의 `analytics COMMAND`(체크아웃에서는
+`bin/analytics`, `--help`)로 하고 게시·신뢰·자산 제안 모드와 등록·전환은 사용자에게 맡기라고 알립니다. 지침이므로 bash의 `analytics publish`를 막지는 않습니다. 사용자
 설정을 바꾸는 함수는 모델 도구에서 닿지 않습니다(`/analytics settings`와 패널만). 실제 TUI에서 패널이 보이는 모습은 사람 검증으로 남겼습니다
 (시험은 가짜 UI와 aelix 0.1.0b2의 로더·명령 맥락).
 aelix는 세션을 만들 때마다(시작, `/new`, `/resume`, `/fork`, `/reload`) 확장을 다시 설정합니다. 파일 로드는 그때마다 새

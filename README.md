@@ -319,10 +319,14 @@ json, rpc)에서 인자 없는 `/analytics`는 전처럼 현황이고, 텍스트
 /analytics reports save ID --files DIR --entry FILE --title TITLE --previous none|REV   폴더(프로젝트 기준)를 Report로 저장
 /analytics build … | publish …                공유본 만들기 | 게시   /analytics assets …   분석 자산
 /analytics settings [unknown_projects ask|always|never | not_asked_in add|remove DIR]   처음 보는 프로젝트를 다루는 내 설정
+/analytics record --literal KIND TEXT          TEXT를 옵션으로 읽지 않고 그대로 기록(패널의 편집기가 씀)
 ```
 
+`reports`·`build`·`publish`·`assets`·`settings`는 인자를 셸처럼 나눕니다. 공백이나 역슬래시(Windows 경로)가 있는 경로는 따옴표로 묶습니다
+(`/analytics publish --build ID --to 'C:\shared\q3 out'`).
+
 게시·신뢰·자산 제안 모드와 등록·전환은 사람이 정합니다. 모델은 도구와 bash의 `analytics` 명령으로 일반 작업(현황·조회·run·기록·Report 저장과
-목록)을 하고, `analytics_run`의 지침이 그 나눔을 알립니다(지침이며 bash의 명령을 막지는 않습니다). 사용자 설정을 바꾸는 모델 도구는 없습니다.
+목록)을 하고(체크아웃에서는 `bin/analytics`), `analytics_run`의 지침이 그 나눔을 알립니다(지침이며 bash의 명령을 막지는 않습니다). 사용자 설정을 바꾸는 모델 도구는 없습니다.
 
 셸에서는 같은 기능을 체크아웃의 `bin/analytics`나 설치본의 `analytics`로 씁니다(`analytics status`, `analytics run scripts/x.py --title …`,
 `analytics query "SQL"`, `analytics record finding "…"`, `analytics render` 등). 옛 형식 프로젝트의 전환(`analytics migrate`)은 셸에서만

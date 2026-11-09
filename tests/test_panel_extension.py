@@ -204,30 +204,77 @@ def test_reads_show_the_answers_of_the_text_commands(lab, monkeypatch):
     assert not ui.left()
 
 
-def test_a_record_through_the_panel_is_the_person_s_record_command(lab, monkeypatch):
+RECORDED_AS_WRITTEN = [
+    "지역별 매출은 서부가 가장 크다\n둘째 줄 --refs-json []",
+    # A first word in quotes followed by option-like words: options to the plain text command, the
+    # editor's text as it is to the panel (review of #162).
+    '"West has highest sales" --refs-json []',
+    '"Q3 매출" --refs-json 에 대한 메모',
+    "'quoted' --details-json {\"a\": 1} and an unmatched ' apostrophe",
+]
+
+
+@pytest.mark.parametrize("text", RECORDED_AS_WRITTEN)
+def test_a_record_through_the_panel_is_the_person_s_record_command_with_the_text_as_written(lab, monkeypatch, text):
     module, root = lab
     command, ran = spy(module, monkeypatch)
     monkeypatch.setattr(module.subprocess, "Popen", lambda *a, **k: None)  # the Workspace rebuild after it
-    text = "지역별 매출은 서부가 가장 크다\n둘째 줄 --refs-json []"
     ui = PanelUI(["Record a note, finding, decision …", "finding — an established result", back, "Close"],
                  edits=[f"  {text}\n"])
     asyncio.run(command("", with_ui(ui)))
     [(line, answer)] = ran
-    assert line == f"record finding {text}" and answer.endswith(" finding recorded")
+    assert line == f"record --literal finding {text}" and answer.endswith(" finding recorded"), answer
     by_panel = journal(root)[-1]
-    by_text = asyncio.run(command(line))
-    assert by_text.endswith(" finding recorded")
+    assert (by_panel["kind"], by_panel["text"], by_panel.get("refs", [])) == ("finding", text, [])
+    assert (by_panel["actor"], by_panel["actor_basis"], by_panel["means"]) == ("human", "declared", "command")
+    # The same line typed is the same record.
+    assert asyncio.run(command(line)).endswith(" finding recorded")
     typed = journal(root)[-1]
-    assert (by_panel["kind"], by_panel["text"]) == ("finding", text)
     same = {k for k in by_panel if k not in ("id", "seq", "ts", "recorded_at", "request_id")}
     assert {k: by_panel[k] for k in same} == {k: typed[k] for k in same}
-    assert (by_panel["actor"], by_panel["actor_basis"], by_panel["means"]) == ("human", "declared", "command")
-    # A dismissed or empty editor records nothing.
+
+
+def test_the_plain_record_command_still_reads_options_after_a_quoted_text(lab, monkeypatch):
+    module, root = lab
+    monkeypatch.setattr(module.subprocess, "Popen", lambda *a, **k: None)
+    said = asyncio.run(module.analytics_command('record finding "West has highest sales" --refs-json []'))
+    assert said.endswith(" finding recorded"), said
+    assert journal(root)[-1]["text"] == "West has highest sales"
+    said = asyncio.run(module.analytics_command("record --literal note -- not an option"))
+    assert said.endswith(" note recorded") and journal(root)[-1]["text"] == "-- not an option"
+
+
+def test_an_empty_or_dismissed_editor_records_nothing(lab, monkeypatch):
+    module, root = lab
     before = (root / "journal.jsonl").read_bytes()
     for edit in (None, "  \n"):
-        asyncio.run(command("", with_ui(PanelUI(["Record a note, finding, decision …", "note — anything worth keeping",
-                                                 "Close"], edits=[edit]))))
+        asyncio.run(module.analytics_command("", with_ui(PanelUI(
+            ["Record a note, finding, decision …", "note — anything worth keeping", "Close"], edits=[edit]))))
     assert (root / "journal.jsonl").read_bytes() == before
+
+
+def test_what_the_panel_does_before_the_first_prompt_carries_the_session(lab, monkeypatch, tmp_path):
+    """A record and a render from the panel before the session's first prompt are in that session:
+    the command's context says which (review of #162)."""
+    module, root = lab
+    session = str(tmp_path / "sessions" / "s1.jsonl")
+    monkeypatch.setattr(module.subprocess, "Popen", lambda *a, **k: None)
+    children = []
+
+    async def spawn(argv, cwd, env, timeout, processes, request=None):
+        children.append((argv, env))
+        return False, 0, b'{"ok": true, "workspace": {}}\n', b""
+
+    monkeypatch.setattr(module, "_spawn", spawn)
+    monkeypatch.setattr(module, "resolve_uv", lambda processes=None: "uv")
+    assert module.STATE["session"] is None
+    ui = PanelUI(["Record a note, finding, decision …", "note — anything worth keeping", back,
+                  "Rebuild the Workspace", back, "Close"], edits=["before the first prompt"])
+    asyncio.run(module.analytics_command("", with_ui(ui, session)))
+    assert journal(root)[-1]["session"] == session
+    [(argv, env)] = children
+    assert "render" in argv and env["AELIX_ANALYTICS_SESSION"] == session
+    assert (env["AELIX_ANALYTICS_ACTOR"], env["AELIX_ANALYTICS_MEANS"]) == ("human", "command")
 
 
 def write_report(folder: Path, body: str) -> None:
@@ -434,6 +481,51 @@ def test_using_a_project_is_confirmed_and_runs_the_use_command(tmp_path, monkeyp
     assert ui.seen[-1][1].startswith("Aelix Analytics — cloned")  # the first screen of the project now
 
 
+def test_confirmations_show_no_control_or_direction_characters(lab, monkeypatch):
+    """A folder typed (or a name read) reaches aelix's dialogs without ESC or a direction override
+    (review of #162)."""
+    module, root = lab
+
+    async def kit(project, args, *, timeout, actor="agent", means="tool"):
+        return True, {"ok": True, "publications": [
+            {"publication_id": "pub_1", "recording_status": "complete", "folder_status": "same",
+             "scope": "project", "profile": "read"}]}
+
+    monkeypatch.setattr(module, "run_kit", kit)
+    bad = "out\x1b[2J\u202eevil"
+    ui = PanelUI(["Switch or create a project", "Use a project…", "Back",
+                  "Share: build and publish", "Builds: publish one or make a zip",
+                  lambda options: options[0], "Publish to a folder…", "Back", "Back", "Close"],
+                 inputs=[bad, bad], confirms=[False, False])
+    asyncio.run(module.analytics_command("", with_ui(ui)))
+    asked = [text for kind, text, _ in ui.seen if kind == "confirm"]
+    assert len(asked) == 2 and all("evil" in text for text in asked)
+    assert not [t for _, t, _ in ui.seen if "\x1b" in t or "\u202e" in t]
+
+
+def test_switching_projects_shows_the_new_one_and_does_not_offer_the_one_in_use(tmp_path, monkeypatch):
+    module = fresh_module()
+    monkeypatch.delenv("AELIX_ANALYTICS_PROJECT", raising=False)
+    repo = tmp_path / "repo"
+    a = Path(module.core.canonical(analytics_project(repo / "a", title="first")))
+    b = Path(module.core.canonical(analytics_project(repo / "b", title="second")))
+    monkeypatch.chdir(repo)
+    # Long paths are cut at their start, so the folders that tell them apart stay.
+    use_a, use_b = (f"1. Use {module._tail(str(root), module.PANEL_WIDTH - 12)}" for root in (a, b))
+    assert use_a.endswith("repo/a") and use_b.endswith("repo/b")
+    ui = PanelUI([module.NOT_NOW,  # the question about the projects found below, before the panel
+                  "Use a project…", use_a, back,
+                  "Switch or create a project", "Use a project…", "Back", "Back", "Close"], confirms=[True])
+    asyncio.run(module.analytics_command("", with_ui(ui)))
+    titles = [title for kind, title, _ in ui.seen if kind == "select"]
+    # After `use`, straight back to the first screen, which shows that project.
+    after = titles.index(next(t for t in titles if t.startswith("Project"))) + 1
+    assert titles[after].startswith("Aelix Analytics — first")
+    [offered] = [options for kind, title, options in ui.seen
+                 if kind == "select" and title.startswith("Use a project")][1:]
+    assert offered == [use_b, "A project in another folder…", "Back"]
+
+
 def test_a_validated_asset_is_registered_only_when_confirmed(lab, monkeypatch):
     module, root = lab
     command, ran = spy(module, monkeypatch)
@@ -501,7 +593,8 @@ def test_no_model_tool_reaches_the_settings():
 def test_the_model_is_told_the_kit_s_command_line_is_its_and_what_is_the_user_s():
     run = {t.name: t for t in fresh_module().TOOLS}["analytics_run"]
     [line] = [g for g in run.prompt_guidelines if "analytics COMMAND" in g]
-    for word in ("bash", "analytics --help", "publish", "trust", "asset mode", "migrate", "/analytics"):
+    assert len(line) <= 200 and "<" not in line
+    for word in ("bash", "bin/analytics", "--help", "publish", "trust", "asset mode", "migrate", "/analytics"):
         assert word in line, word
 
 

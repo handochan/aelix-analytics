@@ -76,9 +76,11 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 - #162: 사람 명령 `/analytics settings [unknown_projects ask|always|never | not_asked_in add|remove DIR]`(#169의 사용자 설정을 보이고 바꿈.
   "이 폴더에선 묻지 않음"을 되돌리는 `core.ask_again_in`)와 `/analytics reports list | show ID@REV | save ID --files DIR --entry FILE --title
   TITLE --previous none|REV`(kit의 `analytics reports`와 같은 저장·조회. `--files`는 프로젝트 루트에서 읽고, 저장 뒤 Workspace를 다시
-  만듭니다). 모델 도구는 사용자 설정에 닿지 않습니다.
-- #162: `analytics_run`의 guideline 한 줄이 그 밖의 kit 동작은 bash의 `analytics COMMAND`(`analytics --help`)로 하고, 게시·신뢰·자산 제안
-  모드와 등록·전환은 사용자에게(/analytics) 맡기라고 알립니다(2026-11-09 소유자 결정). 도구 글은 6,421자에서 6,591자로 170자 늘었습니다.
+  만듭니다). 모델 도구는 사용자 설정에 닿지 않습니다. `/analytics record --literal KIND TEXT`는 TEXT를 옵션으로 읽지 않고 그대로
+  기록합니다(패널의 편집기가 씀. 전에는 따옴표로 시작한 글 뒤의 `--refs-json` 같은 낱말이 옵션으로 읽혔음).
+- #162: `analytics_run`의 guideline 한 줄이 그 밖의 kit 동작은 bash의 `analytics COMMAND`(체크아웃에서는 `bin/analytics`)로 하고, 게시·신뢰·
+  자산 제안 모드와 등록·전환은 사용자에게(/analytics) 맡기라고 알립니다(2026-11-09 소유자 결정). 도구 글은 6,421자에서 6,610자로 189자
+  늘었습니다.
 
 ### Changed
 
@@ -120,6 +122,8 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 
 ### Fixed
 
+- #162: `/analytics`의 명령이 세션의 첫 프롬프트 전에도 그 세션을 기록·Report·렌더에 남깁니다. 전에는 `status`·`assets` 말고는 첫
+  프롬프트가 넣은 세션을 써서, 그 전의 `/analytics record` 등은 세션 없이 기록됐습니다.
 - #160: CLI의 `analytics reports save`·`update`·`clean`이 `record`·`import`처럼 끝나기 전에 Workspace를 다시 만듭니다. 전에는 저장이 성공해도
   다음 재생성 전까지 Reports 탭에 보이지 않았고, `analytics open`이 그 예전 화면을 열었습니다. 결과 JSON의 `workspace`에 빌드 결과가 있고,
   빌드가 실패해도 저장은 그대로입니다(`{error}`). SDK의 `save_report`는 전처럼 빌드하지 않습니다(run 안에서는 run이 끝난 뒤 빌드됩니다).

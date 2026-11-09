@@ -2977,12 +2977,14 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
     # gone from sys.modules after the load; core itself is loaded by its file): core binds these
     # stdlib siblings before namespace cleanup so asset/publication readers work after load. Keep
     # qualified names exact, including the publication reader's stdlib dependencies (C1). It imports
-    # no migration or analysis engine (Issue #13 PR 2, design 3.2; Issue #17 B3-b).
+    # no migration or analysis engine (Issue #13 PR 2, design 3.2; Issue #17 B3-b). report_app, the
+    # stdlib Report storage, since #162: /analytics reports and the panel read and save Reports in
+    # the aelix process, after the synthetic package is gone.
     runtime = next(line for line in proc.stdout.splitlines() if line.startswith("RUNTIME:"))
     assert set(runtime[len("RUNTIME:"):].split(",")) == {
         "_platform", "relations", "writer", "asset_app", "asset_contract", "asset_policy", "asset_suggestions", "checkpoints",
         "publishing", "publishing.basis", "publishing.checks", "publishing.inspections",
-        "publishing.model", "publishing.state", "observed", "tree_state"}, runtime
+        "publishing.model", "publishing.state", "observed", "tree_state", "report_app"}, runtime
 
 
 def test_importing_the_package_imports_nothing_of_the_kit():
@@ -3018,7 +3020,9 @@ def test_importing_the_package_imports_nothing_of_the_kit():
                                      "aelix_analytics.publishing.basis", "aelix_analytics.publishing.checks",
                                      "aelix_analytics.publishing.inspections", "aelix_analytics.publishing.model",
                                      "aelix_analytics.publishing.state", "aelix_analytics.relations",
-                                     "aelix_analytics.tree_state", "aelix_analytics.writer"]
+                                     # core binds the stdlib Report storage at load since #162
+                                     "aelix_analytics.report_app", "aelix_analytics.tree_state",
+                                     "aelix_analytics.writer"]
 
 
 @pytest.mark.parametrize("command, flagged", [
