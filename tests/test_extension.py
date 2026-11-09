@@ -2572,11 +2572,16 @@ def test_the_extension_writes_only_where_the_kit_may(tmp_path, monkeypatch, colu
     # project (the trust file, or the host's agent directory), for a project it can read.
     trust = tmp_path / "use-trust.json"
     monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(trust))
+    (tmp_path / "out").mkdir()
+    (tmp_path / "out" / "index.html").write_text("<p>report</p>\n", encoding="utf-8")
     for command, read in (("record note hi", False), ("render", False), ("open", False),
-                          ("status", True), ("context", True), (f"use {root}", True)):
+                          (f"reports save r --files {tmp_path / 'out'} --entry index.html --title t --previous none",
+                           False),  # #162
+                          ("status", True), ("context", True), ("reports list", True), (f"use {root}", True)):
         answer = asyncio.run(module.analytics_command(command))
         expected = refused if not read or reads_refused else None
-        seen[f"/analytics {command.split()[0]}"] = expected
+        words = command.split()
+        seen[f"/analytics {' '.join(words[:2] if words[0] == 'reports' else words[:1])}"] = expected
         if expected is None:
             assert "error [" not in answer, (command, answer)
         else:

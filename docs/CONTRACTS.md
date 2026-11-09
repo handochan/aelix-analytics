@@ -20,6 +20,7 @@ Aelix Analytics가 현재 **약속하는 것과 약속하지 않는 것**의 전
 | aelix 프로세스의 `os.environ` | `setup()`이 `AELIX_ANALYTICS_ACTOR=agent`를 넣고(있던 값을 덮음) `AELIX_ANALYTICS_SESSION`을 지우며, `before_agent_start`가 그 세션의 파일 경로로 바꿈(없으면 지움)(kit 0.8.0) |
 | `events.emit` / `events.on` | 채널 `aelix-analytics:instance`로 한 runtime에 사본이 하나만 설정되게 확인 |
 | `ctx.has_ui`·`ctx.ui.select`·`ctx.ui.notify` | 작업 디렉터리에서 찾은 처음 보는 프로젝트를 묻고, 찾아 활성화한 프로젝트를 알림(아래 "작업 디렉터리에서 찾은 프로젝트", kit 0.32.1). `notify`는 `/analytics init`·`demo`의 진행 알림에도 |
+| `ctx.ui.select`·`input`·`editor`·`confirm` | 인자 없는 `/analytics`의 패널(아래 "`/analytics` 패널", kit 0.32.1). `ctx.has_ui`일 때만 |
 
 쓰지 않는 것: manifest의 선언형 기여(`[contributes]`: 명령·도구·hook·MCP·테마 선언), provider·login·API adapter,
 메시지 렌더러, descriptor·TUI 위젯, MCP, subprocess hook, `send_message`·`append_entry` 같은 세션 조작.
@@ -31,7 +32,8 @@ manifest는 설치본이 aelix에 자기를 밝히는 데만 씁니다: `id = "a
 `aelix_analytics/core.py`와 그 형제 `aelix_analytics/_platform.py`·`aelix_analytics/relations.py`(기록을 ADR-0006대로 읽는 읽기 모델, E)·
 `aelix_analytics/writer.py`(표식 판정과 쓰기 게이트, kit 0.7.0부터. kit 0.8.0부터 새 형식의 공통 writer도), 그리고 `core`가 가져오는 그 밖의
 stdlib 전용 형제(자산·checkpoint·publication 관찰, kit 0.32.1부터 관찰된 활동의 `aelix_analytics/observed.py`와 run과 함께 쓰는 파일 상태의
-`aelix_analytics/tree_state.py`, C22)만 import합니다.
+`aelix_analytics/tree_state.py`, C22, `/analytics reports`가 쓰는 Report 저장 `aelix_analytics/report_app.py`, #162)만 import합니다. 그 형제는
+`core`가 로드할 때 함께 묶습니다: 로드가 끝나면 합성 package가 없어지므로 함수 안에서 나중에 import하는 형제는 aelix 프로세스에서 찾지 못합니다.
 설치본에서는 그 앞에 package `aelix_analytics`와 `aelix_analytics._install`(실행 루트의 위치)이 import됩니다. kit 0.2.0부터 이
 package가 kit 전체이지만, 그 `__init__`은 모듈 수준에서 stdlib만 import합니다: SDK 함수의 정의뿐이고 kit 모듈은 함수를 부를 때,
 `core`는 `__version__`을 물을 때 import됩니다. 그래서 aelix 프로세스의 `aelix_analytics.*`는 package와 `_install`·`extension`뿐입니다.
@@ -50,12 +52,12 @@ CLI의 `LAB_PROJECT`와 확장의 `AELIX_LAB_PROJECT` 둘이었습니다): aelix
 kit 0.7.0부터 확장은 찾은 프로젝트를 표식으로 판정합니다(B "표식 판정과 쓰기"). 명시한 프로젝트(`/analytics use`, `--analytics-project`,
 `AELIX_ANALYTICS_PROJECT`)는 그 디렉터리 자체에 두 표식 가운데 하나가 있어야 하고(표식 없는 전환 목적지이면 kit 0.8.0부터 `migration_incomplete`,
 B "프로젝트 찾기"), 두 표식이 다 있으면 모든 도구·명령이 `marker_conflict`입니다.
-쓰는 도구와 명령(`analytics_record`·`analytics_import`·`analytics_run`, `/analytics record`·`render`, Workspace가 아직 없을 때의 `open`)은 이
+쓰는 도구와 명령(`analytics_record`·`analytics_import`·`analytics_run`, `/analytics record`·`render`·`reports save`, Workspace가 아직 없을 때의 `open`)은 이
 kit이 쓰지 않는 프로젝트에서 aelix 프로세스 안에서 거절합니다: inline 스크립트를 쓰기 전이고 uv를 부르기 전입니다. 읽는 도구
-(`analytics_status`·`analytics_query`)와 `/analytics status`·`context`·`use`는 읽고, 부수 쓰기 — 맥락 동기화, `telemetry.jsonl`, `agent_end`의
+(`analytics_status`·`analytics_query`)와 `/analytics status`·`context`·`use`·`reports list`·`show`는 읽고, 부수 쓰기 — 맥락 동기화, `telemetry.jsonl`, `agent_end`의
 Workspace 렌더 — 는 건너뜁니다. `/analytics use`는 읽을 수 있는 프로젝트(두 표식이 아닌 것)를 신뢰 목록(B)에 적습니다: 이 kit이 쓰지 않는
 프로젝트여도 그렇고, 목록은 프로젝트 트리 밖에 있습니다. 맥락 블록과 `analytics_status`는 머리의 `read only:` 줄로 거절 이유를 알립니다.
-확장이 aelix 프로세스 안에서 쓰는 기록 — `analytics_record`, `/analytics record`, `analytics_init`·`/analytics init`·`/analytics demo`의 프로젝트 생성, 맥락 동기화 — 은 진입점이 정한 작성 출처(`Origin`: 모델 도구
+확장이 aelix 프로세스 안에서 쓰는 기록 — `analytics_record`, `/analytics record`·`reports save`(kit 0.32.1), `analytics_init`·`/analytics init`·`/analytics demo`의 프로젝트 생성, 맥락 동기화 — 은 진입점이 정한 작성 출처(`Origin`: 모델 도구
 `agent`·`tool`, `/analytics` `human`·`command`, hook `system`·`hook`, `analytics_status` 안의 동기화 `system`·`tool`)로 공통 writer가 씁니다(kit
 0.8.0부터, C1). kit 자식 프로세스가 쓰는 기록 — `analytics_run`·`analytics_import`, `/analytics render`, `/analytics demo`의 데이터와 run,
 `analytics_init`·`/analytics init`의 첫 렌더, `agent_end`의 렌더(렌더의 맥락 동기화) — 은 확장이 넘기는 `AELIX_ANALYTICS_ACTOR`(선언한 작성 주체:
@@ -188,6 +190,45 @@ Documents 같은 폴더를 읽을 때 사람에게 권한을 물을 수 있음).
 - aelix는 확장에 권한 모드(default·yolo 등)를 알려 주지 않으므로 확장은 그것을 보지 않습니다. 묻지 않고 쓰려는 사람은 `always`를 고릅니다.
   실제 TUI에서 질문이 보이는 모습은 사람 검증으로 남겼습니다(시험은 가짜 UI와 aelix의 실제 hook 맥락). 깊이와 한도 밖의 프로젝트는
   `/analytics use DIR`로 정합니다.
+**`/analytics` 패널**(kit 0.32.1, [#162](https://github.com/handochan/aelix-analytics/issues/162), 2026-11-09 소유자 결정). 인자 없는
+`/analytics`는 aelix의 대화형 화면(`ctx.has_ui`)에서 패널을 엽니다(aelix-memory의 `/memory`와 같은 방식). 화면이 없는 실행(`-p`·json·rpc,
+맥락 없이 부른 명령)의 인자 없는 `/analytics`와 `/analytics status`는 전과 같은 상태 텍스트입니다. 패널을 열기 전에 다른 명령처럼 프로젝트를
+찾습니다(위 "작업 디렉터리에서 찾은 프로젝트"의 질문이 먼저). 패널은 `/analytics` 명령을 고르는 화면이고 따로 구현한 기능이 아닙니다:
+동작마다 사람이 칠 수 있는 명령줄을 같은 명령 처리(`analytics_command`, 같은 명령 맥락)로 돌리고 그 명령의 답을 보이므로, 같은 명령과
+같은 기록(`human`·`command`)·결과를 냅니다. 패널이 직접 읽는 것은 메뉴를 그리는 데 쓰는 것뿐입니다: 활성 프로젝트와 `core.status`의 개수,
+고를 목록(`reports list`·`build --list`·`assets list`의 답), 사용자 설정(B), 자산 제안 모드. 쓰는 aelix API는 `ctx.ui`의 `select`·`input`·
+`editor`·`confirm`뿐이고(import를 더하지 않음), 긴 답은 72칸·12줄씩 쪽으로 넘기며 제어·서식 문자(색, 커서 이동, 방향 바꿈)는 보이지 않습니다.
+label은 영어입니다([용어](TERMINOLOGY-AND-LANGUAGE.md)).
+- 첫 화면의 제목은 프로젝트의 제목·경로·찾은 방법과 dataset·run·chart·열린 질문과 할 일의 수이고, 쓰지 않는 프로젝트는 `read only:` 줄을
+  더합니다. 항목은 순서대로 Status(`status`), Open the Workspace in the browser(`open`), Rebuild the Workspace(`render`), Reports(`reports
+  list`·`show`·`save`), Record a note, finding, decision …(`record KIND TEXT`, 글만으로 쓰는 note·finding·decision·assumption·question·todo·
+  workflow_feedback, 편집기에서), Share: build and publish(`build --preview`·`build`·`build --list`·`publish --build ID --to FOLDER`·
+  `build --zip-of ID --zip PATH`·`publish --list`), Analysis assets(`assets list`·`show`·`review`·`register`), Settings, Switch or create a
+  project(`use DIR`·`init DIR [title]`), Where, context and command help(`where`·`context`·`help`), Close입니다. `lab.json` 프로젝트는
+  Status 다음에 kit의 전환 안내(`migration_hint`)를 보이는 항목이 있고, 전환 자체는 전처럼 사람이 터미널에서 합니다(아래 B "프로젝트 전환").
+  활성 프로젝트가 없으면 Use a project…, Create a new project…, Settings, Where…, Close입니다. Use a project…는 작업 디렉터리 아래에서 찾고
+  활성화하지 않은 프로젝트를 먼저 보입니다.
+- 확인(`ctx.ui.confirm`)을 거치는 동작: 게시(밖으로 나감), 프로젝트를 신뢰 목록에 더하는 `use`(그 CONTEXT.md가 프롬프트에 들고
+  `analytics_run`이 그 코드를 실행한다는 글과 함께), 처음 보는 프로젝트를 묻지 않고 쓰는 설정 `always`, 자산 등록(프로젝트의 `.aelix/skills/`나
+  `lib/`로 복사). 거절하면 명령을 돌리지 않습니다. 비공개 빌드·zip·Report 저장·기록은 입력 대화가 곧 확인입니다(비우거나 닫으면 돌리지 않음).
+- Settings는 사용자 설정(B)의 `unknown_projects`와 `not_asked_in`(목록의 폴더에서 다시 묻기, aelix를 켠 폴더에서 묻지 않기), 활성 프로젝트의
+  자산 제안 모드(`assets mode on_demand|always_on --scope project|session`)를 바꿉니다.
+- Create a new project…는 경로에 공백이 있으면 돌리지 않습니다: `/analytics init DIR [title]`이 첫 공백에서 DIR을 끝내기 때문입니다.
+
+패널이 쓰는 텍스트 명령 가운데 둘은 kit 0.32.1에 새로 생겼고, 둘 다 사람의 명령입니다(모델 도구가 아님).
+- `/analytics settings [unknown_projects ask|always|never | not_asked_in add|remove DIR]`: 사용자 설정을 보이고, 주면 하나를 바꾼 뒤
+  보입니다(`core.set_unknown_projects`·`stop_asking_in`·`ask_again_in`). 상대 DIR은 aelix의 작업 디렉터리에서 읽습니다. 바꾼 값은 다음 찾기
+  (세션마다 한 번)부터 적용됩니다. 이 명령은 `help`처럼 프로젝트를 찾지 않습니다(찾기의 질문을 바꾸는 명령이 그 질문을 띄우지 않도록).
+- `/analytics reports list [--limit N --offset N] | show ID@REV [--limit N --offset N] | save ID --files DIR --entry FILE --title TITLE
+  --previous none|REV`: kit의 `analytics reports`와 같은 Report 저장(`core.reports`·`core.save_report`, C16)을 aelix 프로세스
+  안에서 부르고 그 JSON으로 답합니다. `--files`의 상대 경로는 프로젝트 루트에서 읽습니다(확장이 프로젝트에서 돌리는 kit 명령, run 안의
+  `analytics.save_report`와 같음). 저장의 작성 출처는 `human`·`command`이고, `record`처럼 Workspace 다시 빌드를 분리해 예약합니다(그래서 답에
+  `workspace`가 없음). `--based-on`·`--metadata`·`--request-id`와 `update`·`clean`은 셸의 `analytics reports`로 합니다.
+
+에이전트와 사람의 나눔(같은 소유자 결정): `analytics_run`의 지침 한 줄이 그 밖의 kit 동작은 bash의 `analytics COMMAND`(`analytics --help`)로
+하고 게시·신뢰·자산 제안 모드와 등록·전환은 사용자에게 맡기라고 알립니다. 지침이므로 bash의 `analytics publish`를 막지는 않습니다. 사용자
+설정을 바꾸는 함수는 모델 도구에서 닿지 않습니다(`/analytics settings`와 패널만). 실제 TUI에서 패널이 보이는 모습은 사람 검증으로 남겼습니다
+(시험은 가짜 UI와 aelix 0.1.0b2의 로더·명령 맥락).
 aelix는 세션을 만들 때마다(시작, `/new`, `/resume`, `/fork`, `/reload`) 확장을 다시 설정합니다. 파일 로드는 그때마다 새
 모듈이지만 설치본의 모듈은 프로세스에 한 번 import되므로, `setup()`이 활성 프로젝트·세션 같은 상태를 매번 처음부터
 시작합니다(체크아웃 경로와 같은 결과). 그래서 설치본을 업그레이드하면 aelix를 다시 시작해야 새 코드가 로드됩니다.
@@ -322,7 +363,7 @@ FTS5는 있으면 vocabulary를 만들지만 질의는 substring 경로를 씁�
 | `.gitignore` | 새 프로젝트의 템플릿(kit 0.8.0): `.venv/`, `__pycache__/`, `.analytics/`의 `cache/`·잠금 넷·`adhoc/`·`publications/`, `workspace/`, `data/`, `runs/*/visualizations/*.data.parquet`. 전환이 옛 `.gitignore` 끝에 더하는 새 이름과 같은 목록입니다(시험이 비교). 기존 파일은 고쳐 쓰지 않음 |
 | `pyproject.toml`·`uv.lock` | 프로젝트 환경(Python `>=3.12`, 분석 라이브러리)의 선언과 lock. 새 프로젝트의 템플릿은 duckdb·polars·pyarrow·matplotlib·plotly·pygments·markdown-it-py의 범위와 보안 수정의 하한 `pillow>=13`(kit 0.32.0, #131: Pillow 12.3.0까지 GHSA-8g5g-8vmr-9782 등 9건)을 둡니다. 런처·`bin/analytics`·확장의 init은 이어서 `uv sync`로 `uv.lock`과 환경을 만들고, 실패하면 `--offline`으로 한 번 더 합니다(kit 자신의 `init`과 SDK는 lock을 만들지 않고, 첫 `uv run`이 만듭니다). 그래서 오프라인이고 uv 캐시에 하한을 채우는 버전이 없으면 환경을 만들지 못합니다. kit은 이미 만든 프로젝트의 Pillow를 올리지 않습니다(lock이 pyproject와 맞지 않을 때 kit이 시작한 `uv run`이 lock을 다시 쓰는 것은 아래 "읽기 전용"과 같습니다). 이전 템플릿의 프로젝트에서는 사람이 `uv lock --upgrade-package pillow`와 `uv sync`를 실행합니다(그 `pyproject.toml`이 Pillow를 13 미만으로 묶었으면 올라가지 않음). `build`는 이미 있는 `.venv`를 그대로 쓰므로 동기화하지 않습니다 |
 | 신뢰 목록 | 프로젝트 **밖**의 `~/.aelix/agent/analytics-projects.json`(`analytics.trust/1`, [기록 schema](schemas/analytics-records.schema.json)의 `trust_1`, kit 0.8.0부터. `AELIX_ANALYTICS_TRUST_FILE`·`AELIX_CODING_AGENT_DIR`로 변경). init, `/analytics use`, 전환의 커밋, 작업 디렉터리에서 찾은 프로젝트를 묻는 질문의 `Use`(kit 0.32.1, A)가 추가하며(이미 있으면 파일을 그대로 둠), 작업 디렉터리와 그 조상이나 아래에서 찾은 프로젝트가 묻지 않고 활성화되려면 목록에 있어야 합니다(설정 `always`는 예외, 아래 행). 같은 디렉터리의 옛 목록 `lab-projects.json`(`lab.trust/1`, kit 0.8.0 전의 것)은 읽기만 하고 그 경로는 `lab.json` 프로젝트의 활성화에만 씁니다(항목을 옮기지 않음). `AELIX_ANALYTICS_TRUST_FILE`이 있으면 그 파일 하나를 어느 가족이든 읽어 모든 프로젝트에 쓰고, 더할 때 `analytics.trust/1`로 씁니다. 목록이 파일 링크면 그 대상을 씁니다 |
-| 사용자 설정 | 프로젝트 **밖**, 신뢰 목록과 같은 디렉터리의 `analytics-settings.json`(`analytics.settings/1`, [기록 schema](schemas/analytics-records.schema.json)의 `settings_1`, kit 0.32.1, [#169](https://github.com/handochan/aelix-analytics/issues/169). 기본은 `~/.aelix/agent/`, `AELIX_ANALYTICS_TRUST_FILE`이 있으면 그 파일의 디렉터리). aelix 확장이 작업 디렉터리에서 찾은 프로젝트를 활성화하는 방식(A): `unknown_projects` — 신뢰 목록에 없는 프로젝트를 `ask`(기본, 물을 수 있을 때 묻기)·`always`(묻지 않고 그 세션에 활성화, 물을 수 없는 실행에서도. 신뢰 목록에 더하지 않음)·`never`(묻지도 활성화하지도 않음) — 와 `not_asked_in`(묻지 않을 작업 디렉터리의 canonical 경로, 그 디렉터리만). 없는 필드는 기본값입니다. 확장은 settings_1에 맞는 파일만 씁니다: `schema`가 `analytics.settings/1`이고 `unknown_projects`가 세 값 가운데 하나(enum은 닫혀 있음)이며 `not_asked_in`이 겹치지 않는 비지 않은 문자열의 목록인 JSON 객체(모르는 필드는 허용하고 남김). 맞지 않는 파일(다른 가족·버전, 모르는 값, JSON이 아님)과 읽지 못하는 파일은 모든 설정이 기본값(`ask`, 묻는 쪽)인 것으로 읽고 고쳐 쓰지 않으며(`settings_unsupported`, `details.reason`: `invalid`·`unreadable`), 읽기와 쓰기가 같은 판정을 씁니다. POSIX에서는 이 사용자의 것이 아니거나(파일이나 그 링크, `not_owned`) 그룹·다른 사용자가 쓸 수 있는(`writable_by_others`) 파일도 쓰지 않습니다: 신뢰 목록 옆 디렉터리를 다른 계정이 쓸 수 있으면(`AELIX_ANALYTICS_TRUST_FILE`이 공유 디렉터리) 그 계정이 `always`를 심을 수 있기 때문입니다. 확장이 쓴 파일은 POSIX에서 이 사용자만 읽고 쓰는 `0600`입니다. Windows는 소유자와 권한을 보지 않습니다(한계). 신뢰 목록 자체는 이 판정을 하지 않습니다(전과 같음). 쓰기는 원자적 교체이고, 파일이 대상이 있는 링크면 그 대상을 씁니다. 두 프로세스가 함께 바꾸면 나중의 교체가 이기고 앞의 변경은 사라집니다(신뢰 목록과 같은 한계). 바꾸는 함수는 `core.set_unknown_projects`(목록 밖의 값은 `setting_invalid`)와 `core.stop_asking_in`(질문의 `Don't ask in this folder`)이고, 읽는 함수는 `core.read_settings`(`ignored`: 파일을 쓰지 않는 이유)입니다. `unknown_projects`를 바꾸는 화면은 아직 없으므로([#162](https://github.com/handochan/aelix-analytics/issues/162)) 그 전에는 파일을 직접 고칩니다 |
+| 사용자 설정 | 프로젝트 **밖**, 신뢰 목록과 같은 디렉터리의 `analytics-settings.json`(`analytics.settings/1`, [기록 schema](schemas/analytics-records.schema.json)의 `settings_1`, kit 0.32.1, [#169](https://github.com/handochan/aelix-analytics/issues/169). 기본은 `~/.aelix/agent/`, `AELIX_ANALYTICS_TRUST_FILE`이 있으면 그 파일의 디렉터리). aelix 확장이 작업 디렉터리에서 찾은 프로젝트를 활성화하는 방식(A): `unknown_projects` — 신뢰 목록에 없는 프로젝트를 `ask`(기본, 물을 수 있을 때 묻기)·`always`(묻지 않고 그 세션에 활성화, 물을 수 없는 실행에서도. 신뢰 목록에 더하지 않음)·`never`(묻지도 활성화하지도 않음) — 와 `not_asked_in`(묻지 않을 작업 디렉터리의 canonical 경로, 그 디렉터리만). 없는 필드는 기본값입니다. 확장은 settings_1에 맞는 파일만 씁니다: `schema`가 `analytics.settings/1`이고 `unknown_projects`가 세 값 가운데 하나(enum은 닫혀 있음)이며 `not_asked_in`이 겹치지 않는 비지 않은 문자열의 목록인 JSON 객체(모르는 필드는 허용하고 남김). 맞지 않는 파일(다른 가족·버전, 모르는 값, JSON이 아님)과 읽지 못하는 파일은 모든 설정이 기본값(`ask`, 묻는 쪽)인 것으로 읽고 고쳐 쓰지 않으며(`settings_unsupported`, `details.reason`: `invalid`·`unreadable`), 읽기와 쓰기가 같은 판정을 씁니다. POSIX에서는 이 사용자의 것이 아니거나(파일이나 그 링크, `not_owned`) 그룹·다른 사용자가 쓸 수 있는(`writable_by_others`) 파일도 쓰지 않습니다: 신뢰 목록 옆 디렉터리를 다른 계정이 쓸 수 있으면(`AELIX_ANALYTICS_TRUST_FILE`이 공유 디렉터리) 그 계정이 `always`를 심을 수 있기 때문입니다. 확장이 쓴 파일은 POSIX에서 이 사용자만 읽고 쓰는 `0600`입니다. Windows는 소유자와 권한을 보지 않습니다(한계). 신뢰 목록 자체는 이 판정을 하지 않습니다(전과 같음). 쓰기는 원자적 교체이고, 파일이 대상이 있는 링크면 그 대상을 씁니다. 두 프로세스가 함께 바꾸면 나중의 교체가 이기고 앞의 변경은 사라집니다(신뢰 목록과 같은 한계). 바꾸는 함수는 `core.set_unknown_projects`(목록 밖의 값은 `setting_invalid`)와 `core.stop_asking_in`(질문의 `Don't ask in this folder`)·`core.ask_again_in`(그 되돌리기, kit 0.32.1, #162: 주어진 경로와 그 canonical 경로를 목록에서 뺌)이고, 읽는 함수는 `core.read_settings`(`ignored`: 파일을 쓰지 않는 이유)입니다. 사람은 `/analytics settings`와 패널의 Settings로 바꿉니다(A "`/analytics` 패널", [#162](https://github.com/handochan/aelix-analytics/issues/162)). 모델 도구는 설정을 읽지도 바꾸지도 않습니다 |
 
 run의 **출력 비교 대상**은 프로젝트의 이름 공간(E의 경로 정체성)에서 `.venv .analytics runs workspace scripts .git __pycache__ …`와
 `analytics.json journal.jsonl CONTEXT.md pyproject.toml uv.lock .python-version .gitignore .gitattributes`를 뺀 모든 파일입니다(`.gitattributes`는
@@ -1106,6 +1147,9 @@ Workspace의 kit 문구(탭·제목·배지·버튼·빈 화면·안내·tooltip
 - kit 0.32.1부터 CLI의 `reports save`·`update`·`clean`은 `record`·`import`처럼 끝나기 전에 Workspace를 다시 빌드하고 그 결과를 키 `workspace`에 담습니다
   ([D](#d-kit-cli), #160). 사람용 `analytics`·`bin/analytics`는 이 셋을 `record`처럼 프로젝트 환경에서 부릅니다(`list`·`show`는 전처럼 환경 밖). 빌드가 실패해도 이미 끝난 저장·상태 변경·정리는 그대로이며 `{error}`로 알립니다. `list`·`show`는 빌드하지 않습니다.
   SDK의 `save_report`·`update_report`·`clean_report_prepared`는 SDK `record`처럼 빌드하지 않습니다(run 안에서 부르면 run이 끝난 뒤 빌드됩니다).
+- kit 0.32.1부터 aelix에서 사람이 `/analytics reports list|show|save`와 그것을 부르는 패널의 Reports로 같은 저장·조회를 합니다(A "`/analytics`
+  패널", #162). aelix 프로세스 안에서 `core.reports`·`core.save_report`를 부르고, 저장은 `human`·`command`로 기록하며 Workspace 빌드를
+  `/analytics record`처럼 분리해 예약합니다(답에 `workspace` 없음). `--files`의 상대 경로는 프로젝트 루트에서 읽습니다.
 - rename은 같은 파일 시스템의 서로 다른 부모 사이에서 파일/디렉터리를 배타적으로 옮깁니다. 기존 목적지를 덮지 않으며
   지원하지 않는 파일 시스템은 `no_exclusive_rename`으로 거절합니다. 비원자적 복사로 대체하지 않습니다.
 

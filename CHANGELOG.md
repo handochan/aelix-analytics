@@ -66,6 +66,19 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   `changed_during`(검증 안 됨) 선과 `observed_changes` 후보로 보입니다. run의 입력에는 그 run보다 먼저 끝난 관찰만, 시작에 걸친 관찰은 `uncertain`으로
   붙고, run도 같은 바이트를 기록했으면 그렇다고 말합니다. 관찰에서 사용처로 갈 때도 같은 시간 방향을 따르고, 관찰만 본 파일도 출처 조회의
   출발점입니다. 공유본에는 들지 않습니다.
+- #162: aelix에서 인자 없는 `/analytics`가 패널을 엽니다(aelix의 대화형 화면에서. `-p`·json·rpc와 `/analytics status`는 전과 같은 상태
+  텍스트). 첫 화면은 프로젝트와 dataset·run·chart·열린 질문과 할 일의 수이고, Status, Workspace 열기·다시 만들기, Reports(목록·보기, 폴더에서
+  새 Report나 새 버전 저장), 기록(note·finding·decision 등을 편집기로), 공유(미리보기·비공개 빌드·게시·zip·게시 시도), 분석 자산(목록·보기·
+  검토·등록), Settings, 프로젝트 바꾸기·만들기, where·맥락·명령 도움말을 고릅니다. 각 동작은 사람이 칠 수 있는 `/analytics` 명령줄을 같은
+  명령 처리로 돌리고 그 답을 보이므로 기록과 결과가 텍스트 명령과 같습니다. 게시, 프로젝트를 신뢰 목록에 더하는 사용, 처음 보는 프로젝트를
+  묻지 않고 쓰는 설정 `always`, 자산 등록은 확인을 거칩니다. aelix의 공개 대화(`select`·`input`·`editor`·`confirm`)만 씁니다. 실제 TUI에서의
+  모습은 사람 확인이 남았습니다.
+- #162: 사람 명령 `/analytics settings [unknown_projects ask|always|never | not_asked_in add|remove DIR]`(#169의 사용자 설정을 보이고 바꿈.
+  "이 폴더에선 묻지 않음"을 되돌리는 `core.ask_again_in`)와 `/analytics reports list | show ID@REV | save ID --files DIR --entry FILE --title
+  TITLE --previous none|REV`(kit의 `analytics reports`와 같은 저장·조회. `--files`는 프로젝트 루트에서 읽고, 저장 뒤 Workspace를 다시
+  만듭니다). 모델 도구는 사용자 설정에 닿지 않습니다.
+- #162: `analytics_run`의 guideline 한 줄이 그 밖의 kit 동작은 bash의 `analytics COMMAND`(`analytics --help`)로 하고, 게시·신뢰·자산 제안
+  모드와 등록·전환은 사용자에게(/analytics) 맡기라고 알립니다(2026-11-09 소유자 결정). 도구 글은 6,421자에서 6,591자로 170자 늘었습니다.
 
 ### Changed
 

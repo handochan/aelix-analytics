@@ -81,7 +81,7 @@ cd ~/analyses/demo
 aelix -e $PACK/extension/aelix_analytics.py
 ```
 
-aelix 안에서: `/analytics`(현황) · `/analytics open`(Workspace) · "지역별 성장률 차트에 플롯 데이터도 기록되게 고쳐줘" 같은 요청.
+aelix 안에서: `/analytics`(패널: 현황·Workspace·Reports·기록·공유·설정) · `/analytics open`(Workspace) · "지역별 성장률 차트에 플롯 데이터도 기록되게 고쳐줘" 같은 요청.
 
 직접 분석에 필요한 것: [uv](https://docs.astral.sh/uv/)(PATH 또는 `AELIX_ANALYTICS_UV`). Aelix 연동에는 추가로 aelix 0.1.0b2 이상이 필요합니다.
 지원 플랫폼은 Linux·macOS·Windows를 목표로 합니다. 측정한 조합(Windows는 Windows Server 2025의 한 구성)과 Windows의 한계, 아직 실행하지 않은 것(사람이 누른 콘솔 키, Windows의 실제 aelix 세션, 문서를 실제로 여는 프로그램 등)은 [현재 계약](docs/CONTRACTS.md)의 F·G절에 있습니다. Python·운영체제·aelix·설치 경로별로 실제 설치·실행한 범위와 그 증거는 [지원 범위](docs/SUPPORT.md)에 있습니다. Windows 콘솔의 Ctrl+C·Ctrl+Break는 의사 콘솔과 고전 콘솔에서 측정했습니다. Windows에서 알아 둘 것은 [Windows에서 쓸 때](#windows에서-쓸-때)에 있습니다.
@@ -244,9 +244,10 @@ PowerShell 안에서 실행한 `chcp 65001`은 PowerShell이 이미 읽어 둔 �
     더하지 않고, 여럿이면 화면에서 고릅니다.
   - `never`: 목록에 없는 프로젝트는 묻지도 쓰지도 않습니다.
 
-  설정 파일은 신뢰 목록 옆의 `~/.aelix/agent/analytics-settings.json`입니다. `{"schema": "analytics.settings/1", "unknown_projects": "always"}`처럼
-  적고 나만 쓸 수 있게 둡니다(`chmod 600`. POSIX에서 다른 계정의 파일이나 그룹·다른 사용자가 쓸 수 있는 파일은 쓰지 않습니다). 설정 화면은
-  [#162](https://github.com/handochan/aelix-analytics/issues/162)에서 더합니다. `/analytics where`가 지금 값과, 파일을 쓰지 않으면 그 이유를 보입니다.
+  설정은 `/analytics` 패널의 Settings나 `/analytics settings unknown_projects always`처럼 바꿉니다(아래 "사람 명령"). 파일은 신뢰 목록 옆의
+  `~/.aelix/agent/analytics-settings.json`(`{"schema": "analytics.settings/1", "unknown_projects": "always"}`)이고 나만 쓸 수 있게 둡니다
+  (`chmod 600`. POSIX에서 다른 계정의 파일이나 그룹·다른 사용자가 쓸 수 있는 파일은 쓰지 않습니다). `/analytics settings`와 `/analytics where`가
+  지금 값과, 파일을 쓰지 않으면 그 이유를 보입니다.
 - Aelix Analytics Engine 어댑터와 이름이 겹치지 않습니다
   (`analytics_*`·`/analytics` vs `analytics_engine_*`·`/analytics-engine`).
   다만 비교 평가는 한 번에 하나만 로드해야 공정합니다.
@@ -288,13 +289,40 @@ PNG 차트는 모델이 이미지 입력을 받을 때 `analytics_run` 결과에
 
 ### 사람 명령
 
+aelix 화면에서 인자 없는 `/analytics`는 **패널**을 엽니다(kit 0.32.1). 명령 형식을 외우지 않고 고릅니다:
+
 ```text
-/analytics                  현황              /analytics render | open      Workspace 재생성 | 브라우저로 열기
+Aelix Analytics — 3분기 매출
+/Users/me/analyses/q3-sales (via working directory)
+3 datasets · 12 runs · 8 charts · 2 open questions and todos
+→ Status                               현황(/analytics status)
+  Open the Workspace in the browser    Workspace 열기 · Rebuild the Workspace  다시 만들기
+  Reports                              저장한 Report 목록·보기, 폴더에서 새 Report·새 버전 저장
+  Record a note, finding, decision …   사람 이름으로 journal 기록(편집기)
+  Share: build and publish             미리보기·비공개 빌드·게시(확인을 거침)·zip·게시 시도
+  Analysis assets                      자산 후보 목록·보기·검토·등록(확인을 거침)
+  Settings                             처음 보는 프로젝트(ask·always·never), 묻지 않을 폴더, 자산 제안 모드
+  Switch or create a project           다른 프로젝트 쓰기(확인을 거침)·새로 만들기
+  Where, context and command help      where · 맥락 블록 · 명령 도움말
+```
+
+패널의 동작은 모두 아래 텍스트 명령을 그대로 부르고 그 답을 보입니다. 기록과 결과는 텍스트 명령과 같습니다. 화면이 없는 실행(`aelix -p`,
+json, rpc)에서 인자 없는 `/analytics`는 전처럼 현황이고, 텍스트 명령은 어디서나 그대로입니다(`/analytics help`가 전부를 보입니다):
+
+```text
+/analytics status           현황              /analytics render | open      Workspace 재생성 | 브라우저로 열기
 /analytics where            프로젝트·kit·uv   /analytics record KIND TEXT   사람 이름으로 journal 기록
 /analytics init DIR [제목]  새 프로젝트       /analytics record workflow_feedback TEXT   사용 중 부족하거나 어색했던 점 기록
 /analytics demo DIR         데모 프로젝트     /analytics context            프롬프트에 주입되는 맥락 블록 보기
 /analytics use DIR          활성 프로젝트 지정
+/analytics reports list | show ID@REV         저장한 Report의 목록 | 한 버전
+/analytics reports save ID --files DIR --entry FILE --title TITLE --previous none|REV   폴더(프로젝트 기준)를 Report로 저장
+/analytics build … | publish …                공유본 만들기 | 게시   /analytics assets …   분석 자산
+/analytics settings [unknown_projects ask|always|never | not_asked_in add|remove DIR]   처음 보는 프로젝트를 다루는 내 설정
 ```
+
+게시·신뢰·자산 제안 모드와 등록·전환은 사람이 정합니다. 모델은 도구와 bash의 `analytics` 명령으로 일반 작업(현황·조회·run·기록·Report 저장과
+목록)을 하고, `analytics_run`의 지침이 그 나눔을 알립니다(지침이며 bash의 명령을 막지는 않습니다). 사용자 설정을 바꾸는 모델 도구는 없습니다.
 
 셸에서는 같은 기능을 체크아웃의 `bin/analytics`나 설치본의 `analytics`로 씁니다(`analytics status`, `analytics run scripts/x.py --title …`,
 `analytics query "SQL"`, `analytics record finding "…"`, `analytics render` 등). 옛 형식 프로젝트의 전환(`analytics migrate`)은 셸에서만
@@ -602,7 +630,8 @@ uv run --locked pytest -q --timeout 600 --timeout-method=thread   # kit, 런처,
 AELIX_ANALYTICS_TEST_INSTALL=1 uv run --locked pytest -q --timeout 600 --timeout-method=thread tests/test_packaging.py   # aelix 0.1.0b2와 실제 uv로 끝까지 (네트워크)
 uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 \
   python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_asset_extension.py \
-  tests/test_checkpoint_extension.py tests/test_usage_report.py tests/test_agent_cli.py   # aelix 통합 (CI와 같은 환경)
+  tests/test_checkpoint_extension.py tests/test_usage_report.py tests/test_agent_cli.py \
+  tests/test_panel_extension.py   # aelix 통합 (CI와 같은 환경)
 uv run --locked ruff check tests extension src tools
 ```
 

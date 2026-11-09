@@ -28,7 +28,7 @@ Workspace는 프로젝트를 탐색하는 인터페이스이며 프로젝트 루
 | 대상 | 현재 명칭 | 공식 전환 목표 |
 |---|---|---|
 | 제품 / 저장소·배포 이름 | Aelix Analytics / `aelix-analytics` | 유지 |
-| Aelix 사람 명령 | `/analytics`(kit 0.3.0부터. 그 전은 `/lab`) | `/analytics` |
+| Aelix 사람 명령 | `/analytics`(kit 0.3.0부터. 그 전은 `/lab`). 인자 없이 aelix의 대화형 화면에서는 `/analytics` 패널(kit 0.32.1, #162: 하위 명령을 고르는 화면이며 label은 영어), 하위 명령 `settings`·`reports`(kit 0.32.1) | `/analytics` |
 | CLI / 모듈 실행 | 체크아웃의 `bin/analytics`와 설치본의 `analytics`(kit 0.3.0부터. 그 전은 `bin/lab`), `python -m aelix_analytics`(실행 루트에서만, 2026-10-06부터. 그 전은 `python -m labkit`) | `analytics`, `python -m aelix_analytics` |
 | Python SDK | `import aelix_analytics as analytics`(2026-10-06부터. 그 전은 `import labkit as lab`, 별칭 없음) | `import aelix_analytics as analytics` |
 | 확장 진입 파일 | `extension/aelix_analytics.py`, 설치본의 `aelix_analytics.extension`(kit 0.3.0부터. 그 전은 `extension/aelix_lab.py`) | `extension/aelix_analytics.py`; 패키징 이후 `aelix_analytics.extension` |

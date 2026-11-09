@@ -1318,6 +1318,10 @@ TOOLS = [
             "are established, citing run ids; keep CONTEXT.md current by editing it.",
             "If the analytics tools block you or force a workaround, record it with analytics_record "
             "kind=workflow_feedback (this tooling is being evaluated).",
+            # The owner's split of 2026-11-09 (#162): ordinary work through the tools and the kit's
+            # command line; what a person confirms stays in their /analytics panel.
+            "Other kit operations run in bash as `analytics COMMAND` (see `analytics --help`); leave publish, "
+            "trust, asset mode and registration, and migrate to the user (/analytics).",
         ),
     ),
     _tool(
@@ -2531,12 +2535,17 @@ def on_agent_end(event, ctx):
 # --- human command ---
 
 HELP = """/analytics — Aelix Analytics project
-  /analytics                    status of the active project
-  /analytics where              project, kit and uv in use
+  /analytics                    the panel in aelix's interactive screen; without one (-p, json,
+                                rpc) the status, as /analytics status
+  /analytics status             status of the active project
+  /analytics where              project, kit, uv and settings in use
   /analytics init DIR [title]   create a project + environment and make it active
   /analytics demo DIR           new project with synthetic data and example runs
   /analytics use DIR            make DIR the active project for this aelix process
   /analytics render | open      rebuild the Workspace | open it in the browser
+  /analytics reports list | show ID@REVISION
+  /analytics reports save ID --files DIR --entry FILE --title TITLE --previous none|REVISION
+                                save a folder's files (DIR from the project) as a Report revision
   /analytics build [--preview]  build privately or inspect a sharing preview
   /analytics build --list | --verify PATH | --zip-of ID --zip PATH
   /analytics publish --build ID --to FOLDER | --list  publish a build to a folder
@@ -2549,6 +2558,8 @@ HELP = """/analytics — Aelix Analytics project
   /analytics assets mode on_demand|always_on [--scope project|session]
   /analytics assets update EVENT --expected STATE --to STATE --reason TEXT [--details-json JSON]
   /analytics assets register EVENT --name NAME
+  /analytics settings [unknown_projects ask|always|never | not_asked_in add|remove DIR]
+                                your settings for projects aelix finds where it starts
 A project of the older record format (lab.json) is read only here: a person copies it into the
 current format in a terminal (analytics migrate --to DIR, preview with --dry-run), then
 /analytics use DIR."""
@@ -2559,9 +2570,14 @@ async def analytics_command(args, ctx=None):
     sub, _, rest = text.partition(" ")
     rest = rest.strip()
     try:
-        if sub not in ("use", "init", "demo", "help", "-h", "--help"):
+        if sub not in ("use", "init", "demo", "help", "-h", "--help", "settings"):
             # A command before the session's first prompt finds the project as that prompt would.
+            # Not `settings`: changing what aelix does with a project it finds must not ask about one.
             await activate_found_project(ctx)
+        if not text and _can_ask(ctx):
+            # The panel (#162), where aelix's interactive screen can show one; its actions are
+            # command lines run through this function. Without it, the status, as before.
+            return await open_panel(ctx)
         if sub in ("", "status"):
             project, via = resolve_project()
             options = human_options(rest, {"part", "query", "id", "cursor", "kind", "state", "since", "until",
@@ -2585,6 +2601,10 @@ async def analytics_command(args, ctx=None):
             return f"(project via {via})\n" + shown
         if sub == "assets":
             return await human_assets(rest, ctx)
+        if sub == "reports":
+            return await human_reports(rest, ctx)
+        if sub == "settings":
+            return await human_settings(rest)
         if sub in ("help", "-h", "--help"):
             return HELP
         if sub == "where":
@@ -2746,7 +2766,7 @@ def human_options(text, allowed):
         name = flag[2:].replace("-", "_") if flag.startswith("--") else ""
         if name not in allowed:
             raise core.AnalyticsError("bad_query", f"unsupported option {flag!r}")
-        if name in ("limit", "as_of_seq", "depth"):
+        if name in ("limit", "as_of_seq", "depth", "offset"):
             try:
                 value = int(value)
             except ValueError as exc:
@@ -2800,6 +2820,107 @@ async def human_assets(text, ctx):
     return json.dumps(result, ensure_ascii=False, indent=2)
 
 
+REPORTS_USAGE = ("/analytics reports list | show REPORT_ID@REVISION_ID | save REPORT_ID --files DIR --entry FILE "
+                 "--title TITLE --previous none|REVISION_ID")
+
+
+async def human_reports(text, ctx):
+    """`/analytics reports`: the kit's Report storage, as `analytics reports list|show|save` has it,
+    for a person in aelix (#162). Read and saved in this process, as /analytics assets and record
+    are (core.reports and core.save_report import the standard library only); a save is the
+    person's (human, command) and rebuilds the Workspace afterwards, as a record does (#160).
+    `--files` is read from the project root, as the paths of the kit commands this extension runs
+    there and of analytics.save_report in a run are; `--previous` is explicit, none the first time."""
+    try:
+        words = shlex.split(text)
+    except ValueError as exc:
+        raise core.AnalyticsError("report_input_invalid", "quote the report arguments") from exc
+    action, args = (words[0], words[1:]) if words else ("", [])
+    if action not in ("list", "show", "save") or (action != "list" and not args):
+        raise core.AnalyticsError("report_input_invalid", "unknown report action or arguments", hint=REPORTS_USAGE)
+    project, _ = resolve_project()
+    if action == "list":
+        options = human_options(shlex.join(args), {"limit", "offset"})
+        result = await asyncio.to_thread(lambda: core.reports(project, **options))
+    elif action == "show":
+        target, tail = args[0], args[1:]
+        if target.count("@") != 1 or not all(target.split("@")):
+            raise core.AnalyticsError("report_input_invalid", "Give an exact report_id@revision_id")
+        report_id, revision_id = target.split("@")
+        options = human_options(shlex.join(tail), {"limit", "offset"})
+        result = await asyncio.to_thread(lambda: core.reports(project, report_id, revision_id, **options))
+    else:
+        report_id, tail = args[0], args[1:]
+        options = human_options(shlex.join(tail), {"files", "entry", "title", "previous"})
+        if set(options) != {"files", "entry", "title", "previous"}:
+            raise core.AnalyticsError("report_input_invalid", "save needs --files, --entry, --title and --previous",
+                                      hint=REPORTS_USAGE)
+        try:
+            files = Path(options["files"]).expanduser()
+        except RuntimeError as exc:  # "~typo/dir"
+            raise core.AnalyticsError("report_source_invalid", f"--files cannot be read: {exc}") from exc
+        files = files if files.is_absolute() else project.root / files
+        previous = None if options["previous"] == "none" else options["previous"]
+        authored = command_origin(ctx)
+        result = await asyncio.to_thread(lambda: core.save_report(
+            project, report_id, files=str(files), entry=options["entry"], title=options["title"],
+            previous_revision=previous, origin=authored))
+        # The Reports tab shows what was just saved (#160), as after a record.
+        schedule_workspace_render(project, "command")
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+# What `unknown_projects` does with a project found where aelix starts that the trust list does not
+# hold (core.UNKNOWN_PROJECTS, #169), as /analytics settings says it.
+UNKNOWN_PROJECT_MODES = {
+    "ask": "ask a person, where aelix can ask (the default)",
+    "always": "use it without asking, also where aelix cannot ask; it is not added to the trust list",
+    "never": "neither ask nor use it",
+}
+SETTINGS_USAGE = "/analytics settings [unknown_projects ask|always|never | not_asked_in add|remove DIR]"
+
+
+async def human_settings(text):
+    """`/analytics settings`: the user's settings for the projects aelix finds where it starts
+    (analytics.settings/1 beside the trust list, #169), shown, or one of them changed first. A
+    person's command: no model tool reads or changes them, and the panel's Settings runs this
+    command. A change applies from the next look for a project, which is once per session (its
+    first prompt or /analytics command). A relative DIR is read from aelix's working directory."""
+    try:
+        words = shlex.split(text)
+    except ValueError as exc:
+        raise core.AnalyticsError("setting_invalid", "quote the folder") from exc
+    if words[:1] == ["unknown_projects"] and len(words) == 2:
+        await asyncio.to_thread(core.set_unknown_projects, words[1])
+    elif words[:1] == ["not_asked_in"] and len(words) == 3 and words[1] in ("add", "remove"):
+        try:
+            folder = Path(words[2]).expanduser()
+        except RuntimeError as exc:  # "~typo/dir"
+            raise core.AnalyticsError("setting_invalid", f"the folder cannot be read: {exc}") from exc
+        folder = folder if folder.is_absolute() else Path(os.getcwd()) / folder
+        change = core.stop_asking_in if words[1] == "add" else core.ask_again_in
+        await asyncio.to_thread(change, folder)
+    elif words:
+        raise core.AnalyticsError("setting_invalid", "unknown setting or arguments", hint=SETTINGS_USAGE)
+    return await asyncio.to_thread(settings_text)
+
+
+def settings_text() -> str:
+    settings = core.read_settings()
+    ignored = settings["ignored"]
+    lines = [f"settings: {core.settings_file()}" + (
+        f" (not used: it {core.SETTINGS_PROBLEMS[ignored]}; every setting is its default)" if ignored else "")]
+    mode = settings["unknown_projects"]
+    lines.append(f"unknown_projects: {mode} — a project found where aelix starts that is not on the trust "
+                 f"list: {UNKNOWN_PROJECT_MODES[mode]}")
+    folders = settings["not_asked_in"]
+    lines.append("not_asked_in: " + ("none" if not folders else "folders where aelix does not ask"))
+    lines += [f"  {folder}" for folder in folders]
+    cwd = os.getcwd()
+    lines.append(f"aelix's working directory {cwd}: {'asked' if core.asks_in(cwd) else 'not asked'}")
+    return "\n".join(lines)
+
+
 def _discover_project_skill(directory):
     from aelix_agent_core.harness.skills import load_skills
 
@@ -2809,6 +2930,502 @@ def _discover_project_skill(directory):
     return {"result": "pass" if found else "failed", "scope": "project",
             "loader": "aelix 0.1.0b2 load_skills", "files": [str(expected)],
             "diagnostics": [str(value) for value in loaded.diagnostics]}
+
+
+# --- the panel (Issue #162) ---
+#
+# A bare /analytics opens this panel where aelix's interactive screen can show one (ctx.has_ui), as
+# aelix-memory's /memory does; elsewhere (-p, json, rpc) it is the status, as before. The panel is a
+# way to choose /analytics commands, not a second implementation of them: every action it takes is a
+# command line run through analytics_command — the line a person could type — and what it shows
+# after an action is that command's answer. It reads only to draw its menus (the project and its
+# counts, the lists to choose from, the settings). It uses aelix's public dialogs only (ctx.ui's
+# select, input, editor and confirm), and confirms first what goes outward or is hard to take back:
+# a publish, a project added to the trust list, the setting that uses unknown projects without
+# asking, an asset's registration.
+
+PANEL_WIDTH = 72  # cells of a line, so that a page fits an 80-column terminal with the dialog's frame
+PANEL_LINES = 12  # lines of a page
+PANEL_LIST = 100  # entries of a list read at once (core.reports' bound)
+BACK, CLOSE, MORE = "Back", "Close", "More"
+NEXT_PAGE, PREVIOUS_PAGE = "Next page", "Previous page"
+PANEL_CLOSED = "Analytics panel closed."
+# The journal kinds a person writes as text alone (the structured kinds take details: /analytics
+# record KIND TEXT --details-json …), with what each is for.
+PANEL_RECORD_KINDS = {
+    "note — anything worth keeping": "note",
+    "finding — an established result": "finding",
+    "decision — a choice made, and why": "decision",
+    "assumption — something taken as true": "assumption",
+    "question — an open question": "question",
+    "todo — something to do": "todo",
+    "workflow_feedback — what this analysis tooling lacked or made awkward": "workflow_feedback",
+}
+PANEL_UNKNOWN_PROJECTS = {
+    "ask — ask me, where aelix can ask (the default)": "ask",
+    "always — use it without asking": "always",
+    "never — neither ask nor use it": "never",
+}
+PANEL_ASSET_MODES = {
+    "on_demand — only when asked, in this project": ("on_demand", "project"),
+    "always_on — on its own when one is due, in this project": ("always_on", "project"),
+    "on_demand — in this aelix session only": ("on_demand", "session"),
+    "always_on — in this aelix session only": ("always_on", "session"),
+}
+# Format characters a screen keeps: the joiners some scripts and emoji need.
+JOINERS = frozenset("\u200c\u200d")
+LINE_BREAKS = frozenset("\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029")
+
+
+def _screen(value) -> str:
+    """`value` as a dialog may show it: line ends as LF, and no other control or format character,
+    so a record's text cannot move aelix's cursor, change its colours or reorder a line."""
+    out = []
+    for ch in str(value).replace("\r\n", "\n"):
+        if ch in "\n\t" or ch in JOINERS:
+            out.append(ch)
+        elif ch in LINE_BREAKS:
+            out.append("\n")
+        elif unicodedata.category(ch) not in ("Cc", "Cf", "Cs"):
+            out.append(ch)
+    return "".join(out)
+
+
+def _cells(ch: str) -> int:
+    return 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+
+
+def _line(value, width: int = PANEL_WIDTH) -> str:
+    """`value` on one line of at most `width` cells, ending in … where it was cut."""
+    text = " ".join(_screen(value).split())
+    if sum(map(_cells, text)) <= width:
+        return text
+    out, used = [], 0
+    for ch in text:
+        if used + _cells(ch) > width - 1:
+            break
+        out.append(ch)
+        used += _cells(ch)
+    return "".join(out) + "…"
+
+
+def page_lines(value, width: int = PANEL_WIDTH) -> list[str]:
+    """`value`'s lines, each cut into lines of at most `width` cells."""
+    lines = []
+    for line in _screen(value).expandtabs(4).split("\n"):
+        current, used = [], 0
+        for ch in line:
+            if used + _cells(ch) > width:
+                lines.append("".join(current))
+                current, used = [], 0
+            current.append(ch)
+            used += _cells(ch)
+        lines.append("".join(current))
+    return lines
+
+
+def _numbered(labels) -> list[str]:
+    """Options numbered from 1, so that two which read the same once cut are still two."""
+    return [f"{i}. {_line(label, PANEL_WIDTH - 6)}" for i, label in enumerate(labels, 1)]
+
+
+def _answer_value(answer: str):
+    """The JSON object a command answered with (reports, build, publish, assets), or None: an
+    error's text, or any other answer."""
+    try:
+        value = json.loads(answer)
+    except ValueError:
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _count(n: int, one: str, many: str) -> str:
+    return f"{n:,} {one if n == 1 else many}"
+
+
+async def open_panel(ctx) -> str:
+    """The panel for this command's context: its actions run through analytics_command with the
+    same context, so they are the person's commands in this session."""
+    async def execute(line: str) -> str:
+        return await analytics_command(line, ctx)
+
+    return await AnalyticsPanel(ctx.ui, execute, session=current_session(ctx)).open()
+
+
+class AnalyticsPanel:
+    """The /analytics panel (see above). `execute(line)` runs an /analytics command line and gives
+    its answer; `ui` is aelix's ctx.ui; `session` is this session's file, for the asset suggestion
+    mode it shows."""
+
+    def __init__(self, ui, execute, *, session=None):
+        self.ui, self.execute, self.session = ui, execute, session
+
+    # -- what every screen does --
+
+    async def show(self, title: str, text: str) -> None:
+        """`text` page by page (PANEL_LINES lines of PANEL_WIDTH cells) until Back."""
+        lines = page_lines(text)
+        pages = [lines[i:i + PANEL_LINES] for i in range(0, len(lines), PANEL_LINES)]
+        index = 0
+        while True:
+            options = ([NEXT_PAGE] if index + 1 < len(pages) else []) + ([PREVIOUS_PAGE] if index else []) + [BACK]
+            heading = (_line(title) if len(pages) == 1
+                       else f"{_line(title, PANEL_WIDTH - 12)} ({index + 1}/{len(pages)})")
+            choice = await self.ui.select(heading + "\n" + "\n".join(pages[index]), options)
+            if choice == NEXT_PAGE:
+                index += 1
+            elif choice == PREVIOUS_PAGE:
+                index -= 1
+            else:
+                return
+
+    async def run(self, title: str, line: str) -> str:
+        """Run the /analytics command `line` and show its answer."""
+        answer = await self.execute(line)
+        await self.show(title, answer)
+        return answer
+
+    async def ask(self, title: str) -> str | None:
+        """A line the person types, stripped; None when the dialog is dismissed or left empty."""
+        answer = await self.ui.input(title)
+        return answer.strip() if isinstance(answer, str) and answer.strip() else None
+
+    async def menu(self, title: str, actions: dict) -> None:
+        """Choose among `actions` (label: coroutine function) until Back, or until an action
+        answers True: what the menu is about changed (a new revision, a registration)."""
+        while True:
+            choice = await self.ui.select(title, [*actions, BACK])
+            if choice not in actions or await actions[choice]() is True:
+                return
+
+    # -- the first screen --
+
+    async def open(self) -> str:
+        while True:
+            heading, actions = await self.first_screen()
+            choice = await self.ui.select(heading, [*actions, CLOSE])
+            if choice not in actions:
+                return PANEL_CLOSED
+            try:
+                await actions[choice]()
+            except core.AnalyticsError as exc:
+                await self.show(choice, render_error("/analytics", exc.to_json()))
+            except Exception as exc:  # noqa: BLE001 - the panel stays open; what failed is shown
+                await self.show(choice, f"/analytics panel: internal error {type(exc).__name__}: {exc}")
+
+    async def first_screen(self) -> tuple[str, dict]:
+        """The first screen's title — the project, how it was found, its counts — and its actions:
+        those of a project, or those that make one active."""
+        try:
+            project, via = resolve_project()
+        except core.AnalyticsError as exc:
+            lines = ["Aelix Analytics — no active project", *page_lines(f"[{exc.code}] {exc.message}")[:4]]
+            return "\n".join(lines), {
+                "Use a project…": self.use_project,
+                "Create a new project…": self.create_project,
+                "Settings": lambda: self.settings(None),
+                "Where, context and command help": self.details,
+            }
+        # The whole path, over more than one line where it is long: which project it is.
+        title, lines, hint = project.root.name, page_lines(f"{project.root} (via {via})"), None
+        try:
+            st = await asyncio.to_thread(core.status, project)
+        except core.AnalyticsError as exc:
+            lines.append(_line(f"status: error [{exc.code}] {exc.message}"))
+        except Exception as exc:  # noqa: BLE001 - the first screen opens all the same; Status says more
+            lines.append(_line(f"status: internal error {type(exc).__name__}: {exc}"))
+        else:
+            title, counts = st["project"]["title"], st["counts"]
+            lines.append(" · ".join([_count(counts["datasets"], "dataset", "datasets"),
+                                     _count(counts["runs"], "run", "runs"),
+                                     _count(counts["charts"], "chart", "charts"),
+                                     _count(counts["open"], "open question or todo", "open questions and todos")]))
+            refusal = st["project"].get("write_refusal")
+            if refusal:
+                lines.append(_line(f"read only: [{refusal.get('code')}] {refusal.get('message')}"))
+            hint = st["project"].get("migration_hint")
+        actions = {
+            "Status": lambda: self.run("Status", "status"),
+            "Open the Workspace in the browser": lambda: self.run("Workspace", "open"),
+            "Rebuild the Workspace": lambda: self.run("Workspace", "render"),
+            "Reports": self.reports,
+            "Record a note, finding, decision …": self.record,
+            "Share: build and publish": self.share,
+            "Analysis assets": self.assets,
+            "Settings": lambda: self.settings(project),
+            "Switch or create a project": lambda: self.menu("Switch or create a project", {
+                "Use a project…": self.use_project, "Create a new project…": self.create_project}),
+            "Where, context and command help": self.details,
+        }
+        if hint:
+            # A lab.json project: the kit's own words for copying it into the current format.
+            actions = {"Status": actions.pop("Status"),
+                       "Copy it into the current format": lambda: self.show("Older record format", hint),
+                       **actions}
+        return "\n".join([_line(f"Aelix Analytics — {title}"), *lines]), actions
+
+    # -- records and Reports --
+
+    async def record(self) -> None:
+        choice = await self.ui.select("Record in the journal as yourself — which kind of entry?",
+                                      [*PANEL_RECORD_KINDS, BACK])
+        kind = PANEL_RECORD_KINDS.get(choice)
+        if kind is None:
+            return
+        text = await self.ui.editor(f"{kind}: the entry, self-contained")
+        if text is None or not text.strip():
+            return
+        await self.run(f"Record {kind}", f"record {kind} {text.strip()}")
+
+    async def reports(self) -> None:
+        offset, new = 0, "Save a new Report from a folder…"
+        while True:
+            answer = await self.execute(f"reports list --limit {PANEL_LIST} --offset {offset}")
+            value = _answer_value(answer)
+            if value is None or not isinstance(value.get("reports"), list):
+                await self.show("Reports", answer)
+                return
+            rows = value["reports"]
+            labels = _numbered(self._report_label(row) for row in rows)
+            options = [new, *labels, *([MORE] if value.get("next_offset") is not None else []), BACK]
+            shown = (f"{offset + 1:,}–{offset + len(rows):,} of {value.get('total', len(rows)):,}"
+                     if rows else "none yet")
+            choice = await self.ui.select(
+                f"Reports — saved revisions: {shown}\nA Report is a document saved from a folder of "
+                "files; each save is a revision that stays.", options)
+            if choice == new:
+                await self.save_report()
+            elif choice in labels:
+                await self.report(rows[labels.index(choice)])
+            elif choice == MORE:
+                offset = value["next_offset"]
+            else:
+                return
+
+    @staticmethod
+    def _report_label(row: dict) -> str:
+        notes = [n for n in ("head" if row.get("head") else None,
+                             row.get("recording_status") if row.get("recording_status") != "complete" else None,
+                             row.get("state"), row.get("problem")) if n]
+        return f"{row.get('report_id')} @ {row.get('revision_id')}" + (f" ({', '.join(notes)})" if notes else "")
+
+    async def report(self, row: dict) -> None:
+        target = f"{row.get('report_id')}@{row.get('revision_id')}"
+        again = "Save a new revision from a folder…"
+        actions = {"Details": lambda: self.run(f"Report {target}", f"reports show {shlex.quote(target)}")}
+        if row.get("head") and row.get("recording_status") == "complete":
+            actions[again] = lambda: self.save_report(row["report_id"], row["revision_id"])
+        await self.menu(_line(f"Report {target}"), actions)
+
+    async def save_report(self, report_id: str | None = None, previous: str = "none") -> bool:
+        """Ask for what `reports save` needs and run it; True once it ran (the list has changed)."""
+        if report_id is None:
+            report_id = await self.ask("Report id — lower-case ASCII letters, digits and '-' (e.g. q3-review)")
+            if report_id is None:
+                return False
+        folder = await self.ask("Folder of the Report's files — from the project root, or absolute")
+        entry = folder and await self.ask("Entry file in that folder, which readers open first (e.g. index.html)")
+        title = entry and await self.ask("Title of the Report")
+        if title is None:
+            return False
+        await self.run(f"Save Report {report_id}", shlex.join([
+            "reports", "save", report_id, "--files", folder, "--entry", entry, "--title", title,
+            "--previous", previous]))
+        return True
+
+    # -- sharing --
+
+    async def share(self) -> None:
+        await self.menu("Share — a build is private until you publish it", {
+            "Preview what a build would share": lambda: self.run("Build preview", "build --preview"),
+            "Build a publication privately": lambda: self.run("Build", "build"),
+            "Builds: publish one or make a zip": self.builds,
+            "Publish attempts": lambda: self.run("Publish attempts", "publish --list"),
+        })
+
+    async def builds(self) -> None:
+        answer = await self.execute("build --list")
+        value = _answer_value(answer)
+        if value is None or not isinstance(value.get("publications"), list):
+            await self.show("Builds", answer)
+            return
+        rows = value["publications"]
+        if not rows:
+            await self.show("Builds", "No builds yet: build a publication privately first.")
+            return
+        labels = _numbered(f"{r.get('publication_id')} — {r.get('recording_status')}, folder "
+                           f"{r.get('folder_status')}, {r.get('scope')} / {r.get('profile')}" for r in rows)
+        choice = await self.ui.select("Builds — choose one to publish or zip", [*labels, BACK])
+        if choice in labels:
+            await self.build(rows[labels.index(choice)]["publication_id"])
+
+    async def build(self, publication_id: str) -> None:
+        async def publish() -> None:
+            folder = await self.ask(f"Folder to publish {publication_id} to — from the project root, or absolute")
+            if folder is None or not await self.ui.confirm(
+                    f"Publish {publication_id}?",
+                    f"It is published into {folder}: whoever can read that folder can read what it shares "
+                    "(Preview shows what a build shares)."):
+                return
+            await self.run(f"Publish {publication_id}",
+                           shlex.join(["publish", "--build", publication_id, "--to", folder]))
+
+        async def zipped() -> None:
+            path = await self.ask("Zip file to write — from the project root, or absolute")
+            if path is not None:
+                await self.run(f"Zip of {publication_id}",
+                               shlex.join(["build", "--zip-of", publication_id, "--zip", path]))
+
+        await self.menu(_line(f"Build {publication_id}"),
+                        {"Publish to a folder…": publish, "Make a zip file…": zipped})
+
+    # -- analysis assets --
+
+    async def assets(self) -> None:
+        review = "Review the candidates now"
+        while True:
+            answer = await self.execute("assets list")
+            value = _answer_value(answer)
+            if value is None or not isinstance(value.get("assets"), list):
+                await self.show("Analysis assets", answer)
+                return
+            items = value["assets"]
+            labels = _numbered(f"{a.get('asset_id')} — {a.get('title')} [{a.get('state')}]" for a in items)
+            choice = await self.ui.select(
+                f"Analysis assets — {_count(len(items), 'candidate', 'candidates')}\nReusable analysis "
+                "made from this project's runs; registering one copies it into the project.",
+                [*labels, review, BACK])
+            if choice in labels:
+                await self.asset(items[labels.index(choice)])
+            elif choice == review:
+                await self.run("Asset review", "assets review")
+            else:
+                return
+
+    async def asset(self, item: dict) -> None:
+        asset_id, event_id = str(item.get("asset_id")), str(item.get("event_id"))
+
+        async def register() -> bool:
+            name = await self.ask(f"Name to register {asset_id} under — lower-case ASCII letters, digits, "
+                                  "'_' and '-'")
+            if name is None or not await self.ui.confirm(
+                    f"Register {asset_id}?",
+                    f"Version {event_id} is copied into this project as {name} (.aelix/skills/ for a skill, "
+                    "lib/ otherwise), where aelix sessions in the project can use it."):
+                return False
+            await self.run(f"Register {asset_id}", shlex.join(["assets", "register", event_id, "--name", name]))
+            return True
+
+        actions = {"Details": lambda: self.run(f"Asset {asset_id}", f"assets show {shlex.quote(asset_id)}")}
+        if item.get("state") == "validated" and not item.get("legacy"):
+            actions["Register this version…"] = register
+        await self.menu(_line(f"Asset {asset_id} [{item.get('state')}]"), actions)
+
+    # -- settings --
+
+    async def settings(self, project) -> None:
+        while True:
+            settings = await asyncio.to_thread(core.read_settings)
+            cwd = os.getcwd()
+            asked = await asyncio.to_thread(core.asks_in, cwd)
+            mode, folders = settings["unknown_projects"], settings["not_asked_in"]
+            actions = {
+                f"Projects not on the trust list: {mode}": lambda mode=mode: self.unknown_projects(mode),
+                f"Folders where aelix does not ask: {len(folders)}":
+                    lambda folders=folders, cwd=cwd, asked=asked: self.not_asked_in(folders, cwd, asked),
+            }
+            if project is not None:
+                now = await asyncio.to_thread(self._asset_mode_now, project)
+                actions[f"Asset suggestions in this project: {now}"] = lambda now=now: self.asset_mode(now)
+            actions["Show the settings"] = lambda: self.run("Settings", "settings")
+            heading = ["Settings — yours, for every project, beside the trust list",
+                       _line(str(core.settings_file()))]
+            if settings["ignored"]:
+                heading.append(_line(f"not used: it {core.SETTINGS_PROBLEMS[settings['ignored']]}"))
+            choice = await self.ui.select("\n".join(heading), [*actions, BACK])
+            if choice not in actions:
+                return
+            await actions[choice]()
+
+    def _asset_mode_now(self, project) -> str:
+        try:
+            now = core.asset_suggestion_status(project, session=self.session)
+        except core.AnalyticsError:
+            return "unknown"
+        return now["mode"] + (" (this session)" if now.get("scope") == "session" else "")
+
+    async def unknown_projects(self, now: str) -> None:
+        choice = await self.ui.select(
+            f"A project found where aelix starts that is not on the trust list (now: {now})",
+            [*PANEL_UNKNOWN_PROJECTS, BACK])
+        mode = PANEL_UNKNOWN_PROJECTS.get(choice)
+        if mode is None or (mode == "always" and not await self.ui.confirm(
+                "Use unknown projects without asking?",
+                f"{WHY_TRUST} With always, a project found where aelix starts is used without asking, also "
+                "in a run that cannot ask (-p, json, rpc).")):
+            return
+        await self.run("Settings", f"settings unknown_projects {mode}")
+
+    async def not_asked_in(self, folders: list, cwd: str, asked: bool) -> None:
+        labels = _numbered(f"Ask again in {folder}" for folder in folders)
+        here = _line(f"Don't ask when aelix starts in {cwd}")
+        choice = await self.ui.select("Folders where aelix does not ask about the projects it finds",
+                                      [*labels, *([here] if asked else []), BACK])
+        if choice in labels:
+            await self.run("Settings", shlex.join(["settings", "not_asked_in", "remove",
+                                                   folders[labels.index(choice)]]))
+        elif asked and choice == here:
+            await self.run("Settings", shlex.join(["settings", "not_asked_in", "add", cwd]))
+
+    async def asset_mode(self, now: str) -> None:
+        choice = await self.ui.select(
+            f"Asset suggestions (now: {now}) — model-free suggestions of reusable analysis",
+            [*PANEL_ASSET_MODES, BACK])
+        if choice in PANEL_ASSET_MODES:
+            mode, scope = PANEL_ASSET_MODES[choice]
+            await self.run("Asset suggestions", f"assets mode {mode} --scope {scope}")
+
+    # -- projects and details --
+
+    async def use_project(self) -> None:
+        found = [str(root) for root in STATE["passed"][:MAX_LIST]]
+        labels = _numbered(f"Use {root}" for root in found)
+        other = "A project in another folder…"
+        choice = await self.ui.select("Use a project — one found where aelix started, or another",
+                                      [*labels, other, BACK]) if found else other
+        if choice in labels:
+            root = found[labels.index(choice)]
+        elif choice == other:
+            root = await self.ask("Folder of the project — from aelix's working directory, or absolute")
+        else:
+            return
+        if root is None or not await self.ui.confirm(
+                "Use this project?", f"{root}\n{WHY_TRUST} It is added to the trust list, so aelix uses it "
+                                     "without asking when it starts there."):
+            return
+        await self.run("Project", f"use {root}")
+
+    async def create_project(self) -> None:
+        folder = await self.ask("Folder for the new project — new or empty; from aelix's working "
+                                "directory, or absolute")
+        if folder is None:
+            return
+        if any(ch.isspace() for ch in folder):
+            # /analytics init DIR [title] ends DIR at its first space.
+            await self.show("New project", "/analytics init takes a folder whose path has no spaces. Create "
+                                           "this one in a terminal (analytics init 'DIR'), then use it here.")
+            return
+        title = await self.ui.input("Title of the project (may be left empty)")
+        if title is None:
+            return
+        await self.run("New project", f"init {folder} {title.strip()}".strip())
+
+    async def details(self) -> None:
+        await self.menu("Where, context and command help", {
+            "Where: project, kit, uv and settings": lambda: self.run("Where", "where"),
+            "Context given to the model": lambda: self.run("Context", "context"),
+            "Command help": lambda: self.run("Commands", "help"),
+        })
 
 
 # The channel on aelix's shared event bus through which a copy of this extension that is already set
@@ -2858,8 +3475,8 @@ def setup(aelix):
     for tool in TOOLS:
         aelix.register_tool(tool)
     aelix.register_command("analytics", handler=analytics_command,
-                           description="Analytics: status | where | init | demo | use | render | "
-                                       "open | record | context | build --preview")
+                           description="Analytics panel (status, Workspace, Reports, records, sharing, "
+                                       "assets, settings); /analytics help lists the text commands")
     aelix.on("before_agent_start", on_before_agent_start)
     aelix.on("tool_execution_start", on_tool_start)
     aelix.on("tool_execution_end", on_tool_end)

@@ -30,7 +30,10 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path, PureWindowsPath
 
-from . import _platform, asset_app, asset_suggestions, checkpoints, relations, writer
+# report_app is bound here, not where it is used: the aelix extension loads this module under a
+# package name that is gone once the load is over, so a sibling imported later is not found
+# (/analytics reports, #162).
+from . import _platform, asset_app, asset_suggestions, checkpoints, relations, report_app, writer
 from . import observed as observed
 from ._platform import newlines_as_lf as newlines_as_lf
 from ._platform import open_text as open_text
@@ -1661,6 +1664,23 @@ def stop_asking_in(folder, *, platform: _platform.Platform | None = None) -> dic
     return _change_settings(change, platform=platform)
 
 
+def ask_again_in(folder, *, platform: _platform.Platform | None = None) -> dict:
+    """Undo stop_asking_in: the aelix extension may ask about projects when it starts in `folder`
+    again (the settings screen's choice, #162). `folder` is matched as given and as its canonical
+    path, so a folder that is gone or moved since can still be taken off the list. A list without
+    it is left as it is."""
+    given = str(Path(folder).expanduser())
+    names = {given, canonical(given)}
+    settings = read_settings()
+    if settings["ignored"] is None and not names & set(settings["not_asked_in"]):
+        return settings
+
+    def change(value: dict) -> None:
+        value["not_asked_in"] = [f for f in value.get("not_asked_in", []) if f not in names]
+
+    return _change_settings(change, platform=platform)
+
+
 def asks_in(folder) -> bool:
     """Whether the aelix extension may ask about a project when it starts in `folder`."""
     try:
@@ -2028,30 +2048,22 @@ def resolved_targets(events) -> dict[str, dict]:
 
 def save_report(project: Project, report_id, *, files, entry, title, previous_revision,
                 request_id=None, based_on=None, metadata=None, origin: Origin):
-    from . import report_app
-
     return report_app.Reports(writer_for(project, origin)).save(
         report_id, files=files, entry=entry, title=title, previous_revision=previous_revision,
         request_id=request_id, based_on=based_on, metadata=metadata)
 
 
 def reports(project: Project, report_id=None, revision_id=None, **options):
-    from . import report_app
-
     return report_app.Reports(writer_for(project, Origin("system", "cli", "inferred"))).read(
         report_id, revision_id, **options)
 
 
 def update_report(project: Project, report_id, revision_id, *, expected, new, reason, origin: Origin):
-    from . import report_app
-
     return report_app.Reports(writer_for(project, origin)).update(
         report_id, revision_id, expected=expected, new=new, reason=reason)
 
 
 def clean_report_prepared(project: Project, report_id, revision_id, *, origin: Origin):
-    from . import report_app
-
     return report_app.Reports(writer_for(project, origin)).clean(report_id, revision_id)
 
 
