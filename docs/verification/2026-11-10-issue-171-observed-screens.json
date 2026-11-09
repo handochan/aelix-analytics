@@ -1,0 +1,93 @@
+{
+ "record_kind": "aelix-analytics-record-format-verification",
+ "observed_at": "2026-11-10",
+ "issue": "https://github.com/handochan/aelix-analytics/issues/171",
+ "decision": "docs/decisions/0015-observed-activity-outside-the-kit.md",
+ "pull_request": null,
+ "part": "PR-2: Workspace screens and provenance",
+ "run_id": "e8d4ebf7-429d-4cd5-96da-567b206449e8",
+ "measured_source": {
+  "commit": "bd057ce",
+  "branch": "feat/issue-171-observed-screens",
+  "on": "cbfd021 (PR-1)",
+  "note": "local commits before the rebase onto main once #175 and #176 are merged"
+ },
+ "machine": {
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "cpu": "Apple M5 Pro",
+  "python": "3.12.13",
+  "load": "shared machine; times indicative"
+ },
+ "probe": {
+  "screens171.py": "b0361f6f2de2333d816213c8654f514451936c2d0ac6994cd072fc0401f78d65",
+  "kept": ".devstate (this machine only)"
+ },
+ "workspace_builds": [
+  {
+   "observations": 0,
+   "build_ms": [
+    48,
+    18,
+    18
+   ],
+   "pages": 15,
+   "html_bytes": 73355
+  },
+  {
+   "observations": 100,
+   "build_ms": [
+    62,
+    62,
+    62
+   ],
+   "pages": 119,
+   "html_bytes": 1614463
+  },
+  {
+   "observations": 300,
+   "build_ms": [
+    132,
+    139,
+    147
+   ],
+   "pages": 327,
+   "html_bytes": 4585235
+  }
+ ],
+ "trail": {
+  "observations_of_the_bytes": 50,
+  "trail_ms": 0.8,
+  "candidates": 50,
+  "nodes": 20,
+  "omitted": {
+   "nodes": 32,
+   "edges": 32
+  },
+  "checks_observed": 50
+ },
+ "verification": [
+  {
+   "command": "uv run --locked pytest -q --timeout 600 --timeout-method=thread -p no:cacheprovider",
+   "source": "bd057ce (same tree)",
+   "result": "pass",
+   "summary": "3318 passed, 148 skipped, 932 s"
+  },
+  {
+   "command": "aelix 0.1.0b2 integration, five files, --python 3.12",
+   "source": "bd057ce (same tree)",
+   "result": "pass",
+   "summary": "1053 passed"
+  },
+  {
+   "command": "ruff check; tools/check_docs.py; tools/release_check.py version",
+   "source": "bd057ce",
+   "result": "pass"
+  }
+ ],
+ "not_run": [
+  "Linux and Windows (CI after push)",
+  "browser views (Chromium E2E, narrow screens, forced colors) and a person's check",
+  "the Workspace S/M scale fixtures with observations",
+  "implementation reviews (independent, Codex)"
+ ]
+}
