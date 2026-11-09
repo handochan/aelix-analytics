@@ -2021,15 +2021,18 @@ def observed_rows(site: Site, row) -> list[str]:
     observations made after it."""
     journal = site.model.journal
     observations = relations.observed_activities(journal)
-    if not observations:
-        return []
-    summary = relations.observed_summary(journal)
-    links = ", ".join(f'<a href="{esc(site.relations.link(journal.source_of(e), 0))}">{esc(journal.source_of(e))}</a>'
-                      for e in observations[-6:][::-1])
-    out = [row("evaluation.observed", len(observations), links),
-           row("evaluation.observed_unexplained", summary["unexplained"]),
-           row("evaluation.observed_not_observed", sum(summary["not_observed"].values()),
-               " · ".join(f"{words('observed.reason', reason)} {n}" for reason, n in sorted(summary["not_observed"].items())))]
+    out = []
+    if observations:
+        summary = relations.observed_summary(journal)
+        links = ", ".join(f'<a href="{esc(site.relations.link(journal.source_of(e), 0))}">{esc(journal.source_of(e))}</a>'
+                          for e in observations[-6:][::-1])
+        out += [row("evaluation.observed", len(observations), links),
+                row("evaluation.observed_unexplained", summary["unexplained"]),
+                row("evaluation.observed_not_observed", sum(summary["not_observed"].values()),
+                    " · ".join(f"{words('observed.reason', reason)} {n}"
+                               for reason, n in sorted(summary["not_observed"].items())))]
+    # Calls telemetry says were skipped or not written are shown with no observation too: a session whose
+    # every observation was skipped has nothing else to say it.
     skipped: dict[str, int] = {}
     for tel in site.telemetry:
         reason = tel.get("observation_skipped")
@@ -2038,6 +2041,8 @@ def observed_rows(site: Site, row) -> list[str]:
     if skipped:
         out.append(row("evaluation.observed_skipped", sum(skipped.values()),
                        " · ".join(f"{words('observed.skipped', reason)} {n}" for reason, n in sorted(skipped.items()))))
+    if not observations:
+        return out
     for session in summary["sessions_off"]:
         mine = [e for e in observations if str(e.value.get("session")) == session]
         off = next((e for e in mine if "observation_off" in e.value["details"]["reasons"]), mine[0])
@@ -2050,7 +2055,9 @@ def observed_rows(site: Site, row) -> list[str]:
             at = relations._instant(tel.get("ts"))
             if tel.get("tool") != "bash" or str(tel.get("session")) != session or at is None or since is None:
                 continue
-            ms = tel.get("ms") if isinstance(tel.get("ms"), (int, float)) and not isinstance(tel.get("ms"), bool) else 0
+            ms = tel.get("ms")
+            if not isinstance(ms, (int, float)) or isinstance(ms, bool):
+                continue  # no duration: its start cannot be placed after the window (`at least` covers it)
             try:
                 calls += at - timedelta(milliseconds=ms) > since
             except TypeError:

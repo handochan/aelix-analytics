@@ -219,7 +219,7 @@ def test_record_coverage_counts_observations_and_the_calls_of_a_session_after_it
     observer.after(later)
     # Telemetry holds two bash calls of that session after it: more than the one observation.
     telemetry = proj / ".analytics" / "telemetry.jsonl"
-    rows = [{"ts": "2999-01-01T00:00:00+00:00", "tool": "bash", "session": observer.session, "summary": "ls"}] * 2
+    rows = [{"ts": "2999-01-01T00:00:00+00:00", "ms": 10, "tool": "bash", "session": observer.session, "summary": "ls"}] * 2
     telemetry.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
     site = build(proj)
     words = text_of((site / "index.html").read_text(encoding="utf-8"))
@@ -360,3 +360,44 @@ def test_pages_of_a_project_without_observations_carry_no_new_words(proj):
     reader = run(proj, "w.py", "open('data/derived/z.csv', 'w').write('z')\n", "writer")
     page = (build(proj) / "runs" / f"{reader['id']}.html").read_text(encoding="utf-8")
     assert 'k="change.' not in page and "observed." not in page
+
+
+# --- the fix-diff check (2026-11-10) -------------------------------------------------------------------
+
+
+def test_skipped_calls_show_without_any_observation_and_unplaceable_lines_are_not_counted(proj, monkeypatch):
+    """Fix-diff check: Record coverage shows the skipped calls even with no observation; a telemetry line
+    with no duration cannot be placed after the window and is not counted as a later call; malformed skip
+    values are ignored."""
+    rows = [{"ts": "2999-01-01T00:00:00+00:00", "tool": "bash", "observation_skipped": "busy"},
+            {"ts": "2999-01-01T00:00:01+00:00", "tool": "bash", "observation_skipped": ["busy"]}]
+    (proj / ".analytics" / "telemetry.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    words = text_of((build(proj) / "index.html").read_text(encoding="utf-8"))
+    assert "Bash calls whose observation was skipped or not written 1 an earlier observation was still running 1" in words
+    assert "Bash calls observed outside the kit" not in words
+    monkeypatch.setattr(observed, "ENTRIES", 3)
+    for i in range(5):
+        write(proj / "data" / f"f{i}.csv", "x\n")
+    observer = Observer(proj, session="/home/someone/.aelix/sessions/s-3.jsonl")
+    off = details(observer("python a.py"))
+    ended = datetime.fromisoformat(off["ended_at"])
+    rows = [{"ts": (ended + timedelta(seconds=1)).isoformat(), "ms": None, "tool": "bash", "session": observer.session}]
+    (proj / ".analytics" / "telemetry.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    words = text_of((build(proj) / "index.html").read_text(encoding="utf-8"))
+    assert "s-3.jsonl · 0 bash calls after it: changes not observed" in words
+
+
+def test_a_pending_off_and_an_unplaced_run_are_worded_as_what_is_known(proj):
+    """Fix-diff check: a turning off a later call recorded is not said to be that call's doing, and a run with
+    no start time is said to have possibly started during the observation."""
+    observer = Observer(proj)
+    observer.sessions.viewed("s1", None)
+    for _ in range(3):
+        observer.sessions.viewed("s1", "timeout")
+    details(observer("ls", python=False, view=False))
+    page = text_of(relation_page(build(proj), "e3"))
+    assert "change observation was turned off in this session" in page and "this call turned" not in page
+    from aelix_analytics import i18n
+
+    assert i18n.message("provenance.observed.read_uncertain") == "it may have started while the observed activity ran"
+    assert i18n.message("provenance.observed.uncertain") == "its window may span the run's start"

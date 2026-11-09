@@ -1213,7 +1213,7 @@ ReportRenderer는 교체 계약과 원본 불변성 검증을 마친 내부 adap
 - 저장된 상태와 필드는 전처럼 접힌 기술 세부(`#technical`, 상태는 `#state`)에 있습니다.
 - 관찰 상자(kit 0.32.1, #171)는 `Observed activity`·`Outside the kit`·가린 명령·바뀐 수와 "Inputs and environment not captured"를 담고 점선
   테두리입니다. 선 `changed_during`은 주황 점선이며 문장은 데이터 쪽이 `Changed while this ran`, 관찰 쪽이 `Saw change in`이고 둘 다 `(not
-  verified)`, 걸친 창은 "its window spans the run's start", run과 겹친 바이트는 "a run also recorded these bytes"를 붙입니다. 관찰을 만난 경로의
+  verified)`, 걸쳤거나 시각을 비교하지 못한 창은 "its window may span the run's start"(사용처 쪽 `read` 선은 "it may have started while the observed activity ran"), run과 겹친 바이트는 "a run also recorded these bytes"를 붙입니다. 관찰을 만난 경로의
   `What can be checked`는 "N observed activities on this trail: not runs, never a confirmed source"를 따로 한 줄로 보입니다.
 
 크기: 기록 페이지마다 경로가 들어가 전체 HTML이 늘어납니다(설계 §9의 측정). 설계 §9의 전체 HTML 예산을 넘는 것은 소유자가 받아들였습니다
@@ -1410,8 +1410,8 @@ operation `observe`로만 씁니다.
   보이지 않는 수와 전체 목록 링크를 둡니다. `details`를 해석하지 못하는 행과 페이지는 그렇다고 말합니다. Evaluation의 Record coverage는 관찰
   수(최근 6개 링크), 설명되지 않은 변경이 있는 관찰 수, 변경을 보지 못한 관찰 수(사유별), telemetry가 관찰을 건너뛰었거나 기록을 쓰지 못했다고
   남긴 호출 수(`observation_skipped`, 사유별), 그리고 변경 관찰을 끈 세션마다 끈 관찰·세션 파일 이름·그 뒤의 bash 호출 수(telemetry의 `session`·
-  `tool`로 세며, 호출의 시작(`ts` − `ms`)이 그 관찰의 창 끝보다 뒤인 것만: 끈 호출 자신은 세지 않음. telemetry가 그 뒤의 관찰보다 적으면 관찰
-  수로 "at least")를 보입니다. telemetry의 `Tool usage`·
+  `tool`로 세며, 호출의 시작(`ts` − `ms`)이 그 관찰의 창 끝보다 뒤인 것만: 끈 호출 자신과 `ms`가 없어 시작을 놓을 수 없는 줄은 세지 않음.
+  telemetry가 그 뒤의 관찰보다 적으면 관찰 수로 "at least")를 보입니다. 관찰이 하나도 없어도 건너뛴 호출 수는 보입니다. telemetry의 `Tool usage`·
   `Possible workarounds`는 그대로입니다.
 - **공유본**: read·evidence 두 프로필 모두 관찰을 담지 않습니다(`PROJECT_KINDS` 밖). 정상 관찰 줄은 공유본의 내용 기준(`content_seq`)에서 빠지므로
   관찰만 더한 뒤의 다시 build는 내용 해시가 같습니다([ADR-0014](decisions/0014-publication-record-contract.md) 결정 2의 닫힌 집합 개정). `details`를
