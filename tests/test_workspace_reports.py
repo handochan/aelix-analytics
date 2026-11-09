@@ -24,7 +24,8 @@ import subprocess
 import sys
 from html import unescape
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote, urljoin, urlsplit
+from urllib.request import url2pathname
 
 import pytest
 from conftest import analytics_project, kit_env
@@ -590,12 +591,15 @@ NEW_TAB = 'target="_blank" rel="noopener noreferrer"'
 
 
 def links_to(page_file: Path, target: Path) -> list[tuple[str, str]]:
-    """The links of a Workspace page whose href, read from that page's folder, is `target`: (attributes, text)."""
+    """The links of a Workspace page that a browser, on that page at its file:// address, takes to `target`:
+    (attributes, text). Resolved as a URL, so a `#` read as a fragment or a `%XX` read as an escape misses."""
     html = page_file.read_text(encoding="utf-8")
+    base = page_file.resolve().as_uri()
     found = []
     for attributes, body in re.findall(r"<a ([^>]*)>(.*?)</a>", html):
         href = re.search(r'href="([^"]+)"', attributes)
-        if href and (page_file.parent / unquote(unescape(href.group(1)))).resolve() == target.resolve():
+        url = urlsplit(urljoin(base, unescape(href.group(1)))) if href else None
+        if url and url.scheme == "file" and Path(url2pathname(url.path)).resolve() == target.resolve():
             found.append((attributes, body))
     return found
 
@@ -678,3 +682,44 @@ def test_an_svg_report_opens_so_too_and_one_whose_bytes_changed_only_downloads(r
     page = page_of(p, "html-one")
     assert NEW_TAB not in page and re.search(r'<a href="[^"]*content/index\.html" download><code', page)
     assert "Files changed since saved" in text(page)
+
+
+def test_a_file_name_with_a_hash_or_a_percent_is_linked_as_its_name(reports, tmp_path):
+    """#168 review: `#` and `%` are part of a saved file's name. `a#b.html` opens `a#b.html`, not `a`, and
+    `x%41.html` opens itself, not `xA.html`: the open links, the download links and the links of files
+    a browser shows in place alike (main's download links missed them too)."""
+    p = reports["p"]
+    folder = tmp_path / "odd"
+    folder.mkdir()
+    for name in ("a#b.html", "x%41.html", "표#1.csv", "xA.html", "a"):
+        (folder / name).write_text(f"<h1>{name}</h1>", encoding="utf-8")
+    version = save(p, "odd-names", folder, "a#b.html", "이름이 특이한 HTML")
+    workspace.build(p)
+    content = p.root / "artifacts/reports/odd-names" / version["revision_id"] / "content"
+    page_file = p.workspace_dir / "reports" / workspace_reports.report_page("odd-names")
+    shape = {"a#b.html": [True, True, False], "x%41.html": [True, False], "표#1.csv": [False]}
+    for name, opens in shape.items():
+        links = links_to(page_file, content / name)
+        assert [NEW_TAB in a for a, _ in links] == opens, (name, links)
+        assert all("download" in a for a, _ in links if NEW_TAB not in a and name.endswith(".html"))
+    # Each link reaches its own file: `xA.html` and `a` have their own row each, and no other.
+    assert len(links_to(page_file, content / "xA.html")) == 2 and len(links_to(page_file, content / "a")) == 1
+    row = links_to(p.workspace_dir / "index.html", content / "a#b.html")
+    assert [NEW_TAB in a for a, _ in row] == [True]
+
+
+def test_a_withdrawn_latest_version_opens_from_its_page_not_from_its_row(reports):
+    """#168 review (coordinator's choice): the Reports tab's row offers no new tab for a Report whose latest
+    version is withdrawn; its page says it is withdrawn and still opens it."""
+    p, html = reports["p"], reports["html"]
+    core.update_report(p, "html-one", html["revision_id"], expected="current", new="withdrawn", reason="틀림", origin=HUMAN)
+    workspace.build(p)
+    original = p.root / "artifacts/reports/html-one" / html["revision_id"] / "content" / "index.html"
+    index = p.workspace_dir / "index.html"
+    rows = dict(re.findall(r'<tr id="report-([^"]+)">(.*?)</tr>', section(index.read_text(encoding="utf-8"), "reports")))
+    assert "Withdrawn" in text(rows["html-one"]) and NEW_TAB not in rows["html-one"]
+    assert not any(NEW_TAB in a for a, _ in links_to(index, original))
+    page_file = p.workspace_dir / "reports" / workspace_reports.report_page("html-one")
+    page = page_file.read_text(encoding="utf-8")
+    assert page.index("The latest version of this Report is withdrawn.") < page.index("Open the report in a new tab")
+    assert [NEW_TAB in a for a, _ in links_to(page_file, original)] == [True, True, False]

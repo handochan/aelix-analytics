@@ -65,7 +65,8 @@ fixture/source revision, task outcome and screenshots when this checklist is run
    made before its files, judges its evidence, compares it with v1, and opens its body as a document of its own; come back with the
    browser's Back. Follow an evidence badge and come back to the same version. Open the collection: 3 of 5 complete, the failed and the
    not generated members with their reasons, each complete member linking its exact version. Open the HTML Report: no body, the
-   original only. Without JavaScript and at 360/390/430 px and 150% text, every state, reason and member reads. Repeat in Korean.
+   original only (since kit 0.32.1, #168: the original opens in a new tab from its page and its Reports row, a download beside it).
+   Without JavaScript and at 360/390/430 px and 150% text, every state, reason and member reads. Repeat in Korean.
 
 The agent records measured HTML bytes and Workspace generation/cache-rebuild costs separately.
 The owner's actual-screen task results fulfill the remaining Issue #18 acceptance condition.

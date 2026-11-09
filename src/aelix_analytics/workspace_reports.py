@@ -130,8 +130,10 @@ class Reports:
             latest = versions[-1] if versions else None
             name = (f'<a href="{s.esc(self.link(rid, depth))}"{s.user_language}>{s.esc(self.title(rid))}</a>'
                     f' <small><code>{s.esc(rid)}</code></small>')
-            opened = self.opened_entry(latest, depth) if latest else None
-            if opened:  # an HTML or SVG Report opens from its row too (#168)
+            # An HTML or SVG Report opens from its row too (#168), unless its latest version is withdrawn:
+            # its page says so before it offers to open it.
+            opened = self.opened_entry(latest, depth) if latest and latest["state"] != "withdrawn" else None
+            if opened:
                 name += f' <small><a href="{s.esc(opened)}"{NEW_TAB}>{t("reports.open_tab")}</a></small>'
             if latest is None:
                 rows.append(f'<tr id="report-{s.esc(rid)}"><td>{name}</td><td>{t("reports.no_version")}</td><td></td>'

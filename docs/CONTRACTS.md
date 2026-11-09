@@ -1129,7 +1129,8 @@ ReportRenderer는 교체 계약과 원본 불변성 검증을 마친 내부 adap
 - **Reports 탭**(`#reports`, Insights 바로 뒤): Report마다 최신 버전 한 줄입니다. 제목(쓴 그대로), `Version n of N`, 저장 시각, 상태, summary·purpose를
   보입니다. 상태는 철회, 파일 무결성, 작성자가 준 content_status, 묶음의 `n of N complete`이며 하나로 합치지 않습니다. 목록은 본문을 읽지 않고,
   최근 50개 밖은 `lists/reports-<n>.html`로 잇습니다. 저장된 버전 없이 시도(prepared·incomplete)만 있는 Report도 보입니다.
-  최신 버전의 진입 파일이 HTML·SVG이면 그 행에서 원본을 새 탭으로 엽니다(`Open in a new tab`, 아래 **HTML·SVG 열기**).
+  최신 버전의 진입 파일이 HTML·SVG이고 그 버전이 철회되지 않았으면 그 행에서 원본을 새 탭으로 엽니다(`Open in a new tab`, 아래 **HTML·SVG 열기**).
+  철회된 버전은 Report 페이지가 철회를 알린 뒤에 엽니다.
 - **Report 페이지** `reports/<id 줄임>-<sha256 10자>.html`:
   - 버전은 [C15](#c15-버전-기록-kit-0190-99)의 공통 표현(`Version n of N`, 띠와 목록, 많으면 가운데를 접음)입니다. n/N은 완료 이벤트 순서이고,
     철회·복원·다시 빌드로 바뀌지 않습니다. manifest가 완료 기록이 묶은 것과 다르거나 읽히지 않는 버전도 번호를 지키고 그 문제를 보이며 본문은 만들지 않습니다. 버전마다 `#v-<revision_id>` 구역이 있고 최신만 열려 있습니다.
@@ -1139,7 +1140,8 @@ ReportRenderer는 교체 계약과 원본 불변성 검증을 마친 내부 adap
     아닙니다.
   - 묶음: members에서 센 `n of N complete · 실패 · 미생성`과 구성원 표(member_key·상태·사유·scope는 쓴 그대로, complete는 그 구성원 Report 페이지의
     정확한 버전으로 가는 링크와 판정)입니다. 구성원 관계는 문서의 근거가 아니고 근거 수를 늘리지 않습니다. JS 없이 읽힙니다.
-  - 파일: 원본은 복사하지 않고 `artifacts/reports/<id>/<revision>/content/<path>`를 바로 가리킵니다(본문 문서의 링크용 사본만 보기 폴더에 있음). 크기·sha256,
+  - 파일: 원본은 복사하지 않고 `artifacts/reports/<id>/<revision>/content/<path>`를 바로 가리킵니다(본문 문서의 링크용 사본만 보기 폴더에 있음). 링크는
+    경로의 각 부분을 인코딩해 이름의 `#`·`%`도 이름으로 읽힙니다(kit 0.32.1, #168; 프로젝트 안 파일로 가는 Workspace의 링크가 모두 같음). 크기·sha256,
     본문 파일 표시. HTML·SVG는 새 탭으로 열고 곁에 `Download`(`download`) 링크를 둡니다(아래). 그 밖에 브라우저가 실행할 형식(스크립트·모르는 형식)은
     `download`로 링크합니다. kit의 metadata sidecar는 빼고 보입니다.
   - 앞 버전과의 비교: 둘 다 글(`.md`·`.markdown`·`.txt`)이고 파일이 저장한 그대로면 더하고 뺀 줄 수를 보이고(본문의 글은 페이지에 넣지 않음), 아니면
@@ -1164,7 +1166,7 @@ ReportRenderer는 교체 계약과 원본 불변성 검증을 마친 내부 adap
     돌아옵니다(`reports` 탭, `reports/` 페이지가 URL 상태에 들어감). 그만큼 설계의 '섹션 위치 유지'를 좁힌 것이며 소유자가 받아들였습니다.
   - 본문 문서의 `<title>Report</title>`과 다운로드 목록은 renderer의 글이라 화면 언어를 따르지 않습니다(C17의 StaticReportRenderer).
 - **HTML·SVG 열기**(kit 0.32.1, #168, 소유자 결정 2026-11-09): 진입 파일이 HTML(`.html`·`.htm`)·SVG인 버전은 파일 구역의 `Open the report in a new tab`과
-  Reports 탭의 그 행의 `Open in a new tab`이, 파일 표에서는 HTML·SVG 파일마다 그 이름이 보존 원본 `artifacts/reports/<id>/<revision>/content/<path>`를
+  Reports 탭의 그 행의 `Open in a new tab`(철회되지 않은 최신 버전)이, 파일 표에서는 HTML·SVG 파일마다 그 이름이 보존 원본 `artifacts/reports/<id>/<revision>/content/<path>`를
   `target="_blank" rel="noopener noreferrer"`로 엽니다(`download` 없음). 파일 표의 `Download` 링크는 그대로 있습니다.
   - 파일을 직접 여는 것과 같습니다. 원본을 복사하거나 고치지 않고 Workspace 페이지(DOM)에 넣지 않으며, 첨부(그림·CSS·다른 페이지)의 상대 경로는
     보존 폴더에서 그대로 동작합니다. 작성자의 스크립트는 그 탭에서 돕니다. Markdown 본문 문서의 CSP, 공유본의 HTML 거절([D4](#d4-report묶음-범위의-공유본-kit-0270-20-pr4)의

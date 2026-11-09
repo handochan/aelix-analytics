@@ -58,11 +58,12 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   `env.kit_sha256`으로 구별). 저장 형식과 결과 JSON의 키는 그대로입니다. 저장소 도구 `tools/usage_report.py`는 run 응답의 옛 줄과 새 줄을 모두
   읽습니다. 이 줄을 글자로 읽던 스크립트는 고쳐야 합니다.
 - #168: HTML·SVG Report를 Workspace에서 새 탭으로 엽니다. Report 페이지의 `Open the report in a new tab`, Reports 탭의 그 행의
-  `Open in a new tab`, 파일 표의 HTML·SVG 이름이 보존한 원본(`artifacts/reports/<id>/<revision>/content/`)을 `target="_blank" rel="noopener noreferrer"`로
-  열고, 내려받기 링크는 곁에 남습니다. 전에는 내려받기만 있어 파일을 받아 따로 열어야 했습니다. 파일을 직접 여는 것과 같아 첨부(그림·CSS)의 상대
+  `Open in a new tab`(최신 버전이 철회됐으면 행에는 없음), 파일 표의 HTML·SVG 이름이 보존한 원본
+  (`artifacts/reports/<id>/<revision>/content/`)을 `target="_blank" rel="noopener noreferrer"`로 열고, 내려받기 링크는 곁에 남습니다. 전에는 내려받기만 있어 파일을 받아 따로 열어야 했습니다. 파일을 직접 여는 것과 같아 첨부(그림·CSS)의 상대
   경로가 동작하고 작성자의 스크립트는 그 탭에서 돕니다. 원본을 Workspace 페이지에 넣거나 복사하지 않고, 파일이 저장한 바이트가 아니면 전처럼
-  내려받기만 둡니다. Markdown 본문 문서의 CSP, 공유본의 HTML 거절(`report_not_shareable`), 저장 형식은 그대로입니다. 한계: Workspace를
-  `file://`이 아닌 로컬 HTTP 서버로 열면 보고서의 스크립트가 Workspace와 같은 origin에서 돕니다(kit은 `file://`로 엶).
+  내려받기만 둡니다. Markdown 본문 문서의 CSP, 공유본의 HTML 거절(`report_not_shareable`), 저장 형식은 그대로입니다. 한계: kit은 Workspace를
+  `file://`로 열며, 거기서도 브라우저는 `file://` 페이지끼리 localStorage를 함께 써서 보고서 스크립트가 Workspace의 보기 설정(화면 언어,
+  live 새로 고침)을 읽고 바꿀 수 있습니다. Workspace를 로컬 HTTP 서버로 열면 그 스크립트가 Workspace와 같은 origin에서 돕니다.
 
 ### Fixed
 
@@ -73,6 +74,8 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   `reports/<이름>/` 아래 폴더를 누가 만들었는지 보지 않고 지워, skill·bash 등으로 그곳에 옮긴 HTML 보고서와 그 그림·CSS가 사라졌습니다.
   이제 그런 파일은 남고, 빌드 결과의 `unmanaged`와 CLI의 stderr, `/analytics render`·`analytics_run`·`analytics_import`의 응답이 남긴 것과 Report로 저장하는
   방법을 알립니다. 이미 지워진 파일은 kit이 되살리지 못합니다.
+- #168: 이름에 `#`·`%`가 든 파일로 가는 Workspace의 링크가 그 파일에 닿습니다. 전에는 `q#3.html`이 `q`를, `x%41.html`이 `xA.html`을
+  가리켰습니다(Report 파일 표의 내려받기 링크 등, 프로젝트 안 파일로 가는 모든 링크).
 
 ## [0.32.0] - 2026-10-30
 

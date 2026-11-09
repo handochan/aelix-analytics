@@ -343,7 +343,9 @@ class Site:
                 return _platform.file_url(rel)
             except ValueError:
                 return "#"
-        return self.up(depth) + href(rel)
+        # A file's name, every segment encoded: a `#` or `%` in it is part of the name, not a fragment
+        # or an escape (`q#3.html` would open `q`, `x%41.html` would open `xA.html`) (#168).
+        return self.up(depth) + quote(rel, safe="/")
 
     def run_link(self, run_id: str, depth: int, anchor: str = "") -> str:
         return f"{self.root(depth)}runs/{href(run_id)}.html{anchor}"
