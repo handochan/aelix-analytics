@@ -167,7 +167,8 @@ Documents 같은 폴더를 읽을 때 사람에게 권한을 물을 수 있음).
 - 신뢰된 후보가 여럿이거나 처음 보는 후보만 있으면 사용자 설정(B "사용자 설정"의 `unknown_projects`)과 사람이 정합니다.
   - `ask`(기본): aelix의 대화형 UI(`ctx.has_ui`)가 있고 작업 디렉터리가 설정의 `not_asked_in`에 없을 때 `ctx.ui.select`로 묻습니다. 선택지는
     처음에 선택된 `Not now`(실수로 누른 Enter가 아무것도 신뢰하지 않도록), 후보마다 `Use <전체 경로> (trusted)` 또는 `(adds it to the trust
-    list)`, `Don't ask in this folder`입니다. 질문 글은 프로젝트를 쓰면 그 CONTEXT.md가 모델의 프롬프트에 들어가고 `analytics_run`이 그
+    list)`, `Don't ask in this folder`입니다. 질문과 알림의 경로는 제어 문자(ESC·C1 등)·서식 문자(U+202E 같은 양방향 제어)·줄 구분자를 `?`로
+    보이고(aelix가 선택지를 prompt_toolkit의 `ANSI()`로 그리므로), 그렇게 같아 보이는 두 경로는 뒤의 것에 ` [n]`을 붙여 두 선택지로 둡니다. 질문 글은 프로젝트를 쓰면 그 CONTEXT.md가 모델의 프롬프트에 들어가고 `analytics_run`이 그
     프로젝트의 스크립트를 그 프로젝트의 Python 환경으로 실행한다는 것, 믿는 프로젝트만 쓰라는 것을 말합니다. `Use`는 처음 보는 후보를 신뢰
     목록에 더하고(쓰지 못해도 이 세션에는 씀) 활성화하고, `Not now`와 닫은 질문은 이 세션에 활성화하지 않으며(다음 세션에 다시 물음),
     `Don't ask in this folder`는 작업 디렉터리를 `not_asked_in`에 더합니다(그 디렉터리만, 아래 디렉터리는 아님). 물을 수 없는 실행(`-p`·

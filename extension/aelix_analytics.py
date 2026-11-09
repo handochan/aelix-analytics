@@ -44,6 +44,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import unicodedata
 from pathlib import Path
 
 from aelix_agent_core.harness.hooks import BeforeAgentStartResult, ToolResultPatch, UserBashResult
@@ -301,6 +302,12 @@ WHY_TRUST = ("Using a project puts its CONTEXT.md into the model's prompt, and a
              "Use only a project you trust.")
 NOT_NOW = "Not now"
 NOT_HERE = "Don't ask in this folder"
+# What a question or notice shows as `?` of a folder name or an error (review of PR #177): control
+# characters (C0, DEL and C1: an ESC sequence, or the \x01…\x02 that prompt_toolkit's ANSI(), through
+# which aelix renders a select's title and options, passes to the terminal as written), format
+# characters (bidi overrides and isolates such as U+202E, which can turn a path around on screen),
+# line and paragraph separators, and lone surrogates (a POSIX name that is not UTF-8).
+SCREEN_UNSAFE = frozenset({"Cc", "Cf", "Cs", "Zl", "Zp"})
 # How long the first prompt waits for the walk below the working directory and the judgment of what
 # it found (core.find_projects_below bounds its own time between reads; a read a network mount or a
 # permission prompt holds is bounded only here). Past it the prompt goes on with no project found;
@@ -339,11 +346,16 @@ def _usable(root) -> bool:
     return True
 
 
+def _screen(text) -> str:
+    """A folder name or an error as a question or notice shows it: SCREEN_UNSAFE characters as `?`."""
+    return "".join("?" if unicodedata.category(c) in SCREEN_UNSAFE else c for c in str(text))
+
+
 def _activate(root, ctx, how: str) -> None:
     STATE["found"] = str(root)
     STATE["passed"] = []
     if _can_ask(ctx):
-        _notify(ctx, f"analytics: active project {root} ({how})")
+        _notify(ctx, f"analytics: active project {_screen(root)} ({_screen(how)})")
 
 
 async def activate_found_project(ctx) -> None:
@@ -416,12 +428,16 @@ async def _choose(ctx, cwd: str, trusted: list, unknown: list, where: str) -> No
     candidates = [*trusted, *unknown]
     if not candidates or not _can_ask(ctx) or not await asyncio.to_thread(core.asks_in, cwd):
         return
-    # The whole path, so a person sees which directory it is.
-    options = {f"Use {root} ({'trusted' if root in trusted else 'adds it to the trust list'})": root
-               for root in candidates}
+    # The whole path, so a person sees which directory it is, with no character that would act on the
+    # terminal or turn the path around (_screen).
+    options = {}
+    for number, root in enumerate(candidates, 1):
+        label = f"Use {_screen(root)} ({'trusted' if root in trusted else 'adds it to the trust list'})"
+        # Two names that differ only where `?` is shown stay two choices.
+        options[f"{label} [{number}]" if label in options else label] = root
     if len(candidates) == 1:
         title = (f"Aelix Analytics found a project you have not chosen before, {where}:\n"
-                 f"  {candidates[0]}\n{WHY_TRUST}")
+                 f"  {_screen(candidates[0])}\n{WHY_TRUST}")
     else:
         title = (f"Aelix Analytics found {len(candidates)} projects {where}. Choose the one to use "
                  f"in this session.\n{WHY_TRUST}")
@@ -434,9 +450,9 @@ async def _choose(ctx, cwd: str, trusted: list, unknown: list, where: str) -> No
         try:
             await asyncio.to_thread(core.stop_asking_in, cwd)
         except Exception as exc:  # noqa: BLE001
-            _notify(ctx, f"analytics: could not remember not to ask in {cwd} ({exc})")
+            _notify(ctx, f"analytics: could not remember not to ask in {_screen(cwd)} ({_screen(exc)})")
             return
-        _notify(ctx, f"analytics: will not ask about projects when aelix starts in {cwd}. "
+        _notify(ctx, f"analytics: will not ask about projects when aelix starts in {_screen(cwd)}. "
                      "/analytics use DIR activates one.")
         return
     root = options.get(choice)

@@ -1165,6 +1165,50 @@ def test_a_stray_enter_on_the_question_trusts_nothing(started_above):
     assert not module.core.is_trusted(root) and module.STATE["found"] is None
 
 
+# A folder name with an ESC sequence, prompt_toolkit's \x01…\x02 escape marks and U+202E (right-to-left
+# override), and the characters of it the question must not show.
+UNSAFE_NAME = "evil\x1b[2J\x01x\x02\u202egnp"
+UNSAFE_CHARACTERS = "\x1b\x01\x02\u202e"
+
+
+def shown(path) -> str:
+    return str(path).translate({ord(c): "?" for c in UNSAFE_CHARACTERS})
+
+
+def test_the_question_shows_folder_names_without_terminal_or_bidi_controls(started_above):
+    """aelix renders a select's title and options through prompt_toolkit's ANSI(): an ESC sequence or
+    \x01…\x02 in a folder name would reach the terminal, and U+202E would turn the path around on
+    screen (review of PR #177). The question and the notice show them as `?`, and the choice still
+    activates that folder."""
+    module, repo, make = started_above
+    root = make(UNSAFE_NAME)
+    ui = FakeUI(lambda options: options[1])
+    out = first_prompt(module, with_ui(ui))
+    [(title, options)] = ui.asked
+    for text in [title, *options, *ui.notes]:
+        assert not set(text) & set(UNSAFE_CHARACTERS), repr(text)
+    assert f"  {shown(root)}\n" in title
+    assert options == ["Not now", f"Use {shown(root)} (adds it to the trust list)", "Don't ask in this folder"]
+    assert out is not None and module.core.is_trusted(root) and module.STATE["found"] == str(root)
+    assert any(shown(root) in note for note in ui.notes)
+
+
+def test_two_folder_names_shown_alike_stay_two_choices(started_above):
+    """Two names that differ only in characters the question shows as `?` are two options, each
+    activating its own folder."""
+    module, repo, make = started_above
+    first, second = make(UNSAFE_NAME), make(UNSAFE_NAME.replace("\x01x\x02", "\x02x\x01"))
+    assert shown(first) == shown(second)
+    ui = FakeUI(lambda options: options[2])
+    assert first_prompt(module, with_ui(ui)) is not None
+    [(title, options)] = ui.asked
+    assert not set("".join([title, *options])) & set(UNSAFE_CHARACTERS)
+    assert options[1:3] == [f"Use {shown(first)} (adds it to the trust list)",
+                            f"Use {shown(first)} (adds it to the trust list) [2]"]
+    assert module.STATE["found"] == str(second) and module.core.is_trusted(second)
+    assert not module.core.is_trusted(first)
+
+
 def test_a_walk_that_hangs_does_not_hold_the_first_prompt(started_above, monkeypatch):
     """A read a network mount or a permission prompt holds is bounded at the call: after
     FIND_SECONDS the prompt goes on with no project found (review of PR #177)."""
