@@ -281,6 +281,11 @@ PNG 차트는 모델이 이미지 입력을 받을 때 `analytics_run` 결과에
 `analytics query "SQL"`, `analytics record finding "…"`, `analytics render` 등). 옛 형식 프로젝트의 전환(`analytics migrate`)은 셸에서만
 부릅니다(아래).
 
+skill을 쓸 때: skill이 분석 스크립트를 bash로 돌려야 하면 `analytics run scripts/x.py --title "…"`으로 부르세요. 셸의 `analytics run`도
+`analytics_run`처럼 run으로 기록됩니다(코드 스냅샷·입력·출력·차트, 작성 주체는 [아래](#작성-주체)). `python scripts/x.py`나
+`uv run python …`으로 직접 돌린 Python은 기록되지 않으며, aelix에서는 확장이 그 bash 결과 끝에 기록되지 않았다는 것과 다시 실행하는
+법을 한 줄로 알립니다(막지는 않습니다, kit 0.32.1).
+
 ### 작성 주체
 
 기록에는 누가 썼는지(`actor`)와 그 근거(`actor_basis`), 실행 수단(`means`)이 남습니다. aelix 도구는 `agent`, `/analytics`는 `human`이고,
@@ -500,6 +505,9 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
 - 쓰다가 부족한 점은 바로 `/analytics record workflow_feedback <내용>`. 모델도 막히면 `analytics_record(kind="workflow_feedback")`을 남기도록
   지침이 들어 있습니다(kit 0.8.0 전의 이름 `gap`은 입력에서 `bad_kind`이고, 옛 기록의 `gap`은 그대로 읽습니다).
 - 확장이 **모든 도구 호출**을 `.analytics/telemetry.jsonl`에 남기고, 규약 우회 의심(`python_via_bash`, `wrote_managed_path`)을 표시합니다.
+  `python_via_bash`인 bash 호출에는 그 결과 끝에 "이 실행은 기록되지 않았다, `analytics_run`이나 셸의 `analytics run`으로 다시 실행하라"는
+  한 줄이 붙습니다(세션의 첫 번은 길게, 그 뒤는 짧게. 결과의 원래 내용과 오류 여부는 그대로, kit 0.32.1). kit 명령(`analytics …`,
+  `uv run analytics …`)은 표시하지 않습니다. 판정의 범위와 한계는 [현재 계약](docs/CONTRACTS.md) C5입니다.
 - Workspace의 **Evaluation** 탭(옛 '평가' 탭): Workflow feedback(`workflow_feedback`·옛 `gap` 목록), Record coverage(입력 미감지 run, 첨부 표 없는 차트,
   프로젝트 밖 입력, 입력이 바뀐 차트, 재실행 비교 결과), Tool usage(도구별 호출·오류·시간), Possible workarounds(우회 의심 호출).
 - 기존 비교 실험의 축과 시나리오: [과거 평가 가이드](docs/EVALUATION.md).

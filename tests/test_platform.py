@@ -2708,7 +2708,8 @@ def _aelix_stubs() -> dict:
         "aelix_agent_core": core_pkg,
         "aelix_agent_core.harness": core_pkg.harness,
         "aelix_agent_core.harness.hooks": module("aelix_agent_core.harness.hooks",
-                                                 BeforeAgentStartResult=Any, UserBashResult=Any),
+                                                 BeforeAgentStartResult=Any, ToolResultPatch=Any,
+                                                 UserBashResult=Any),
         "aelix_agent_core.types": module("aelix_agent_core.types", AgentTool=Any),
         "aelix_ai": ai_pkg,
         "aelix_ai.messages": module("aelix_ai.messages", ImageContent=Any, TextContent=Any),
@@ -2940,6 +2941,7 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
         "    def __init__(self, *a, **k): self.__dict__.update(k)\n"
         "for name, attrs in (('aelix_agent_core', {}), ('aelix_agent_core.harness', {}),\n"
         "                    ('aelix_agent_core.harness.hooks', {'BeforeAgentStartResult': Any,\n"
+        "                                                        'ToolResultPatch': Any,\n"
         "                                                        'UserBashResult': Any}),\n"
         "                    ('aelix_agent_core.types', {'AgentTool': Any}),\n"
         "                    ('aelix_ai', {}), ('aelix_ai.messages', {'ImageContent': Any, 'TextContent': Any}),\n"
@@ -3034,6 +3036,15 @@ def test_importing_the_package_imports_nothing_of_the_kit():
     ("python -c 'print(\"import aelix_analytics\")'", True),
     ("python -u scripts/x.py -m aelix_analytics", True),
     ("ls -la", False),
+    # The kit's own program, also through `uv run` and with the word `python` in its arguments, is the
+    # kit; a directory or an option value named analytics is not (Issue #170).
+    ("analytics run scripts/x.py --title 'fit with python'", False),
+    ("uv run analytics run scripts/x.py --title t", False),
+    ("uv run --project . -p3.12 --with=polars analytics status", False),
+    ("cd proj && .venv/bin/analytics run scripts/x.py --title 'pip check'", False),
+    ("cd ~/analytics && python scripts/x.py", True),
+    ("uv run --with analytics python scripts/x.py", True),
+    ("python scripts/x.py --out analytics", True),
 ])
 def test_python_via_bash_leaves_out_only_the_kit_itself(monkeypatch, tmp_path, command, flagged):
     module = load_extension(monkeypatch, "ext_python_via_bash")
@@ -3155,7 +3166,7 @@ def test_the_extension_registers_only_the_new_names(monkeypatch):
         [("flag", "analytics-project"), ("command", "analytics"),
          *[("tool", f"analytics_{n}") for n in ("status", "query", "import", "run", "record", "init")],
          *[("on", e) for e in ("before_agent_start", "tool_execution_start", "tool_execution_end",
-                               "agent_end", "user_bash")]])
+                               "tool_result", "agent_end", "user_bash")]])
 
 
 def test_the_analytics_command_records_and_has_no_old_subcommands(monkeypatch, tmp_path):

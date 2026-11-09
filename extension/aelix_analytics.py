@@ -45,7 +45,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from aelix_agent_core.harness.hooks import BeforeAgentStartResult, UserBashResult
+from aelix_agent_core.harness.hooks import BeforeAgentStartResult, ToolResultPatch, UserBashResult
 from aelix_agent_core.types import AgentTool
 from aelix_ai.messages import ImageContent, TextContent
 from aelix_ai.tools import ToolExecutionContext, ToolResult
@@ -200,7 +200,8 @@ KIT_IMPORT = re.compile(
 
 # Module-level state of one aelix runtime. setup() starts it over: the file loader makes a new module
 # for every session aelix builds, but the installed module is imported once per process.
-STATE = {"api": None, "project": None, "session": None, "starts": {}, "render_tasks": {}}
+STATE = {"api": None, "project": None, "session": None, "starts": {}, "render_tasks": {},
+         "told_unrecorded": set()}
 
 NO_PROJECT = ("No analytics project is active (checked /analytics use, --analytics-project, "
               "AELIX_ANALYTICS_PROJECT, and analytics.json or lab.json in the working directory and "
@@ -1725,12 +1726,46 @@ def on_tool_start(event, ctx):
     STATE["starts"][event.tool_call_id] = (time.monotonic(), event.tool_name, dict(event.args or {}))
 
 
+def _either(words) -> str:
+    """A regex alternation of `words`, the longest first."""
+    return "|".join(re.escape(word) for word in sorted(words, key=len, reverse=True))
+
+
+# A shell command that calls the kit's own program `analytics` (KIT_PROGRAMS, a path to it, or
+# analytics.exe) where a command starts — at the start of the command or of a line, or after `;` `&`
+# `|` `(` or a backtick — after variable assignments, and after `uv run` and the options this file
+# knows it takes (UV_RUN_FLAGS; UV_RUN_VALUE_OPTIONS with their value). So `uv run analytics run …` and
+# `analytics run … --title "fit with python"` are the kit, and `cd ~/analytics && python x.py`, `grep
+# analytics notes.txt` and `uv run --with analytics python x.py` call no kit. A command that calls it
+# beside other Python (`python a.py && analytics status`) is taken as the kit's (CONTRACTS C5). Each
+# option has one reading, so a long command that does not match fails in linear time.
+KIT_PROGRAM_IN_SHELL = re.compile(
+    r"(?:^|[;&|(`])[ \t]*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s;&|]*[ \t]+)*"
+    r"(?:uv[ \t]+run(?:[ \t]+(?:"
+    rf"(?:{_either(UV_RUN_FLAGS)}|-q+|-v+)(?=[ \t])"
+    rf"|(?:{_either(o for o in UV_RUN_VALUE_OPTIONS if o.startswith('--'))})(?:=|[ \t]+)[^\s;&|]+"
+    rf"|-[{''.join(sorted(o[1] for o in UV_RUN_VALUE_OPTIONS if len(o) == 2))}][ \t]*[^\s;&|]+"
+    r"))*[ \t]+)?"
+    r"(?:[^\s;&|()`'\"]*[/\\])?analytics(?:\.exe)?(?=[\s;&|)]|$)",
+    re.MULTILINE)
+
+
+def python_outside_the_kit(command: str) -> bool:
+    """Whether a shell command runs Python (python, `uv run`, pip, ipython, jupyter) that is not the
+    kit: no `-m aelix_analytics` or `import aelix_analytics` (KIT_IN_SHELL), no `bin/analytics` and no
+    call of the kit's program `analytics` (KIT_PROGRAM_IN_SHELL). Telemetry's python_via_bash, and the
+    bash results told they were not recorded (on_tool_result). A reading of the text only: Python
+    named by a path (`.venv/bin/python x.py`) is not seen, and a word `python` in an argument is
+    (CONTRACTS C5)."""
+    return (bool(PYTHON_IN_SHELL.search(command)) and not KIT_IN_SHELL.search(command)
+            and "bin/analytics" not in command and not KIT_PROGRAM_IN_SHELL.search(command))
+
+
 def summarize_call(tool: str, args: dict, project) -> tuple[str, list]:
     flags = []
     if tool == "bash":
         command = str(args.get("command") or "")
-        if PYTHON_IN_SHELL.search(command) and not KIT_IN_SHELL.search(command) \
-                and "bin/analytics" not in command:
+        if python_outside_the_kit(command):
             flags.append("python_via_bash")
         return command[:300], flags
     if tool in ("write", "edit"):
@@ -1776,6 +1811,41 @@ def on_tool_end(event, ctx):
             "ms": round((time.monotonic() - start[0]) * 1000) if start else None,
             "summary": summary, "flags": flags, "session": STATE["session"]})
     return None
+
+
+# What a bash result gets after it when the command ran Python outside the kit while a project is
+# active (on_tool_result, Issue #170): in full the first time in a session, short after that.
+UNRECORDED_NOTICE = (
+    "aelix-analytics: this Python ran outside the kit, so the project has no record of it: no run, "
+    "code snapshot, inputs or charts, and nothing in the journal or the Workspace. If it was an "
+    "analysis step, run it again with analytics_run (in the shell: `analytics run scripts/x.py "
+    "--title \"…\"`) to record it.")
+UNRECORDED_NOTICE_AGAIN = ("aelix-analytics: this Python ran outside the kit and was not recorded; "
+                           "run analysis steps with analytics_run.")
+
+
+def on_tool_result(event, ctx):
+    """A bash call that ran Python outside the kit (python_outside_the_kit, telemetry's
+    python_via_bash) while a project this kit writes is active gets one text block after its result:
+    the run was not recorded, and how to record it (Issue #170) — in full the first time in a session,
+    short after that. It tells and does not block: the patch sets only `content`, the result's own
+    blocks and then that one, so its error state and details stay as they are. Nothing for any other
+    call, without an active project, or where this kit does not write (analytics_run would be refused
+    there). Never raises: a tool's result must reach the model whatever this judgment meets."""
+    try:
+        if event.tool_name != "bash" or not python_outside_the_kit(
+                str((event.args or {}).get("command") or "")):
+            return None
+        project, _ = resolve_project()
+        if core.admit(project, "say a run was not recorded", side=True) is None:
+            return None
+        told, session = STATE["told_unrecorded"], STATE["session"]
+        patch = ToolResultPatch(content=[*event.content, TextContent(
+            text=UNRECORDED_NOTICE_AGAIN if session in told else UNRECORDED_NOTICE)])
+        told.add(session)  # only once the full line is given
+        return patch
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def on_agent_end(event, ctx):
@@ -2101,7 +2171,7 @@ def setup(aelix):
     # and keeps its globals, so what belongs to one session starts over here — otherwise a /analytics record
     # before a new session's first prompt would record the previous session's file.
     STATE.update({"api": aelix, "project": None, "session": None, "starts": {},
-                  "render_tasks": {}})
+                  "render_tasks": {}, "told_unrecorded": set()})
     put_the_author_in_the_environment()
     aelix.register_flag("analytics-project", type="str",
                         description="Analytics project directory (holds analytics.json, or an "
@@ -2114,6 +2184,7 @@ def setup(aelix):
     aelix.on("before_agent_start", on_before_agent_start)
     aelix.on("tool_execution_start", on_tool_start)
     aelix.on("tool_execution_end", on_tool_end)
+    aelix.on("tool_result", on_tool_result)
     aelix.on("agent_end", on_agent_end)
     aelix.on("user_bash", on_user_bash)
     if events is not None:

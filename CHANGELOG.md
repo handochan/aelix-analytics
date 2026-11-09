@@ -17,6 +17,15 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 
 ## [0.32.1] - 2026-11-08
 
+### Added
+
+- #170: aelix에서 모델이 bash로 kit을 거치지 않고 Python을 돌리면(`python scripts/x.py`, `uv run python …` 등 telemetry의
+  `python_via_bash`), 확장이 그 bash 결과 끝에 한 줄을 붙입니다: 이 실행은 기록되지 않았고, 분석 단계였으면 `analytics_run`이나 셸의
+  `analytics run scripts/x.py --title "…"`로 다시 실행하면 기록된다는 안내입니다. 한 세션의 첫 번은 길게, 그 뒤는 짧게 붙고, 막지 않으며
+  결과의 원래 내용과 오류 여부는 그대로입니다. 활성 프로젝트가 없거나 이 kit이 쓰지 않는 프로젝트, kit 명령, Python을 부르지 않는 명령에는
+  붙지 않습니다. 그 판정에 맞춰 `python_via_bash`가 kit 프로그램 `analytics`를 부르는 명령(`uv run analytics run …`, `--title`에 `python`이
+  든 `analytics run …`)에는 더는 붙지 않습니다. README에 skill이 셸의 `analytics run`으로 스크립트를 돌리면 기록된다는 안내가 있습니다.
+
 ### Changed
 
 - #161: 에이전트가 Report를 저장하는 법을 압니다. `analytics_run`의 Script API에 `analytics.save_report`가 있고, guideline이 독자용 문서는
