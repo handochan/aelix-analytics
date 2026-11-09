@@ -889,6 +889,9 @@ async def tool_run(args, ctx):
         if not core.RUN_ID_RE.match(rerun_of):
             raise core.AnalyticsError("rerun_id", f"{rerun_of!r} is not a run id",
                                       hint="analytics_status lists run ids such as 20260916-143012-monthly-sales")
+        # #158: a run ID shortened at a hyphen is the one run it starts; one that starts several is
+        # refused here, before the project's environment or the kit is started.
+        rerun_of = await asyncio.to_thread(core.writer.whole_run_id, project.root, rerun_of)
         cmd = ["run", "--rerun-of", rerun_of]
     elif code:
         name = str(name or "").strip()

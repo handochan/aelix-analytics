@@ -385,6 +385,12 @@ def test_a_run_id_shortened_to_one_run_is_not_one_that_does_not_exist():
     assert me.fabricated_ids("run 20261104-013000-02-… 이 만들었다", existing) == []  # marked as cut: the start of one
     assert me.fabricated_ids("run 20261104-012254-01-ed 와 20261104-012254-09", existing) == [
         "20261104-012254-01-ed", "20261104-012254-09"]
+    # Only where the kit would take it whole: an id run on into other characters (E4's mixed-up
+    # `…-00:31-01-…`, a file name, a Visualization) is not a shortened one.
+    setup = {*existing, "20261104-003146-00-setup"}
+    assert me.fabricated_ids("run 20261104-003146-00:31-01-model", setup) == ["20261104-003146-00"]
+    assert me.fabricated_ids("20261104-012254-01.csv, 20261104-012254-01/chart", existing) == ["20261104-012254-01"]
+    assert me.fabricated_ids("run 20261104-012254-01이 만들었다. 끝은 20261104-012254-01.", existing) == []
 
 
 def test_numbers_percentages_and_ids_are_read_with_their_boundaries(config):

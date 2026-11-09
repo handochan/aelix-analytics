@@ -92,6 +92,28 @@ def test_reads_take_a_shortened_run_id_and_say_which_run_they_read(tmp_path):
     assert error.value.details["candidates"] == ["run:" + MODEL, "run:" + MODEL_2]
 
 
+def test_an_id_that_names_a_node_as_given_is_read_as_given(tmp_path):
+    """A whole ID wins: what the records know by the text given is read, never the run it would start
+    (review of PR #180). A data file's identity path whose first part looks like a shortened run ID is that
+    file; a run ID a kit before 0.32.1 wrote shortened is the target the records citing it name."""
+    legacy = LegacyProject(tmp_path / "p", migrated=True)
+    data = "20261104-012254-01/input.csv"
+    legacy.run(EDA, inputs=[(data, legacy.file(data, b"x,y\n1,2\n"))])
+    p = core.Project(legacy.root)
+    trail = core.status(p, part="relations", id=data, direction="sources")
+    assert trail["trail"]["start"] == trail["items"][0]["id"] and trail["items"][0]["kind"] == "data"
+    assert trail["trail"]["start"].startswith(f"data:{data}@") and "resolved_id" not in trail
+    # A record that cited the shortened text itself, as an exact run ID (what a kit before 0.32.1 wrote).
+    old = core.record(p, "note", "옛 kit의 인용", refs=[{"type": "run", "run_id": "20261104-012254-01"}],
+                      origin=ORIGIN).event
+    new = core.record(p, "note", "새 인용", refs=["20261104-012254-01"], origin=ORIGIN).event
+    as_given = core.status(p, part="relations", id="run:20261104-012254-01", direction="incoming")
+    assert [row["from"] for row in as_given["items"]] == [old["id"]] and "resolved_id" not in as_given
+    assert as_given["items"][0]["state"] == "missing"
+    whole = core.status(p, part="relations", id="run:" + EDA, direction="incoming")
+    assert new["id"] in [row["from"] for row in whole["items"]]
+
+
 def test_the_cli_and_the_sdk_resolve_a_shortened_run_id_the_same_way(tmp_path, monkeypatch):
     import aelix_analytics as analytics
 
@@ -124,6 +146,11 @@ def test_a_rerun_takes_a_run_id_shortened_at_a_hyphen(project):
     # Another run of the same second and number (the rerun may be one already, made in that second).
     (project / "runs" / (short + "-other")).mkdir()
     started = sorted(p.name for p in (project / "runs").iterdir() if p.name.startswith(short + "-"))
+    # Refused before the run's context sync: a changed CONTEXT.md gets no version from it.
+    with (project / "CONTEXT.md").open("a", encoding="utf-8") as stream:
+        stream.write("\n## 메모\n바뀐 맥락\n")
+    journal = (project / "journal.jsonl").read_bytes()
     code, refused = kit_cli(project, "run", "--rerun-of", short, "--title", "다시")
     assert code == 1 and refused["error"]["code"] == "ambiguous_id"
     assert refused["error"]["details"]["candidates"] == started and whole in started
+    assert (project / "journal.jsonl").read_bytes() == journal

@@ -822,9 +822,6 @@ def _rerun_source(project: core.Project, rerun_of: str) -> tuple[dict, str, Path
     if not core.RUN_ID_RE.match(rerun_of or ""):
         raise core.AnalyticsError("rerun_id", f"{rerun_of!r} is not a run id",
                                   hint="run ids look like 20260916-143012-monthly-sales; analytics_status lists them")
-    # #158: a run ID shortened at a hyphen reruns the one run it starts; the new run's rerun_of is
-    # that run's whole ID (the record's own `id`, below).
-    rerun_of = core.writer.whole_run_id(project.root, rerun_of)
     record = core.read_json(project.runs / rerun_of / "run.json")
     script = record.get("script") if isinstance(record, dict) else None
     if not isinstance(script, dict) or not script.get("snapshot") or not script.get("path"):
@@ -897,6 +894,11 @@ def execute(project: core.Project, *, script: str | None, title: str | None,
     made (design 4.9). `result_follows`: the caller prints a result line through write_result after
     this returns and then calls give_back_stdout (the CLI); see _redirected."""
     core.admit(project, "run")
+    if rerun_of:
+        # #158: a run ID shortened at a hyphen reruns the one run it starts, and the new run's rerun_of
+        # is that run's whole ID (its record's own `id`). One that starts several runs' IDs is refused
+        # here, before the context sync writes anything.
+        rerun_of = core.writer.whole_run_id(project.root, rerun_of)
     core.sync_context(project, origin=core.system_origin(origin))
     source_run = None
     if rerun_of:

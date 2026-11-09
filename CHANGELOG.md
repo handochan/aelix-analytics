@@ -35,8 +35,9 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   앞부분인 run이 하나면 그 run으로 통합니다: 기록의 이름 참조(`--ref`, 도구의 `refs`, SDK), 한 기록·관계·출처 경로의 읽기
   (`analytics_status`, `analytics status --part …`), 재실행(`run --rerun-of`, `analytics_run`의 `rerun_of`). 기록에는 그 run의 전체 id를 쓰고
   (이름 참조는 준 글자를 `token`으로 남긴 `inferred` 결박), 읽기 응답의 `resolved_id`와 도구의 `refs:` 줄이 어느 run인지 알립니다. 둘 이상의 run의
-  앞부분이면 `ambiguous_id`와 후보로 거절하고 아무것도 쓰지 않습니다. 전에는 run이 없다는 `missing`·`record_not_found`·`rerun_unknown`이었습니다.
-  저장된 기록은 바뀌지 않습니다. 평가 채점기(`tools/model_eval.py`)도 run 하나로 풀리는 줄인 run ID를 없는 ID로 세지 않습니다.
+  앞부분이면 `ambiguous_id`와 후보로 거절하고 아무것도 쓰지 않습니다. 준 글자 그대로 기록이 아는 것(옛 kit이 줄인 글자로 쓴 참조의 대상,
+  첫 부분이 줄인 run ID처럼 생긴 데이터 경로 등)은 전처럼 그대로 읽습니다. 전에는 run이 없다는 `missing`·`record_not_found`·`rerun_unknown`이었습니다.
+  저장된 기록은 바뀌지 않습니다. 평가 채점기(`tools/model_eval.py`)도 kit과 같은 규칙으로, 그 자리에서 끝나며 run 하나로 풀리는 줄인 run ID를 없는 ID로 세지 않습니다(E4의 Qwen R2 없는 ID는 이 규칙으로 다시 세면 A 3 · V 1에서 A 1 · V 0).
 
 ### Changed
 

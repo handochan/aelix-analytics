@@ -936,6 +936,14 @@ def test_the_tools_read_and_cite_a_run_by_its_id_shortened_at_a_hyphen(lab, monk
     assert ambiguous.is_error and "ambiguous_id" in text_of(ambiguous)
     assert "run:20261104-013000-02-model-2" in text_of(ambiguous)
 
+    # A rerun of an ambiguous one is refused in the aelix process, before the kit or uv is started.
+    async def no_kit(*args, **kwargs):
+        pytest.fail("an ambiguous rerun must not start the kit")
+
+    monkeypatch.setattr(module, "run_kit", no_kit)
+    rerun = call(tools["analytics_run"], {"title": "다시", "rerun_of": "20261104-013000-02"})
+    assert rerun.is_error and "ambiguous_id" in text_of(rerun) and "20261104-013000-02-model-2" in text_of(rerun)
+
 
 def test_a_run_over_many_inputs_still_shows_stdout_and_says_what_it_hid():
     module = fresh_module()
