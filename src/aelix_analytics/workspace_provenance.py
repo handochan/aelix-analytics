@@ -275,6 +275,8 @@ class Provenance:
                 out += f' <span class="ref-note">{t("provenance.observed.uncertain")}</span>'
             if edge.get("run_also"):
                 out += f' <span class="ref-note">{t("provenance.observed.run_also")}</span>'
+        if kind == "read" and edge.get("order") == "uncertain":
+            out += f' <span class="ref-note">{t("provenance.observed.read_uncertain")}</span>'
         if kind == "read" and edge.get("how") and edge["how"][0] != "read":
             out += f' <span class="muted">{t("provenance.how." + edge["how"][0])}</span>'
         if edge.get("basis") == "inferred" or edge.get("read_as"):

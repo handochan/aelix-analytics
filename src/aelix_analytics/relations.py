@@ -3643,6 +3643,28 @@ class ReadModel:
             out.append({"id": entry["id"], "order": order, "run_also": run_also})
         return out
 
+    def _observed_order(self, entry: dict, run_id: str) -> str:
+        """Where a run's start falls against an observation's window: `before` the window ended (`earlier`
+        when it started before the window began), `after` it, or `uncertain` (within it, or a time that
+        cannot be compared: a run with no start time, an older kit's)."""
+        started = _instant((self._runs.get(run_id) or {}).get("started_at"))
+        ended, began = entry["ended_at"], entry["started_at"]
+        try:
+            if started is None or ended is None or began is None:
+                return "uncertain"
+            if started < began:
+                return "earlier"
+            if started > ended:
+                return "after"
+            return "uncertain"
+        except TypeError:
+            return "uncertain"
+
+    def _observed_paths(self) -> set[str]:
+        """The paths an observation saw change with no run or import recording them."""
+        by_bytes, deleted, _ = self._observed_index()
+        return {path for path, _ in by_bytes} | set(deleted)
+
     def observed_deletion(self, path: str) -> str | None:
         """The last observation that saw `path` deleted with nothing recording it (for a file missing now)."""
         rows = self._observed_index()[1].get(path) if isinstance(path, str) else None
@@ -3675,7 +3697,7 @@ class ReadModel:
             if sha and self._holds(path, sha):
                 return self._data_node(path, sha, state=self._state_now(path, sha), origin=("bytes",))
             return None
-        if identity in self._path_entries() or self._imports(identity):
+        if identity in self._path_entries() or self._imports(identity) or identity in self._observed_paths():
             current = self._sha(self.root / identity)
             state = "same" if current else "missing" if self._state_now(identity, None) == "missing" else "unknown"
             return self._data_node(identity, current, state=state, origin=("now",))
@@ -3685,6 +3707,8 @@ class ReadModel:
         """Whether a run's input or output, or an import record, holds these bytes at this path."""
         if any(_str(meta.get("sha256")) == sha for meta in self._imports(path)):
             return True
+        if (path, sha) in self._observed_index()[0]:
+            return True  # bytes an observation saw (ADR-0015): a start, its producer judgment unchanged
         return any(_str(entry.get("sha256")) == sha for entries in self._path_entries().get(path, {}).values()
                    for _, entry in entries)
 
@@ -4224,11 +4248,18 @@ class ReadModel:
             return []
         origin = node["_origin"]
         writer = origin[1] if origin[0] == "wrote" else None
+        observation = self._observed_index()[2].get(origin[1]) if origin[0] == "observed" else None
         out = []
         for run_id, entry in self._input_index().get((node["path"], sha), []):
             if run_id == writer:
                 continue
             if writer is not None and writer not in self.producers(entry.get("path"), sha, consumer=run_id):
+                continue
+            # Bytes an observation saw change are used by the runs that read them later only (ADR-0015
+            # decision 8, the rule of observed_candidates the other way): a run that started before the
+            # window began is not their user; one that started within it is `uncertain`.
+            order = self._observed_order(observation, run_id) if observation is not None else None
+            if order == "earlier":
                 continue
             run = self._run_node(run_id)
             via = [v for v in _strings(entry.get("via") or []) if isinstance(v, str)]
@@ -4237,6 +4268,8 @@ class ReadModel:
                     "state": state(entry, self._own_outputs(run_id))}
             if entry.get("path") != node["path"]:
                 edge["read_as"] = node["path"]  # the run recorded another spelling (ADR-0006 9): inferred
+            if order == "uncertain":
+                edge["order"] = "uncertain"
             out.append((run, edge))
         return out
 

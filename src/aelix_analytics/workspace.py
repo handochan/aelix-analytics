@@ -23,6 +23,7 @@ import re
 import shutil
 import stat
 from collections import Counter, defaultdict
+from datetime import timedelta
 from importlib import resources
 from pathlib import Path
 from urllib.parse import quote
@@ -591,7 +592,9 @@ class Site:
         d = event["details"]
         changes = d["changes"]
         if changes["state"] == "observed":
-            changed = t("observed.changes", n=changes["total"], unexplained=changes["unexplained"])
+            changed = t("observed.changes", n=changes["total"] or 0, unexplained=changes["unexplained"] or 0)
+            if changes.get("unknown"):
+                changed += " · " + t("observed.changes_unknown", n=changes["unknown"])
         else:
             changed = t("observed.not_observed") + " · " + words("observed.reason", changes["reason"])
         return (f'<p class="note observed">{badge("warning", "◌", t("observed.outside"))} {changed} · '
@@ -626,22 +629,30 @@ class Site:
                 (t("observed.window"), f'{fmt_time(d["started_at"])}–{fmt_time(d["ended_at"], with_date=False)}'
                                        + (f' · {fmt_num(d["duration_ms"])} ms' if d["duration_ms"] is not None else "")),
                 (t("observed.result"), ended + (" · " + badge("critical", "✕", t("observed.error")) if result["is_error"] else "")),
-                (t("observed.reasons"), ", ".join(words("observed.why", r) for r in d["reasons"])),
+                (t("observed.reasons"), ", ".join(
+                    t("observed.why.changes_unknown") if r == "changes" and not d["changes"]["unexplained"]
+                    else words("observed.why", r) for r in d["reasons"])),
                 (t("observed.session"), words("observed.session_state", d["session_observation"]))]
         table = "".join(f"<tr><th>{k}</th><td>{v}</td></tr>" for k, v in rows)
         scripts = "".join(self._observed_script(item, folder, depth) for item in d["scripts"]["items"])
         changes = d["changes"]
         if changes["state"] == "observed":
             changed = "".join(self._observed_change(item, depth) for item in changes["items"])
-            more = changes["total"] - len(changes["items"])
-            changed_html = (f'<p>{t("observed.changes", n=changes["total"], unexplained=changes["unexplained"])}</p>'
+            more = (changes["total"] or 0) - len(changes["items"])
+            summary = t("observed.changes", n=changes["total"] or 0, unexplained=changes["unexplained"] or 0)
+            if changes.get("unknown"):
+                summary += " · " + t("observed.changes_unknown", n=changes["unknown"])
+            changed_html = (f'<p>{summary}</p>'
                             + (f'<ul class="plain observed-changes">{changed}</ul>' if changed else "")
                             + (self._observed_more(d, "changes", more, folder, depth) if more > 0 else ""))
         else:
             changed_html = f'<p>{t("observed.not_observed")} · {words("observed.reason", changes["reason"])}</p>'
         mentioned = d["mentioned"]
         named = "".join(f"<li>{self.path_html(path, depth)}</li>" for path in mentioned["items"])
-        named_html = (f'<ul class="plain">{named}</ul>' if named else f'<p class="muted">{t("observed.none")}</p>')
+        named_html = (f'<ul class="plain">{named}</ul>' if named else f'<p class="muted">{t("evaluation.none")}</p>')
+        more_named = mentioned["total"] - len(mentioned["items"])
+        if more_named > 0:
+            named_html += self._observed_more(d, "files", more_named, folder, depth)
         if mentioned["unresolved"]:
             named_html += f'<p class="muted">{t("observed.unresolved", n=mentioned["unresolved"])}</p>'
         return (f'<section class="observed panel" id="observed"><h2>{t("observed.heading")}</h2>'
@@ -649,7 +660,9 @@ class Site:
                 f'<h3>{t("observed.command")}</h3>{"".join(lines)}'
                 f'<div class="table-wrap"><table class="kv">{table}</table></div>'
                 f'<h3>{t("observed.scripts", n=d["scripts"]["total"])}</h3>'
-                + (f'<ul class="plain observed-scripts">{scripts}</ul>' if scripts else f'<p class="muted">{t("observed.none")}</p>')
+                + (f'<ul class="plain observed-scripts">{scripts}</ul>' if scripts else f'<p class="muted">{t("evaluation.none")}</p>')
+                + (self._observed_more(d, "files", d["scripts"]["total"] - len(d["scripts"]["items"]), folder, depth)
+                   if d["scripts"]["total"] > len(d["scripts"]["items"]) else "")
                 + f'<h3>{t("observed.changed_heading")}</h3>{changed_html}'
                 f'<h3>{t("observed.mentioned", n=mentioned["total"])}</h3>{named_html}'
                 f'<h3>{t("observed.not_kept_heading")}</h3><p>{t("observed.not_kept")}</p></section>')
@@ -673,7 +686,7 @@ class Site:
         return f"<li>{' · '.join(bits)}</li>"
 
     def _observed_change(self, item: dict, depth: int) -> str:
-        bits = [words("observed.change", item["change"]), self.path_html(item["path"], depth)]
+        bits = [words("change", item["change"]), self.path_html(item["path"], depth)]
         if item.get("sha256"):
             bits.append(f'<code>{esc(short(item["sha256"]))}</code>')
         elif item.get("hash") not in (None, "hashed", "deleted"):
@@ -2017,19 +2030,31 @@ def observed_rows(site: Site, row) -> list[str]:
            row("evaluation.observed_unexplained", summary["unexplained"]),
            row("evaluation.observed_not_observed", sum(summary["not_observed"].values()),
                " · ".join(f"{words('observed.reason', reason)} {n}" for reason, n in sorted(summary["not_observed"].items())))]
+    skipped: dict[str, int] = {}
+    for tel in site.telemetry:
+        reason = tel.get("observation_skipped")
+        if isinstance(reason, str):
+            skipped[reason] = skipped.get(reason, 0) + 1
+    if skipped:
+        out.append(row("evaluation.observed_skipped", sum(skipped.values()),
+                       " · ".join(f"{words('observed.skipped', reason)} {n}" for reason, n in sorted(skipped.items()))))
     for session in summary["sessions_off"]:
         mine = [e for e in observations if str(e.value.get("session")) == session]
         off = next((e for e in mine if "observation_off" in e.value["details"]["reasons"]), mine[0])
-        since = relations._instant(off.value.get("recorded_at"))
+        # A call counts when it started after the window of the observation that recorded the turning off:
+        # that call's own telemetry line (written as it ends, after the record) is not a later call.
+        since = relations._instant(off.value["details"].get("ended_at"))
         later = sum(1 for e in mine if e.seq is not None and off.seq is not None and e.seq > off.seq)
         calls = 0
         for tel in site.telemetry:
             at = relations._instant(tel.get("ts"))
-            if tel.get("tool") == "bash" and str(tel.get("session")) == session and at is not None and since is not None:
-                try:
-                    calls += at > since
-                except TypeError:
-                    continue
+            if tel.get("tool") != "bash" or str(tel.get("session")) != session or at is None or since is None:
+                continue
+            ms = tel.get("ms") if isinstance(tel.get("ms"), (int, float)) and not isinstance(tel.get("ms"), bool) else 0
+            try:
+                calls += at - timedelta(milliseconds=ms) > since
+            except TypeError:
+                continue
         counted = t("evaluation.observed_after", n=max(calls, later)) if calls >= later else \
             t("evaluation.observed_after_at_least", n=later)
         name = esc(session.replace("\\", "/").rsplit("/", 1)[-1])

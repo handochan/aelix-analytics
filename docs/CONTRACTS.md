@@ -1182,12 +1182,15 @@ ReportRenderer는 교체 계약과 원본 불변성 검증을 마친 내부 adap
   데이터 노드의 `observed_changes`는 같은 경로·sha256을 `unexplained`인 `created`·`modified`로 본 관찰의 목록입니다(`{id, order, run_also}`, 오래된
   것부터). 해시가 없거나 `unknown`인 변경은 후보가 아닙니다. run이 읽은 입력(과 기록이 인용한 run의 입력)에서는 그 run이 시작하기 전에 창이 끝난
   관찰만 `order: before`, 창이 그 시작에 걸치면 `uncertain`이고 그 뒤의 관찰은 그 입력의 출처가 아닙니다(시각은 시간대를 반영한 시점으로 비교,
-  비교하지 못하면 `uncertain`). 지금 바이트·가져오기·`data:<경로>@<sha256>`에서는 그 바이트를 본 모든 관찰이 시간순 후보입니다(`order: null`).
+  비교하지 못하면 `uncertain`: 시작 시각이 없는 옛 kit의 run이면 그 뒤의 관찰도 `uncertain` 후보로 붙음). 지금 바이트·가져오기·
+  `data:<경로>@<sha256>`에서는 그 바이트를 본 모든 관찰이 시간순 후보입니다(`order: null`). run·가져오기 없이 관찰만 본 경로와 바이트도 출발점이며
+  그 생산자 판정은 `none`입니다.
   run이 같은 경로·바이트를 출력했으면 `run_also: true`입니다. run이 쓴 바이트와 기록이 인용한 run의 출력에는 붙지 않습니다. 지금 없는 파일
   (`missing`)의 노드에는 그 경로를 `deleted`로 본 마지막 관찰이 `observed_deleted`입니다. 출처 방향의 데이터 노드에서 관찰 노드(`kind:
   observation`: 가린 명령 앞 160자, 창, 바뀐 수·설명되지 않은 수, 세션의 관찰 상태)로 선 `changed_during`(`basis: unverified`, `confirmed:
   false`, `order`, `run_also`)이 이어지고 관찰에서 멈춥니다(입력이 포착되지 않음). 관찰 노드는 run처럼 한 단계입니다. 사용처 방향의 관찰은 그
-  창에 `unexplained`로 바뀐 파일과 그 관찰을 인용한 기록으로 이어집니다. 확인 줄의 `observed`는 경로에서 만난 관찰의 수와 앞 20개 id이며 다른
+  창에 `unexplained`로 바뀐 파일과 그 관찰을 인용한 기록으로 이어지고, 그 파일은 같은 시간 방향으로 run에 이어집니다: 창이 시작되기 전에 시작한
+  run은 그 바이트의 사용처가 아니고, 창 안에서 시작한 run의 `read` 선은 `order: uncertain`입니다. 확인 줄의 `observed`는 경로에서 만난 관찰의 수와 앞 20개 id이며 다른
   줄과 합치지 않습니다. 관찰은 확정 연결로 오르지 않고 run 후보를 대신하지 않습니다. 기록이 관찰을 인용한 `event` 참조는 지금 규칙대로 판정합니다.
   공유본은 이 읽기를 쓰지 않으므로 관찰 후보를 보이지 않습니다.
 
@@ -1403,9 +1406,12 @@ operation `observe`로만 씁니다.
   첨부 전문(`command.txt`) 링크, 가린 값의 수, 작업 디렉터리, 창과 그 길이, aelix가 준 종료 코드·오류, 기록한 이유, 세션의 변경 관찰, 스크립트
   (사본 링크나 사본이 없는 사유, 시작·끝의 바이트, 창 안에서 바뀌었으면 그 표시), 바뀐 파일(데이터셋이면 그 페이지, 설명한 run의 링크, 설명 상태,
   해시가 없으면 그 사유, 인라인 밖의 수와 `changes.json` 링크), 명령이 가리킨 다른 파일과 따라가지 못한 이름의 수, 남기지 않은 것의 고정
-  문장을 보입니다. `details`를 해석하지 못하는 행과 페이지는 그렇다고 말합니다. Evaluation의 Record coverage는 관찰 수(최근 6개 링크), 설명되지
-  않은 변경이 있는 관찰 수, 변경을 보지 못한 관찰 수(사유별), 그리고 변경 관찰을 끈 세션마다 끈 관찰·세션 파일 이름·그 뒤의 bash 호출 수
-  (telemetry의 `session`·`tool`과 시각으로 셈. telemetry가 그 뒤의 관찰보다 적으면 관찰 수로 "at least")를 보입니다. telemetry의 `Tool usage`·
+  문장을 보입니다. 확인하지 못한 변경만 있는 관찰은 "could not check"로 말하고 행에 그 수를 둡니다. 최소 details처럼 목록이 `files.json`에 있으면
+  보이지 않는 수와 전체 목록 링크를 둡니다. `details`를 해석하지 못하는 행과 페이지는 그렇다고 말합니다. Evaluation의 Record coverage는 관찰
+  수(최근 6개 링크), 설명되지 않은 변경이 있는 관찰 수, 변경을 보지 못한 관찰 수(사유별), telemetry가 관찰을 건너뛰었거나 기록을 쓰지 못했다고
+  남긴 호출 수(`observation_skipped`, 사유별), 그리고 변경 관찰을 끈 세션마다 끈 관찰·세션 파일 이름·그 뒤의 bash 호출 수(telemetry의 `session`·
+  `tool`로 세며, 호출의 시작(`ts` − `ms`)이 그 관찰의 창 끝보다 뒤인 것만: 끈 호출 자신은 세지 않음. telemetry가 그 뒤의 관찰보다 적으면 관찰
+  수로 "at least")를 보입니다. telemetry의 `Tool usage`·
   `Possible workarounds`는 그대로입니다.
 - **공유본**: read·evidence 두 프로필 모두 관찰을 담지 않습니다(`PROJECT_KINDS` 밖). 정상 관찰 줄은 공유본의 내용 기준(`content_seq`)에서 빠지므로
   관찰만 더한 뒤의 다시 build는 내용 해시가 같습니다([ADR-0014](decisions/0014-publication-record-contract.md) 결정 2의 닫힌 집합 개정). `details`를

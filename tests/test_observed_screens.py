@@ -11,6 +11,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -266,3 +267,96 @@ def test_a_share_shows_no_observation_candidate(proj, profile):
         if path.is_file():
             data = path.read_bytes()
             assert b"observed_changes" not in data and b"changed_during" not in data and b"Outside the kit" not in data
+
+
+# --- review fixes (implementation reviews of 2026-11-10) -------------------------------------------------
+
+
+def test_a_path_only_an_observation_saw_is_a_start(proj):
+    """Review (Codex PR-2 5): a file no run or import recorded, only an observation, can start a trail
+    (as the file now and as its bytes); its producer judgment is still `none`."""
+    made_by_python(proj, "data/derived/only.csv", "o\n")
+    m = model(proj)
+    now = m.trail_start("data/derived/only.csv")
+    assert now is not None and now["producer"] == "none" and [c["id"] for c in now["observed_changes"]] == ["e3"]
+    sha = hashlib.sha256(b"o\n").hexdigest()
+    assert m.trail_start(f"data:data/derived/only.csv@{sha}") is not None
+    found = m.provenance("data/derived/only.csv", "sources")
+    assert [n["kind"] for n in found["nodes"]] == ["data", "observation"]
+
+
+def test_what_uses_an_observation_s_bytes_follows_time(proj):
+    """Review (Codex PR-2 6): from an observation, its bytes are used by the runs that started after its
+    window (or within it: `uncertain`), never by a run that started before it began."""
+    write(proj / "data" / "derived" / "x.csv", "a\n1\n")
+    morning = run(proj, "use.py", "import polars as pl\nprint(pl.read_csv('data/derived/x.csv'))\n", "morning")
+    started = datetime.fromisoformat(morning["started_at"])
+    # An observation of the same bytes, later in the day (copied with its window moved).
+    Observer(proj)("touch data/derived/x.csv", lambda: _replace_same(proj / "data" / "derived" / "x.csv"), python=False)
+    later = copy_observation(proj, started=started + timedelta(hours=5), ended=started + timedelta(hours=5, seconds=1))
+    across = copy_observation(proj, started=started - timedelta(seconds=5), ended=started + timedelta(seconds=5))
+    m = model(proj)
+    assert [n["kind"] for n in m.provenance(later, "uses")["nodes"]] == ["observation", "data"]
+    uses = m.provenance(across, "uses")
+    edge = next(e for e in uses["edges"] if e["kind"] == "read")
+    assert edge["order"] == "uncertain" and edge["from"] == "run:" + morning["id"]
+
+
+def _replace_same(path):
+    data = path.read_bytes()
+    temp = path.with_name(path.name + ".tmp")
+    temp.write_bytes(data)
+    os.replace(temp, path)
+    os.utime(path, None)
+
+
+def test_record_coverage_leaves_out_the_turning_off_call_and_counts_skipped_calls(proj, monkeypatch):
+    """Review (Codex PR-2 7) and the coordinator's decision on `busy`: the call whose observation recorded
+    the turning off is not a call after it (its telemetry line is written as it ends, after the record),
+    and calls telemetry says were skipped are counted by reason."""
+    monkeypatch.setattr(observed, "ENTRIES", 3)
+    for i in range(5):
+        write(proj / "data" / f"f{i}.csv", "x\n")
+    observer = Observer(proj, session="/home/someone/.aelix/sessions/s-2.jsonl")
+    off = details(observer("python a.py"))
+    ended = datetime.fromisoformat(off["ended_at"])
+    rows = [{"ts": (ended + timedelta(seconds=1)).isoformat(), "ms": 2500, "tool": "bash", "session": observer.session},
+            {"ts": (ended + timedelta(seconds=9)).isoformat(), "ms": 10, "tool": "bash", "session": observer.session,
+             "observation_skipped": "busy"}]
+    (proj / ".analytics" / "telemetry.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    words = text_of((build(proj) / "index.html").read_text(encoding="utf-8"))
+    assert "s-2.jsonl · 1 bash call after it: changes not observed" in words
+    assert "Bash calls whose observation was skipped or not written 1 an earlier observation was still running 1" in words
+    assert "1 bash calls skipped while an observation was still running" in core.status_text(core.status(core.Project(proj)))
+
+
+def test_an_observation_of_unknown_changes_only_says_it_could_not_check(proj):
+    """Review (Codex PR-2 8, independent p2): recorded for changes the kit could not check (a secret-named
+    file is never hashed), the page and the row say they could not be checked, not that no run recorded them."""
+    details(Observer(proj)("sh x.sh", lambda: write(proj / "data" / ".env", "v\n"), python=False))
+    site = build(proj)
+    page = text_of(relation_page(site, "e3"))
+    assert "files changed that the kit could not check against a run or import" in page
+    assert "files changed that no run or import recorded" not in page
+    index = text_of((site / "index.html").read_text(encoding="utf-8"))
+    assert "1 file changed while it ran · 0 not recorded by a run or import · 1 could not be checked" in index
+
+
+def test_a_record_written_with_its_lists_attached_links_them(proj, monkeypatch):
+    """Review (Codex PR-2 minor): with the lists in `files.json` (the least details), the page says how many
+    it does not show and links the whole list."""
+    monkeypatch.setattr(observed, "DETAILS_BYTES", 600)
+    write(proj / "scripts" / "a.py", "print(1)\n")
+    write(proj / "data" / "in.csv", "x\n")
+    d = details(Observer(proj)("python scripts/a.py data/in.csv"))
+    page = relation_page(build(proj), "e3")
+    assert f'href="../../.analytics/observed/{d["activity_id"]}/files.json"' in page
+    assert "and 1 more" in text_of(page)
+
+
+def test_pages_of_a_project_without_observations_carry_no_new_words(proj):
+    """Review (independent p1): the change words are the existing `change.*` ones, so a run page of a project
+    with no observation is marked as before (no key made ambiguous by a new English twin)."""
+    reader = run(proj, "w.py", "open('data/derived/z.csv', 'w').write('z')\n", "writer")
+    page = (build(proj) / "runs" / f"{reader['id']}.html").read_text(encoding="utf-8")
+    assert 'k="change.' not in page and "observed." not in page
