@@ -507,7 +507,8 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
 - 확장이 **모든 도구 호출**을 `.analytics/telemetry.jsonl`에 남기고, 규약 우회 의심(`python_via_bash`, `wrote_managed_path`)을 표시합니다.
   `python_via_bash`인 bash 호출에는 그 결과 끝에 "이 실행은 기록되지 않았다, `analytics_run`이나 셸의 `analytics run`으로 다시 실행하라"는
   한 줄이 붙습니다(세션의 첫 번은 길게, 그 뒤는 짧게. 결과의 원래 내용과 오류 여부는 그대로, kit 0.32.1). kit 명령(`analytics …`,
-  `uv run analytics …`)은 표시하지 않습니다. 판정의 범위와 한계는 [현재 계약](docs/CONTRACTS.md) C5입니다.
+  `uv run analytics …`)은 표시하지 않습니다. 판정은 명령의 글자를 읽으므로 `echo python`에도 붙고 `.venv/bin/python x.py`에는 붙지 않습니다.
+  범위와 한계는 [현재 계약](docs/CONTRACTS.md) C5입니다.
 - Workspace의 **Evaluation** 탭(옛 '평가' 탭): Workflow feedback(`workflow_feedback`·옛 `gap` 목록), Record coverage(입력 미감지 run, 첨부 표 없는 차트,
   프로젝트 밖 입력, 입력이 바뀐 차트, 재실행 비교 결과), Tool usage(도구별 호출·오류·시간), Possible workarounds(우회 의심 호출).
 - 기존 비교 실험의 축과 시나리오: [과거 평가 가이드](docs/EVALUATION.md).

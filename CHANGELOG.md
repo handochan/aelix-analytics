@@ -22,9 +22,11 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 - #170: aelix에서 모델이 bash로 kit을 거치지 않고 Python을 돌리면(`python scripts/x.py`, `uv run python …` 등 telemetry의
   `python_via_bash`), 확장이 그 bash 결과 끝에 한 줄을 붙입니다: 이 실행은 기록되지 않았고, 분석 단계였으면 `analytics_run`이나 셸의
   `analytics run scripts/x.py --title "…"`로 다시 실행하면 기록된다는 안내입니다. 한 세션의 첫 번은 길게, 그 뒤는 짧게 붙고, 막지 않으며
-  결과의 원래 내용과 오류 여부는 그대로입니다. 활성 프로젝트가 없거나 이 kit이 쓰지 않는 프로젝트, kit 명령, Python을 부르지 않는 명령에는
-  붙지 않습니다. 그 판정에 맞춰 `python_via_bash`가 kit 프로그램 `analytics`를 부르는 명령(`uv run analytics run …`, `--title`에 `python`이
-  든 `analytics run …`)에는 더는 붙지 않습니다. README에 skill이 셸의 `analytics run`으로 스크립트를 돌리면 기록된다는 안내가 있습니다.
+  결과의 원래 내용과 오류 여부는 그대로입니다. 활성 프로젝트가 없거나 이 kit이 쓰지 않는 프로젝트, kit 명령에는 붙지 않습니다. 판정은
+  `python_via_bash`와 같고 명령의 글자를 읽으므로, `echo python`처럼 낱말 `python`만 든 명령에도 붙고 경로로 부른 Python
+  (`.venv/bin/python x.py`)에는 붙지 않습니다(CONTRACTS C5). 그 판정에 맞춰 `python_via_bash`는 명령을 단순 명령으로 나눠 kit 진입점을 부르는
+  것(`uv run analytics run …`, `--title`에 `python`이 든 `analytics run …` 등)을 빼고 판정합니다. 그 옆의 다른 Python(`python a.py && analytics
+  status`)에는 전처럼 붙습니다. README에 skill이 셸의 `analytics run`으로 스크립트를 돌리면 기록된다는 안내가 있습니다.
 
 ### Changed
 

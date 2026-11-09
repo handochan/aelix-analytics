@@ -548,7 +548,7 @@ def test_python_outside_the_kit_is_told_it_was_not_recorded(lab, is_error):
     assert first.content[-1].text == module.UNRECORDED_NOTICE
     assert (first.is_error, first.details, first.terminate) == (None, None, None)
     assert [block.text for block in event.content] == ["out\n"] and event.is_error is is_error
-    assert "not" in module.UNRECORDED_NOTICE and "analytics_run" in module.UNRECORDED_NOTICE
+    assert "no run was recorded" in module.UNRECORDED_NOTICE and "analytics_run" in module.UNRECORDED_NOTICE
     assert "`analytics run scripts/x.py --title" in module.UNRECORDED_NOTICE
     again = module.on_tool_result(bash_result("python scripts/y.py", is_error=is_error), None)
     assert again.content[-1].text == module.UNRECORDED_NOTICE_AGAIN
@@ -561,9 +561,26 @@ def test_python_outside_the_kit_is_told_it_was_not_recorded(lab, is_error):
 
 
 @pytest.mark.parametrize("command", [
+    "python scripts/a.py && analytics status",
+    "python plot.py --title 'Revenue (analytics)'",
+    "python -c 'print(7)' # ; analytics status",
+    "python - <<'EOF'\nanalytics = load()\nprint(len(analytics))\nEOF",
+])
+def test_python_beside_or_naming_the_kit_is_told(lab, command):
+    """Issue #170 (the reviews of 351b1ff): Python beside a kit command, or whose code, comment or
+    argument says `analytics`, ran outside the kit all the same: the line is given."""
+    module, _root = lab
+    patch = module.on_tool_result(bash_result(command), None)
+    assert patch is not None and patch.content[-1].text == module.UNRECORDED_NOTICE
+
+
+@pytest.mark.parametrize("command", [
     "analytics run scripts/x.py --title 'fit with python'",
     "uv run analytics run scripts/x.py --title t",
     "cd proj && uv run --project . analytics status",
+    "uv run --project 'my project' analytics run scripts/x.py --title python",
+    "uv run -- analytics run scripts/x.py --title python",
+    "analytics record finding - <<'EOF'\nfit with python\nEOF",
     "uv run --project . python -m aelix_analytics run scripts/x.py --title t",
     "python -c 'import aelix_analytics as analytics; print(analytics.datasets())'",
     "bin/analytics status",
