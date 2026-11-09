@@ -7,14 +7,15 @@
  "part": "PR-1: writing and minimal reads",
  "run_id": "e8d4ebf7-429d-4cd5-96da-567b206449e8",
  "measured_source": {
-  "commit": "d87a8f1",
+  "commit": "36cc1a3",
+  "first_measured": "d87a8f1",
   "branch": "feat/issue-171-observed-activity",
   "base": "6fd956c9ffdcd67f48bab2503a1e2c6db3e19c30",
   "merged_locally": {
    "pr_175": "47f2c50",
    "pr_176": "7df7d31"
   },
-  "note": "local commit before the rebase onto main once #175 and #176 are merged; re-measured before merge if a non-document difference appears"
+  "note": "re-measured after the implementation reviews' fixes; local commits before the rebase onto main once #175 and #176 are merged"
  },
  "machine": {
   "platform": "macOS-26.6.2-arm64-arm-64bit",
@@ -57,8 +58,8 @@
     "files": 1000,
     "calls": [
      {
-      "before_ms": 37.2,
-      "after_ms": 37.6,
+      "before_ms": 23.6,
+      "after_ms": 34.9,
       "recorded": "e3",
       "line_bytes": 2062,
       "changes_state": "observed",
@@ -67,8 +68,8 @@
       "session_observation": "on"
      },
      {
-      "before_ms": 37.4,
-      "after_ms": 30.6,
+      "before_ms": 25.8,
+      "after_ms": 34.7,
       "recorded": "e4",
       "line_bytes": 2062,
       "changes_state": "observed",
@@ -77,8 +78,8 @@
       "session_observation": "on"
      },
      {
-      "before_ms": 28.3,
-      "after_ms": 31.9,
+      "before_ms": 22.8,
+      "after_ms": 34.7,
       "recorded": "e5",
       "line_bytes": 2062,
       "changes_state": "observed",
@@ -87,8 +88,8 @@
       "session_observation": "on"
      },
      {
-      "before_ms": 29.8,
-      "after_ms": 29.6,
+      "before_ms": 22.3,
+      "after_ms": 35.2,
       "recorded": "e6",
       "line_bytes": 2062,
       "changes_state": "observed",
@@ -102,8 +103,8 @@
     "files": 10000,
     "calls": [
      {
-      "before_ms": 59.8,
-      "after_ms": 59.4,
+      "before_ms": 50.0,
+      "after_ms": 63.5,
       "recorded": "e3",
       "line_bytes": 2063,
       "changes_state": "observed",
@@ -112,8 +113,8 @@
       "session_observation": "on"
      },
      {
-      "before_ms": 62.3,
-      "after_ms": 67.0,
+      "before_ms": 53.9,
+      "after_ms": 63.5,
       "recorded": "e4",
       "line_bytes": 2063,
       "changes_state": "observed",
@@ -122,20 +123,20 @@
       "session_observation": "on"
      },
      {
-      "before_ms": 57.3,
-      "after_ms": 61.1,
+      "before_ms": 48.4,
+      "after_ms": 64.4,
       "recorded": "e5",
-      "line_bytes": 2062,
+      "line_bytes": 2063,
       "changes_state": "observed",
       "changes_reason": null,
       "changes_total": 1,
       "session_observation": "on"
      },
      {
-      "before_ms": 55.9,
-      "after_ms": 59.7,
+      "before_ms": 50.7,
+      "after_ms": 66.5,
       "recorded": "e6",
-      "line_bytes": 2062,
+      "line_bytes": 2063,
       "changes_state": "observed",
       "changes_reason": null,
       "changes_total": 1,
@@ -147,8 +148,8 @@
     "files": 50000,
     "calls": [
      {
-      "before_ms": 74.9,
-      "after_ms": 10.2,
+      "before_ms": 78.7,
+      "after_ms": 31.9,
       "recorded": "e3",
       "line_bytes": 1859,
       "changes_state": "not_observed",
@@ -157,8 +158,8 @@
       "session_observation": "off"
      },
      {
-      "before_ms": 9.2,
-      "after_ms": 10.3,
+      "before_ms": 19.3,
+      "after_ms": 30.1,
       "recorded": "e4",
       "line_bytes": 1839,
       "changes_state": "not_observed",
@@ -167,8 +168,8 @@
       "session_observation": "off"
      },
      {
-      "before_ms": 9.2,
-      "after_ms": 9.8,
+      "before_ms": 19.4,
+      "after_ms": 30.3,
       "recorded": "e5",
       "line_bytes": 1839,
       "changes_state": "not_observed",
@@ -177,8 +178,8 @@
       "session_observation": "off"
      },
      {
-      "before_ms": 9.1,
-      "after_ms": 9.7,
+      "before_ms": 22.3,
+      "after_ms": 30.3,
       "recorded": "e6",
       "line_bytes": 1839,
       "changes_state": "not_observed",
@@ -193,8 +194,8 @@
    "entries": 25000,
    "calls": [
     {
-     "before_ms": 22.3,
-     "after_ms": 10.2,
+     "before_ms": 28.9,
+     "after_ms": 31.9,
      "recorded": "e3",
      "line_bytes": 1859,
      "changes_state": "not_observed",
@@ -203,8 +204,8 @@
      "session_observation": "off"
     },
     {
-     "before_ms": 9.6,
-     "after_ms": 9.8,
+     "before_ms": 21.6,
+     "after_ms": 32.5,
      "recorded": "e4",
      "line_bytes": 1839,
      "changes_state": "not_observed",
@@ -213,8 +214,8 @@
      "session_observation": "off"
     },
     {
-     "before_ms": 0.6,
-     "after_ms": 0.3,
+     "before_ms": 10.1,
+     "after_ms": 10.0,
      "recorded": "e4",
      "line_bytes": 1839,
      "changes_state": "not_observed",
@@ -227,19 +228,19 @@
  },
  "kit_cost": {
   "files_1000": {
-   "after_ms": 3.8,
-   "before_ms": 3.4,
+   "after_ms": 15.4,
+   "before_ms": 19.5,
    "files": 1000,
-   "line_bytes": 1662
+   "line_bytes": 1663
   },
   "files_10000": {
-   "after_ms": 76.8,
-   "before_ms": 58.9,
+   "after_ms": 48.3,
+   "before_ms": 46.9,
    "files": 10000,
-   "line_bytes": 1664
+   "line_bytes": 1663
   },
   "single_directory_25000": {
-   "before_ms": 12.8,
+   "before_ms": 18.9,
    "bound": 20000,
    "entries": 25000
   }
@@ -247,17 +248,17 @@
  "hash": [
   {
    "mib": 64,
-   "after_ms": 34.4,
+   "after_ms": 44.7,
    "hash": "hashed"
   },
   {
    "mib": 200,
-   "after_ms": 88.3,
+   "after_ms": 96.9,
    "hash": "hashed"
   },
   {
    "mib": 512,
-   "after_ms": 10.6,
+   "after_ms": 21.1,
    "hash": "over_budget"
   }
  ],
@@ -279,7 +280,8 @@
   "slow_walk_deadline_0_5_s": "stopped under 1 s (test_the_before_view_keeps_its_bound_on_a_slow_walk)",
   "stuck_start": "abandoned at 1.8-3.0 s, next call busy (test_a_stuck_start_is_abandoned_within_its_bound_and_the_next_one_is_busy)",
   "slow_end": "answer at 2.8-4.0 s, 'not recorded' before commit, 'could not confirm' after (test_an_end_past_its_bound_says_whether_it_could_have_been_recorded)",
-  "journal_lock_held": "journal_busy within 1.5 s for a 0.6 s bound (test_a_journal_lock_held_elsewhere_records_nothing_within_the_bound)"
+  "journal_lock_held": "journal_busy within 1.5 s for a 0.6 s bound (test_a_journal_lock_held_elsewhere_records_nothing_within_the_bound)",
+  "slow_project_lookup": "on_tool_call within 2.5 s; on_tool_result while busy within 0.5 s (test_a_slow_project_lookup_is_bounded_by_the_hooks)"
  },
  "redaction": {
   "rules_version": 1,
@@ -290,7 +292,11 @@
   ],
   "result": "no canary value, its sha256 or the unredacted command's sha256 in journal or attachments; telemetry summary redacted",
   "secret_file_names": 10,
-  "secret_like_script": "no copy, no hash"
+  "secret_like_script": "no copy, no hash",
+  "whole_value_cases": 10,
+  "hostile_100_kb_lines": 16,
+  "hostile_bound_s": 0.5,
+  "named_changed_files": "a file the command names whose bytes match the rules keeps no hash or size"
  },
  "sharing": {
   "profiles": [
@@ -338,7 +344,8 @@
     "unexplained": 1,
     "not_observed": {},
     "sessions_off": [],
-    "off": null
+    "off": null,
+    "skipped": {}
    },
    "recent_kinds": [
     "project",
@@ -357,38 +364,38 @@
  "verification": [
   {
    "command": "uv run --locked pytest -q --timeout 600 --timeout-method=thread -p no:cacheprovider",
-   "source": "d87a8f1 (same tree)",
+   "source": "36cc1a3 (clean)",
    "result": "pass",
-   "summary": "3305 passed, 148 skipped, 925 s"
+   "summary": "3340 passed, 148 skipped, 748 s"
   },
   {
-   "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest ... tests/test_extension.py tests/test_asset_extension.py tests/test_checkpoint_extension.py tests/test_usage_report.py tests/test_agent_cli.py",
-   "source": "d87a8f1 (same tree)",
+   "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 ... five aelix files",
+   "source": "36cc1a3 (clean)",
    "result": "pass",
-   "summary": "1053 passed"
+   "summary": "1057 passed"
   },
   {
    "command": "same with --python 3.11",
-   "source": "d87a8f1 (same tree)",
+   "source": "36cc1a3 (clean)",
    "result": "pass",
-   "summary": "1053 passed"
+   "summary": "1057 passed"
   },
   {
    "command": "python3.11 tools/platform_smoke.py --stdlib-only --gate required",
-   "source": "d87a8f1 (same tree)",
+   "source": "36cc1a3 (clean)",
    "result": "pass",
    "summary": "holds 15, violated 0"
   },
   {
    "command": "uv run --locked ruff check tests extension src tools; tools/check_docs.py; tools/release_check.py version",
-   "source": "d87a8f1",
+   "source": "36cc1a3",
    "result": "pass"
   },
   {
-   "command": "uv run --locked pytest tests/test_observed.py tests/test_line_endings.py",
-   "source": "d87a8f1 (clean)",
+   "command": "first measurement and tests before the reviews",
+   "source": "d87a8f1",
    "result": "pass",
-   "summary": "166 passed"
+   "summary": "3305 passed, 148 skipped; aelix 1053 passed (3.12, 3.11)"
   }
  ],
  "not_run": [
@@ -396,7 +403,14 @@
   "cold OS file cache, network drives, FAT",
   "a real model session",
   "a read stuck in a real network mount (reproduced with a function double)",
-  "implementation reviews (independent, Codex)",
-  "PR-2: Workspace screens and C18 provenance"
- ]
+  "the fix-diff check of the review fixes",
+  "PR-2: Workspace screens and C18 provenance (its own record)"
+ ],
+ "reviews": {
+  "implementation": [
+   "independent (2026-11-10)",
+   "Codex (2026-11-10)"
+  ],
+  "fixed_in": "36cc1a3"
+ }
 }
