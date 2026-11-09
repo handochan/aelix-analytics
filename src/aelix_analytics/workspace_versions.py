@@ -104,9 +104,6 @@ class Versions:
 
     directory = SCRIPT_DIR
     page_name = staticmethod(script_page)
-    # The folding and range rules, for a history another module shows (workspace_reports).
-    arrange = staticmethod(arrange)
-    number_range = staticmethod(number_range)
 
     def __init__(self, site):
         self.site = site
@@ -194,16 +191,24 @@ class Versions:
         return (f'<li class="vh-group"><details{" open" if opened else ""}><summary><span class="vh-sum">{summary}</span>'
                 f'<span class="vh-use">{use}</span></summary><ol class="vh-list">{"".join(rows)}</ol></details></li>')
 
-    @staticmethod
-    def block(anchor: str, facts: str, strip: str, legend: str, rows: list[str], foot: str = "", *,
-              heading: str = "versions.history", level: int = 2) -> str:
+    def block(self, anchor: str, facts: str, strip: str, legend: str, rows: list[str], foot: str = "", *,
+              heading: str = "versions.history", level: int = 2, keep=()) -> str:
         """A history: its heading (`level`: under the page's sections, or under a chart's heading on a
         run page) and facts, the strip and its key, the rows, a closing note. Open: it is what the
-        page is for, and it reads without a script."""
+        page is for, and it reads without a script. Its rows follow the Workspace's folding rule
+        (design WORKSPACE-READABILITY 8.4) with no cap — each row is a version whose run or snapshot is
+        on a page of its own, and a Visualization's history is cut to a window on other pages
+        (WINDOW_ROWS) — and the rows at `keep` (the latest version, the one the page shows) in sight."""
         picture = f'<div class="vh-strip-wrap">{strip}</div>' if strip else ""
+        listed = self.site.fold(rows, lambda part: f'<ol class="vh-list">{"".join(part)}</ol>', cap=None, keep=keep)
         return (f'<section class="vh" id="{anchor}"><details class="vh-fold" open><summary><h{level}>{t(heading)}</h{level}> '
-                f'<span class="muted">{facts}</span></summary>{picture}{legend}'
-                f'<ol class="vh-list">{"".join(rows)}</ol>{foot}</details></section>')
+                f'<span class="muted">{facts}</span></summary>{picture}{legend}{listed}{foot}</details></section>')
+
+    @staticmethod
+    def in_sight(items: list[tuple], numbers) -> list[int]:
+        """The positions of the rows of `numbers` among arranged `items` (arrange): the versions a
+        history keeps in sight when it folds."""
+        return [i for i, (kind, item) in enumerate(items) if kind == "version" and item in numbers]
 
     @staticmethod
     def showing(number: int, total: int, at: str, *, latest: bool, extra: str = "", anchor: str = "") -> str:
@@ -399,7 +404,8 @@ class Versions:
             groups = [g for g in ([n for n in group if n in numbers] for group in groups) if g]
             failed = [item for kind, item in kept if kind == "failed"]
         rows = []
-        for kind, item in arrange(groups, failed, {len(versions), version["number"]}):
+        items = arrange(groups, failed, {len(versions), version["number"]})
+        for kind, item in items:
             if kind == "failed":
                 rows.append(self.failed_row(item, 1, t("versions.makes_no_version")))
             elif kind == "version":
@@ -434,7 +440,8 @@ class Versions:
             legend = self.legend(["version", "shown", *(["again"] if any(v["reruns"] for v in versions) else []),
                                   *(["failed"] if history["failed"] else []),
                                   *(["use_cited"] if any(v["cited_by"] for v in versions) else [])])
-        return head + self.chart_note(key) + self.block(anchor + "-list", facts, strip, legend, rows, foot, level=4)
+        return head + self.chart_note(key) + self.block(anchor + "-list", facts, strip, legend, rows, foot, level=4,
+                                                         keep=self.in_sight(items, {len(versions), version["number"]}))
 
     def chart_row(self, version: dict, total: int, shown: int, chart: dict) -> str:
         s = self.site
@@ -532,7 +539,8 @@ class Versions:
         note = f'<div class="callout tone-warning vh-note" role="note">{" ".join(notes)}</div>' if notes else ""
         points, groups = self.data_points(history, shown)
         rows = []
-        for kind, item in arrange(history["groups"], history["failed"], {len(versions), shown}):
+        items = arrange(history["groups"], history["failed"], {len(versions), shown})
+        for kind, item in items:
             if kind == "failed":
                 what = (t("versions.wrote_nothing") if not item.get("wrote") else
                         t("versions.wrote_version", n=item["wrote_version"]) if item.get("wrote_version") else
@@ -571,7 +579,8 @@ class Versions:
                               *(["use_read"] if any(v["readers"] for v in versions) else [])])
         return (f'<section class="vh-data" id="versions">{head}{note}'
                 + self.block("version-history", facts, self.strip(points, groups, "data"), legend, rows,
-                             f'<p class="vh-foot">{" ".join(foot)}</p>') + "</section>")
+                             f'<p class="vh-foot">{" ".join(foot)}</p>', keep=self.in_sight(items, {len(versions), shown}))
+                + "</section>")
 
     def data_row(self, version: dict, total: int, shown: int) -> str:
         s = self.site
@@ -685,7 +694,7 @@ class Versions:
         legend = self.legend(["version", "shown", *(["failed"] if any(e["status"] != "ok" for g in segments for e in g["runs"]) else [])])
         body = (head + showing + note + diff
                 + self.block("code-history", facts_line, self.strip(points, groups, "code"), legend, rows[::-1],
-                             f'<p class="vh-foot">{t("versions.code_rule")}</p>', heading="versions.code_history")
+                             f'<p class="vh-foot">{t("versions.code_rule")}</p>', heading="versions.code_history", keep=[0])
                 + (f'<section class="vh-diffs"><h2>{t("versions.code_changes")}</h2>{diffs}</section>' if diffs else ""))
         return s.page(1, name, crumb, body, "script", page_path=f"{SCRIPT_DIR}/{script_page(script)}",
                       selection=script)
@@ -827,7 +836,8 @@ class Versions:
                 texts[n] = _lines(paths.get(versions[n - 1]["name"]))
             return texts[n]
 
-        for kind, item in arrange(history["groups"], [], {total, 1}):
+        items = arrange(history["groups"], [], {total, 1})
+        for kind, item in items:
             if kind == "version":
                 rows.append(self.context_row(versions[item - 1], total, lines))
             else:
@@ -846,7 +856,7 @@ class Versions:
                             t("versions.pinned_changed_n", n=changed) if changed else t("versions.pinned_never")])
         legend = self.legend(["version", "shown", *(["use_insights"] if any(v["insights"] for v in versions) else [])])
         return self.block("context-history", facts, self.strip(points, groups, "context"), legend, rows,
-                          f'<p class="vh-foot">{t("versions.insights_rule")}</p>')
+                          f'<p class="vh-foot">{t("versions.insights_rule")}</p>', keep=self.in_sight(items, {total, 1}))
 
     def context_latest_changes(self, paths: dict) -> str:
         """What the latest CONTEXT.md version changed against the one before (mockup 9-C), as written."""

@@ -342,6 +342,10 @@ summary { display: block; min-height: 2.75rem; padding: 0.625rem 0; cursor: poin
 summary::-webkit-details-marker { display: none; }
 summary::before { content: "▸"; display: inline-block; width: 1.1em; color: var(--muted); font-size: 0.8em; }
 details[open] > summary::before { content: "▾"; }
+/* A long list's fold (design WORKSPACE-READABILITY 8.4): the rest of the list under words saying how many, and past its cap where all are. */
+details.more { margin: 0.25rem 0 0.5rem; }
+details.more > summary { color: var(--ink-2); font-size: 0.875rem; }
+.more-beyond { margin: 0.25rem 0 0.5rem; color: var(--ink-2); font-size: 0.875rem; }
 
 /* lists: one row per record (design 8.1), and the kind filter's links (8.2) */
 nav.kinds { display: flex; flex-wrap: wrap; gap: 0.375rem; margin: 0.75rem 0; }

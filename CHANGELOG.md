@@ -64,6 +64,12 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   내려받기만 둡니다. Markdown 본문 문서의 CSP, 공유본의 HTML 거절(`report_not_shareable`), 저장 형식은 그대로입니다. 한계: kit은 Workspace를
   `file://`로 열며, 거기서도 브라우저는 `file://` 페이지끼리 localStorage를 함께 써서 보고서 스크립트가 Workspace의 보기 설정(화면 언어,
   live 새로 고침)을 읽고 바꿀 수 있습니다. Workspace를 로컬 HTTP 서버로 열면 그 스크립트가 Workspace와 같은 origin에서 돕니다.
+- #172: Workspace의 길어지는 목록이 한 규칙으로 접힙니다. 앞 20개를 보이고 나머지는 "Show N more (M in all)"(`<details>`, JavaScript 없이 열림)로
+  접으며, 주소가 접힌 항목을 가리키면 열립니다. 한 페이지에 100개(index의 목록은 50개)를 넘는 항목은 넣지 않고 그 수와 모두 있는 곳(`run.json`,
+  관계 페이지, `manifest.json` 등)을 적습니다. 대상은 run의 입력·출력·경고·환경·journal 기록·재실행 비교, 버전 이력(상한 없음; 보고 있는 버전과
+  최신은 접지 않음), 데이터셋의 열과 run 목록, Report의 근거·구성원·파일, Evaluation의 도구 목록, 분석 자산입니다. 전에는 run 입력만 60행에서
+  끊었고 출력·데이터셋의 열·Report 파일 등은 끝없이 늘었으며, Report 이력은 5개를 넘으면 가운데를 한 줄로 접었습니다. 순서와 수는 그대로이고,
+  fixture S·M의 첫 HTML과 페이지 수도 그대로입니다(전체 HTML M +0.01%).
 
 ### Fixed
 
