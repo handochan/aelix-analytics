@@ -2870,6 +2870,40 @@ class QueryIndex:
                 connection.close()
 
 
+# What a kit before 0.8.0 kept of a record's text (lab.event/1): its first 4,000 characters, the rest
+# dropped (CONTRACTS C1). A text of exactly this many may have been longer; a shorter one was whole.
+LEGACY_TEXT_CHARS = 4000
+# What a read of one record says of its writer's rule, by the record's format (#156).
+TEXT_RULES = {
+    relations.EVENT_V1: f"lab.event/1: a kit before 0.8.0 kept only the first {LEGACY_TEXT_CHARS:,} "
+                        "characters of a text",
+    relations.EVENT_V2: "analytics.event/2: the writer keeps the whole text it is given (white space around "
+                        f"it aside) and refuses one over {writer.TEXT_LIMIT:,} bytes of UTF-8, never cutting it",
+}
+
+
+def text_length(record: dict) -> dict:
+    """The length a read of one record gives of its text (#156), so no reader counts the file itself:
+    `text_chars`, its characters as Python counts them (Unicode code points — the unit of the 4,000
+    characters a kit before 0.8.0 kept and of a search's `text_chars`, not the UTF-8 bytes of today's
+    write limit), and `text_truncated` when the record's format says what its writer kept: `no` for
+    analytics.event/2 and for a lab.event/1 text under 4,000 characters, `possibly` for a lab.event/1
+    text of exactly 4,000 (that writer cut there, and nothing records whether a text was longer).
+    A record without a text has neither; a text of another format, or a lab.event/1 text longer than
+    that writer wrote, has no `text_truncated`: nothing records how it was written."""
+    text = record.get("text")
+    if not isinstance(text, str):
+        return {}
+    found = {"text_chars": len(text)}
+    schema = record.get("schema")
+    if schema == relations.EVENT_V2:
+        found["text_truncated"] = {"state": "no", "rule": TEXT_RULES[schema]}
+    elif schema == relations.EVENT_V1 and len(text) <= LEGACY_TEXT_CHARS:
+        found["text_truncated"] = {"state": "possibly" if len(text) == LEGACY_TEXT_CHARS else "no",
+                                   "rule": TEXT_RULES[schema]}
+    return found
+
+
 def _query_record(model, source):
     if (found := model.record_payload(source)) is not None:
         return found
@@ -3007,7 +3041,8 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
                 row["evidence"] = references_summary(model.references(row["id"]), model=model)
                 row["interpretation"] = "recorded judgment; data may have changed; conclusion review is separate"
         elif part == "records":
-            result.update(id=id, location=location, record_state=model.journal.replay().state_of(id),
+            result.update(id=id, location=location, **text_length(record),
+                          record_state=model.journal.replay().state_of(id),
                           legacy_resolved_by=legacy_resolved.get(id, []),
                           evidence=references_summary(model.references(id), model=model),
                           interpretation="recorded judgment; data may have changed; conclusion review is separate")
@@ -3047,7 +3082,8 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
         if result.get("checkpoint") is not None:
             result["checkpoint"].update(needs_review=None, updates_available=None)
             result["checkpoint"]["qualification"].append("checkpoint_knowledge_updating")
-        for field in ("record_state", "legacy_resolved_by", "evidence", "interpretation"):
+        for field in ("record_state", "legacy_resolved_by", "evidence", "interpretation", "text_chars",
+                      "text_truncated"):
             result.pop(field, None)
     result["absence_is_not_proof"] = "no matches means no lexical match in this scope; unreadable or differently worded records may exist"
     if since or until:

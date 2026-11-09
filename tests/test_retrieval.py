@@ -6,6 +6,7 @@ import sqlite3
 from pathlib import Path
 
 import pytest
+from legacy_records import LegacyProject
 
 from aelix_analytics import core, relations
 
@@ -296,6 +297,50 @@ def test_cli_and_sdk_use_the_same_bounded_record_contract(tmp_path, monkeypatch)
     cli = result["status"]
     assert sdk["items"] == cli["items"] and sdk["source_revision"] == cli["source_revision"]
     assert cli["items"][0]["id"] == entry["id"]
+
+
+def test_a_record_read_gives_its_text_length_in_characters(tmp_path, monkeypatch):
+    """#156: a read of one record says how many characters its text has — Unicode code points, not the
+    UTF-8 bytes a reader counts in journal.jsonl — on every page, the same from the kit, the SDK and
+    the CLI, and that the writer of analytics.event/2 kept the text whole."""
+    from conftest import kit_cli
+
+    import aelix_analytics as analytics
+
+    p = project_at(tmp_path)
+    entry = record(p, text="야간 배송의 반품률 " * 300 + "\U0001F4C8")
+    detail = core.status(p, part="records", id=entry["id"])
+    assert detail["text_chars"] == len(entry["text"]) == 3301
+    assert len(entry["text"].encode("utf-8")) > 8000
+    assert detail["text_truncated"]["state"] == "no"
+    assert "analytics.event/2" in detail["text_truncated"]["rule"]
+    # The length does not need the page that holds the text.
+    first = core.status(p, part="records", id=entry["id"], limit=1)
+    assert [row["field"] for row in first["items"]] == ["schema"] and first["has_more"]
+    assert first["text_chars"] == detail["text_chars"]
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(p.root))
+    sdk = analytics.status(part="records", id=entry["id"])
+    code, result = kit_cli(p.root, "status", "--part", "records", "--id", entry["id"])
+    assert code == 0 and result["ok"]
+    for other in (sdk, result["status"]):
+        assert (other["text_chars"], other["text_truncated"]) == (detail["text_chars"], detail["text_truncated"])
+    # A record without a text says nothing of one.
+    assert core.text_length({"schema": "analytics.run/2", "id": "20300101-000000-x"}) == {}
+
+
+def test_an_older_kits_record_may_have_been_cut_at_4000_characters(tmp_path):
+    """#156: a kit before 0.8.0 kept the first 4,000 characters of a text (lab.event/1). A text of
+    exactly 4,000 may have been cut there, a shorter one was not, and of a longer one — which that
+    writer never wrote — the read claims nothing."""
+    legacy = LegacyProject(tmp_path / "old")
+    ids = {chars: legacy.event("note", text="가" * chars) for chars in (3999, 4000, 4001)}
+    p = core.Project(legacy.root)
+    read = {chars: core.status(p, part="records", id=event_id) for chars, event_id in ids.items()}
+    assert {chars: found["text_chars"] for chars, found in read.items()} == {3999: 3999, 4000: 4000, 4001: 4001}
+    assert read[4000]["text_truncated"]["state"] == "possibly"
+    assert "first 4,000 characters" in read[4000]["text_truncated"]["rule"]
+    assert read[3999]["text_truncated"]["state"] == "no"
+    assert "text_truncated" not in read[4001]
 
 
 def test_period_bounds_require_offset_and_exclude_unqualified_instants(tmp_path):
