@@ -3083,7 +3083,8 @@ def test_python_via_bash_leaves_out_only_the_kit_itself(monkeypatch, tmp_path, c
     "python " + "# x\n" * 8_000,
     "python <<E\n" + "x\n" * 15_000 + "E\n",
     "python " + "<<E " * 4_000 + "\n" + "E\n" * 4_000,
-])
+], ids=["parens", "python-parens", "python-parens-whole", "uv-options", "redirections", "comments", "heredoc-body",
+        "heredoc-openers"])  # short ids: pytest puts the id in PYTEST_CURRENT_TEST, capped at 32,767 characters on Windows
 def test_judging_a_long_bash_command_takes_no_time(monkeypatch, command):
     """Issue #170 review (351b1ff): the judgment runs on aelix's event loop for every bash call, and a
     regular expression that backtracked took seconds on 32 KB. The one-pass reading and the
