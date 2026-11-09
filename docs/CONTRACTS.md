@@ -1172,6 +1172,8 @@ ReportRenderer는 교체 계약과 원본 불변성 검증을 마친 내부 adap
   - 버전의 파일이 저장한 바이트이고 manifest를 믿을 수 있을 때만 엽니다(본문 문서를 만드는 조건과 같음). 아니면 전처럼 내려받기 링크만 둡니다.
     이 판정은 빌드 때의 것이라 빌드 뒤에 바뀐 원본은 다음 빌드 전까지 바뀐 채로 열립니다.
   - 한계: kit은 Workspace를 `file://`로 엽니다. 그 탭이 `file://`에서 Workspace와 얼마나 떨어지는지는 브라우저가 정하며 kit이 격리를 더하지 않습니다.
+    Chromium·Firefox·WebKit은 `file://` 페이지끼리 localStorage를 함께 써서(Playwright로 확인), 보고서 스크립트가 Workspace가 거기 둔 보기 설정(화면 언어,
+    live 새로 고침)을 읽고 바꿀 수 있습니다.
     누가 Workspace를 `file://`이 아닌 로컬 HTTP 서버로 열면 보고서의 스크립트가 Workspace와 같은 origin에서 돌아, 그 origin의 브라우저 저장소(localStorage 등)와 같은 서버가
     내주는 다른 파일에 닿을 수 있습니다.
 - **연결**: report_revision 참조 배지는 그 버전 구역으로, 관계 페이지의 Report 버전은 Report 페이지로 갑니다(`Report version`, `Open report version`).
