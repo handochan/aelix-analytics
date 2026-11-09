@@ -1386,6 +1386,185 @@ def find_project(start=None) -> Path | None:
     return writer.find_project(here)
 
 
+# --- projects below a directory, and the user's settings for activating them (Issue #169) ---
+
+# How far below the aelix working directory the extension looks for projects, and when it stops
+# (find_projects_below): a child of the directory is depth 1. A person who starts aelix at the root
+# of a repository, a level or two above the project, is the case; a deeper project is named with
+# /analytics use. The limits keep the walk short on a large tree (a home directory, a monorepo with
+# its node_modules): it runs once per session before the first prompt.
+BELOW_DEPTH = 3
+BELOW_MAX_DIRS = 2000
+BELOW_SECONDS = 0.5
+# Directories the walk never enters, besides hidden ones (a name that starts with a dot: .git,
+# .venv, .analytics) and links: environments and caches that hold no project of a person's.
+BELOW_SKIP = frozenset({"node_modules", "__pycache__"})
+_MARKER_NAMES = frozenset(name.casefold() for name in (writer.MARKER, writer.LEGACY_MARKER))
+
+
+def _not_searched(here: Path) -> bool:
+    """The home directory itself and the root of a file system are not searched below: they hold
+    far more than projects, and on macOS listing folders such as Documents may ask the person for
+    permission."""
+    if here.parent == here:
+        return True
+    try:
+        home = Path(canonical(Path.home()))
+    except (OSError, RuntimeError):
+        return False
+    return here == home
+
+
+def find_projects_below(start=None, *, depth: int = BELOW_DEPTH, max_dirs: int = BELOW_MAX_DIRS,
+                        seconds: float = BELOW_SECONDS, clock=time.monotonic) -> tuple[list[Path], bool]:
+    """(the directories below `start` — the working directory by default — that hold a project
+    marker or a migration's record, as find_project finds one, nearest first; whether the walk saw
+    every directory within `depth`). `start` itself and its parents are find_project's.
+
+    Breadth first, each directory's entries in name order, never into a hidden directory, one in
+    BELOW_SKIP, a link or junction (_platform.is_link_entry), or a directory found (a project's own
+    directories are its own). It stops, keeping what it found, after listing `max_dirs` directories
+    or after `seconds`. A directory that cannot be listed is passed over. The home directory and the
+    root of a file system are not searched (_not_searched). The directories found are not judged:
+    the caller reads their markers (readable) and the trust list (is_trusted)."""
+    try:
+        here = Path(canonical(Path(start or os.getcwd()).expanduser()))
+    except (OSError, RuntimeError, ValueError):  # RuntimeError: a `~name` with no such home
+        return [], False
+    if _not_searched(here) or depth < 1:
+        return [], False
+    began = clock()
+    found: list[Path] = []
+    listed = 0
+
+    def listing(directory: Path) -> tuple[set[str], list[Path]] | None:
+        """(the names it holds, case folded; the directories the walk may enter), one listing."""
+        try:
+            with os.scandir(directory) as entries:
+                names, children = set(), []
+                for entry in entries:
+                    names.add(entry.name.casefold())
+                    if (not entry.name.startswith(".") and entry.name not in BELOW_SKIP
+                            and not _platform.is_link_entry(entry) and entry.is_dir(follow_symlinks=False)):
+                        children.append(entry.name)
+        except OSError:
+            return None
+        return names, [directory / name for name in sorted(children)]
+
+    listed_here = listing(here)
+    level = listed_here[1] if listed_here else []
+    for at in range(1, depth + 1):
+        below: list[Path] = []
+        for directory in level:
+            if listed >= max_dirs or clock() - began > seconds:
+                return found, False
+            listed += 1
+            seen = listing(directory)
+            if seen is None:
+                continue
+            names, children = seen
+            # The listing says where a marker may be; the marker rules (present_marker, which asks
+            # the file system, so a marker spelled in another case where the file system ignores
+            # case counts as it does for find_project) say whether it is.
+            if ((names & _MARKER_NAMES and writer.present_marker(directory))
+                    or (writer.LAYOUT.state_dir in names and writer.migration_record(directory))):
+                found.append(directory)
+            elif at < depth:
+                below.extend(children)
+        level = below
+    return found, True
+
+
+# The user's settings for the aelix extension's activation of projects, beside the trust list
+# (analytics.settings/1, Issue #169): what it does with a project the trust list does not hold
+# (`unknown_projects`: ask a person where it can, activate it without asking, or leave it), and the
+# working directories where it does not ask (`not_asked_in`, canonical paths). Outside every project,
+# like the trust list, so a project cannot grant itself activation.
+SETTINGS_FILE = "analytics-settings.json"
+SCHEMA_SETTINGS = writer.FAMILIES["settings"]
+UNKNOWN_PROJECTS = ("ask", "always", "never")
+SETTINGS_DEFAULTS = {"unknown_projects": "ask", "not_asked_in": []}
+
+
+def settings_file() -> Path:
+    """analytics-settings.json in the directory of the trust list (trust_file): the host's agent
+    directory, or that of AELIX_ANALYTICS_TRUST_FILE, so one variable moves both."""
+    return trust_file().parent / SETTINGS_FILE
+
+
+def read_settings() -> dict:
+    """The settings as the file holds them, each with its default (SETTINGS_DEFAULTS) where the file
+    does not hold it, holds a value this kit does not know, or is not analytics.settings/1 at all (a
+    newer kit's, a broken file, none): an unknown or broken setting never activates a project the
+    person did not choose, since the default asks."""
+    data = read_json(settings_file(), {})
+    out = {"unknown_projects": SETTINGS_DEFAULTS["unknown_projects"], "not_asked_in": []}
+    if not isinstance(data, dict) or data.get("schema") != SCHEMA_SETTINGS:
+        return out
+    if data.get("unknown_projects") in UNKNOWN_PROJECTS:
+        out["unknown_projects"] = data["unknown_projects"]
+    folders = data.get("not_asked_in")
+    if isinstance(folders, list):
+        out["not_asked_in"] = [f for f in folders if isinstance(f, str) and f]
+    return out
+
+
+def _change_settings(change, *, platform: _platform.Platform | None = None) -> dict:
+    """Apply `change` to the stored settings and write them (analytics.settings/1), keeping the
+    fields this kit does not know. A file of another family or version is not written over
+    (settings_unsupported); one that is not a JSON object is replaced. Gives read_settings()."""
+    path = settings_file()
+    data = read_json(path, None)
+    if isinstance(data, dict) and data.get("schema") not in (None, SCHEMA_SETTINGS):
+        raise AnalyticsError("settings_unsupported",
+                             f"{path} holds {data.get('schema')!r}, not {SCHEMA_SETTINGS}; it was left "
+                             "as it is",
+                             hint="a newer kit wrote it: change the setting there, or move the file aside")
+    kept = {k: v for k, v in data.items() if k != "schema"} if isinstance(data, dict) else {}
+    value = {"schema": SCHEMA_SETTINGS, **kept}
+    change(value)
+    write_json(path, value, platform=platform, through_link=True)
+    return read_settings()
+
+
+def set_unknown_projects(mode: str, *, platform: _platform.Platform | None = None) -> dict:
+    """Set what the aelix extension does with a project the trust list does not hold: `ask` (the
+    default), `always` (activate it without asking, without adding it to the trust list) or `never`.
+    The function a settings screen calls (#162)."""
+    if mode not in UNKNOWN_PROJECTS:
+        raise AnalyticsError("setting_invalid", f"unknown_projects is one of {', '.join(UNKNOWN_PROJECTS)}, "
+                             f"not {mode!r}")
+
+    def change(value: dict) -> None:
+        value["unknown_projects"] = mode
+
+    return _change_settings(change, platform=platform)
+
+
+def stop_asking_in(folder, *, platform: _platform.Platform | None = None) -> dict:
+    """Remember that the aelix extension does not ask about projects when it starts in `folder`
+    (that directory only, not those below it). A list that holds it already is left as it is."""
+    resolved = canonical(Path(folder).expanduser())
+    if resolved in read_settings()["not_asked_in"]:
+        return read_settings()
+
+    def change(value: dict) -> None:
+        folders = value.get("not_asked_in")
+        folders = [f for f in folders if isinstance(f, str) and f] if isinstance(folders, list) else []
+        value["not_asked_in"] = sorted({*folders, resolved})
+
+    return _change_settings(change, platform=platform)
+
+
+def asks_in(folder) -> bool:
+    """Whether the aelix extension may ask about a project when it starts in `folder`."""
+    try:
+        resolved = canonical(Path(folder).expanduser())
+    except (OSError, RuntimeError, ValueError):
+        return True
+    return resolved not in read_settings()["not_asked_in"]
+
+
 def system_origin(origin: Origin) -> Origin:
     """Who the kit's own writes are by when an entry point's request makes them (the context sync
     before a write, design 4.1): `system`, with the entry point's means and session."""
