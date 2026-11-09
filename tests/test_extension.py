@@ -1186,6 +1186,18 @@ def test_the_telemetry_summary_of_a_hostile_command_is_quick(lab):
     assert time.monotonic() - started < 0.5 and len(summary) == 300
 
 
+def test_the_telemetry_summary_redacts_a_value_that_ends_far_away(lab):
+    """Fix-diff check (C1-1): a quoted value whose closing quote is past 8 KiB is redacted whole before the
+    summary keeps 300 characters; a command over the bound keeps no summary, only its length."""
+    module, root = lab
+    command = "API_TOKEN='canary-far-start" + "x" * 9000 + "canary-far-end' python x.py"
+    summary, _ = module.summarize_call("bash", {"command": command}, module.core.Project(root))
+    assert summary.startswith("API_TOKEN=[redacted] python x.py") and "canary" not in summary
+    huge = "echo " + "y" * (module.TELEMETRY_REDACTED + 1)
+    summary, _ = module.summarize_call("bash", {"command": huge}, module.core.Project(root))
+    assert summary == f"[not kept: {len(huge)} characters]"
+
+
 def test_lab_command_where_help_and_gap(lab):
     """`/analytics record gap TEXT` (what `/lab gap` was) is refused with the kind's new name
     (design 2.8: bad_kind, workflow_feedback), nothing written; `/analytics record workflow_feedback`

@@ -1428,6 +1428,11 @@ def _str_null(value) -> bool:
     return value is None or isinstance(value, str)
 
 
+def _bool_null(value) -> bool:
+    """A JSON boolean or null, as the schema says: 1 and 0 are numbers, not booleans."""
+    return value is None or type(value) is bool
+
+
 def _change_item_problem(item) -> str | None:
     if not (_has(item, ("path", "change", "bytes", "sha256", "hash", "explanation", "same_bytes_possible"))
             and isinstance(item["path"], str) and item["change"] in OBSERVED_CHANGE_KINDS
@@ -1446,7 +1451,7 @@ def _script_item_problem(item) -> str | None:
     if not (_has(item, ("name", "path", "bytes", "sha256", "hash", "captured", "stable", "copy", "outside"))
             and isinstance(item["name"], str) and _str_null(item["path"]) and _count(item["bytes"], null=True)
             and _sha_or_none(item["sha256"]) and item["hash"] in ("hashed", "withheld", "over_budget", "unreadable")
-            and item["captured"] in ("before", "after", None) and item["stable"] in (True, False, None)
+            and item["captured"] in ("before", "after", None) and _bool_null(item["stable"])
             and _str_null(item["copy"]) and isinstance(item["outside"], bool) and _str_null(item.get("copy_reason"))):
         return "invalid script item"
     return None
@@ -1489,7 +1494,7 @@ def observed_activity_problem(event) -> str | None:
             and _count(command["redaction"]["rules_version"]) and _count(command["redaction"]["count"])):
         return "invalid command"
     result = d["result"]
-    if not (_has(result, ("is_error", "exit_code")) and result["is_error"] in (True, False, None)
+    if not (_has(result, ("is_error", "exit_code")) and _bool_null(result["is_error"])
             and (result["exit_code"] is None or type(result["exit_code"]) is int)):
         return "invalid result"
     reasons = d["reasons"]

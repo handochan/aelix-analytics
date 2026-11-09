@@ -815,7 +815,9 @@ def after(project, prior: Before, call: Call, *, writer, job: Job, sessions: Ses
                     # A file the command names (a heredoc's or a redirection's target, a script) may
                     # hold what its text wrote: its bytes are read with the rules of decision 5, and a
                     # match keeps neither its hash nor its size, as a script's copy is refused.
-                    named = PurePosixPath(path).name in call.command
+                    name = PurePosixPath(path).name
+                    # In the text (a redirection's target) or a word as the shell reads it (escapes removed).
+                    named = name in call.command or any(name in word for words in call.commands for word in words)
                     item["sha256"], item["hash"], data = _hash(real, change["stat"], budget, job, keep=named)
                     if data is not None and redact(data.decode("utf-8", errors="replace"))[1]:
                         item.update(sha256=None, hash="withheld", bytes=None, reason="secret_like")

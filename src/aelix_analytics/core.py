@@ -3856,7 +3856,8 @@ def observation_skips(project) -> dict[str, int]:
             if b'"observation_skipped"' not in raw:
                 continue
             with contextlib.suppress(ValueError):
-                reason = json.loads(raw).get("observation_skipped")
+                row = json.loads(raw)
+                reason = row.get("observation_skipped") if isinstance(row, dict) else None
                 if isinstance(reason, str):
                     out[reason] = out.get(reason, 0) + 1
     return dict(sorted(out.items()))

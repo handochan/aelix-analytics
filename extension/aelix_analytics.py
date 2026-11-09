@@ -2098,9 +2098,9 @@ def python_outside_the_kit(command: str) -> bool:
             and "bin/analytics" not in command)
 
 
-# How much of a bash command telemetry's summary redacts before it keeps the first 300 characters: a key
-# block cut there is still redacted (its rule reads to the end of the text).
-TELEMETRY_REDACTED = 8192
+# The longest bash command telemetry's summary keeps a part of: redacted whole (a value's closing quote
+# may be anywhere), then cut to 300 characters. A longer one keeps no summary, only its length.
+TELEMETRY_REDACTED = 256 * 1024
 
 
 def summarize_call(tool: str, args: dict, project) -> tuple[str, list]:
@@ -2109,9 +2109,11 @@ def summarize_call(tool: str, args: dict, project) -> tuple[str, list]:
         command = str(args.get("command") or "")
         if python_outside_the_kit(command):
             flags.append("python_via_bash")
-        # Redacted, then cut: no part of a secret the cut would split is kept (ADR-0015 OQ6). Only the first
-        # TELEMETRY_REDACTED characters are read, as only 300 are kept.
-        return core.observed.redact(command[:TELEMETRY_REDACTED])[0][:300], flags
+        # Redacted whole, then cut: no part of a secret the cut would split is kept (ADR-0015 OQ6). The rules
+        # read a command in time linear in its length; past TELEMETRY_REDACTED nothing of it is kept.
+        if len(command) > TELEMETRY_REDACTED:
+            return f"[not kept: {len(command)} characters]", flags
+        return core.observed.redact(command)[0][:300], flags
     if tool in ("write", "edit"):
         path = str(args.get("path") or "")
         # Where the write went below the root, from the path's text (else its real path): a write

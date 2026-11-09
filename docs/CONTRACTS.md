@@ -623,7 +623,8 @@ kit 0.8.0부터 이 kit이 쓰는 가져오기 기록은 `analytics.dataset/1`([
 
 - `.analytics/telemetry.jsonl`: `{ts, tool, ms, error, summary, flags[], session}` — `summary`는 bash 명령 앞 300자,
   write·edit·read 경로, `analytics_*` 주요 인자. `flags`: `python_via_bash`, `wrote_managed_path`. kit 0.32.1부터(#171, ADR-0015 OQ6) bash 명령은
-  관찰된 활동과 같은 가림 규칙(C22)을 명령의 앞 8 KiB에 적용한 뒤 앞 300자를 남깁니다(개인 키 블록은 잘려도 가립니다). 그 전에 쓴 줄은
+  관찰된 활동과 같은 가림 규칙(C22)을 명령 전체에 적용한 뒤 앞 300자를 남깁니다(값의 닫는 따옴표가 어디에 있든). 256 KiB를 넘는 명령은
+  요약 대신 `[not kept: N characters]`만 남깁니다. 그 전에 쓴 줄은
   고쳐 쓰지 않습니다(append-only). 새 템플릿의 `.gitignore`는 이 파일을 빼지 않으므로 그 전의 가리지 않은 명령은 git에 남아 있을 수 있습니다.
   bash 호출의 관찰을 건너뛰었거나 그 기록을 쓰지 못했으면 그 줄에 `observation_skipped`(사유: `busy` 등, C22)가 있습니다.
   `python_via_bash`는 Python(`python`·`uv run`·`pip`·`ipython`·`jupyter`)을 부르고 kit이 아닌 bash 명령입니다. kit 0.32.1부터(#170) 확장은 명령을
@@ -1336,7 +1337,8 @@ operation `observe`로만 씁니다.
   `.meta.json`)와 같으면 `explained`(`by: {type: run|dataset_import, id}`), 창의 줄을 모두 읽었고 해시가 있으며 맞는 것이 없으면 `unexplained`,
   해시가 없거나 창·run 기록을 읽지 못했으면 `unknown`(`reason`)입니다. 지운 파일도 같아서, run 기록을 읽지 못한 창의 삭제는
   `unknown`(`run_record_unread`)입니다. 해시의 합 상한은 실제로 읽은 바이트로 셉니다(읽는 동안 커지는 파일도 상한에서 멈춤).
-  명령이 이름을 든 바뀐 파일(heredoc·리디렉션의 대상, 스크립트)은 1 MiB 이하면 그 바이트에 가림 규칙을 적용해, 걸리면 해시도 크기도 남기지 않습니다
+  명령이 이름을 든 바뀐 파일(명령 글이나 셸이 읽은 낱말에 그 이름이 있음: heredoc·리디렉션의 대상, 이스케이프한 이름, 스크립트)은 1 MiB 이하면
+  그 바이트에 가림 규칙을 적용해, 걸리면 해시도 크기도 남기지 않습니다
   (`hash: withheld`, `reason: secret_like`). 창은 이 도구 호출이 도는 동안 바뀐 것이지 이 명령이 썼다는 뜻이 아닙니다.
 - **스크립트와 언급한 파일**: 최종 명령(다른 확장이 바꾼 뒤)의 단순 명령 낱말(C5의 읽기, 확신하지 못하는 줄은 공백으로 나눔)을 aelix 작업 디렉터리와
   그 앞의 글자 경로 `cd X`·`pushd X`·`Set-Location X`로 풉니다. 따라갈 수 없는 이동(변수·`cd -`) 뒤의 상대 이름은 `mentioned.unresolved`로만

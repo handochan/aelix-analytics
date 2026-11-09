@@ -19,16 +19,6 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 
 ### Added
 
-- #171: aelix에서 모델이 bash로 kit을 거치지 않고 한 일이 **관찰된 활동**(`observed_activity`, ADR-0015)으로 journal에 남습니다. 확장이 bash 호출의
-  앞(2초 안)과 뒤(3초 안)에서 프로젝트 파일의 상태를 비교해, kit 밖 Python을 돌렸거나 run·가져오기가 기록하지 않은 파일이 그 사이에 바뀌었으면
-  가린 명령 글, 관찰 창의 시각, 바뀐 파일과 그 sha256, 명령이 가리킨 스크립트의 바이트를 기록합니다(긴 목록과 스크립트 사본은
-  `.analytics/observed/<activity_id>/`). run이 아니며 입력·환경·출력은 남기지 않습니다. 결과 끝의 #170 안내는 `Observed as eN`을 덧붙이고, Python이
-  아닌 명령도 설명되지 않은 변경을 남겼으면 짧게 알립니다(그 명령이 썼다고 말하지 않음). 명령 글은 토큰·비밀번호·URL 질의 값·알려진 키 꼴 등을
-  `[redacted]`로 가린 뒤에만 남고, 비밀일 수 있는 이름의 파일은 해시하거나 복사하지 않습니다. 큰 `data/`(파일 2만 개 초과)나 연속 시간 초과에서는 그
-  세션의 변경 관찰을 끄고 그렇다고 알립니다. 앞선 관찰이 아직 돌고 있어 건너뛴 호출은 telemetry의 `observation_skipped`로 남고 수로 보입니다.
-  `analytics_status`는 관찰을 최근 기록에서 빼고 한 줄로 세고(`part=records kind=observed_activity`로 읽음), 맥락 블록은 현재 세션의 관찰이 있을 때 한 줄을 넣습니다. 공유본에는 들지 않고 내용 기준도 움직이지 않습니다. 첫 관찰이 표식의
-  `min_writer_version`을 0.32.1로 올립니다(CONTRACTS C22).
-
 - #170: aelix에서 모델이 bash로 kit을 거치지 않고 Python을 돌리면(`python scripts/x.py`, `uv run python …` 등 telemetry의
   `python_via_bash`), 확장이 그 bash 결과 끝에 한 줄을 붙입니다: 이 실행은 기록되지 않았고, 분석 단계였으면 `analytics_run`이나 셸의
   `analytics run scripts/x.py --title "…"`로 다시 실행하면 기록된다는 안내입니다. 한 세션의 첫 번은 길게, 그 뒤는 짧게 붙고, 막지 않으며
@@ -61,13 +51,17 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   `not_asked_in`은 "이 폴더에선 묻지 않음"으로 고른 작업 디렉터리입니다. schema에 맞지 않거나, POSIX에서 이 사용자의 것이 아니거나 다른
   계정이 쓸 수 있는 파일은 쓰지 않고(기본값) 고쳐 쓰지도 않습니다. 설정 화면(#162)이 쓸 함수 `core.set_unknown_projects`·
   `core.stop_asking_in`이 있고, 그 전에는 파일을 직접 고칩니다. `/analytics where`가 설정 파일과 값을 보입니다.
+- #171: aelix에서 모델이 bash로 kit을 거치지 않고 한 일이 **관찰된 활동**(`observed_activity`, ADR-0015)으로 journal에 남습니다. 확장이 bash 호출의
+  앞(2초 안)과 뒤(3초 안)에서 프로젝트 파일의 상태를 비교해, kit 밖 Python을 돌렸거나 run·가져오기가 기록하지 않은 파일이 그 사이에 바뀌었으면
+  가린 명령 글, 관찰 창의 시각, 바뀐 파일과 그 sha256, 명령이 가리킨 스크립트의 바이트를 기록합니다(긴 목록과 스크립트 사본은
+  `.analytics/observed/<activity_id>/`). run이 아니며 입력·환경·출력은 남기지 않습니다. 결과 끝의 #170 안내는 `Observed as eN`을 덧붙이고, Python이
+  아닌 명령도 설명되지 않은 변경을 남겼으면 짧게 알립니다(그 명령이 썼다고 말하지 않음). 명령 글은 토큰·비밀번호·URL 질의 값·알려진 키 꼴 등을
+  `[redacted]`로 가린 뒤에만 남고, 비밀일 수 있는 이름의 파일은 해시하거나 복사하지 않습니다. 큰 `data/`(파일 2만 개 초과)나 연속 시간 초과에서는 그
+  세션의 변경 관찰을 끄고 그렇다고 알립니다. 앞선 관찰이 아직 돌고 있어 건너뛴 호출은 telemetry의 `observation_skipped`로 남고 수로 보입니다.
+  `analytics_status`는 관찰을 최근 기록에서 빼고 한 줄로 세고(`part=records kind=observed_activity`로 읽음), 맥락 블록은 현재 세션의 관찰이 있을 때 한 줄을 넣습니다. 공유본에는 들지 않고 내용 기준도 움직이지 않습니다. 첫 관찰이 표식의
+  `min_writer_version`을 0.32.1로 올립니다(CONTRACTS C22).
 
 ### Changed
-
-- #171: telemetry(`.analytics/telemetry.jsonl`)의 bash `summary`는 관찰과 같은 규칙으로 가린 뒤 앞 300자를 남깁니다. 이미 쓴 줄은 그대로입니다.
-  `analytics_status` 끝에 붙던 telemetry 수 안내(`python was run through bash N time(s)`)는 관찰의 줄로 바뀌었습니다.
-- #171: run의 출력 비교가 관찰과 같은 상태 비교(`tree_state`)를 씁니다. 크기·mtime이 같고 정체성만 바뀐 파일(`rsync -a`의 교체)도 출력으로 남기고
-  그 바이트를 다시 읽어 해시하며, 실행 뒤 나열했지만 stat하지 못한 파일은 지운 것으로 적지 않습니다.
 
 - #161: 에이전트가 Report를 저장하는 법을 압니다. `analytics_run`의 Script API에 `analytics.save_report`가 있고, guideline이 독자용 문서는
   `workspace/` 밖에 써서 run 안에서 저장하며 report ID는 소문자·숫자·`-`, 첫 버전은 `previous_revision=None`이라고 말합니다. 도구 설명과
@@ -100,6 +94,10 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   60행에서 끊었고 출력·데이터셋의 열·Report 파일 등은 끝없이 늘었으며, Report 이력은 5개를 넘으면 가운데를 한 줄로 접었습니다. 순서와 수는
   그대로이고, fixture S·M의 첫 HTML과 페이지 수도 그대로입니다(전체 HTML M +0.01%). 열이 100개를 넘는 데이터셋은 101번째부터의 열 통계가
   페이지에 없습니다.
+- #171: telemetry(`.analytics/telemetry.jsonl`)의 bash `summary`는 관찰과 같은 규칙으로 가린 뒤 앞 300자를 남깁니다. 이미 쓴 줄은 그대로입니다.
+  `analytics_status` 끝에 붙던 telemetry 수 안내(`python was run through bash N time(s)`)는 관찰의 줄로 바뀌었습니다.
+- #171: run의 출력 비교가 관찰과 같은 상태 비교(`tree_state`)를 씁니다. 크기·mtime이 같고 정체성만 바뀐 파일(`rsync -a`의 교체)도 출력으로 남기고
+  그 바이트를 다시 읽어 해시하며, 실행 뒤 나열했지만 stat하지 못한 파일은 지운 것으로 적지 않습니다.
 
 ### Fixed
 

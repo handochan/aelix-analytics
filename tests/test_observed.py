@@ -1148,3 +1148,47 @@ def test_a_turning_off_no_record_could_hold_is_recorded_by_the_next_observation(
     assert d["reasons"] == ["observation_off"] and d["session_observation"] == "off"
     assert not sessions.pending("s1")
     assert observer("ls", python=False, view=False).reason == "nothing_to_record"
+
+
+# --- the fix-diff check (2026-11-10) -------------------------------------------------------------------
+
+
+def test_a_file_named_through_an_escape_is_judged_by_its_word(proj):
+    """Fix-diff check (I-D2): `python ana\\lysis.py` names analysis.py as the shell reads it; a secret in its
+    bytes keeps its hash out of the changes as out of the scripts."""
+    pin = "pin5932canary"
+    d = details(Observer(proj)("python ana\\lysis.py", lambda: write(proj / "analysis.py", f'API_TOKEN = "{pin}"\n')))
+    [item] = d["changes"]["items"]
+    assert (item["path"], item["hash"], item["sha256"], item["bytes"]) == ("analysis.py", "withheld", None, None)
+    assert sha(f'API_TOKEN = "{pin}"\n'.encode()) not in (proj / "journal.jsonl").read_text(encoding="utf-8")
+
+
+BOOLEANS = [("cwd_outside",), ("command", "inline_complete"), ("command", "truncated"),
+            ("command", "changed_after_start"), ("result", "is_error"), ("changes", "items_complete"),
+            ("changes", "items", 0, "same_bytes_possible"), ("scripts", "items_complete"),
+            ("scripts", "items", 0, "stable"), ("scripts", "items", 0, "outside"), ("mentioned", "items_complete")]
+
+
+@pytest.mark.parametrize("where", BOOLEANS, ids=lambda w: ".".join(map(str, w)))
+def test_a_number_where_the_schema_says_boolean_is_refused_by_both(proj, where):
+    """Fix-diff check (C1-6): 1 is not a boolean to the schema, nor to the reader."""
+    write(proj / "scripts" / "a.py", "print(1)\n")
+    details(Observer(proj)("python scripts/a.py", lambda: write(proj / "data" / "x.csv", "x\n")))
+    event = copy.deepcopy(journal(proj)[-1])
+    assert EVENT.is_valid(event) and relations.observed_activity_problem(event) is None
+    target = event["details"]
+    for step in where[:-1]:
+        target = target[step]
+    target[where[-1]] = 1
+    assert not EVENT.is_valid(event)
+    assert relations.observed_activity_problem(event) is not None
+
+
+def test_a_malformed_skip_line_in_telemetry_counts_for_nothing(proj):
+    """Fix-diff check: a telemetry line that is no object, or whose `observation_skipped` is no text, does not
+    stop the overview and counts for nothing."""
+    lines = ['["observation_skipped"]', '{"observation_skipped": ["busy"]}', '{"observation_skipped": "busy"}']
+    (proj / ".analytics" / "telemetry.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    st = core.status(core.Project(proj))
+    assert st["observed"]["skipped"] == {"busy": 1}
+    assert "1 bash calls skipped while an observation was still running" in core.status_text(st)
