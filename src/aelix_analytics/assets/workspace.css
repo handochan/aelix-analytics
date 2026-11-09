@@ -588,6 +588,7 @@ ol.vh-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(
 .pv-data { --kc: var(--k-import); }
 .pv-viz { --kc: var(--k-viz); }
 .pv-run { --kc: var(--k-run); border-left-width: 4px; }
+.pv-obs { --kc: var(--warning-text); border-style: dashed; }
 .pv-context { --kc: var(--k-context); }
 .pv-rec.kind-finding { --kc: var(--k-finding); } .pv-rec.kind-decision { --kc: var(--k-decision); }
 .pv-rec.kind-assumption { --kc: var(--k-assumption); } .pv-rec.kind-question { --kc: var(--k-question); }

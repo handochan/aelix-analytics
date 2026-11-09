@@ -336,7 +336,8 @@ class RelationPages:
         # #18 as they were, and History. Without a script they read one after the other.
         provenance = s.provenance.tab_html(identity) if not page else ""
         publication = (s.publication_event_html(event.value, 1)
-                       if event and event.kind == "publication" else "")
+                       if event and event.kind == "publication" else
+                       s.observed_page_html(event.value, 1) if event and event.kind == relations.OBSERVED_KIND else "")
         body = f'''{head}{self.note(identity)}{publication}{provenance}
 <section id="related" class="tab" data-count="{len(rows)}"><h2>{t("relations.heading")}</h2>
 <p class="relation-scope">{t("relations.scope")}{updating}</p><p>{counts}</p>

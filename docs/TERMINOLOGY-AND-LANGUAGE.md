@@ -381,8 +381,8 @@ kit 0.21.0은 개별 버전 저장·조회·철회/복원·prepared 정리의 CL
 ### #171 관찰된 활동의 공개 이름 (kit 0.32.1)
 
 [ADR-0015](decisions/0015-observed-activity-outside-the-kit.md)는 2026-11-10 채택했다. #171의 첫 구현 PR(쓰기와 최소 읽기)이 기록·hook·
-`analytics_status`의 줄·맥락 블록의 줄에 아래 이름을 쓴다([현재 계약](CONTRACTS.md#c22-관찰된-활동-kit-0321-171)). `observed_changes`·`changed_during`과
-Workspace의 `Outside the kit` 배지·설명은 둘째 PR(화면과 출처)까지 현재 화면·출처 추적을 뜻하지 않는다.
+`analytics_status`의 줄·맥락 블록의 줄에, 둘째 PR(화면과 출처)이 Workspace의 행·기록 페이지·Record coverage와 출처 추적에 아래 이름을 쓴다
+([현재 계약](CONTRACTS.md#c22-관찰된-활동-kit-0321-171), C18).
 
 | 이름 | 범위와 기존 개념과의 차이 |
 |---|---|
@@ -399,7 +399,7 @@ Workspace의 `Outside the kit` 배지·설명은 둘째 PR(화면과 출처)까�
 | `mentioned` | 명령 글이 가리킨, 스크립트가 아닌 프로젝트 파일의 경로. 입력이라는 주장이 아니며 출처 추적의 선이 아님. 따라갈 수 없는 이동 뒤의 상대 이름은 `unresolved`로만 셈 |
 | 스크립트의 `copy` / `copy_reason` | 사본의 첨부 경로 / 사본이 없는 사유: `ignored`(git이 무시), `secret_name`·`secret_like`(해시도 없음, `hash: withheld`), `notebook`(해시만), `outside`(프로젝트 밖), `over_budget`·`unreadable`. ADR-0015 결정 4가 "copy: null과 사유"라 한 칸의 이름 |
 | 변경의 `by` / `reason` | `explained`일 때 설명한 기록(`{type: run 또는 dataset_import, id}`) / `unknown`일 때의 사유(`no_hash`, `window_unread`, `run_record_unread`) |
-| `observed_changes`, 선 `changed_during`(`basis: unverified`) | 출처 추적에서 그 바이트가 창에 나타난 관찰과 그 선. 생산자 판정 `producer_state`, run이 썼다는 `wrote`(`basis: observed`), 확정 연결이 아님 |
+| `observed_changes`, 선 `changed_during`(`basis: unverified`) | 출처 추적에서 그 바이트가 창에 나타난 관찰과 그 선. 생산자 판정 `producer_state`, run이 썼다는 `wrote`(`basis: observed`), 확정 연결이 아님. 관찰 노드의 `kind`는 `observation`, 후보의 `order`는 `before`·`uncertain`(run의 입력일 때)·`null`, run과 겹친 바이트는 `run_also`, 지금 없는 파일의 `observed_deleted`, 확인 줄 `observed`. 화면의 문장은 `Changed while this ran`·`Saw change in`과 `(not verified)` |
 | `Outside the kit` / "Inputs and environment not captured" | 관찰 행의 배지와 설명. 관찰 기록 자체는 journal에 있으므로 §6의 Not recorded(기록 안 됨)로 쓰지 않음 |
 | `redaction.rules_version` | 명령 글 가림 규칙의 판. 가림을 적용했다는 뜻이지 비밀이 없다는 보증이 아님 |
 

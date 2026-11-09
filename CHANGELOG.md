@@ -60,6 +60,11 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   세션의 변경 관찰을 끄고 그렇다고 알립니다. 앞선 관찰이 아직 돌고 있어 건너뛴 호출은 telemetry의 `observation_skipped`로 남고 수로 보입니다.
   `analytics_status`는 관찰을 최근 기록에서 빼고 한 줄로 세고(`part=records kind=observed_activity`로 읽음), 맥락 블록은 현재 세션의 관찰이 있을 때 한 줄을 넣습니다. 공유본에는 들지 않고 내용 기준도 움직이지 않습니다. 첫 관찰이 표식의
   `min_writer_version`을 0.32.1로 올립니다(CONTRACTS C22).
+- #171: Workspace가 관찰된 활동을 보입니다. Timeline과 종류별 목록의 행에 `Outside the kit` 배지와 바뀐 파일 수·run이 기록하지 않은 수·창의 시각,
+  기록 페이지에 가린 명령·작업 디렉터리·결과·스크립트(사본이나 사본이 없는 사유)·바뀐 파일·남기지 않은 것, Evaluation의 Record coverage에 관찰 수와
+  변경 관찰을 끈 세션의 그 뒤 bash 호출 수가 있습니다. 출처 추적(C18)은 생산자 판정을 바꾸지 않고, 같은 경로·바이트가 run 없이 바뀌는 것을 본 관찰을
+  `changed_during`(검증 안 됨) 선과 `observed_changes` 후보로 보입니다. run의 입력에는 그 run보다 먼저 끝난 관찰만, 시작에 걸친 관찰은 `uncertain`으로
+  붙고, run도 같은 바이트를 기록했으면 그렇다고 말합니다. 공유본에는 들지 않습니다.
 
 ### Changed
 
