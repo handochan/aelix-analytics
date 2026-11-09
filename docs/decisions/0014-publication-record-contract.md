@@ -44,8 +44,8 @@ OQ20은 보존 파일을 검사하는 일반 참조 규칙의 예외이므로 �
 kind 철자가 같아도 제외하지 않는다. reader가 파싱·복구하여 얻은 seq를 사용하고, seq를 얻지 못한 손상 줄에
 새 seq나 시각을 추정하지 않는다. 해당 줄의 손상 표시는 공유 모델에 그대로 남긴다.
 
-[ADR-0015](0015-observed-activity-outside-the-kit.md) 결정 10(Proposed, #171)은 소유자 결정(2026-11-09, 권장안 채택 지시)으로 이 닫힌 집합에
-`observed_activity`를 더하는 개정을 제안한다. 그 채택 전에는 이 집합을 바꾸지 않는다.
+[ADR-0015](0015-observed-activity-outside-the-kit.md) 결정 10(Accepted 2026-11-10, #171)은 소유자 결정(2026-11-09, 권장안 채택 지시)으로 이 닫힌
+집합에 `observed_activity`를 더한다. 이 개정은 #171의 구현 PR이 구현하며, 그 전의 kit은 관찰 줄을 모르는 kind로 내용에 센다.
 
 - 후보가 없으면 `content_seq=0`, `content_recorded_at=null`이다. 그 밖에는 `0 <= content_seq <= as_of_seq`다.
 - `basis.content_recorded_at`은 그 내용 기준 이벤트에 기록된 시각이다. 없거나 유일하게 정할 수 없으면 null이다.

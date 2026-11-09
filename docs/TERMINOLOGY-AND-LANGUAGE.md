@@ -375,9 +375,9 @@ kit 0.21.0은 개별 버전 저장·조회·철회/복원·prepared 정리의 CL
 | 저장한 대상(saved target) | `--save-target NAME --to FOLDER`로 프로젝트의 `.analytics/publish-targets.json`(`analytics.publish_targets/1`)에 적은 이름과 폴더. `--target NAME`으로 부름. git이 무시하는 줄이 없으면 저장하지 않음(`targets_not_ignored`). 오류 `target_unknown`·`saved_targets_invalid` |
 | `others_cannot_read` | 게시한 계정이 본 POSIX 권한으로는 다른 계정이 그 버전을 읽지 못해 보인다는 경고. 권한을 바꾸지 않으며 팀 범위의 판정이 아님 |
 
-### #171 공개 이름 후보 — 구현 전
+### #171 채택한 공개 이름 — 구현 전
 
-[ADR-0015](decisions/0015-observed-activity-outside-the-kit.md)(Proposed)의 설계 리뷰 대상이다. 현재 기록·명령·화면을 뜻하지 않는다.
+[ADR-0015](decisions/0015-observed-activity-outside-the-kit.md)는 2026-11-10 채택했다. #171의 구현 PR 전에는 현재 기록·명령·화면을 뜻하지 않는다.
 
 | 이름 | 범위와 기존 개념과의 차이 |
 |---|---|
@@ -388,6 +388,7 @@ kit 0.21.0은 개별 버전 저장·조회·철회/복원·prepared 정리의 CL
 | 관찰 창(observation window) | 앞 상태를 보기 직전부터 뒤 상태를 다 본 때까지. 그 사이에 바뀐 파일은 그 명령이 썼다는 증거가 아님 |
 | `reasons` | 관찰을 기록한 조건: `analysis_command`(kit 밖 Python), `changes`(설명된다고 확인되지 않은 변경), `observation_off`. 재사용 알림의 `trigger`와 다른 이름을 씀 |
 | `explanation`: `explained` / `unexplained` / `unknown` | 창 안에 완료된 run·가져오기가 같은 경로·바이트를 남겼음 / 창의 기록을 다 읽었고 해시가 있으나 맞는 것이 없음 / 해시가 없거나 창의 기록을 읽지 못해 판단하지 못함. `unexplained`만 출처 추적의 관찰 후보 |
+| `same_bytes_possible` | 정체성만 바뀐 파일의 시작 바이트를 그 창에서 읽지 못해 같은 바이트인지 판정하지 못한 `modified` |
 | `changes.state`: `observed` / `not_observed`, `session_observation`: `on` / `off` | 이 관찰에서 앞뒤 상태를 비교했는가 / 상한·`busy`로 비교하지 못함. 세션의 변경 관찰을 끈 뒤에는 Python이 아닌 명령의 변경이 보이지 않으며 그 수를 따로 셈 |
 | 스크립트의 `captured`(`before`·`after`), `stable` | 사본·해시가 시작 때의 바이트인가 끝 때의 바이트인가 / 창 동안 크기·mtime·정체성이 그대로였는가. `stable`도 실행된 바이트라는 보증이 아님 |
 | `mentioned` | 명령 글이 가리킨, 스크립트가 아닌 프로젝트 파일의 경로. 입력이라는 주장이 아니며 출처 추적의 선이 아님 |

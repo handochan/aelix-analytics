@@ -16,7 +16,7 @@ Status: Accepted — 2026-10-03 소유자 결정 (Issue #4)
 [ADR-0014](0014-publication-record-contract.md)는 2026-10-18 채택했다.
 아래 ADR-0014 연결 문장은 채택한 구체 계약의 적용 위치다. 실제 writer·reader·표시는 #20 PR-3에서 구현한다.
 kit 밖 실행의 관찰을 새 kind `observed_activity`로 더하는 [ADR-0015](0015-observed-activity-outside-the-kit.md)는
-Proposed이며 #171의 설계 리뷰 대상이다. 아래 ADR-0015 연결 문장은 그 제안의 적용 위치이며 채택 전에는 기존 계약을 대체하지 않는다.
+2026-11-10 채택했다. 아래 ADR-0015 연결 문장은 채택한 구체 계약의 적용 위치다. 실제 writer·reader·표시는 #171의 구현 PR에서 구현한다.
 
 ## 배경
 
@@ -82,7 +82,7 @@ Proposed이며 #171의 설계 리뷰 대상이다. 아래 ADR-0015 연결 문장
 | B4 보고서·게시 | `report_revision`(Report 저장의 완료 이벤트), `publication`(게시본 build), `publish_attempt`(게시 시도의 시작 기록, #21에서 더함), `publish_receipt`(전달 결과) |
 
 kit 밖에서 실행한 명령의 관찰(`observed_activity`)은 2항의 새 kind로 [ADR-0015](0015-observed-activity-outside-the-kit.md)가
-제안한다(Proposed, #171). 위 표와 이 절의 규칙은 바꾸지 않는다.
+정했다(Accepted 2026-11-10, #171, 구현 전). 위 표와 이 절의 규칙은 바꾸지 않는다.
 
 이벤트 줄은 `schema`, `seq`, `id`, `recorded_at`, `kind`, `actor`, `text`, `refs`(3절의 참조 목록)를 가지고,
 `session`, `request_id`, `details`(kind별 필드)를 선택으로 가진다. kind별 필수 필드는 schema에 있다. 실행 수단(CLI·SDK·

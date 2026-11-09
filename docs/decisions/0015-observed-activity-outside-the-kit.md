@@ -2,10 +2,10 @@
 
 Date: 2026-11-09 · 개정: 2026-11-10(설계 리뷰 반영)
 
-Status: Proposed — [#171](https://github.com/handochan/aelix-analytics/issues/171)의 결정 PR이다. 소유자 결정(2026-11-09, #171의 권장안 (b),
+Status: Accepted — [#171](https://github.com/handochan/aelix-analytics/issues/171)의 결정 PR로 채택한다. 소유자 결정(2026-11-09, #171의 권장안 (b),
 [첫 출시 0.32.1의 범위](https://github.com/handochan/aelix-analytics/issues/24#issuecomment-6742451632))의 기록 형식을 구체화한다.
-새 기록 종류를 더하는 결정이므로 이 PR의 리뷰가 [리뷰 예산](../PROJECT-OPERATIONS.md#리뷰-예산)의 설계 리뷰(독립 1회·Codex 1회)다.
-두 설계 리뷰(2026-11-09, 둘 다 request changes)의 지적을 이 개정에 반영했고 수정 diff 확인을 기다린다. 소유자 질문 OQ1–OQ8은
+새 기록 종류를 더하는 결정이므로 이 PR의 리뷰가 [리뷰 예산](../PROJECT-OPERATIONS.md#리뷰-예산)의 설계 리뷰다: 독립 1회·Codex 1회(2026-11-09/10,
+둘 다 request changes), 그 지적을 반영한 개정의 수정 diff 확인 1회(2026-11-10, 남은 네 항목은 좁힌 규칙·한계로 반영). 소유자 질문 OQ1–OQ8은
 소유자 결정(2026-11-09, 권장안 채택 지시)으로 정했다(아래 "소유자 결정"). 채택은 구현 완료가 아니다. 이 PR은 runtime·schema·kit 버전·표식을 바꾸지 않는다.
 
 ## 맥락과 현재 코드
@@ -50,9 +50,13 @@ Status: Proposed — [#171](https://github.com/handochan/aelix-analytics/issues/
 2. 도구가 aelix의 `bash`이고 그 호출이 실제로 실행됐다(`tool_result`가 왔다). 다른 확장의 `tool_call`이 막은 호출, 취소로 `tool_result`가
    오지 않은 호출은 기록하지 않는다(결정 6에서 남은 앞 상태를 버림).
 3. 다음 가운데 하나가 참이다(`details.reasons`).
-   - `analysis_command`: #170과 같은 판정 `python_outside_the_kit`이 참이고, 줄의 Python 명령이 모두 패키지·환경 관리나 버전 조회
-     (`pip`·`uv pip`·`uv sync|add|remove|lock`·`--version`·`-V`)만은 아니며, aelix의 작업 디렉터리가 프로젝트 안이거나 명령이 프로젝트 안의
-     파일을 가리킨다(결정 4). kit 프로그램과 다른 Python을 섞은 줄은 그 판정대로 kit의 것이지만, 아래 `changes`가 그 줄의 다른 쓰기를 잡는다.
+   - `analysis_command`: 줄을 **단순 명령마다** 판정해, kit을 부르지 않는 Python 명령이 하나라도 있다. 판정은 #170의 구현(PR #176의 head
+     `7df7d31`의 `python_outside_the_kit`)을 그대로 쓴다: `_simple_commands`가 줄을 단순 명령으로 나누고, kit 진입점을 부르는 명령(`_calls_the_kit`·
+     `_runs_the_kit`: `analytics`·`bin/analytics`·`uv run … analytics`·`python -m aelix_analytics`·kit을 import하는 `python -c`)을 빼고, 남은 명령의 글로
+     판정한다. 그래서 `analytics status; python analysis.py`는 kit 줄이 아니며 `python analysis.py`가 이 조건을 채운다. 그 판정이 나누지 못하는 줄
+     (명령 치환·닫히지 않은 따옴표 등)은 줄 전체의 글로 판정한다. 여기에 더해, 남은 Python 명령이 모두 패키지·환경 관리나 버전 조회(`pip`·`uv pip`·
+     `uv sync|add|remove|lock`·`--version`·`-V`)이면 참이 아니고, aelix의 작업 디렉터리가 프로젝트 안이거나 명령이 프로젝트 안의 파일을 가리켜야 한다
+     (결정 4). kit을 import하는 `python -c`는 이 조건에서 빠지지만 그 쓰기는 아래 `changes`가 잡는다. #176이 병합 전에 판정을 바꾸면 병합된 판정을 따른다.
    - `changes`: 결정 3의 관찰 범위에서 바뀐 파일이 있고, 그 가운데 하나라도 같은 창에 kit이 기록한 run·가져오기로 설명된다고 확인되지 않았다
      (`unexplained` 또는 `unknown`).
    - `observation_off`: 이 호출에서 그 세션의 변경 관찰을 껐다(결정 6). 이 사실은 다른 조건과 관계없이 한 번 기록한다.
@@ -118,8 +122,10 @@ Status: Proposed — [#171](https://github.com/handochan/aelix-analytics/issues/
   한 디렉터리에 항목이 아주 많아도 상한을 넘겨 읽지 않는다. 멈춘 색인은 비교하지 않는다(`not_observed`).
 - **읽지 못한 것은 지운 것이 아니다.** 앞에 있던 경로의 뒤 stat이 없음 말고 다른 오류(Windows의 공유 위반 등)로 실패하면 `unreadable`이며 `deleted`가 아니다.
 - **해시**: 바뀐 파일은 캐시를 보지 않고 바이트를 읽어 해시하고, 그 결과로 캐시 항목을 새로 쓴다(캐시 키가 `(크기, mtime_ns)`라 정체성만 바뀐 교체에
-  옛 해시를 돌려주기 때문이다). 크기·mtime이 같고 정체성만 바뀐 파일의 새 해시가 앞 stat에 맞는 캐시 해시와 같으면 바뀐 것이 아니라 목록에서 뺀다.
-  해시 전과 후의 stat이 뒤 색인의 값과 다르면 `hash: unstable`, `sha256: null`이다(창 밖의 바이트를 창 안 변경에 붙이지 않음).
+  옛 해시를 돌려주기 때문이다). 해시 전과 후의 stat이 뒤 색인의 값과 다르면 `hash: unstable`, `sha256: null`이다(창 밖의 바이트를 창 안 변경에 붙이지 않음).
+- **같은 바이트의 교체**: 크기·mtime이 같고 정체성만 바뀐 파일을 "바뀌지 않음"으로 빼는 것은, 시작 바이트의 해시를 **이 창에서 직접 읽어** 알 때뿐이다
+  (시작 때 스크립트로 읽은 파일 등). 캐시에서 얻은 시작 해시는 캐시가 정체성을 확인하지 않으므로(`HashCache._entry`) 근거가 되지 않는다. 그때는
+  `modified`로 두고 `same_bytes_possible: true`를 붙인다. 시작 때 모든 파일을 해시하지 않으므로 이 표시가 남는 것은 한계다.
 - 이전 관찰의 끝 색인을 다음 관찰의 시작으로 재사용하지 않는다. 두 호출 사이에 사람·다른 프로세스가 바꾼 것이 다음 명령의 창에 들어가기 때문이다.
 - **journal 창**: 앞과 뒤에서 journal의 끝(마지막 64 KiB)을 한 번씩 읽어, 마지막 LF까지의 바이트 위치와 그 앞 마지막 완료 줄의 seq를 같은 읽기에서 얻는다.
   뒤 읽기는 뒤 색인을 다 만든 직후이며 창의 끝이다. 창의 줄은 두 위치 사이의 완전한 줄이다. 전체 journal을 다시 읽지 않는다.
@@ -135,7 +141,7 @@ Status: Proposed — [#171](https://github.com/handochan/aelix-analytics/issues/
   다른 확장의 `tool_call` 처리기가 사람의 승인을 기다리는 시간도 창에 든다.
 - **기록 모양**: `changes`는 `{state: observed 또는 not_observed, reason, total, created, modified, deleted, unreadable, unexplained, unknown,
   links_changed, items, items_complete}`다. `items`는 경로의 코드 포인트 순이고 줄 예산(12 KiB) 안에 드는 앞부분이다. 항목은 `{path, change, bytes,
-  sha256, hash, explanation}`이고 `hash`는 `hashed`·`unstable`·`over_budget`·`withheld`·`unreadable`·`deleted`다. 인라인이 전부가 아니면 전체 목록
+  sha256, hash, explanation, same_bytes_possible}`이고 `hash`는 `hashed`·`unstable`·`over_budget`·`withheld`·`unreadable`·`deleted`다. 인라인이 전부가 아니면 전체 목록
   (최대 10,000개)을 첨부 `changes.json`(정렬한 UTF-8·LF JSON)에 둔다. `items_complete`는 인라인과 첨부를 합쳐 모든 변경을 담았는지다.
 
 ### 4. 명령이 가리킨 스크립트와 파일
@@ -208,7 +214,11 @@ aelix는 두 hook을 기다리므로 관찰의 모든 비용이 bash 결과의 �
 - 한 bash 호출에 관찰이 더하는 지연은 많아야 앞 2초와 뒤 3초다. 위 측정으로는 파일 1만 개에서 두 번의 상태 보기가 약 100 ms다.
 - **기다리는 쪽의 상한**: 작업은 스레드에서 하고 처리기는 `asyncio.wait_for`로 상한까지만 기다린다. 상한을 넘으면 취소 표지를 세우고 그 작업을 버린다.
   작업은 항목마다 표지를 보고 멈추며, 시스템 호출에서 멈춘 작업(멈춘 네트워크 마운트)은 끝날 때까지 남는다.
-- **늦은 쓰기 금지**: 버린 작업은 아무것도 쓰지 않는다. 첨부 폴더를 만들기 직전과 journal 잠금 안에서 덧붙이기 직전에 표지를 다시 확인한다.
+- **버린 작업과 커밋 경계**: 작업은 첨부 폴더를 만들기 직전과 journal 잠금 안에서 덧붙이기 직전에 취소 표지를 확인한다. 그래서 **커밋(덧붙이기)이
+  시작되기 전에** 버린 작업은 이벤트를 쓰지 않는다(만든 폴더는 이벤트 없는 `incomplete`로 남거나 삭제를 시도한다). 표지 확인 뒤 이미 시작된 동기
+  덧붙이기는 `wait_for`가 멈추지 못하므로, 그 뒤에 상한이 지나면 결과는 **알 수 없다**: 기록이 있을 수도 없을 수도 있고, 알림은 "기록 여부를
+  확인하지 못했다"고 말한다. 시스템 호출에서 멈춘 스레드(멈춘 네트워크 마운트 등)는 끊을 수 없어 버려두며, 그 스레드가 프로세스가 끝날 때까지
+  남을 수 있다는 것은 한계다.
 - **작업 수 제한**: 버린 작업이 아직 남아 있으면 새 관찰은 상태를 보지 않는다(`not_observed`, 사유 `busy`). 프로세스마다 남은 작업은 많아야 하나다.
 - **취소**: `tool_result` 처리기는 기록 작업을 별도 task로 만들어 `asyncio.shield`로 보호하고 상한까지 기다린다. 처리기가 취소되면 결과를 바꾸지 않고
   취소를 그대로 올리며, 보호한 작업은 자기 상한 안에서 끝나거나 버려진다. aelix 0.1.0b2 기준이며 이후 판의 취소 동작은 시험으로 확인한다.
@@ -269,7 +279,9 @@ aelix는 두 hook을 기다리므로 관찰의 모든 비용이 bash 결과의 �
   다른 이름 해석). 다른 확장이 바꾼 명령(`changed_after_start`), 풀지 못한 이름, heredoc·`-c` 코드는 명령 글에만 있다.
 - **인과**: 바뀐 파일은 그 창에 바뀐 것이며 그 명령이 썼다는 증거가 아니다.
 - **완전성**: 관찰 범위 밖(관리 영역·`scripts/`·프로젝트 밖), 상한을 넘은 부분, 변경 관찰을 끈 세션의 Python이 아닌 명령, 도구 호출 뒤의 백그라운드
-  쓰기, 크기·mtime·정체성을 모두 보존한 바꿔 쓰기, `tool_result`가 오지 않은 호출(막힘·취소·포기), 버린 작업의 관찰.
+  쓰기, 크기·mtime·정체성을 모두 보존한 바꿔 쓰기, `tool_result`가 오지 않은 호출(막힘·취소·포기), 버린 작업의 관찰, 커밋이 시작된 뒤 상한이 지나
+  알림이 결과를 모르는 관찰(기록이 있을 수 있음).
+- **변경의 정확성**: 정체성만 바뀐 파일이 같은 바이트인지는 시작 바이트를 이 창에서 읽었을 때만 판정한다. 아니면 `same_bytes_possible`이 붙은 `modified`다.
 - **출력·검사·검토**: 출력 내용, 분석 방법 검사, 결론 검토. run의 `execution_status`·`recording_status` 축도 없다. `result.is_error`는 aelix가 준
   도구 결과일 뿐이다.
 
@@ -287,11 +299,14 @@ aelix는 두 hook을 기다리므로 관찰의 모든 비용이 bash 결과의 �
 ### 11. #170의 알림·telemetry와의 관계
 
 - 알림과 기록은 같은 `tool_result` 처리기가 함께 낸다. 알림은 기록을 결정 6의 상한(3초) 안에서 기다린다. 기록했으면 알림 끝에 관찰 id를
-  덧붙이고(예: `observed as e57: command, scripts and files changed while it ran`), 상한·잠금·관찰 꺼짐으로 기록하지 못했으면 짧은 사유를 덧붙인다.
+  덧붙이고(예: `observed as e57: command, scripts and files changed while it ran`), 기록하지 않았으면(잠금을 못 얻음·관찰 꺼짐) 짧은 사유를,
+  커밋이 시작된 뒤 상한이 지나 결과를 모르면 "could not confirm whether the observation was recorded"를 덧붙인다.
   알림은 계속 `analytics_run`을 권한다: 관찰은 run을 대신하지 않는다.
-- **알림의 조건을 넓힌다**(OQ3): Python이 아닌 명령이라도 설명되지 않은 변경(`unexplained`·`unknown`)을 남겼으면 짧은 알림을 붙인다:
-  "files changed while this ran and no run or import recorded them (observed as eN); record data with analytics_import or analytics_run". 그 명령이
-  썼다고 말하지 않는다. #170의 수용 조건("다른 명령에는 붙지 않는다")을 바꾸며, PR #176 병합 뒤 #171의 구현 PR이 한다.
+- **알림의 조건을 넓힌다**(OQ3): Python이 아닌 명령이라도 설명되지 않은 변경을 남겼으면 짧은 알림을 붙인다. 문구는 설명 상태에 따라 다르다.
+  - `unexplained`가 있으면: "files changed while this ran and no run or import recorded them (observed as eN); record data with analytics_import or
+    analytics_run".
+  - `unknown`만 있으면: "files changed while this ran and the kit could not check whether a run or import recorded them (observed as eN)".
+  어느 쪽도 그 명령이 썼다고 말하지 않는다. #170의 수용 조건("다른 명령에는 붙지 않는다")을 바꾸며, PR #176 병합 뒤 #171의 구현 PR이 한다.
 - 그 세션의 변경 관찰을 끈 호출의 알림은 그 사실을 한 번 알린다.
 - telemetry의 형식·`python_via_bash`·`wrote_managed_path`·Workspace의 `Tool usage`·`Possible workarounds`는 그대로이고 `summary`만 가린다(OQ6).
   관찰은 telemetry를 쓰지 않는다. 결정 7의 사각지대 수만 telemetry를 읽는다. 분석 실행의 판정은 #170과 같은 함수를 쓴다.
@@ -371,17 +386,19 @@ aelix는 두 hook을 기다리므로 관찰의 모든 비용이 bash 결과의 �
 
 확인할 것:
 
-- 기록 조건: kit 밖 Python, 설명되지 않은 변경, kit CLI 하나(상태를 보지 않음), `python -c 'import aelix_analytics; open("data/…","w")…'`(상태를 보고
+- 기록 조건: kit 밖 Python, 설명되지 않은 변경, kit CLI 하나(상태를 보지 않음), `analytics status; python analysis.py`(분석 실행), `python -c 'import aelix_analytics; open("data/…","w")…'`(상태를 보고
   변경으로 기록), `uv run analytics run x.py 2>&1 | tail -20`(분석 실행 아님), `pip install`·`python --version`(기록 없음), `ls`(기록 없음), 다른 확장이
   막은 호출, 읽기 전용·옛 형식 프로젝트(상태 보기·쓰기·floor 변경 없음), 프로젝트 밖 작업 디렉터리에서 프로젝트를 가리키지 않는 Python.
-- 상태: 만들기·고치기·지우기, `cp -p`·`rsync -a`처럼 mtime을 보존한 교체(새 해시), 같은 바이트로의 교체(변경 아님), 링크 경계를 만들기·지우기
+- 상태: 만들기·고치기·지우기, `cp -p`·`rsync -a`처럼 mtime을 보존한 교체(새 해시), 같은 바이트로의 교체(시작 바이트를 창에서 읽었으면 변경 아님,
+  캐시만 있으면 `same_bytes_possible`의 `modified`), 캐시 A → 시작 B(같은 크기·mtime) → 끝 A가 지워지지 않음, 링크 경계를 만들기·지우기
   (`ln -s` 외부 디렉터리가 `created` 수천 개가 되지 않음), 뒤 stat의 공유 위반(`unreadable`), 해시 중 변경(`unstable`), bash 안의
   `analytics run`·`analytics data import`로 설명된 변경, 창 안 다른 프로세스의 쓰기, journal 꼬리를 읽지 못함(`unknown`).
 - 스크립트: 시작 때 있던 파일, heredoc으로 만든 파일(`captured: after`), 창 안에서 바뀐 파일(`stable: false`), 다른 처리기가 바꾼 명령,
   `cd sub && python task.py`와 따라갈 수 없는 `cd "$X"`, git이 무시하는 파일·`data/` 아래 `.sql`·비밀 이름 파일·비밀 내용 스크립트·`.ipynb`의 사본 거부,
   프로젝트 밖 스크립트(이름·바이트·sha256만), 같은 바이트의 사본 하나, 상한.
 - 대기·취소: 큰 단일 디렉터리(정렬 전에 멈춤), 연속 시간 초과와 cold 첫 걷기, 항목 수 초과의 세션 끄기와 `observation_off` 기록, 멈춘 읽기(버린 작업이
-  나중에 쓰지 않음, 다음 관찰은 `busy`), `tool_result` 처리 중 취소(결과 불변·늦은 쓰기 없음), 처리기 예외(턴이 깨지지 않음), 오지 않은
+  커밋 전이면 이벤트를 쓰지 않음, 다음 관찰은 `busy`), 커밋 시작 뒤 상한 초과(알림이 "확인하지 못함"), `tool_result` 처리 중 취소(결과 불변),
+  처리기 예외(턴이 깨지지 않음), `unknown`만 있는 변경의 알림 문구, 오지 않은
   `tool_result`(앞 상태를 버림), journal 잠금을 얻지 못함, 줄 예산을 넘는 입력(최소 details).
 - 가림: 규칙마다 canary 값(시험 값의 이름은 value·marker·canary)이 명령 글·`text`·첨부·telemetry에 원문·해시로 남지 않음, 비밀 이름 파일·비밀
   내용 스크립트의 `withheld`, 모든 URL 질의 값. 거름을 통과한 스크립트 사본의 원본 보존은 이 검사의 대상이 아니다.
