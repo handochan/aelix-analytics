@@ -692,6 +692,21 @@ def classify_refs(items) -> dict:
     return {k: v for k, v in out.items() if v}
 
 
+def whole_run_id(root, run_id: str, *, shown=None) -> str:
+    """The whole ID of the run `run_id` names (#158, relations.runs_named): `run_id` itself when it is
+    a run's, or when no run's ID starts with it (it names no run, as before); the one run's when it is
+    that run's ID shortened at a hyphen (`YYYYMMDD-HHMMSS-NN`). When it starts several runs' IDs it
+    names none of them: ambiguous_id with their IDs, as `shown` writes an ID (how the caller gave it:
+    `run:<id>`, say), before anything is written."""
+    named = relations.runs_named(Path(root), run_id)
+    if len(named) > 1:
+        shown = shown or (lambda value: value)
+        raise AnalyticsError("ambiguous_id", f"{shown(run_id)!r} starts the IDs of {len(named)} runs",
+                             hint="give the run's whole ID (one of the candidates)",
+                             details={"id": shown(run_id), "candidates": [shown(name) for name in named]})
+    return named[0] if named else run_id
+
+
 # --- the new format's records (Issue #13 PR 3, design 2.5, 2.8, 2.9, 4.4–4.9) -------------------------
 
 # The kinds a person or an agent records (design 2.8): `gap` is `workflow_feedback` in this format,
@@ -1545,6 +1560,13 @@ class Writer:
 
     def _bind_name(self, name: str, lookup: _Lookup) -> tuple[dict, dict]:
         if RUN_ID_V2_RE.fullmatch(name):
+            whole = whole_run_id(self.root, name)
+            if whole != name:
+                # #158: a run ID shortened at a hyphen names the one run it starts. The record holds
+                # that run's whole ID, so it binds the same run whatever runs come later; the kit chose
+                # the run from a name, as a Visualization id's latest version, so the binding is
+                # inferred and the name stays as the token (ADR-0006 3).
+                return _bound(name, {"type": "run", "run_id": whole, "token": name}, "inferred")
             return _bound(name, {"type": "run", "run_id": name}, "author")
         if EVENT_ID_V2_RE.fullmatch(name):
             return _bound(name, {"type": "event", "event_id": name}, "author")

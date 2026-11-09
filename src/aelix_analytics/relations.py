@@ -1007,6 +1007,21 @@ def _run_dirs(root: Path) -> list[str]:
         return sorted(e.name for e in entries if RUN_ID_RE.match(e.name) and e.is_dir())
 
 
+def runs_named(root: Path, text) -> list[str]:
+    """The runs a run ID as given names (#158): `text` when runs/<text> is a run's directory; else
+    every run whose ID starts with `text` and a hyphen — the ID shortened at a hyphen, as people and
+    models write `YYYYMMDD-HHMMSS-NN` of `YYYYMMDD-HHMMSS-NN-name` — readable or not, so a damaged
+    run makes a shortened ID ambiguous rather than leaving the other one. Only text shaped as a run
+    ID (its date, time and at least the start of its name) names any. An ID is never cut inside a
+    part: `…-0` is no shortening of `…-01-name`. Nothing is stored or rewritten here: what a stored
+    reference names is its whole run_id (ADR-0006 3)."""
+    if not isinstance(text, str) or not RUN_ID_RE.match(text):
+        return []
+    if (root / "runs" / text).is_dir():
+        return [text]
+    return [name for name in _run_dirs(root) if name.startswith(text + "-")]
+
+
 def _report_dirs(root: Path) -> list[tuple[str, bool]]:
     """(project-relative directory, staging) of every saved and prepared Report revision."""
     base = root / "artifacts" / "reports"

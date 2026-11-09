@@ -1368,12 +1368,17 @@ SHORTENED = re.compile(r"-?(?:…|\.\.\.)")
 
 
 def fabricated_ids(text: str, existing: set) -> list[str]:
+    """The record and run ids the text holds that the project does not. A run id shortened at a hyphen
+    is the run it starts when it starts exactly one, as the kit reads it (#158: `20261104-012254-01` of
+    `20261104-012254-01-eda-distributions`); one marked as cut (`…-03-…`) is the start of any."""
     found = set(RECORD_ID.findall(text))
     for match in RUN_ID.finditer(text):
         run_id = match.group(0)
-        if run_id not in existing and SHORTENED.match(text, match.end()) and any(
-                e.startswith(run_id + "-") for e in existing):
-            continue  # #24's campaign: an answer quoted an index's "same bytes as run 20260916-214600-03-…"
+        if run_id not in existing:
+            starts = sum(e.startswith(run_id + "-") for e in existing)
+            if starts == 1 or (starts and SHORTENED.match(text, match.end())):
+                # #158, and #24's campaign: an answer quoted an index's "same bytes as run 20260916-214600-03-…".
+                continue
         found.add(run_id)
     return sorted(i for i in found if i not in existing)
 

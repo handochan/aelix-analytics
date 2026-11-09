@@ -957,8 +957,16 @@ def recorded_line(written, kind: str) -> str:
             said += f"; already resolved by {made['id']}"
         parts.append(said + ")")
     if written.bindings:
-        parts.append("refs: " + ", ".join(f"{b['input']} ({b['binding']})" for b in written.bindings))
+        parts.append("refs: " + ", ".join(f"{b['input']}{_whole_run(b)} ({b['binding']})" for b in written.bindings))
     return "; ".join(parts)
+
+
+def _whole_run(binding) -> str:
+    """` -> <run id>` when a run ID shortened at a hyphen was bound to the whole ID of the run it starts
+    (#158), so the model sees which run it cited; nothing for any other name."""
+    ref = binding.get("ref") or {}
+    whole = ref.get("run_id")
+    return f" -> {whole}" if ref.get("type") == "run" and whole and whole != binding.get("input") else ""
 
 
 async def tool_init(args, ctx):

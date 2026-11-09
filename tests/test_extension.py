@@ -764,6 +764,11 @@ def test_import_query_and_run_through_the_project_environment(lab, tmp_path):
     assert both.is_error and "run_args" in text_of(both)
     rerun = call(tools["analytics_run"], {"title": "재실행", "rerun_of": run_id})
     assert not rerun.is_error and "reproduction of" in text_of(rerun) and ": match" in text_of(rerun)
+    # #158: the date, time and number of the run's ID rerun the one run they start.
+    short = "-".join(run_id.split("-")[:3])
+    again = call(tools["analytics_run"], {"title": "다시", "rerun_of": short})
+    assert not again.is_error and f"reproduction of {run_id}: match" in text_of(again), text_of(again)
+    assert again.details["run"]["rerun_of"] == run_id
 
     # Aborting the turn cancels the tool call: it must come back promptly and leave a cancelled run.
     async def abort_after(seconds):
@@ -904,6 +909,32 @@ def test_rerun_of_is_validated_before_any_subprocess(lab):
     module, _root = lab
     result = call(tools_of(module)["analytics_run"], {"title": "x", "rerun_of": "../../evil"})
     assert result.is_error and "rerun_id" in text_of(result)
+
+
+def test_the_tools_read_and_cite_a_run_by_its_id_shortened_at_a_hyphen(lab, monkeypatch):
+    """#158: the model's tools take a run ID's date, time and number (`YYYYMMDD-HHMMSS-NN`) for the one run
+    they start, as the kit's CLI and SDK do, and the reply says which run that is."""
+    module, root = lab
+    monkeypatch.setattr(module, "schedule_workspace_render", lambda *args: None)
+    whole = "20261104-012254-01-eda-distributions"
+    for run_id in (whole, "20261104-013000-02-model", "20261104-013000-02-model-2"):
+        (root / "runs" / run_id).mkdir(parents=True)
+        (root / "runs" / run_id / "run.json").write_text(json.dumps({
+            "schema": "lab.run/1", "id": run_id, "title": run_id, "status": "ok",
+            "started_at": "2026-11-04T01:22:54.000+09:00"}), encoding="utf-8")
+    tools = tools_of(module)
+    read = call(tools["analytics_status"], {"part": "records", "id": "run:20261104-012254-01"})
+    assert not read.is_error, text_of(read)
+    assert read.details["id"] == "run:" + whole
+    assert read.details["resolved_id"] == {"input": "run:20261104-012254-01", "id": "run:" + whole}
+    noted = call(tools["analytics_record"], {"kind": "finding", "text": "분포가 치우쳤다",
+                                             "refs": ["20261104-012254-01"]})
+    assert not noted.is_error, text_of(noted)
+    assert noted.details["event"]["refs"][0]["run_id"] == whole
+    assert f"refs: 20261104-012254-01 -> {whole} (inferred)" in text_of(noted)
+    ambiguous = call(tools["analytics_status"], {"part": "records", "id": "run:20261104-013000-02"})
+    assert ambiguous.is_error and "ambiguous_id" in text_of(ambiguous)
+    assert "run:20261104-013000-02-model-2" in text_of(ambiguous)
 
 
 def test_a_run_over_many_inputs_still_shows_stdout_and_says_what_it_hid():

@@ -31,6 +31,12 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   본문의 글자 수 `text_chars`(Unicode 코드 포인트)가 모든 페이지에 있습니다(`updating` 응답 제외). 전에는 글만 주어 모델이 `journal.jsonl`의 바이트를 직접 세기도
   했습니다. 기록 형식이 쓴 쪽의 규칙을 말해 주면 `text_truncated`도 있습니다: `analytics.event/2`는 `no`(자르지 않고 거절), kit 0.8.0 전의
   `lab.event/1`은 4,000자 미만이면 `no`, 꼭 4,000자이면 `possibly`(그 kit이 4,000자 뒤를 버렸고 더 길었는지는 기록에 없음). `text_truncated`는 불리언이 아니라 객체 `{state, rule}`입니다.
+- #158: run ID를 날짜·시각·번호까지만 줄여 써도(`20261104-012254-01-eda-distributions`의 `20261104-012254-01`) 그것이 하이픈 경계에서
+  앞부분인 run이 하나면 그 run으로 통합니다: 기록의 이름 참조(`--ref`, 도구의 `refs`, SDK), 한 기록·관계·출처 경로의 읽기
+  (`analytics_status`, `analytics status --part …`), 재실행(`run --rerun-of`, `analytics_run`의 `rerun_of`). 기록에는 그 run의 전체 id를 쓰고
+  (이름 참조는 준 글자를 `token`으로 남긴 `inferred` 결박), 읽기 응답의 `resolved_id`와 도구의 `refs:` 줄이 어느 run인지 알립니다. 둘 이상의 run의
+  앞부분이면 `ambiguous_id`와 후보로 거절하고 아무것도 쓰지 않습니다. 전에는 run이 없다는 `missing`·`record_not_found`·`rerun_unknown`이었습니다.
+  저장된 기록은 바뀌지 않습니다. 평가 채점기(`tools/model_eval.py`)도 run 하나로 풀리는 줄인 run ID를 없는 ID로 세지 않습니다.
 
 ### Changed
 

@@ -2916,6 +2916,19 @@ def _query_record(model, source):
     raise AnalyticsError("record_not_found", "no readable record with this ID", details={"id": source})
 
 
+def _whole_run_reference(project: Project, given: str) -> str:
+    """A read's ID with the run ID in it whole (#158): a run (`run:<id>`, or a bare run ID as a
+    reference target), or a Visualization version (`<run_id>/<visualization_id>`) whose run ID is
+    shortened at a hyphen reads as the one run it starts (writer.whole_run_id); one starting several
+    runs' IDs is ambiguous_id with them, in the form it was given. Any other ID is returned as it is."""
+    prefix = "run:" if given.startswith("run:") else ""
+    run_id, slash, rest = given[len(prefix):].partition("/")
+    if not RUN_ID_RE.match(run_id):
+        return given
+    return prefix + writer.whole_run_id(project.root, run_id,
+                                        shown=lambda value: prefix + value + slash + rest) + slash + rest
+
+
 # The directions of a relations read: one hop of references, or a provenance trail (design
 # WORKSPACE-READABILITY 6, the owner's decision 3 of 2026-10-17): what the item was made from
 # (`sources`) or what was made from it (`uses`), bounded as the Workspace shows it.
@@ -2960,6 +2973,11 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
         raise AnalyticsError("bad_query", "selected ID and search filters are separate reads")
     if part == "relations" and not id:
         raise AnalyticsError("bad_query", "relations requires an ID")
+    # A shortened run ID reads as its run's whole ID from here on: the request (and so a cursor) is
+    # the whole one's, and the answer says which it read (`resolved_id`).
+    given_id = id
+    if id and part != "context":
+        id = _whole_run_reference(project, id)
     checkpoint_id = part == "context" and isinstance(id, str) and (id.startswith("e") or id.startswith("journal:"))
     if part == "context" and as_of_seq is not None and not checkpoint_id:
         raise AnalyticsError("bad_query", "historical context requires its exact context version ID")
@@ -3080,6 +3098,8 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
                   evidence_availability="checked now; as_of_seq bounds recorded knowledge, not file snapshots",
                   time_filter_scope="only parseable UTC-offset recorded timestamps" if since or until else None,
                   search_scope="readable journal records" if part == "records" and id is None else part)
+    if id != given_id:
+        result["resolved_id"] = {"input": given_id, "id": id}
     if result["updating"]:
         result["total"] = "unknown"
         if result.get("checkpoint") is not None:
