@@ -7,10 +7,11 @@
  "part": "PR-2: Workspace screens and provenance",
  "run_id": "e8d4ebf7-429d-4cd5-96da-567b206449e8",
  "measured_source": {
-  "commit": "bd057ce",
+  "commit": "9f77671",
+  "first_measured": "bd057ce",
   "branch": "feat/issue-171-observed-screens",
-  "on": "cbfd021 (PR-1)",
-  "note": "local commits before the rebase onto main once #175 and #176 are merged"
+  "on": "0bfba89 (PR-1 after its review fixes)",
+  "note": "re-measured after the implementation reviews' fixes; local commits before the rebase onto main"
  },
  "machine": {
   "platform": "macOS-26.6.2-arm64-arm-64bit",
@@ -26,9 +27,9 @@
   {
    "observations": 0,
    "build_ms": [
-    48,
-    18,
-    18
+    43,
+    16,
+    15
    ],
    "pages": 15,
    "html_bytes": 73355
@@ -36,22 +37,22 @@
   {
    "observations": 100,
    "build_ms": [
-    62,
-    62,
-    62
+    58,
+    60,
+    60
    ],
    "pages": 119,
-   "html_bytes": 1614463
+   "html_bytes": 1611429
   },
   {
    "observations": 300,
    "build_ms": [
-    132,
-    139,
-    147
+    133,
+    140,
+    152
    ],
    "pages": 327,
-   "html_bytes": 4585235
+   "html_bytes": 4576133
   }
  ],
  "trail": {
@@ -68,26 +69,39 @@
  "verification": [
   {
    "command": "uv run --locked pytest -q --timeout 600 --timeout-method=thread -p no:cacheprovider",
-   "source": "bd057ce (same tree)",
+   "source": "9f77671 (clean)",
    "result": "pass",
-   "summary": "3318 passed, 148 skipped, 932 s"
+   "summary": "3359 passed, 148 skipped, 708 s"
   },
   {
    "command": "aelix 0.1.0b2 integration, five files, --python 3.12",
-   "source": "bd057ce (same tree)",
+   "source": "9f77671 (clean)",
    "result": "pass",
-   "summary": "1053 passed"
+   "summary": "1057 passed"
   },
   {
    "command": "ruff check; tools/check_docs.py; tools/release_check.py version",
-   "source": "bd057ce",
+   "source": "9f77671",
    "result": "pass"
+  },
+  {
+   "command": "first measurement before the reviews",
+   "source": "bd057ce",
+   "result": "pass",
+   "summary": "3318 passed, 148 skipped; aelix 1053 passed"
   }
  ],
  "not_run": [
   "Linux and Windows (CI after push)",
   "browser views (Chromium E2E, narrow screens, forced colors) and a person's check",
   "the Workspace S/M scale fixtures with observations",
-  "implementation reviews (independent, Codex)"
- ]
+  "the fix-diff check of the review fixes"
+ ],
+ "reviews": {
+  "implementation": [
+   "independent (2026-11-10)",
+   "Codex (2026-11-10)"
+  ],
+  "fixed_in": "9f77671"
+ }
 }
