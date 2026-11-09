@@ -2091,7 +2091,7 @@ async def analytics_command(args, ctx=None):
                     return render_error("/analytics demo", value)
             else:
                 await run_kit(project, ["render"], timeout=240, actor="human", means="command")
-            return (f"created {project.root} (active). Report: {project.workspace_dir / 'index.html'}"
+            return (f"created {project.root} (active). Workspace: {project.workspace_dir / 'index.html'}"
                     " — /analytics open to view it.")
         if sub == "use":
             if not rest:

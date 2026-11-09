@@ -3568,7 +3568,7 @@ def _records_lines(st: dict, journal: Path) -> list[str]:
         # unknown kind of a known version is not.
         newer = sum(1 for u in unsupported if u["reason"] == "unknown_version")
         out.append(f"unsupported: {len(unsupported):,} record(s) this kit cannot read are in no list "
-                   f"here and not in the report — {_places(places, STATUS_PLACES, EVERY_RECORD)}"
+                   f"here and not in the Workspace — {_places(places, STATUS_PLACES, EVERY_RECORD)}"
                    + ("; a newer kit may read them" if newer == len(unsupported) else
                       f"; a newer kit may read the {newer:,} of an unknown version" if newer else ""))
     damaged = st.get("damaged") or {}

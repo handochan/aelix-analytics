@@ -267,8 +267,8 @@ PowerShell 안에서 실행한 `chcp 65001`은 PowerShell이 이미 읽어 둔 �
 
 PNG 차트는 모델이 이미지 입력을 받을 때 `analytics_run` 결과에 이미지로도 붙습니다(모델이 자기 차트를 봅니다).
 도구와 `/analytics` 명령의 응답은 기록에서 다시 만드는 페이지를 Workspace로 부릅니다: `analytics_run`의 끝 줄 `journal: e7 · workspace: …`,
-`analytics_init`·`analytics_status`의 `workspace: …`, `/analytics render`의 `Workspace rebuilt: …`(kit 0.32.1 전은 `report: …`·`report rebuilt: …`).
-Report는 따로 저장한 문서입니다([스크립트 API](#스크립트-api)).
+`analytics_init`·`analytics_status`의 `workspace: …`, `/analytics render`의 `Workspace rebuilt: …`, `/analytics init`·`demo`의 `Workspace: …`
+(#166 전에는 `report: …`·`report rebuilt: …`·`Report: …`. 같은 0.32.1 번호의 이전 코드도 그렇습니다). Report는 따로 저장한 문서입니다([스크립트 API](#스크립트-api)).
 
 ### 사람 명령
 

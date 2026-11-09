@@ -719,6 +719,17 @@ def test_the_status_text_calls_the_workspace_the_workspace(project):
     assert not [line for line in lines if line.startswith("report:")]
 
 
+def test_a_failed_run_s_charts_are_said_to_stay_out_of_the_workspace_gallery():
+    """#166: the run warning calls the gallery the Workspace's, not the report's (written into the
+    new run's record; an earlier run's record keeps its words)."""
+    from aelix_analytics import runner  # noqa: PLC0415
+
+    record = {"status": "error", "inputs": [], "outputs": [],
+              "charts": [{"id": "c1", "kind": "plotly", "data": "data/c1.parquet"}]}
+    assert runner.run_warnings(record) == [
+        "1 chart(s) were recorded but the run is error, so they stay out of the Workspace gallery"]
+
+
 def test_an_external_input_names_the_dataset_it_was_imported_as(project, tmp_path):
     source = tmp_path / "sales.csv"
     code, result = _run(project, write_script(project, "01_ext.py",
@@ -773,7 +784,7 @@ def test_records_from_a_newer_kit_are_skipped_and_said_so(project):
     assert future.name not in [r["id"] for r in st["runs"]]
     text = core.status_text(st)
     assert (f"unsupported: 2 record(s) this kit cannot read are in no list here and not in the "
-            f"report — journal:{line} (unknown_version), runs/{future.name}/run.json "
+            f"Workspace — journal:{line} (unknown_version), runs/{future.name}/run.json "
             "(unknown_version); a newer kit may read them") in text
     assert kit_cli(project, "render")[0] == 0
     index = plain((p.workspace_dir / "index.html").read_text(encoding="utf-8"))
