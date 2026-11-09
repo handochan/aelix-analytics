@@ -422,6 +422,19 @@ def test_the_checker_tells_retrievable_from_lost(host, tmp_path):
     assert all(c["holds"] for c in blocked["claims"]), blocked["claims"]
 
 
+@pytest.mark.parametrize("label", ["workspace", "report"])
+def test_a_run_reply_s_page_is_read_in_the_new_and_the_old_wording(label):
+    """#166: the run reply names its page `journal: eN · workspace: <page>` from kit 0.32.1 and
+    `… · report: <page>` before. The parser reads both, so a transcript measured before still has the
+    page its "the run page lists them all" points at."""
+    said = ("analytics_run: ok — run 20260901-090000-x (1.0 s)\ninputs (6):\n"
+            "  … and 4 more input file(s) — the run page lists them all\n"
+            f"journal: e1 · {label}: /p/workspace/runs/20260901-090000-x.html")
+    (pointer,) = usage.parse_pointers(said)
+    assert (pointer.kind, pointer.path) == ("read", "/p/workspace/runs/20260901-090000-x.html")
+    assert pointer.claim == {"more": 4, "lists_all": True}
+
+
 def test_the_checker_judges_the_wording_pr2_gives(host, tmp_path):
     """PR-2's pointers are followed and their claims checked: a record that misses an item, a count
     that is not the truth, a preamble range a line short and an image line that miscounts the

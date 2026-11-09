@@ -3303,7 +3303,7 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
     add("head", f"project: {p['title']} ({p['root']})")
     if p.get("migration_hint"):
         add("head", OLDER_FORMAT_LINE)
-    add("head", f"report: {st['workspace']}")
+    add("head", f"workspace: {st['workspace']}")
     if p.get("older_project_above"):
         add("head", older_project_above_line(p["older_project_above"]))
     if p.get("write_refusal"):

@@ -957,7 +957,47 @@ def test_the_run_reply_and_render_say_what_the_build_left(lab, monkeypatch):
         return True, {"ok": True, "workspace": {"path": "workspace/index.html", "pages": 3, "build": "b", "unmanaged": left}}
     monkeypatch.setattr(module, "run_kit", kit)
     reply = asyncio.run(module.analytics_command("render"))
-    assert reply.startswith("report rebuilt: ") and line in reply and "analytics reports save" in reply
+    assert reply.startswith("Workspace rebuilt: ") and line in reply and "analytics reports save" in reply
+
+
+# How the replies called the Workspace before kit 0.32.1 (#166): `report:`, `report build failed:`,
+# `report rebuilt:` and the help's "rebuild the report".
+OLD_WORKSPACE_WORDING = re.compile(r"\breport:|\breport build\b|\breport rebuilt\b|\bthe report\b",
+                                   re.IGNORECASE)
+
+
+def test_the_replies_call_the_workspace_the_workspace(lab, tmp_path, monkeypatch):
+    """#166: the tool and command replies call the pages the kit rebuilds from the records the
+    Workspace, not "the report" (a Report is a document saved as one): analytics_run's page line and
+    its failed build, analytics_init's page, /analytics render's answer and the /analytics help."""
+    module, root = lab
+    project = module.core.Project(root)
+    value = {"run": {"id": "20260916-100727-01-build", "status": "ok", "duration_s": 1.0, "title": "t",
+                     "script": {"path": "scripts/01_build.py", "sha256": "a" * 64}},
+             "event": "e1", "page": "workspace/runs/x.html",
+             "workspace": {"path": "workspace/index.html", "pages": 3, "build": "b"}}
+    ran = module.render_run(project, value)
+    assert f"journal: e1 · workspace: {root / 'workspace/runs/x.html'}" in ran.split("\n")
+    failed = module.render_run(project, {**value, "workspace": None, "workspace_error": "no space left"})
+    assert "Workspace build failed: no space left" in failed.split("\n")
+
+    async def kit(project, argv, **options):
+        return True, {"ok": True, "workspace": {"path": "workspace/index.html", "pages": 3, "build": "b"}}
+
+    async def synced(project):
+        return True, "uv.lock"
+
+    monkeypatch.setattr(module, "run_kit", kit)
+    monkeypatch.setattr(module, "sync_environment", synced)
+    rebuilt = asyncio.run(module.analytics_command("render"))
+    assert rebuilt == f"Workspace rebuilt: {module.core.Project(root).workspace_dir / 'index.html'}"
+    assert "/analytics render | open      rebuild the Workspace | open it in the browser" in module.HELP
+    made = tmp_path / "made"
+    init = call(tools_of(module)["analytics_init"], {"path": str(made)})
+    assert not init.is_error, text_of(init)
+    assert f"workspace: {module.core.Project(made).workspace_dir / 'index.html'}" in text_of(init).split("\n")
+    for reply in (ran, failed, rebuilt, module.HELP, text_of(init)):
+        assert not OLD_WORKSPACE_WORDING.search(reply), reply
 
 
 def test_lab_import_takes_a_tilde_name_by_the_rule_lab_import_follows(lab, tmp_path, monkeypatch):

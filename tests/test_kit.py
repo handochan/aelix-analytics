@@ -710,6 +710,15 @@ def test_status_calls_out_a_dataset_no_run_produced(project):
     assert "sneaked" in text and "NO PRODUCING RUN" in text
 
 
+def test_the_status_text_calls_the_workspace_the_workspace(project):
+    """#166: the status text's head names the Workspace's page on `workspace:`, not `report:` (a Report
+    is a document saved as one) — analytics_status, /analytics and the kit's text status."""
+    st = core.status(core.Project(project))
+    lines = core.status_text(st).splitlines()
+    assert lines[1] == f"workspace: {st['workspace']}"
+    assert not [line for line in lines if line.startswith("report:")]
+
+
 def test_an_external_input_names_the_dataset_it_was_imported_as(project, tmp_path):
     source = tmp_path / "sales.csv"
     code, result = _run(project, write_script(project, "01_ext.py",
@@ -1014,13 +1023,14 @@ def _main_status_text(st: dict, max_chars: int = 9000) -> str:
     the lines Issue #12 PR-2 changed or added: the read the overview is (`read:`), the records the
     lists cannot show, a dataset's origin as the read judges it, a run's recording status, a chart's
     producer flags, the line of an id several lines share and a key entry's references; and the pin
-    mark the template uses since Issue #10 (`<!-- pin -->`, was `<!-- 항상 -->`). Those lines
+    mark the template uses since Issue #10 (`<!-- pin -->`, was `<!-- 항상 -->`), and the Workspace's
+    line named `workspace:` since #166 (was `report:`). Those lines
     come from the kit's own helpers (their content is tested on its own); what this compares is
     that an overview within its length is these lines with only the omission notes added."""
     _one_line, versions_line, _fmt_int = core._one_line, core.versions_line, core._fmt_int
     CONTEXT_PROMPT_CHARS = core.CONTEXT_PROMPT_CHARS  # noqa: N806 - as main spelled it
     p, counts = st["project"], st["counts"]
-    lines = [f"project: {p['title']} ({p['root']})", f"report: {st['workspace']}"]
+    lines = [f"project: {p['title']} ({p['root']})", f"workspace: {st['workspace']}"]
     if st.get("source_revision"):
         lines.append(core._read_line(st))
     if p.get("goal"):
