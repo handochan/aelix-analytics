@@ -259,6 +259,8 @@ NOT_A_RUN_RECORD = {
     "src/aelix_analytics/core.py": {"resolve_ref_aliases", "_status_lines", "_status_list_len",
                                     "status_text"},
     "tools/usage_report.py": {"status_invariants"},
+    # The /analytics panel's first screen shows status()'s counts (#162), not a run's charts.
+    "extension/aelix_analytics.py": {"AnalyticsPanel.first_screen"},
     # The tools' own summaries of runs, made through the views (V1Writer._remember, changes).
     "tools/eval_fixtures.py": {"ScaleFixture.finish"},
     "tools/model_eval.py": {"run_check"},
