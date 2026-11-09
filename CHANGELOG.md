@@ -57,6 +57,12 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   run만 새 글이고 이전 run의 기록은 그대로입니다. 같은 0.32.1 번호라도 이 변경 전의 코드는 옛 표기를 냅니다(commit이나 run의
   `env.kit_sha256`으로 구별). 저장 형식과 결과 JSON의 키는 그대로입니다. 저장소 도구 `tools/usage_report.py`는 run 응답의 옛 줄과 새 줄을 모두
   읽습니다. 이 줄을 글자로 읽던 스크립트는 고쳐야 합니다.
+- #168: HTML·SVG Report를 Workspace에서 새 탭으로 엽니다. Report 페이지의 `Open the report in a new tab`, Reports 탭의 그 행의
+  `Open in a new tab`, 파일 표의 HTML·SVG 이름이 보존한 원본(`artifacts/reports/<id>/<revision>/content/`)을 `target="_blank" rel="noopener noreferrer"`로
+  열고, 내려받기 링크는 곁에 남습니다. 전에는 내려받기만 있어 파일을 받아 따로 열어야 했습니다. 파일을 직접 여는 것과 같아 첨부(그림·CSS)의 상대
+  경로가 동작하고 작성자의 스크립트는 그 탭에서 돕니다. 원본을 Workspace 페이지에 넣거나 복사하지 않고, 파일이 저장한 바이트가 아니면 전처럼
+  내려받기만 둡니다. Markdown 본문 문서의 CSP, 공유본의 HTML 거절(`report_not_shareable`), 저장 형식은 그대로입니다. 한계: Workspace를
+  `file://`이 아닌 로컬 HTTP 서버로 열면 보고서의 스크립트가 Workspace와 같은 origin에서 돕니다(kit은 `file://`로 엶).
 
 ### Fixed
 

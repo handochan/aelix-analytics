@@ -1053,7 +1053,8 @@ kit0.21.0은 개별 저장 계약을 도입했습니다. kit0.22.0은 아래 met
   원시 manifest/ReportRef/request ID/프로젝트/모델은 받지 않으며 직접 파일·네트워크·생성 실행을 조회하지 않습니다.
   결과는 재생성 `{path: bytes}`, 원본 다운로드 링크, supported/reasons입니다. 원본 복사는 호출자가 맡습니다.
   StaticReportRenderer는 Markdown의 raw HTML을 끄고 명시한 local 경로만 다시 씁니다. 원격/미대응 경로는 지원 실패 사유로 남기고
-  이미지는 다운로드로 남깁니다. HTML/SVG·PDF/Office·모르는 형식은 **다운로드만** 제공하며 authored HTML을 DOM에 넣지 않습니다.
+  이미지는 다운로드로 남깁니다. HTML/SVG·PDF/Office·모르는 형식은 본문 문서를 만들지 않고 **다운로드 링크만** 제공하며 authored HTML을 DOM에 넣지 않습니다.
+  kit 0.32.1부터 Workspace는 renderer와 별도로 HTML·SVG 원본을 보존 위치에서 새 탭으로 엽니다([C19](#c19-workspace의-reports-탭과-페이지-kit-0250-19-pr3), #168).
   이는 공유 적합성 통과가 아닙니다. #20의 형식·제외 내용 검사는 별도로 적용합니다.
 
 ReportRenderer는 교체 계약과 원본 불변성 검증을 마친 내부 adapter입니다. Workspace의 Reports 탭과 페이지는 [C19](#c19-workspace의-reports-탭과-페이지-kit-0250-19-pr3)입니다.
@@ -1128,6 +1129,7 @@ ReportRenderer는 교체 계약과 원본 불변성 검증을 마친 내부 adap
 - **Reports 탭**(`#reports`, Insights 바로 뒤): Report마다 최신 버전 한 줄입니다. 제목(쓴 그대로), `Version n of N`, 저장 시각, 상태, summary·purpose를
   보입니다. 상태는 철회, 파일 무결성, 작성자가 준 content_status, 묶음의 `n of N complete`이며 하나로 합치지 않습니다. 목록은 본문을 읽지 않고,
   최근 50개 밖은 `lists/reports-<n>.html`로 잇습니다. 저장된 버전 없이 시도(prepared·incomplete)만 있는 Report도 보입니다.
+  최신 버전의 진입 파일이 HTML·SVG이면 그 행에서 원본을 새 탭으로 엽니다(`Open in a new tab`, 아래 **HTML·SVG 열기**).
 - **Report 페이지** `reports/<id 줄임>-<sha256 10자>.html`:
   - 버전은 [C15](#c15-버전-기록-kit-0190-99)의 공통 표현(`Version n of N`, 띠와 목록, 많으면 가운데를 접음)입니다. n/N은 완료 이벤트 순서이고,
     철회·복원·다시 빌드로 바뀌지 않습니다. manifest가 완료 기록이 묶은 것과 다르거나 읽히지 않는 버전도 번호를 지키고 그 문제를 보이며 본문은 만들지 않습니다. 버전마다 `#v-<revision_id>` 구역이 있고 최신만 열려 있습니다.
@@ -1138,7 +1140,8 @@ ReportRenderer는 교체 계약과 원본 불변성 검증을 마친 내부 adap
   - 묶음: members에서 센 `n of N complete · 실패 · 미생성`과 구성원 표(member_key·상태·사유·scope는 쓴 그대로, complete는 그 구성원 Report 페이지의
     정확한 버전으로 가는 링크와 판정)입니다. 구성원 관계는 문서의 근거가 아니고 근거 수를 늘리지 않습니다. JS 없이 읽힙니다.
   - 파일: 원본은 복사하지 않고 `artifacts/reports/<id>/<revision>/content/<path>`를 바로 가리킵니다(본문 문서의 링크용 사본만 보기 폴더에 있음). 크기·sha256,
-    본문 파일 표시. HTML·SVG처럼 브라우저가 실행할 형식은 `download`로 링크합니다. kit의 metadata sidecar는 빼고 보입니다.
+    본문 파일 표시. HTML·SVG는 새 탭으로 열고 곁에 `Download`(`download`) 링크를 둡니다(아래). 그 밖에 브라우저가 실행할 형식(스크립트·모르는 형식)은
+    `download`로 링크합니다. kit의 metadata sidecar는 빼고 보입니다.
   - 앞 버전과의 비교: 둘 다 글(`.md`·`.markdown`·`.txt`)이고 파일이 저장한 그대로면 더하고 뺀 줄 수를 보이고(본문의 글은 페이지에 넣지 않음), 아니면
     비교하지 않는다고 적습니다.
   - `Who cites it`: 그 버전을 인용한 기록 수입니다. 완료 이벤트(`about`), 철회·복원(`updates`), 묶음 구성원(`includes`)은 인용이 아닙니다.
@@ -1160,10 +1163,21 @@ ReportRenderer는 교체 계약과 원본 불변성 검증을 마친 내부 adap
   - 본문 안의 위치는 URL 상태에 담지 않고 브라우저의 뒤로 가기가 지킵니다. 버전·구성원·페이지 위치는 [C11](#c11-선택-버전-관계와-workspace-복귀-kit-0150-18)대로
     돌아옵니다(`reports` 탭, `reports/` 페이지가 URL 상태에 들어감). 그만큼 설계의 '섹션 위치 유지'를 좁힌 것이며 소유자가 받아들였습니다.
   - 본문 문서의 `<title>Report</title>`과 다운로드 목록은 renderer의 글이라 화면 언어를 따르지 않습니다(C17의 StaticReportRenderer).
+- **HTML·SVG 열기**(kit 0.32.1, #168, 소유자 결정 2026-11-09): 진입 파일이 HTML(`.html`·`.htm`)·SVG인 버전은 파일 구역의 `Open the report in a new tab`과
+  Reports 탭의 그 행의 `Open in a new tab`이, 파일 표에서는 HTML·SVG 파일마다 그 이름이 보존 원본 `artifacts/reports/<id>/<revision>/content/<path>`를
+  `target="_blank" rel="noopener noreferrer"`로 엽니다(`download` 없음). 파일 표의 `Download` 링크는 그대로 있습니다.
+  - 파일을 직접 여는 것과 같습니다. 원본을 복사하거나 고치지 않고 Workspace 페이지(DOM)에 넣지 않으며, 첨부(그림·CSS·다른 페이지)의 상대 경로는
+    보존 폴더에서 그대로 동작합니다. 작성자의 스크립트는 그 탭에서 돕니다. Markdown 본문 문서의 CSP, 공유본의 HTML 거절([D4](#d4-report묶음-범위의-공유본-kit-0270-20-pr4)의
+    `report_not_shareable`), 저장 형식은 바뀌지 않습니다. SVG는 HTML처럼 스크립트를 돌리는 문서라 같이 다룹니다(renderer의 `html_download_only`도 둘을 함께 씀).
+  - 버전의 파일이 저장한 바이트이고 manifest를 믿을 수 있을 때만 엽니다(본문 문서를 만드는 조건과 같음). 아니면 전처럼 내려받기 링크만 둡니다.
+    이 판정은 빌드 때의 것이라 빌드 뒤에 바뀐 원본은 다음 빌드 전까지 바뀐 채로 열립니다.
+  - 한계: kit은 Workspace를 `file://`로 엽니다. 그 탭이 `file://`에서 Workspace와 얼마나 떨어지는지는 브라우저가 정하며 kit이 격리를 더하지 않습니다.
+    누가 Workspace를 `file://`이 아닌 로컬 HTTP 서버로 열면 보고서의 스크립트가 Workspace와 같은 origin에서 돌아, 그 origin의 브라우저 저장소(localStorage 등)와 같은 서버가
+    내주는 다른 파일에 닿을 수 있습니다.
 - **연결**: report_revision 참조 배지는 그 버전 구역으로, 관계 페이지의 Report 버전은 Report 페이지로 갑니다(`Report version`, `Open report version`).
   Timeline의 완료·철회 기록도 그 배지로 이어집니다.
-- **두지 않는 것**: Workspace 안의 공유 진입점(Report 공유본은 kit CLI의 build, [D4](#d4-report묶음-범위의-공유본-kit-0270-20-pr4)), HTML 격리 보기, Markdown 그림 표시(renderer가
-  `img-src 'none'`), 목차·컬럼 선택기. Report를 저장했다고 결론이 검토되거나 원본 데이터가 보존되는 것이 아닙니다.
+- **두지 않는 것**: Workspace 안의 공유 진입점(Report 공유본은 kit CLI의 build, [D4](#d4-report묶음-범위의-공유본-kit-0270-20-pr4)), HTML·SVG를 Workspace 페이지
+  안에 넣거나 격리(sandbox·별도 origin)해 보이는 것(원본을 새 탭으로 열기만 함), Markdown 그림 표시(renderer가 `img-src 'none'`), 목차·컬럼 선택기. Report를 저장했다고 결론이 검토되거나 원본 데이터가 보존되는 것이 아닙니다.
 
 ### C20. Workspace의 publication 기록과 폴더 관찰 (kit 0.26.0, #20 PR3)
 
