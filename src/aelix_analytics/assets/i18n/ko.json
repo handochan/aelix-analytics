@@ -268,6 +268,9 @@
   "other": "{n}개는 이 페이지에 없습니다. 모두 보기:"
  },
  "fold.more": "{n}개 더 보기 (모두 {total}개)",
+ "fold.more_rows": {
+  "other": "{n}행 더 보기"
+ },
  "fold.relation_page": "관계 페이지",
  "footer.updating": "갱신 중: 읽는 동안 기록이 바뀌었습니다",
  "inferred.badge": "옛 kit 경로에서 추론",

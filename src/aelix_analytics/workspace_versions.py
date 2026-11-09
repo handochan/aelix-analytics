@@ -200,7 +200,8 @@ class Versions:
         on a page of its own, and a Visualization's history is cut to a window on other pages
         (WINDOW_ROWS) — and the rows at `keep` (the latest version, the one the page shows) in sight."""
         picture = f'<div class="vh-strip-wrap">{strip}</div>' if strip else ""
-        listed = self.site.fold(rows, lambda part: f'<ol class="vh-list">{"".join(part)}</ol>', cap=None, keep=keep)
+        listed = self.site.fold(rows, lambda part: f'<ol class="vh-list">{"".join(part)}</ol>', cap=None, keep=keep,
+                                summary="fold.more_rows")
         return (f'<section class="vh" id="{anchor}"><details class="vh-fold" open><summary><h{level}>{t(heading)}</h{level}> '
                 f'<span class="muted">{facts}</span></summary>{picture}{legend}{listed}{foot}</details></section>')
 

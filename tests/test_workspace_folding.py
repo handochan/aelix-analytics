@@ -2,16 +2,16 @@
 8.4). The first FOLD_SHOWN items show; the next ones up to the list's cap fold into a native <details>
 that says how many it holds and how many the list has, and opens without a script; past the cap the
 page says how many more there are and where all of them are. Folding changes neither the order nor the
-number of the items, and an address naming a folded item opens its folds (workspace.js)."""
+number of the items. An address naming a folded item opens its folds: workspace.js already did that for
+any closed <details> around its target, and tests/workspace_navigation_repairs.cjs (run by
+test_workspace_relations.py) pins it for a long list's fold too."""
 from __future__ import annotations
 
 import json
 import re
-import shutil
-import subprocess
-from pathlib import Path
 
 import pytest
+from conftest import analytics_project
 from legacy_records import LegacyProject, at, sha
 from workspace_words import plain
 
@@ -20,6 +20,7 @@ from aelix_analytics import core, i18n, workspace, workspace_relations, workspac
 HUMAN = core.Origin("human", "cli", "declared")
 SHOWN, CAP, LIMIT = workspace.FOLD_SHOWN, workspace.FOLD_CAP, workspace.INDEX_LIMIT
 BIG = "20261001-080000-big"
+MANY = "20261001-080500-many"
 T = "data/derived/t.parquet"
 FOLD = re.compile(r'<details class="more"><summary>(.*?)</summary>(.*?)</details>', re.S)
 BEYOND = re.compile(r'<p class="more-beyond">(.*?)</p>', re.S)
@@ -44,6 +45,12 @@ def long(tmp_path_factory):
         # The last inputs change after the run: their rows come first.
         for i in range(CAP + 45 - SHOWN, CAP + 50):
             q.file(f"data/raw/in-{i:03d}.parquet", b"changed")
+        # A run more of whose inputs changed than the cap: CAP + 10 changed, then 5 the same.
+        changed = [(f"data/raw/ch-{i:03d}.parquet", q.file(f"data/raw/ch-{i:03d}.parquet", f"ch-{i}".encode()))
+                   for i in range(CAP + 15)]
+        q.run(MANY, script="scripts/many.py", started_at=at(5, hour=8), ts=at(6, hour=8), inputs=changed)
+        for i in range(CAP + 10):
+            q.file(f"data/raw/ch-{i:03d}.parquet", b"changed")
         record = json.loads((q.root / "runs" / BIG / "run.json").read_text(encoding="utf-8"))
         record["warnings"] = [f"warning {i}" for i in range(SHOWN + 10)]
         record["env"] = {"python": "3.12", "kit_version": "0.32.1", "packages": {f"pkg-{i:02d}": "1.0" for i in range(30)}}
@@ -178,6 +185,92 @@ def test_a_dataset_s_columns_and_runs_fold(long):
     assert len(re.findall(r"<li><a href", FOLD.search(readers).group(2))) == 31 - SHOWN
 
 
+def test_every_changed_input_is_on_the_page_when_more_changed_than_the_cap(long):
+    """Review of PR #179 (independent D2): run.json holds no state now, so the cap of a run's inputs
+    is never below how many changed; the ones that did not come after them, up to FOLD_CAP."""
+    inputs = section(page(long, f"runs/{MANY}.html"), "inputs")
+    assert rows(inputs) == CAP + 10 and inputs.count(" Changed</span>") == CAP + 10
+    assert " Same</span>" not in inputs and "5 more are not on this page" in inputs
+
+
+def run_v2(root, w, n: int, *, inputs=(), outputs=()) -> str:
+    """A current-format run record and its completion event as the runner writes them (runner.py):
+    the event names only `run:<id>`."""
+    rid = f"20261008-09{n // 60:02d}{n % 60:02d}-r"
+    snapshot = root / "runs" / rid / "code" / "scripts" / "r.py"
+    snapshot.parent.mkdir(parents=True)
+    snapshot.write_bytes(b"x")
+    w.write_run(root / "runs" / rid, {
+        "id": rid, "title": rid, "status": "ok", "started_at": f"2026-10-08T09:{n // 60:02d}:{n % 60:02d}.000+09:00",
+        "actor": "human", "actor_basis": "declared", "means": "cli", "session": None, "rerun_of": None,
+        "script": {"path": "scripts/r.py", "sha256": sha(b"x"), "snapshot": f"runs/{rid}/code/scripts/r.py"},
+        "modules": [], "inputs": list(inputs), "outputs": list(outputs), "visualizations": []})
+    w.record("run", f"{rid} — ok", refs=[core.kit_reference("run", run_id=rid)])
+    return rid
+
+
+def test_every_run_reading_a_dataset_is_on_its_page_in_the_current_format(tmp_path):
+    """Review of PR #179 (Codex D2, independent D1): a current-format run's completion event names only
+    the run, so the path's relation page does not list the runs that read it. The dataset page's runs
+    have no cap: every one of CAP + 6 readers is on the page, the newest too."""
+    import polars as pl
+    root = analytics_project(tmp_path / "p")
+    p = core.Project(root)
+    w = core.writer_for(p, HUMAN)
+    table = root / "data" / "derived" / "t.parquet"
+    table.parent.mkdir(parents=True)
+    pl.DataFrame({"v": [1]}).write_parquet(table)
+    entry = {"path": "data/derived/t.parquet", "bytes": table.stat().st_size, "sha256": sha(table.read_bytes())}
+    run_v2(root, w, 0, outputs=[{**entry, "change": "created", "via": "analytics.save"}])
+    readers = [run_v2(root, w, n, inputs=[{**entry, "via": ["analytics.read"], "external": False}]) for n in range(1, CAP + 7)]
+    workspace.build(p)
+    listed = page(p, "data/t.html").split("Runs that read this data", 1)[1].split("</section>", 1)[0]
+    assert re.findall(r'<li><a href="\.\./runs/([^.]+)\.html">', listed) == readers
+    assert len(re.findall(r"<li><a href", visible(listed))) == SHOWN and not BEYOND.search(listed)
+
+
+@pytest.mark.parametrize("logs", [(".analytics",), (".lab",), (".analytics", ".lab")])
+def test_past_the_cap_the_tool_lists_name_every_log_they_read(tmp_path, logs):
+    """Review of PR #179 (Codex D3): the Site reads this kit's and an older kit's tool log; the line
+    past the cap links each one it read, and only those."""
+    q = LegacyProject(tmp_path / "p", migrated=True)
+    for n, place in enumerate(logs):
+        (q.root / place).mkdir(exist_ok=True)
+        (q.root / place / "telemetry.jsonl").write_text("".join(
+            json.dumps({"ts": at(i % 60, hour=11), "tool": f"t{n}_{i:02d}", "ms": 1, "flags": ["python_via_bash"]}) + "\n"
+            for i in range(LIMIT + 1)), encoding="utf-8")
+    p = core.Project(q.root)
+    workspace.build(p)
+    evaluation = page(p, "index.html").split('<section id="evaluation"', 1)[1].split("</section>", 1)[0]
+    for beyond in BEYOND.findall(evaluation):
+        assert re.findall(r'href="\.\./([^"]+)"', beyond) == [f"{place}/telemetry.jsonl" for place in logs]
+    assert len(BEYOND.findall(evaluation)) == 2
+    assert all((q.root / place / "telemetry.jsonl").is_file() for place in logs)
+
+
+@pytest.mark.parametrize("problem", ["manifest_unavailable", "unsupported_manifest"])
+def test_a_report_version_without_a_manifest_to_read_still_has_its_page(tmp_path, problem):
+    """Review of PR #179 (Codex D1): a version whose manifest is gone or of a schema this kit does not
+    read has no directory and no files; the page is made as on main, with no link past a cap."""
+    root = analytics_project(tmp_path / "p")
+    p = core.Project(root)
+    folder = tmp_path / "doc"
+    folder.mkdir()
+    (folder / "index.md").write_text("# r\n", encoding="utf-8")
+    saved = core.save_report(p, "r", files=folder, entry="index.md", title="R", previous_revision=None,
+                             request_id="r-1", origin=HUMAN)["report"]
+    manifest = root / "artifacts" / "reports" / "r" / saved["revision_id"] / "manifest.json"
+    if problem == "manifest_unavailable":
+        manifest.unlink()
+    else:
+        value = json.loads(manifest.read_text(encoding="utf-8"))
+        manifest.write_text(json.dumps({**value, "schema": "analytics.report_revision/2"}), encoding="utf-8")
+    assert core.read_model(p).report_histories()["r"]["versions"][0]["problem"] == problem
+    workspace.build(p)
+    html = page(p, f"reports/{workspace_reports.report_page('r')}")
+    assert f'id="v-{saved["revision_id"]}"' in html and not BEYOND.search(html)
+
+
 def test_a_long_history_folds_with_the_version_shown_in_sight_and_its_rows_anchors(long):
     data = page(long, "data/t.html")
     history = data.split('id="version-history"', 1)[1].split("</section>", 1)[0]
@@ -186,11 +279,12 @@ def test_a_long_history_folds_with_the_version_shown_in_sight_and_its_rows_ancho
     (summary, folded), = FOLD.findall(history)
     # Each folded version keeps its anchor, where references to it lead.
     assert re.findall(r'id="data-v(\d+)"', folded) == [str(n) for n in range(10, 0, -1)]
-    assert plain(summary) == "Show 10 more (30 in all)"
+    # A history's rows are not its versions: the fold says rows, the facts say how many versions.
+    assert plain(summary) == "Show 10 more rows" and "30 versions" in history.split("</summary>", 1)[0]
     # On the page of version 3 of 30, its row stays in sight between two folds.
     run = page(long, "runs/20261001-100200-v.html")
     viz = run.split('id="chart-c-versions-list"', 1)[1].split("</section>", 1)[0]
-    assert [plain(s) for s, _ in FOLD.findall(viz)] == ["Show 7 more (30 in all)", "Show 2 more (30 in all)"]
+    assert [plain(s) for s, _ in FOLD.findall(viz)] == ["Show 7 more rows", "Show 2 more rows"]
     assert "is-shown" in visible(viz) and "is-shown" not in "".join(f for _, f in FOLD.findall(viz))
     assert len(re.findall(r'<li class="vh-row', viz)) == 30
 
@@ -201,7 +295,7 @@ def test_a_report_s_history_files_members_and_evidence_fold(long):
     history = html.split('id="report-history"', 1)[1].split("</section>", 1)[0]
     # The latest SHOWN versions and the first in sight; the ones between folded, each linking its section.
     assert re.findall(r'<span class="vh-n">v(\d+)</span>', visible(history)) == [str(n) for n in range(SHOWN + 5, 5, -1)] + ["1"]
-    assert plain(FOLD.search(history).group(1)) == f"Show 4 more ({SHOWN + 5} in all)"
+    assert plain(FOLD.search(history).group(1)) == "Show 4 more rows"
     latest = html.split('<section class="report-version">', 2)[1]
     files = latest.split("<h3>Files</h3>", 1)[1].split("</section>", 1)[0]
     assert rows(visible(files)) == SHOWN and rows(FOLD.search(files).group(2)) == 10
@@ -239,15 +333,3 @@ def test_nothing_folded_needs_a_script_and_every_link_past_a_cap_resolves(long):
     journal = section(page(long, f"runs/{BIG}.html"), "journal")
     related = page(long, "relations/" + workspace_relations.name("run:" + BIG))
     assert int(re.search(r"Relations 1–\d+ of (\d+)", related).group(1)) >= rows(journal)
-
-
-def test_an_address_naming_a_folded_item_opens_its_folds_in_node():
-    node = shutil.which("node")
-    if not node:
-        pytest.skip("Node unavailable: controller checks are not browser QA")
-    root = Path(__file__).resolve().parents[1]
-    result = subprocess.run([node, str(root / "tests/workspace_navigation_repairs.cjs"),
-                             str(root / "src/aelix_analytics/assets/workspace-state.js"),
-                             str(root / "src/aelix_analytics/assets/workspace.js")],
-                            capture_output=True, text=True, encoding="utf-8", errors="replace")
-    assert result.returncode == 0, result.stderr

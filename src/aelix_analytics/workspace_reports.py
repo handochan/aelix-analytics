@@ -403,8 +403,11 @@ class Reports:
 
     def record_link(self, version: dict, path: str) -> str:
         """A link to a file of the version's record (its manifest, its metadata): where every item of a
-        list longer than its cap is (design 8.4)."""
+        list longer than its cap is (design 8.4). A version with no manifest to read has no directory,
+        and no list to cap: no link."""
         s = self.site
+        if not isinstance(version.get("directory"), str):
+            return ""
         return f'<a href="{s.esc(s.file_link(version["directory"] + "/" + path, 1))}"><code>{s.esc(path.rpartition("/")[2])}</code></a>'
 
     def text_of(self, version: dict) -> list[str] | None:

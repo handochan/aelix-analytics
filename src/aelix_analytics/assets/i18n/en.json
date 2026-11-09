@@ -279,6 +279,10 @@
   "other": "{n} more are not on this page. All of them:"
  },
  "fold.more": "Show {n} more ({total} in all)",
+ "fold.more_rows": {
+  "one": "Show {n} more row",
+  "other": "Show {n} more rows"
+ },
  "fold.relation_page": "the relation page",
  "footer.updating": "updating: the records changed while they were read",
  "inferred.badge": "Inferred from an older kit's path",

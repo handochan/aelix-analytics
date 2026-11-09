@@ -911,9 +911,13 @@ Workspace의 kit 문구(탭·제목·배지·버튼·빈 화면·안내·tooltip
 
 **길어지는 목록의 접기(kit 0.32.1, #172).** [설계](design/WORKSPACE-READABILITY.md) §8.4의 구현이며 소유자 결정(2026-11-09)입니다. 기록 형식·판정·CLI·SDK·도구·게시본은 바꾸지 않습니다.
 - 길어질 수 있는 목록은 한 helper(`workspace.fold`)로 그립니다. 앞의 20개(`FOLD_SHOWN`)를 그 자리에 보이고, 그다음부터 상한까지는 목록 바로 뒤의
-  `<details class="more">` 하나에 같은 표·목록으로 접습니다. 요약은 접은 수와 전체 수를 말합니다(`Show 80 more (250 in all)`). 스크립트 없이 열립니다.
+  `<details class="more">` 하나에 같은 표·목록으로 접습니다. 요약은 접은 수와 전체 수를 말합니다(`Show 80 more (250 in all)`). 버전 이력은 행이
+  버전이 아니라(묶음·실패한 run도 한 행) 행 수만 말하고(`Show 10 more rows`) 버전 수는 이력의 머리가 말합니다. 스크립트 없이 열립니다.
 - 상한을 넘는 항목은 페이지에 만들지 않고, 그 수와 모두 있는 곳을 적습니다(`50 more are not on this page. All of them: run.json`).
-  상한은 상세 페이지 100(`FOLD_CAP`), index의 목록 50(`INDEX_LIMIT`)입니다. 버전 이력은 상한이 없습니다(C15의 100행 창은 그대로).
+  상한은 상세 페이지 100(`FOLD_CAP`), index의 목록 50(`INDEX_LIMIT`)입니다. run의 입력은 100과 바뀐 입력 수 중 큰 쪽이라 바뀐 입력은 모두
+  페이지에 있습니다(`run.json`은 지금 상태를 담지 않음). 모두를 담는 다른 곳이 없는 목록 — 버전 이력(C15의 100행 창은 그대로)과 데이터셋
+  페이지의 run·시각화 — 은 상한 없이 접기만 합니다. 지금 형식의 run 완료 기록은 `run:<id>`만 참조해, 경로의 관계 페이지가 그 경로를
+  읽거나 쓴 run을 적지 않기 때문입니다.
 - 순서와 수는 그대로입니다. run의 입력은 전처럼 바뀐(지금 파일과 다르거나 없거나 알 수 없는) 입력이 먼저이고, 제목이 전체 수를 말합니다.
   버전 이력의 보고 있는 버전·최신 버전과 CONTEXT.md·Report 이력의 첫 버전은 접지 않습니다(그 앞뒤가 따로 접힘).
 - 접힌 항목도 자기 id(`data-v<n>`, Report 구성원의 `m-<revision>-<n>`, 자산 버전의 `asset-<id>`, 기록 행 등)를 지킵니다. 주소가 접힌 항목을
@@ -922,16 +926,18 @@ Workspace의 kit 문구(탭·제목·배지·버튼·빈 화면·안내·tooltip
 
 | 페이지 | 목록(상한 너머에서 모두 있는 곳) |
 |---|---|
-| run | 입력 데이터·출력·기록 경고·재실행 비교의 시각화와 출력·환경(`run.json`), 이 실행의 journal 기록(run의 관계 페이지), 시각화 버전 이력(상한 없음) |
-| 데이터셋 | 스키마와 통계의 열(데이터 파일), 출력을 기록한 run·읽은 run·만든 시각화(경로의 관계 페이지), 데이터 버전 이력(상한 없음) |
+| run | 입력 데이터(상한은 100과 바뀐 입력 수 중 큰 쪽)·출력·기록 경고·재실행 비교의 시각화와 출력·환경(`run.json`), 이 실행의 journal 기록(run의 관계 페이지), 시각화 버전 이력(상한 없음) |
+| 데이터셋 | 스키마와 통계의 열(데이터 파일), 출력을 기록한 run·읽은 run·만든 시각화(상한 없음), 데이터 버전 이력(상한 없음) |
 | 스크립트·Context | 코드 이력, CONTEXT.md 버전 이력(상한 없음) |
 | Report | 버전 이력(상한 없음), 근거(그 버전의 관계 페이지), 묶음 구성원(접은 구성원 표 안에서, 그 버전의 `content/_analytics/metadata.json`), 파일(그 버전의 `manifest.json`) |
-| index | Tool usage·Possible workarounds(`telemetry.jsonl`), 분석 자산·자산의 버전·대기 중인 제안(`analytics assets list`·`analytics assets show ID`·`journal.jsonl`) |
+| index | Tool usage·Possible workarounds(읽은 도구 로그 모두: `.analytics/telemetry.jsonl`, 옛 kit의 `.lab/telemetry.jsonl`), 분석 자산·자산의 버전·대기 중인 제안(`analytics assets list`·`analytics assets show ID`·`journal.jsonl`) |
 
 - 규칙을 따로 두지 않는 것: index의 목록 탭과 `lists/` 페이지(한 쪽 50, 그 자체가 목록 페이지), 관계 페이지(한 쪽 18), 출처 경로(노드 20, C18),
   정정 이력(앞뒤 10, C15), Overview의 패널, 분석 지도의 나머지 흐름([#110](https://github.com/handochan/aelix-analytics/issues/110)), run의 시각화 카드,
   항목마다 이미 접힌 것(로컬 모듈, 버전별 diff, Report 버전 구역), 데이터셋 미리보기의 열, Report 저장 시도.
 - 문장 안의 이름 목록은 처음 몇 개와 `and N more`입니다. run 페이지의 '입력이 지금 파일과 다름' 안내도 처음 20개와 나머지 수를 적습니다(전에는 모두).
+- 한계: 열이 100개를 넘는 데이터셋은 101번째부터의 열과 그 통계가 페이지에 없습니다(데이터 파일로 잇지만 파일에는 통계가 없음.
+  `analytics_query`의 `SUMMARIZE <view>`가 같은 통계를 줌).
 
 ### C14. Overview의 분석 상태와 분석 지도 (kit 0.18.0, #98)
 

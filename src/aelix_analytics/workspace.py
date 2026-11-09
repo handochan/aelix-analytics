@@ -199,16 +199,19 @@ def kind_chip(kind) -> str:
             f'{words("kind", kind)}</span>')
 
 
-def fold(entries, wrap, *, cap: int | None, beyond: str = "", keep=(), shown: int | None = None) -> str:
+def fold(entries, wrap, *, cap: int | None, beyond: str = "", keep=(), shown: int | None = None,
+         summary: str = "fold.more") -> str:
     """A list that can grow, as the folding rule shows it (design WORKSPACE-READABILITY 8.4, #172).
 
     `entries` are the list's items in its order and `wrap` makes the HTML of a run of them in their
     container (a list, a table with its head), so an item is made only when the page holds it. The
     first `shown` (FOLD_SHOWN) and the ones at the positions in `keep` (the row a page is about) are in
     place; each run of the others up to `cap` folds into a <details> whose summary says how many it
-    holds and how many the list has. Past `cap` no item is made: a line says how many more there are
-    and `beyond` names where all of them are (a list page, the record). `cap=None`: no cap, for a list
-    whose every item has a page of its own already (a version history). Folding changes neither the
+    holds and how many the list has (`summary`: the message saying it; a version history's rows are
+    not its versions, so it says rows and leaves the total to the history's facts). Past `cap` no item
+    is made: a line says how many more there are and `beyond` names where all of them are (a list page,
+    the record). `cap=None`: no cap, for a list nothing else holds whole on a page (a version history,
+    the runs of a dataset) or whose every item has a page of its own already. Folding changes neither the
     order nor the number: an item keeps its id inside a fold, and an address naming it opens the fold
     (workspace.js; a browser that opens a <details> for a fragment does it without a script)."""
     entries = list(entries)
@@ -223,7 +226,7 @@ def fold(entries, wrap, *, cap: int | None, beyond: str = "", keep=(), shown: in
         else:
             parts.append((i in visible, [entry]))
     out = [wrap(part) if show else
-           f'<details class="more"><summary>{t("fold.more", n=len(part), total=len(entries))}</summary>{wrap(part)}</details>'
+           f'<details class="more"><summary>{t(summary, n=len(part), total=len(entries))}</summary>{wrap(part)}</details>'
            for show, part in parts]
     if len(made) < len(entries):
         out.append(f'<p class="more-beyond">{t("fold.beyond", n=len(entries) - len(made))} {beyond}</p>')
@@ -343,6 +346,8 @@ class Site:
         # and an older kit's (.lab/) — a migrated project's copy of them is in .analytics/ already.
         logs = dict.fromkeys((project.state_dir, project.legacy_state_dir))
         self.telemetry = [row for place in logs for row in core.read_jsonl(place / "telemetry.jsonl")]
+        # The logs read, where every tool call is (design 8.4: what a list past its cap names).
+        self.telemetry_logs = [place / "telemetry.jsonl" for place in logs if (place / "telemetry.jsonl").is_file()]
         self.queries = [row for place in logs for row in core.read_jsonl(place / "queries.jsonl")]
         # The CONTEXT.md versions of both state directories (design 5.3), as a reference resolves them.
         self.versions = core.context_versions(project)
@@ -1843,9 +1848,10 @@ def evaluation_section(site: Site) -> str:
     by_tool: dict[str, list[dict]] = defaultdict(list)
     for tel in site.telemetry:
         by_tool[str(tel.get("tool"))].append(tel)
-    # The tool log is the record of every call (design 8.4: the index's cap, then where all are).
-    log = (f'<a href="{site.file_link(site.p.telemetry.relative_to(site.p.root).as_posix(), 0)}">'
-           f'<code>telemetry.jsonl</code></a>')
+    # The tool logs read (this kit's and an older kit's) hold every call (design 8.4: the index's cap,
+    # then where all are).
+    log = ", ".join(f'<a href="{site.file_link(path.relative_to(site.p.root).as_posix(), 0)}">'
+                    f'<code>{esc(path.relative_to(site.p.root).as_posix())}</code></a>' for path in site.telemetry_logs)
     tool_head = "".join(f"<th>{t('evaluation.col.' + c)}</th>" for c in ("tool", "calls", "errors", "mean_ms"))
     telemetry_html = fold(sorted(by_tool.items(), key=lambda kv: -len(kv[1])), lambda part: (
         f'<div class="table-wrap"><table class="list"><thead><tr>{tool_head}</tr></thead><tbody>' + "".join(
@@ -2027,9 +2033,10 @@ def run_page(site: Site, run: dict) -> str:
 
     pairs = list(zip(run.get("inputs") or [], fresh["inputs"], strict=False))
     n_inputs = len(pairs)
-    # Files whose state changed are the ones a reader came for, so they come first: in sight, and
-    # on the page whatever the cap.
+    # Files whose state changed are the ones a reader came for, so they come first and are all on the
+    # page: the cap is FOLD_CAP or, when more changed, how many changed (run.json holds no state now).
     ordered = sorted(pairs, key=lambda pair: pair[1]["state"] == "same")
+    input_cap = max(FOLD_CAP, sum(1 for _, f_entry in pairs if f_entry["state"] != "same"))
 
     def input_row(entry: dict, f_entry: dict) -> str:
         state = f_entry["state"] if f_entry["state"] in INPUT_STATE else "unknown"
@@ -2093,7 +2100,7 @@ def run_page(site: Site, run: dict) -> str:
         f"<th>sha256</th><th>{t('run.col.now')}</th>"
     inputs_html = fold(ordered, lambda part: (
         f'<div class="table-wrap"><table class="list"><thead><tr>{input_head}</tr></thead><tbody>'
-        + "".join(input_row(*pair) for pair in part) + "</tbody></table></div>"), cap=FOLD_CAP, beyond=record) \
+        + "".join(input_row(*pair) for pair in part) + "</tbody></table></div>"), cap=input_cap, beyond=record) \
         if ordered else f'<div class="empty">{t("run.no_inputs")}</div>'
     outputs_html = fold(outputs, lambda part: (
         f'<div class="table-wrap"><table class="list"><thead><tr>{output_head}</tr></thead><tbody>'
@@ -2206,13 +2213,12 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
                    if o.get("path") == ds["path"]]
         return changes[-1] if changes else None
 
-    # Every list of the page follows the folding rule (design 8.4); the runs and the Visualizations
-    # are all on the path's relation page, the columns in the file.
-    related = f'<a href="{esc(site.relations.link(ds["path"], 1))}">{t("fold.relation_page")}</a>'
+    # Every list of the page follows the folding rule (design 8.4). The runs and the Visualizations have
+    # no cap: no other page lists them whole (a current-format run's completion names only the run, so
+    # the path's relation page does not hold its readers). The columns past the cap are in the file.
 
     def plain_list(items, render) -> str:
-        return fold(items, lambda part: "<ul class='plain'>" + "".join(map(render, part)) + "</ul>",
-                    cap=FOLD_CAP, beyond=related)
+        return fold(items, lambda part: "<ul class='plain'>" + "".join(map(render, part)) + "</ul>", cap=None)
 
     if producers:
         # Every successful run that recorded this path as an output, whatever its bytes, and a
