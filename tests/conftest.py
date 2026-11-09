@@ -25,7 +25,9 @@ def _the_aelix_process_environment():
     """The extension's setup() puts the author and the session into the process's environment, as it
     does in aelix (design 4.2); a test that sets the extension up must not leave them to the tests
     after it, whose kit commands would record `agent`."""
-    names = ("AELIX_ANALYTICS_ACTOR", "AELIX_ANALYTICS_SESSION")
+    names = ("AELIX_ANALYTICS_ACTOR", "AELIX_ANALYTICS_SESSION",
+             # and the project it gives the shells (#162)
+             "AELIX_ANALYTICS_PROJECT", "AELIX_ANALYTICS_PROJECT_FROM_AELIX")
     before = {name: os.environ.get(name) for name in names}
     yield
     for name, value in before.items():

@@ -254,7 +254,7 @@ def _resolve_project():
     flag = None
     with contextlib.suppress(Exception):
         flag = STATE["api"].get_flag("analytics-project") if STATE["api"] else None
-    for value, via in ((flag, "--analytics-project"), (os.environ.get("AELIX_ANALYTICS_PROJECT"),
+    for value, via in ((flag, "--analytics-project"), (_person_s_project_variable(),
                                                        "AELIX_ANALYTICS_PROJECT")):
         if isinstance(value, str) and value.strip():
             project = core.Project(value.strip())
@@ -330,7 +330,7 @@ def _named_project() -> bool:
     with contextlib.suppress(Exception):
         flag = STATE["api"].get_flag("analytics-project") if STATE["api"] else None
     return any(isinstance(value, str) and value.strip()
-               for value in (flag, os.environ.get("AELIX_ANALYTICS_PROJECT")))
+               for value in (flag, _person_s_project_variable()))
 
 
 def _can_ask(ctx) -> bool:
@@ -360,6 +360,7 @@ def _screen(text) -> str:
 def _activate(root, ctx, how: str) -> None:
     STATE["found"] = str(root)
     STATE["passed"] = []
+    put_the_project_in_the_environment()
     if _can_ask(ctx):
         _notify(ctx, f"analytics: active project {_screen(root)} ({_screen(how)})")
 
@@ -1167,6 +1168,7 @@ async def tool_init(args, ctx):
         lambda: core.init_project(target, title=args.get("title"), goal=args.get("goal"),
                                   origin=origin("agent", "tool")))
     STATE["project"] = str(project.root)
+    put_the_project_in_the_environment()
     synced, detail = await sync_environment(project)
     lines = [f"analytics_init: ok — project {project.title()} at {project.root} (now the active project)"]
     if synced:
@@ -1381,6 +1383,53 @@ def put_the_author_in_the_environment() -> None:
     session until this session's is known (aelix sets extensions up again for every session)."""
     os.environ["AELIX_ANALYTICS_ACTOR"] = "agent"
     put_the_session_in_the_environment(None)
+    # A new session looks for its project again (STATE starts over): the last one's is not the shells'.
+    take_back_the_project_from_the_environment()
+
+
+# Beside AELIX_ANALYTICS_PROJECT in the aelix process's environment: the value there is the one this
+# extension put for the shells aelix starts (put_the_project_in_the_environment), not the person's own.
+# An internal protocol, as AELIX_ANALYTICS_MEANS (CONTRACTS A, D).
+SHELL_PROJECT_MARK = "AELIX_ANALYTICS_PROJECT_FROM_AELIX"
+
+
+def _person_s_project_variable() -> str | None:
+    """AELIX_ANALYTICS_PROJECT as the person set it; None where this extension put it there."""
+    if os.environ.get(SHELL_PROJECT_MARK):
+        return None
+    return os.environ.get("AELIX_ANALYTICS_PROJECT")
+
+
+def take_back_the_project_from_the_environment() -> None:
+    if os.environ.pop(SHELL_PROJECT_MARK, None):
+        os.environ.pop("AELIX_ANALYTICS_PROJECT", None)
+
+
+def put_the_project_in_the_environment() -> None:
+    """The session's active project for the shells aelix starts, as the session is (#162): the agent's
+    bash tool copies this process's environment on every call, and the kit's command line reads
+    AELIX_ANALYTICS_PROJECT before the working directory, so `analytics run scripts/x.py …` there
+    records to this project also from a folder above it (a project found below the working directory,
+    /analytics use, init, --analytics-project). Not where the working directory finds that project on
+    its own (it is the working directory or above it), and never over the person's own
+    AELIX_ANALYTICS_PROJECT; otherwise what this extension put there before is taken back. Never
+    raises: the prompt or command goes on."""
+    try:
+        if _person_s_project_variable():
+            return
+        try:
+            project, _ = resolve_project()
+            root = core.canonical(project.root)
+        except Exception:  # noqa: BLE001 - no active project: nothing to give the shells
+            root = None
+        here = core.find_project(os.getcwd()) if root is not None else None
+        if root is None or (here is not None and core.canonical(here) == root):
+            take_back_the_project_from_the_environment()
+            return
+        os.environ["AELIX_ANALYTICS_PROJECT"] = root
+        os.environ[SHELL_PROJECT_MARK] = "1"
+    except Exception:  # noqa: BLE001
+        return
 
 
 def put_the_session_in_the_environment(session) -> None:
@@ -1909,6 +1958,8 @@ async def on_before_agent_start(event, ctx):
     # session_start: aelix 0.1.0b2 starts a session before its TUI binds the UI, so a question
     # asked then could not be shown.
     await activate_found_project(ctx)
+    # The shells the agent's commands run in reach this session's project from here as well.
+    await asyncio.to_thread(put_the_project_in_the_environment)
     try:
         project, _ = resolve_project()
     except Exception:  # noqa: BLE001 - no active project must never block a prompt
@@ -2651,6 +2702,7 @@ async def analytics_command(args, ctx=None):
                 lambda: core.init_project(target, title=title.strip() or None,
                                           origin=origin("human", "command")))
             STATE["project"] = str(project.root)
+            put_the_project_in_the_environment()
             _notify(ctx, f"analytics: syncing the environment of {project.root} …")
             synced, detail = await sync_environment(project)
             if not synced:
@@ -2673,6 +2725,7 @@ async def analytics_command(args, ctx=None):
                 return f"{rest} is not inside an analytics project (no analytics.json or lab.json)"
             await asyncio.to_thread(core.readable, root, "use the project")
             STATE["project"] = str(root)
+            put_the_project_in_the_environment()
             # Off the event loop: on Windows a record being read elsewhere makes the replace wait
             # up to about two seconds before it fails (_platform.WindowsAtomicFiles).
             await asyncio.to_thread(core.trust_project, root)
@@ -2991,23 +3044,20 @@ PANEL_ASSET_MODES = {
     "on_demand — in this aelix session only": ("on_demand", "session"),
     "always_on — in this aelix session only": ("always_on", "session"),
 }
-# Format characters a screen keeps: the joiners some scripts and emoji need.
-JOINERS = frozenset("\u200c\u200d")
-LINE_BREAKS = frozenset("\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029")
+# The line ends a text may hold: each ends one of the panel's lines. Within a line, what _screen (the
+# question's filter, #169) does with any other character a terminal would act on.
+LINE_ENDS = re.compile("\r\n|[\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029]")
 
 
-def _screen(value) -> str:
-    """`value` as a dialog may show it: line ends as LF, and no other control or format character,
-    so a record's text cannot move aelix's cursor, change its colours or reorder a line."""
-    out = []
-    for ch in str(value).replace("\r\n", "\n"):
-        if ch in "\n\t" or ch in JOINERS:
-            out.append(ch)
-        elif ch in LINE_BREAKS:
-            out.append("\n")
-        elif unicodedata.category(ch) not in ("Cc", "Cf", "Cs"):
-            out.append(ch)
-    return "".join(out)
+def _screen_lines(value) -> list[str]:
+    """`value`'s lines as a dialog may show them: every kind of line end ends a line, a tab is spaces,
+    and the rest goes through _screen, so a record's text or a folder's name cannot move aelix's
+    cursor, change its colours or turn a line around."""
+    return [_screen(line) for line in LINE_ENDS.sub("\n", str(value)).expandtabs(4).split("\n")]
+
+
+def _screen_text(value) -> str:
+    return "\n".join(_screen_lines(value))
 
 
 def _cells(ch: str) -> int:
@@ -3016,7 +3066,7 @@ def _cells(ch: str) -> int:
 
 def _line(value, width: int = PANEL_WIDTH) -> str:
     """`value` on one line of at most `width` cells, ending in … where it was cut."""
-    text = " ".join(_screen(value).split())
+    text = " ".join(" ".join(_screen_lines(value)).split())
     if sum(map(_cells, text)) <= width:
         return text
     out, used = [], 0
@@ -3031,7 +3081,7 @@ def _line(value, width: int = PANEL_WIDTH) -> str:
 def _tail(path, width: int) -> str:
     """A path on one line of at most `width` cells, cut at its start where it is longer: the folders
     that tell two paths apart are at its end."""
-    text = " ".join(_screen(path).split())
+    text = " ".join(" ".join(_screen_lines(path)).split())
     if sum(map(_cells, text)) <= width:
         return text
     out, used = [], 0
@@ -3046,7 +3096,7 @@ def _tail(path, width: int) -> str:
 def page_lines(value, width: int = PANEL_WIDTH) -> list[str]:
     """`value`'s lines, each cut into lines of at most `width` cells."""
     lines = []
-    for line in _screen(value).expandtabs(4).split("\n"):
+    for line in _screen_lines(value):
         current, used = [], 0
         for ch in line:
             if used + _cells(ch) > width:
@@ -3094,21 +3144,21 @@ class AnalyticsPanel:
     def __init__(self, ui, execute, *, session=None):
         self.ui, self.execute, self.session = ui, execute, session
 
-    # -- aelix's dialogs: every title and message goes through _screen, so a folder's or a record's
-    #    name cannot put a control or a direction character on aelix's screen. The options are the
-    #    panel's own labels, already one line each (_line, _numbered).
+    # -- aelix's dialogs: every title and message goes through the screen filter (_screen_text), so
+    #    a folder's or a record's name cannot put a control or a direction character on aelix's
+    #    screen. The options are the panel's own labels, already one line each (_line, _numbered).
 
     async def _select(self, title: str, options: list) -> str | None:
-        return await self.ui.select(_screen(title), options)
+        return await self.ui.select(_screen_text(title), options)
 
     async def _input(self, title: str) -> str | None:
-        return await self.ui.input(_screen(title))
+        return await self.ui.input(_screen_text(title))
 
     async def _editor(self, title: str) -> str | None:
-        return await self.ui.editor(_screen(title))
+        return await self.ui.editor(_screen_text(title))
 
     async def _confirm(self, title: str, message: str) -> bool:
-        return bool(await self.ui.confirm(_line(title), _screen(message)))
+        return bool(await self.ui.confirm(_line(title), _screen_text(message)))
 
     # -- what every screen does --
 

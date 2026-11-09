@@ -122,8 +122,6 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 
 ### Fixed
 
-- #162: `/analytics`의 명령이 세션의 첫 프롬프트 전에도 그 세션을 기록·Report·렌더에 남깁니다. 전에는 `status`·`assets` 말고는 첫
-  프롬프트가 넣은 세션을 써서, 그 전의 `/analytics record` 등은 세션 없이 기록됐습니다.
 - #160: CLI의 `analytics reports save`·`update`·`clean`이 `record`·`import`처럼 끝나기 전에 Workspace를 다시 만듭니다. 전에는 저장이 성공해도
   다음 재생성 전까지 Reports 탭에 보이지 않았고, `analytics open`이 그 예전 화면을 열었습니다. 결과 JSON의 `workspace`에 빌드 결과가 있고,
   빌드가 실패해도 저장은 그대로입니다(`{error}`). SDK의 `save_report`는 전처럼 빌드하지 않습니다(run 안에서는 run이 끝난 뒤 빌드됩니다).
@@ -133,6 +131,11 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   방법을 알립니다. 이미 지워진 파일은 kit이 되살리지 못합니다.
 - #168: 이름에 `#`·`%`가 든 파일로 가는 Workspace의 링크가 그 파일에 닿습니다. 전에는 `q#3.html`이 `q`를, `x%41.html`이 `xA.html`을
   가리켰습니다(Report 파일 표의 내려받기 링크 등, 프로젝트 안 파일로 가는 모든 링크).
+- #162: 위 폴더에서 켠 aelix에서 세션이 쓰는 프로젝트(아래에서 찾은 것, `/analytics use`·`init`, `--analytics-project`)를 에이전트의
+  bash도 찾습니다. 확장이 그 루트를 aelix 프로세스의 `AELIX_ANALYTICS_PROJECT`에 넣어(작업 디렉터리가 스스로 찾는 프로젝트나 사람이 둔 값이면
+  넣지 않음) #170의 안내대로 부른 `analytics run scripts/x.py …`가 그 프로젝트에 기록합니다. 전에는 작업 디렉터리에서 프로젝트를 찾지 못했습니다.
+- #162: `/analytics`의 명령이 세션의 첫 프롬프트 전에도 그 세션을 기록·Report·렌더에 남깁니다. 전에는 `status`·`assets` 말고는 첫
+  프롬프트가 넣은 세션을 써서, 그 전의 `/analytics record` 등은 세션 없이 기록됐습니다.
 
 ## [0.32.0] - 2026-10-30
 

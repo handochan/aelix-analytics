@@ -1809,6 +1809,47 @@ def test_a_new_session_starts_the_look_over(started_above):
     assert (module.STATE["looked"], module.STATE["found"]) == (False, None)
 
 
+def shells_project(module):
+    """What a shell aelix starts gets: (AELIX_ANALYTICS_PROJECT, whether this extension put it there)."""
+    return os.environ.get("AELIX_ANALYTICS_PROJECT"), bool(os.environ.get(module.SHELL_PROJECT_MARK))
+
+
+def test_the_shells_get_the_project_found_below_or_used_and_not_the_working_directory_s(started_above, tmp_path):
+    """#162 (integration of #169 and #170): the agent's bash tool copies the aelix process's environment, and
+    the kit's command line reads AELIX_ANALYTICS_PROJECT before its working directory, so a project the
+    session uses that the working directory does not find on its own is put there; the extension still
+    resolves it as found below, and takes it back for a new session, a project of the working directory
+    or none."""
+    module, repo, make = started_above
+    below = make("analysis", trusted=True)
+    assert first_prompt(module, with_ui(FakeUI())) is not None
+    assert shells_project(module) == (str(below), True)
+    assert module.resolve_project()[1] == "below the working directory"  # not read back as the person's
+    other = Path(module.core.canonical(analytics_project(tmp_path / "other", title="other")))
+    assert "active project" in asyncio.run(module.analytics_command(f"use {other}", with_ui(FakeUI())))
+    assert shells_project(module) == (str(other), True)
+    assert module.resolve_project()[1] == "/analytics use"
+    module.setup(FakeAelix())  # a new session looks again: the last one's project is taken back
+    assert shells_project(module) == (None, False)
+    # A project the working directory finds on its own is not put there.
+    os.chdir(below)
+    first_prompt(module, with_ui(FakeUI()))
+    assert module.resolve_project()[1] == "working directory" and shells_project(module) == (None, False)
+
+
+def test_the_person_s_own_project_variable_is_never_replaced(started_above, tmp_path, monkeypatch):
+    module, repo, make = started_above
+    make("analysis", trusted=True)
+    named = Path(module.core.canonical(analytics_project(tmp_path / "named", title="named")))
+    other = Path(module.core.canonical(analytics_project(tmp_path / "other", title="other")))
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(named))
+    assert "(title: named)" in first_prompt(module, with_ui(FakeUI())).system_prompt
+    asyncio.run(module.analytics_command(f"use {other}", with_ui(FakeUI())))
+    assert shells_project(module) == (str(named), False)
+    module.setup(FakeAelix())
+    assert shells_project(module) == (str(named), False)
+
+
 def test_a_new_script_name_windows_cannot_store_is_refused(lab):
     module, root = lab
     result = call(tools_of(module)["analytics_run"], {"title": "x", "code": "print(1)\n", "name": "con"})
