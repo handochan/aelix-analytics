@@ -1,0 +1,402 @@
+{
+ "record_kind": "aelix-analytics-record-format-verification",
+ "observed_at": "2026-11-10",
+ "issue": "https://github.com/handochan/aelix-analytics/issues/171",
+ "decision": "docs/decisions/0015-observed-activity-outside-the-kit.md",
+ "pull_request": null,
+ "part": "PR-1: writing and minimal reads",
+ "run_id": "e8d4ebf7-429d-4cd5-96da-567b206449e8",
+ "measured_source": {
+  "commit": "d87a8f1",
+  "branch": "feat/issue-171-observed-activity",
+  "base": "6fd956c9ffdcd67f48bab2503a1e2c6db3e19c30",
+  "merged_locally": {
+   "pr_175": "47f2c50",
+   "pr_176": "7df7d31"
+  },
+  "note": "local commit before the rebase onto main once #175 and #176 are merged; re-measured before merge if a non-document difference appears"
+ },
+ "machine": {
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.12.13",
+  "machine": "arm64",
+  "cpu_count": 18,
+  "disk": "local APFS SSD (tmp)",
+  "cpu": "Apple M5 Pro",
+  "memory_gb": 64,
+  "aelix": "0.1.0b2",
+  "load": "other work shared the machine; times are indicative"
+ },
+ "probes": {
+  "measure171.py": "0fac70b03dff81526ed591801294af14a848872ba1c7798b0cae14e9689d09c1",
+  "older171.py": "63eb7229830d91266003955b2231cfbffaca23d68d14c64db20405e58f64b5e3",
+  "kept": ".devstate/runs/e8d4ebf7-429d-4cd5-96da-567b206449e8/evidence (this machine only)"
+ },
+ "bounds": {
+  "before_seconds": 2.0,
+  "after_seconds": 3.0,
+  "entries": 20000,
+  "hash_bytes": 268435456,
+  "scripts": [
+   8,
+   1048576,
+   4194304
+  ],
+  "command_inline_bytes": 4096,
+  "command_attached_bytes": 1048576,
+  "changes_inline_bytes": 12288,
+  "changes_attached_items": 10000,
+  "scripts_inline_bytes": 3072,
+  "mentioned_inline_bytes": 2048,
+  "details_bytes": 24576,
+  "text_bytes": 300
+ },
+ "hooks_cost": {
+  "trees": [
+   {
+    "files": 1000,
+    "calls": [
+     {
+      "before_ms": 37.2,
+      "after_ms": 37.6,
+      "recorded": "e3",
+      "line_bytes": 2062,
+      "changes_state": "observed",
+      "changes_reason": null,
+      "changes_total": 1,
+      "session_observation": "on"
+     },
+     {
+      "before_ms": 37.4,
+      "after_ms": 30.6,
+      "recorded": "e4",
+      "line_bytes": 2062,
+      "changes_state": "observed",
+      "changes_reason": null,
+      "changes_total": 1,
+      "session_observation": "on"
+     },
+     {
+      "before_ms": 28.3,
+      "after_ms": 31.9,
+      "recorded": "e5",
+      "line_bytes": 2062,
+      "changes_state": "observed",
+      "changes_reason": null,
+      "changes_total": 1,
+      "session_observation": "on"
+     },
+     {
+      "before_ms": 29.8,
+      "after_ms": 29.6,
+      "recorded": "e6",
+      "line_bytes": 2062,
+      "changes_state": "observed",
+      "changes_reason": null,
+      "changes_total": 1,
+      "session_observation": "on"
+     }
+    ]
+   },
+   {
+    "files": 10000,
+    "calls": [
+     {
+      "before_ms": 59.8,
+      "after_ms": 59.4,
+      "recorded": "e3",
+      "line_bytes": 2063,
+      "changes_state": "observed",
+      "changes_reason": null,
+      "changes_total": 1,
+      "session_observation": "on"
+     },
+     {
+      "before_ms": 62.3,
+      "after_ms": 67.0,
+      "recorded": "e4",
+      "line_bytes": 2063,
+      "changes_state": "observed",
+      "changes_reason": null,
+      "changes_total": 1,
+      "session_observation": "on"
+     },
+     {
+      "before_ms": 57.3,
+      "after_ms": 61.1,
+      "recorded": "e5",
+      "line_bytes": 2062,
+      "changes_state": "observed",
+      "changes_reason": null,
+      "changes_total": 1,
+      "session_observation": "on"
+     },
+     {
+      "before_ms": 55.9,
+      "after_ms": 59.7,
+      "recorded": "e6",
+      "line_bytes": 2062,
+      "changes_state": "observed",
+      "changes_reason": null,
+      "changes_total": 1,
+      "session_observation": "on"
+     }
+    ]
+   },
+   {
+    "files": 50000,
+    "calls": [
+     {
+      "before_ms": 74.9,
+      "after_ms": 10.2,
+      "recorded": "e3",
+      "line_bytes": 1859,
+      "changes_state": "not_observed",
+      "changes_reason": "too_many_entries",
+      "changes_total": null,
+      "session_observation": "off"
+     },
+     {
+      "before_ms": 9.2,
+      "after_ms": 10.3,
+      "recorded": "e4",
+      "line_bytes": 1839,
+      "changes_state": "not_observed",
+      "changes_reason": "observation_off",
+      "changes_total": null,
+      "session_observation": "off"
+     },
+     {
+      "before_ms": 9.2,
+      "after_ms": 9.8,
+      "recorded": "e5",
+      "line_bytes": 1839,
+      "changes_state": "not_observed",
+      "changes_reason": "observation_off",
+      "changes_total": null,
+      "session_observation": "off"
+     },
+     {
+      "before_ms": 9.1,
+      "after_ms": 9.7,
+      "recorded": "e6",
+      "line_bytes": 1839,
+      "changes_state": "not_observed",
+      "changes_reason": "observation_off",
+      "changes_total": null,
+      "session_observation": "off"
+     }
+    ]
+   }
+  ],
+  "single_directory": {
+   "entries": 25000,
+   "calls": [
+    {
+     "before_ms": 22.3,
+     "after_ms": 10.2,
+     "recorded": "e3",
+     "line_bytes": 1859,
+     "changes_state": "not_observed",
+     "changes_reason": "too_many_entries",
+     "changes_total": null,
+     "session_observation": "off"
+    },
+    {
+     "before_ms": 9.6,
+     "after_ms": 9.8,
+     "recorded": "e4",
+     "line_bytes": 1839,
+     "changes_state": "not_observed",
+     "changes_reason": "observation_off",
+     "changes_total": null,
+     "session_observation": "off"
+    },
+    {
+     "before_ms": 0.6,
+     "after_ms": 0.3,
+     "recorded": "e4",
+     "line_bytes": 1839,
+     "changes_state": "not_observed",
+     "changes_reason": "observation_off",
+     "changes_total": null,
+     "session_observation": "off"
+    }
+   ]
+  }
+ },
+ "kit_cost": {
+  "files_1000": {
+   "after_ms": 3.8,
+   "before_ms": 3.4,
+   "files": 1000,
+   "line_bytes": 1662
+  },
+  "files_10000": {
+   "after_ms": 76.8,
+   "before_ms": 58.9,
+   "files": 10000,
+   "line_bytes": 1664
+  },
+  "single_directory_25000": {
+   "before_ms": 12.8,
+   "bound": 20000,
+   "entries": 25000
+  }
+ },
+ "hash": [
+  {
+   "mib": 64,
+   "after_ms": 34.4,
+   "hash": "hashed"
+  },
+  {
+   "mib": 200,
+   "after_ms": 88.3,
+   "hash": "hashed"
+  },
+  {
+   "mib": 512,
+   "after_ms": 10.6,
+   "hash": "over_budget"
+  }
+ ],
+ "line_bytes": {
+  "typical": {
+   "line_bytes": 2073,
+   "changes_total": 1
+  },
+  "400_changes": {
+   "line_bytes": 13705,
+   "changes_total": 400
+  },
+  "20kb_command": {
+   "line_bytes": 6167,
+   "changes_total": 0
+  }
+ },
+ "bound_assertions": {
+  "slow_walk_deadline_0_5_s": "stopped under 1 s (test_the_before_view_keeps_its_bound_on_a_slow_walk)",
+  "stuck_start": "abandoned at 1.8-3.0 s, next call busy (test_a_stuck_start_is_abandoned_within_its_bound_and_the_next_one_is_busy)",
+  "slow_end": "answer at 2.8-4.0 s, 'not recorded' before commit, 'could not confirm' after (test_an_end_past_its_bound_says_whether_it_could_have_been_recorded)",
+  "journal_lock_held": "journal_busy within 1.5 s for a 0.6 s bound (test_a_journal_lock_held_elsewhere_records_nothing_within_the_bound)"
+ },
+ "redaction": {
+  "rules_version": 1,
+  "canary_cases": 25,
+  "forms": [
+   "inline",
+   "attached command.txt"
+  ],
+  "result": "no canary value, its sha256 or the unredacted command's sha256 in journal or attachments; telemetry summary redacted",
+  "secret_file_names": 10,
+  "secret_like_script": "no copy, no hash"
+ },
+ "sharing": {
+  "profiles": [
+   "read",
+   "evidence"
+  ],
+  "result": "no observation and no command marker in any package file; content_sha256 and content_seq unchanged after an observation alone; an observed row whose details cannot be read moves content_seq"
+ },
+ "older_kits": {
+  "candidate_0_32_0": {
+   "commit": "26c28d0",
+   "status_unsupported": [
+    {
+     "location": "journal:3",
+     "reason": "unknown_kind"
+    }
+   ],
+   "record": {
+    "exit": 1,
+    "error": "writer_too_old"
+   }
+  },
+  "pre_implementation_0_32_1": {
+   "commit": "6fd956c",
+   "status_unsupported": [
+    {
+     "location": "journal:3",
+     "reason": "unknown_kind"
+    }
+   ],
+   "record": {
+    "exit": 0,
+    "event": "e4"
+   }
+  },
+  "this_kit": {
+   "exit": 0,
+   "text_line": [
+    "observed outside the kit: 1 (latest e3; 1 with changes no run recorded; changes not observed in 0 sessions) — part=records kind=observed_activity"
+   ],
+   "unsupported": [],
+   "observed": {
+    "count": 1,
+    "latest": "e3",
+    "unexplained": 1,
+    "not_observed": {},
+    "sessions_off": [],
+    "off": null
+   },
+   "recent_kinds": [
+    "project",
+    "context",
+    "note"
+   ]
+  },
+  "marker_after_observation": "0.32.1",
+  "journal_kinds": [
+   "project",
+   "context",
+   "observed_activity",
+   "note"
+  ]
+ },
+ "verification": [
+  {
+   "command": "uv run --locked pytest -q --timeout 600 --timeout-method=thread -p no:cacheprovider",
+   "source": "d87a8f1 (same tree)",
+   "result": "pass",
+   "summary": "3305 passed, 148 skipped, 925 s"
+  },
+  {
+   "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 python -m pytest ... tests/test_extension.py tests/test_asset_extension.py tests/test_checkpoint_extension.py tests/test_usage_report.py tests/test_agent_cli.py",
+   "source": "d87a8f1 (same tree)",
+   "result": "pass",
+   "summary": "1053 passed"
+  },
+  {
+   "command": "same with --python 3.11",
+   "source": "d87a8f1 (same tree)",
+   "result": "pass",
+   "summary": "1053 passed"
+  },
+  {
+   "command": "python3.11 tools/platform_smoke.py --stdlib-only --gate required",
+   "source": "d87a8f1 (same tree)",
+   "result": "pass",
+   "summary": "holds 15, violated 0"
+  },
+  {
+   "command": "uv run --locked ruff check tests extension src tools; tools/check_docs.py; tools/release_check.py version",
+   "source": "d87a8f1",
+   "result": "pass"
+  },
+  {
+   "command": "uv run --locked pytest tests/test_observed.py tests/test_line_endings.py",
+   "source": "d87a8f1 (clean)",
+   "result": "pass",
+   "summary": "166 passed"
+  }
+ ],
+ "not_run": [
+  "Linux and Windows (CI after push)",
+  "cold OS file cache, network drives, FAT",
+  "a real model session",
+  "a read stuck in a real network mount (reproduced with a function double)",
+  "implementation reviews (independent, Codex)",
+  "PR-2: Workspace screens and C18 provenance"
+ ]
+}
