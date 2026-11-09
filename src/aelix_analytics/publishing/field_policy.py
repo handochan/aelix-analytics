@@ -336,3 +336,27 @@ for _family in ('publish_receipt_details', 'publish_attempt_details'):
     CLASSIFIED_FIELDS[_family] = {path.split('.')[0]: "delivery_only_excluded" for path in PERSISTED_FIELD_PATHS[_family]}
 
 RECORD_FAMILIES["analytics.publication/1"] = "delivery_only_excluded"
+
+# ADR-0015 (#171): an observed activity's details. Its kind is in no profile's PROJECT_KINDS, so both
+# profiles leave it out whole (decision 10, OQ1); its paths are classified as internal work records.
+_OBSERVED_ACTIVITY_PATHS = (
+    'activity_id captures captures[].bytes captures[].path captures[].role captures[].sha256 changes '
+    'changes.created changes.deleted changes.items changes.items[].by changes.items[].by.id '
+    'changes.items[].by.type changes.items[].bytes changes.items[].change changes.items[].explanation '
+    'changes.items[].hash changes.items[].path changes.items[].reason changes.items[].same_bytes_possible '
+    'changes.items[].sha256 changes.items_complete changes.links_changed changes.modified changes.reason '
+    'changes.state changes.total changes.unexplained changes.unknown changes.unreadable command command.bytes '
+    'command.changed_after_start command.inline_complete command.redaction command.redaction.count '
+    'command.redaction.rules_version command.sha256 command.text command.truncated contract cwd cwd_outside '
+    'duration_ms ended_at mentioned mentioned.items mentioned.items_complete mentioned.total '
+    'mentioned.unresolved performer performer.actor performer.tool performer.tool_call_id reasons result '
+    'result.exit_code result.is_error scripts scripts.items scripts.items[].bytes scripts.items[].captured '
+    'scripts.items[].copy scripts.items[].copy_reason scripts.items[].hash scripts.items[].name '
+    'scripts.items[].outside scripts.items[].path scripts.items[].sha256 scripts.items[].stable '
+    'scripts.items_complete scripts.total session_observation started_at window window.seq_after '
+    'window.seq_before'
+).split()
+PERSISTED_FIELD_PATHS['event_2'] |= frozenset("details." + path for path in _OBSERVED_ACTIVITY_PATHS)
+PERSISTED_FIELD_PATHS['observed_activity_details'] = frozenset(_OBSERVED_ACTIVITY_PATHS)
+CLASSIFIED_FIELDS['observed_activity_details'] = {path.split('.')[0].split('[')[0]: "excluded_internal"
+                                                  for path in _OBSERVED_ACTIVITY_PATHS}

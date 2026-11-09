@@ -19,6 +19,9 @@ Neither side is a sandbox, and aelix does not ask for approval before extension 
 The one thing it changes in the aelix process itself is the environment: AELIX_ANALYTICS_ACTOR=agent
 and the session, which the kit's command line run through aelix's shell records as its author, and a
 person's `!` line that is one kit command runs with `human` instead (design 4.2; see on_user_bash).
+Around each bash call in a project this kit writes it looks at the project's files in a daemon thread of
+its own, waited for a bounded time, and records what it saw as an observed activity (ADR-0015; see
+on_tool_call): a stuck look is abandoned, never waited for at the process's exit.
 
 Before kit 0.3.0 this file was extension/aelix_lab.py, with the command /lab, the tools lab_*, the
 flag --lab-project and the variables AELIX_LAB_*. None of them is registered or read any more. The old
@@ -43,6 +46,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unicodedata
 from pathlib import Path
@@ -206,7 +210,8 @@ KIT_IMPORT = re.compile(
 # (activate_found_project, Issue #169) did: whether it ran, the root it activated, and the roots it
 # found and did not activate.
 STATE = {"api": None, "project": None, "session": None, "starts": {}, "render_tasks": {},
-         "told_unrecorded": set(), "looked": False, "found": None, "passed": []}
+         "told_unrecorded": set(), "looked": False, "found": None, "passed": [],
+         "observations": {}, "sessions": core.observed.Sessions(), "observer": None}
 
 NO_PROJECT = ("No analytics project is active (checked /analytics use, --analytics-project, "
               "AELIX_ANALYTICS_PROJECT, analytics.json or lab.json in the working directory and "
@@ -985,18 +990,6 @@ def _int(args, name, default, low, high) -> int:
 
 # --- tools ---
 
-def bypass_note(project) -> str:
-    """Runs made with bash instead of analytics_run leave no code, inputs or charts behind."""
-    flagged = 0
-    with contextlib.suppress(OSError):
-        for row in core.read_jsonl(project.telemetry):
-            flagged += "python_via_bash" in (row.get("flags") or [])
-    if not flagged:
-        return ""
-    return (f"\nnote: python was run through bash {flagged} time(s) in this project; anything it "
-            "wrote has no recorded code, inputs or charts — use analytics_run for analysis steps")
-
-
 async def tool_status(args, ctx):
     project, via = resolve_project()
     if args:
@@ -1005,7 +998,7 @@ async def tool_status(args, ctx):
     await asyncio.to_thread(lambda: core.sync_context(project, origin=origin("system", "tool")))
     st = await asyncio.to_thread(lambda: core.status(project, asset_session=STATE["session"]))
     text = f"analytics_status: ok (project found via {via})\n" + core.status_text(st)
-    return text + await asyncio.to_thread(bypass_note, project), st
+    return text, st
 
 
 async def tool_query(args, ctx):
@@ -1918,7 +1911,7 @@ async def on_before_agent_start(event, ctx):
     with contextlib.suppress(Exception):
         await asyncio.to_thread(lambda: core.sync_context(project, origin=hook_origin))
     try:
-        block = await asyncio.to_thread(core.context_block, project)
+        block = await asyncio.to_thread(lambda: core.context_block(project, session=session))
     except Exception:  # noqa: BLE001 - a broken journal must not stop the prompt
         return None
     if session is not None:
@@ -2110,7 +2103,8 @@ def summarize_call(tool: str, args: dict, project) -> tuple[str, list]:
         command = str(args.get("command") or "")
         if python_outside_the_kit(command):
             flags.append("python_via_bash")
-        return command[:300], flags
+        # Redacted whole, then cut: no part of a secret the cut would split is kept (ADR-0015 OQ6).
+        return core.observed.redact(command)[0][:300], flags
     if tool in ("write", "edit"):
         path = str(args.get("path") or "")
         # Where the write went below the root, from the path's text (else its real path): a write
@@ -2136,6 +2130,9 @@ def summarize_call(tool: str, args: dict, project) -> tuple[str, list]:
 
 def on_tool_end(event, ctx):
     start = STATE["starts"].pop(event.tool_call_id, None)
+    # What tool_call kept for a call no tool_result came for (another extension blocked it, a cancel):
+    # dropped with the script bytes it held (ADR-0015 decision 6).
+    STATE["observations"].pop(event.tool_call_id, None)
     try:
         project, _ = resolve_project()
     except Exception:  # noqa: BLE001
@@ -2166,31 +2163,285 @@ UNRECORDED_NOTICE_AGAIN = ("aelix-analytics: this Python ran outside the kit and
                            "run analysis steps with analytics_run.")
 
 
-def on_tool_result(event, ctx):
-    """A bash call that ran Python outside the kit (python_outside_the_kit, telemetry's
-    python_via_bash) while a project this kit writes is active gets one text block after its result:
-    the run was not recorded, and how to record it (Issue #170) — in full the first time in a session,
-    short after that. It tells and does not block: the patch sets only `content`, the result's own
-    blocks and then that one, so its error state and details stay as they are. Nothing for any other
-    call, without an active project, or where this kit does not write (analytics_run would be refused
-    there). Never raises: a tool's result must reach the model whatever this judgment meets."""
+# --- the observation of a bash call (ADR-0015) ---
+
+# Python commands that only manage packages or the environment, or ask a version: no analysis step
+# (decision 1). `uv run` before them is looked through.
+PACKAGE_PROGRAMS = frozenset({"pip", "pip3"})
+UV_MANAGES = frozenset({"pip", "sync", "add", "remove", "lock", "venv"})
+VERSION_FLAGS = frozenset({"--version", "-V", "-VV"})
+
+
+def _manages_packages(words: list[str]) -> bool:
+    """Whether one simple command's words manage packages or the environment, or ask a version: `pip`,
+    `uv pip|sync|add|remove|lock|venv`, `python -m pip`, a Python program with only --version or -V."""
+    i = 0
+    while i < len(words) and (words[i] in SHELL_RESERVED or ASSIGNMENT.match(words[i])
+                              or words[i] in COMMAND_PREFIXES):
+        i += 1
+    if i >= len(words):
+        return False
+    program = _program(words[i], "posix")
+    rest = words[i + 1:]
+    if program == "uv" and rest[:1] and rest[0] in UV_MANAGES:
+        return True
+    if program == "uv" and rest[:1] == ["run"]:
+        j = _options_end(words, i + 2, UV_RUN_FLAGS, UV_RUN_VALUE_OPTIONS, UV_RUN_COUNTED)
+        if j is None or j >= len(words):
+            return False
+        program, rest = _program(words[j], "posix"), words[j + 1:]
+    if program in PACKAGE_PROGRAMS or re.fullmatch(r"pip3\.\d+", program):
+        return True
+    if PYTHON_PROGRAM.fullmatch(program) or program in ("ipython", "jupyter"):
+        return (bool(rest) and all(word in VERSION_FLAGS for word in rest)) or rest[:2] == ["-m", "pip"]
+    return False
+
+
+def python_command(command: str) -> bool:
+    """Whether an agent's bash command runs Python outside the kit (python_outside_the_kit, #170) for
+    something else than managing packages or asking a version (ADR-0015 decision 1): the simple commands
+    that call no kit entry point and run Python are not all `pip`, `uv pip|sync|add|remove|lock`,
+    `python -m pip` or `--version`. A command _simple_commands leaves open is judged whole: true."""
+    if not python_outside_the_kit(command):
+        return False
+    commands = _simple_commands(command)
+    if commands is None:
+        return True
+    pythons = [words for words, pieces in commands if words and not _calls_the_kit(words)
+               and PYTHON_IN_SHELL.search("\n".join(command[a:b] for a, b in pieces))]
+    return not pythons or not all(_manages_packages(words) for words in pythons)
+
+
+def kit_command_line_only(command: str) -> bool:
+    """Whether the whole line is one simple command that calls the kit's command line — `analytics`,
+    `bin/analytics`, `python -m aelix_analytics`, through `uv run` too: the one line whose files are not
+    looked at (ADR-0015 decision 1). A `python -c` that imports the kit is not: it may write with no run."""
+    commands = _simple_commands(command)
+    if commands is None:
+        return False
+    named = [words for words, _pieces in commands if words]
+    return (len(named) == 1 and _calls_the_kit(named[0])
+            and not any(re.fullmatch(r"-[A-Za-z]*c", word) for word in named[0]))
+
+
+def command_words(command: str) -> list[list[str]]:
+    """The words of each simple command of a bash command (_simple_commands), or, for a line it leaves
+    open, the line split at `;` `&` `|` `(` `)` and new lines, then at white space, quotes around a word
+    taken off (ADR-0015 decision 4: a line not read for sure is split at spaces)."""
+    commands = _simple_commands(command)
+    if commands is not None:
+        return [words for words, _pieces in commands]
+    return [[word.strip("'\"") for word in part.split()] for part in re.split(r"[;&|()\n]+", command)]
+
+
+def _cwd(ctx) -> str:
     try:
-        if event.tool_name != "bash" or not python_outside_the_kit(
-                str((event.args or {}).get("command") or "")):
+        return str(ctx.cwd)
+    except Exception:  # noqa: BLE001 - a context without one: the process's
+        return os.getcwd()
+
+
+def _observer_busy() -> bool:
+    """Whether an observation's work is still running in its thread (one abandoned past its bound, a
+    read stuck in a system call): a new observation then looks at no state (decision 6, `busy`), so
+    the process holds at most one such thread."""
+    running = STATE.get("observer")
+    return running is not None and not running.is_set()
+
+
+def _in_thread(work):
+    """`work()` in a daemon thread of its own, as a future of this loop: waited for a bounded time and
+    abandoned past it, it never holds the process's exit or the loop's default executor."""
+    loop = asyncio.get_running_loop()
+    future = loop.create_future()
+
+    def settle(value, error):
+        if not future.done():
+            future.set_exception(error) if error is not None else future.set_result(value)
+
+    done = threading.Event()
+
+    def run():
+        try:
+            value, error = work(), None
+        except BaseException as exc:  # noqa: BLE001 - handed to the waiting side
+            value, error = None, exc
+        done.set()
+        with contextlib.suppress(RuntimeError):  # the loop closed meanwhile
+            loop.call_soon_threadsafe(settle, value, error)
+
+    STATE["observer"] = done
+    threading.Thread(target=run, name="aelix-analytics-observe", daemon=True).start()
+    return future
+
+
+async def _bounded(future, job):
+    """The work's result within the job's bound, or raise TimeoutError having cancelled it. A cancel of
+    the waiting handler goes up as it is; the work, shielded, ends within its own deadline or is
+    abandoned."""
+    try:
+        return await asyncio.wait_for(asyncio.shield(future), job.remaining())
+    except TimeoutError:
+        job.cancel()
+        raise
+
+
+async def on_tool_call(event, ctx):
+    """Before a bash call in a project this kit writes: the observation's start (ADR-0015) — the
+    journal's end, the bytes of the scripts the command names and the state of the project's files —
+    within 2 s, in a thread. Never blocks the call and never raises but a cancel."""
+    try:
+        if getattr(event, "tool_name", None) != "bash":
+            return None
+        command = str((event.args or {}).get("command") or "")
+        if not command.strip() or kit_command_line_only(command):
             return None
         project, _ = resolve_project()
-        if core.admit(project, "say a run was not recorded", side=True) is None:
+        if core.admit(project, "observe a bash call", side=True) is None:
             return None
-        told, session = STATE["told_unrecorded"], STATE["session"]
-        patch = ToolResultPatch(content=[*event.content, TextContent(
-            text=UNRECORDED_NOTICE_AGAIN if session in told else UNRECORDED_NOTICE)])
+        observed, session, sessions = core.observed, STATE["session"], STATE["sessions"]
+        activity_id, cwd = observed.new_activity_id(), _cwd(ctx)
+        if _observer_busy():
+            STATE["observations"][event.tool_call_id] = observed.Before.empty(activity_id, command, cwd, "busy")
+            return None
+        view = not sessions.off(session)
+        job = observed.Job(time.monotonic() + observed.BEFORE_SECONDS)
+        root, words = project.root, command_words(command)
+        future = _in_thread(lambda: observed.before(
+            core.Project(root), activity_id=activity_id, command=command, commands=words, cwd=cwd, job=job,
+            sessions=sessions, session=session, view_state=view,
+            not_observed=None if view else "observation_off"))
+        try:
+            prior = await _bounded(future, job)
+        except TimeoutError:
+            prior = observed.Before.empty(activity_id, command, cwd, "timeout")
+        STATE["observations"][event.tool_call_id] = prior
+    except asyncio.CancelledError:
+        raise
+    except Exception:  # noqa: BLE001 - an observation never stops a tool call
+        return None
+    return None
+
+
+# Why an observation was not recorded, as the notice says it.
+NOT_RECORDED = {"journal_busy": "the journal was locked", "timeout": "it took longer than its 3 seconds",
+                "busy": "an earlier observation was still running", "cancelled": "it was stopped",
+                "attachments_failed": "its files could not be written", "failed": "it failed"}
+OBSERVATION_OFF_NOTICE = (
+    "aelix-analytics: file changes around bash calls are no longer observed in this session (the "
+    "project has more files than an observation looks at, or looking took too long); Python run outside "
+    "the kit is still recorded as an observed activity.")
+
+
+async def _observe_after(project, prior, event, command: str, cwd: str):
+    """The observation's end at tool_result (ADR-0015): (its Outcome, or None; a note when it was not
+    run or its result is not known: `busy`, `timeout`, `unconfirmed`)."""
+    observed = core.observed
+    if prior is None:  # tool_call did not start it: a handler before this one changed the command, say
+        prior = observed.Before.empty(observed.new_activity_id(), command, cwd, "no_before_state")
+    details = getattr(event, "details", None)
+    exit_code = getattr(details, "exit_code", None)
+    if exit_code is None and isinstance(details, dict):
+        exit_code = details.get("exit_code")
+    call = observed.Call(getattr(event, "tool_call_id", None), command, command_words(command),
+                         python_command(command), bool(getattr(event, "is_error", False)),
+                         exit_code if type(exit_code) is int else None)
+    if prior.state is None and not call.python_command and not prior.turned_off:
+        return None, None  # nothing it could record: no changes seen, no analysis step
+    if _observer_busy():
+        return None, "busy"
+    job = observed.Job(time.monotonic() + observed.AFTER_SECONDS)
+    session, sessions = STATE["session"], STATE["sessions"]
+    hook_origin = origin("system", "hook")
+    root = project.root
+
+    def work():
+        fresh = core.Project(root)
+        return observed.after(fresh, prior, call, writer=core.writer_for(fresh, hook_origin), job=job,
+                              sessions=sessions, session=session, cache=core.HashCache(fresh))
+
+    try:
+        return await _bounded(_in_thread(work), job), None
+    except TimeoutError:
+        return None, "unconfirmed" if job.committing else "timeout"
+
+
+def _observation_sentence(outcome, note) -> str:
+    """What a notice says of the observation of its call."""
+    if outcome is not None and outcome.event is not None:
+        return (f" Observed as {outcome.event['id']}: the command, its scripts and the files changed while it "
+                "ran (inputs and environment were not captured).")
+    if note == "unconfirmed":
+        return " The kit could not confirm whether the observation was recorded."
+    reason = note or (outcome.reason if outcome is not None else None)
+    if reason is None or reason == "nothing_to_record":
+        return ""
+    return f" The observation was not recorded ({NOT_RECORDED.get(reason, reason)})."
+
+
+def _notice(python: bool, outcome, note, session) -> str | None:
+    """The text a bash result gets after it (#170, ADR-0015 decision 11): Python run outside the kit is
+    told it was not recorded as a run, with what the observation recorded; any other command is told
+    when files changed while it ran that no run or import recorded — never that the command wrote
+    them; and a call that turned the session's observation off says so once."""
+    lines = []
+    if python:
+        told = STATE["told_unrecorded"]
+        lines.append((UNRECORDED_NOTICE_AGAIN if session in told else UNRECORDED_NOTICE)
+                     + _observation_sentence(outcome, note))
         told.add(session)  # only once the full line is given
-        return patch
+    elif outcome is not None and (outcome.unexplained or outcome.unknown):
+        recorded = outcome.event is not None
+        where = f" (observed as {outcome.event['id']})" if recorded else _observation_sentence(outcome, note)
+        if outcome.unexplained:
+            lines.append("aelix-analytics: files changed while this ran and no run or import recorded them"
+                         f"{where}; record data with analytics_import or analytics_run.")
+        else:
+            lines.append("aelix-analytics: files changed while this ran and the kit could not check whether a "
+                         f"run or import recorded them{where}.")
+    if outcome is not None and outcome.turned_off:
+        lines.append(OBSERVATION_OFF_NOTICE)
+    return "\n".join(lines) or None
+
+
+async def on_tool_result(event, ctx):
+    """After a bash call in a project this kit writes: the observation's end and record (ADR-0015),
+    within 3 s, and one text block after the result (_notice): a Python run outside the kit
+    (python_outside_the_kit, telemetry's python_via_bash) is told it was not recorded as a run and how
+    to record it (Issue #170) — in full the first time in a session, short after that — with what the
+    observation recorded; another command when files changed while it ran that no run or import
+    recorded. It tells and does not block: the patch sets only `content`, the result's own blocks and
+    then that one, so its error state and details stay as they are. Nothing for any other call,
+    without an active project, or where this kit does not write. Never raises but a cancel, which goes
+    up with the result unchanged."""
+    try:
+        if event.tool_name != "bash":
+            return None
+        content = event.content
+        command = str((event.args or {}).get("command") or "")
+        prior = STATE["observations"].pop(getattr(event, "tool_call_id", None), None)
+        project, _ = resolve_project()
+        if core.admit(project, "observe a bash call", side=True) is None:
+            return None
+        python = python_outside_the_kit(command)
+        outcome, note = None, None
+        if not kit_command_line_only(command):
+            try:
+                outcome, note = await _observe_after(project, prior, event, command, _cwd(ctx))
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001 - the observation failed; the #170 line still goes out
+                note = "failed"
+        text = _notice(python, outcome, note, STATE["session"])
+        return None if text is None else ToolResultPatch(content=[*content, TextContent(text=text)])
+    except asyncio.CancelledError:
+        raise
     except Exception:  # noqa: BLE001
         return None
 
 
 def on_agent_end(event, ctx):
+    STATE["observations"].clear()  # starts no tool_result will end (decision 6)
     with contextlib.suppress(Exception):
         project = resolve_project()[0]
         session = current_session(ctx)
@@ -2393,7 +2644,8 @@ async def analytics_command(args, ctx=None):
             return recorded_line(written, kind)
         if sub == "context":
             project, _ = resolve_project()
-            return await asyncio.to_thread(core.context_block, project)
+            session = current_session(ctx)
+            return await asyncio.to_thread(lambda: core.context_block(project, session=session))
         return HELP
     except core.AnalyticsError as exc:
         return render_error(f"/analytics {sub}".strip(), exc.to_json())
@@ -2522,7 +2774,8 @@ def setup(aelix):
     # before a new session's first prompt would record the previous session's file.
     STATE.update({"api": aelix, "project": None, "session": None, "starts": {},
                   "render_tasks": {}, "told_unrecorded": set(), "looked": False, "found": None,
-                  "passed": []})
+                  "passed": [], "observations": {}, "sessions": core.observed.Sessions(),
+                  "observer": STATE.get("observer")})
     put_the_author_in_the_environment()
     aelix.register_flag("analytics-project", type="str",
                         description="Analytics project directory (holds analytics.json, or an "
@@ -2535,7 +2788,10 @@ def setup(aelix):
     aelix.on("before_agent_start", on_before_agent_start)
     aelix.on("tool_execution_start", on_tool_start)
     aelix.on("tool_execution_end", on_tool_end)
-    aelix.on("tool_result", on_tool_result)
+    # The observation of a bash call (ADR-0015) waits a bounded time in both, and a failure in it must
+    # not break the turn: "continue" logs and drops an exception (a cancel still goes through).
+    aelix.on("tool_call", on_tool_call, error_mode="continue")
+    aelix.on("tool_result", on_tool_result, error_mode="continue")
     aelix.on("agent_end", on_agent_end)
     aelix.on("user_bash", on_user_bash)
     if events is not None:

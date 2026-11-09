@@ -2,9 +2,10 @@
 
 The aelix extension loads this file inside the aelix process, so it must not import polars, duckdb,
 plotting libraries or any other aelix_analytics module except `_platform`, `relations` (the records
-read as ADR-0006 says), `writer` (who may write a project's records, and how: Issue #13) and the
-stdlib publication observation reader (bound while the extension's namespace still exists), which
-are standard library only for the same reason. Code that needs the analysis libraries runs inside a
+read as ADR-0006 says), `writer` (who may write a project's records, and how: Issue #13), the
+stdlib publication observation reader (bound while the extension's namespace still exists) and
+`observed` with its `tree_state` (an observed activity around a bash call, ADR-0015), which are
+standard library only for the same reason. Code that needs the analysis libraries runs inside a
 project's own uv environment (runner, data, workspace).
 
 Every operation that behaves differently on Linux, macOS and Windows goes through the bundle of
@@ -30,6 +31,7 @@ from datetime import datetime
 from pathlib import Path, PureWindowsPath
 
 from . import _platform, asset_app, asset_suggestions, checkpoints, relations, writer
+from . import observed as observed
 from ._platform import newlines_as_lf as newlines_as_lf
 from ._platform import open_text as open_text
 from ._platform import write_text as write_text
@@ -836,7 +838,7 @@ class Project:
 
     # -- the walk
 
-    def walk(self, start=None):
+    def walk(self, start=None, *, budget=None):
         """The files of the namespace, each once, as (path a record holds, real path, directory
         entry or None).
 
@@ -857,9 +859,16 @@ class Project:
         A file link leading inside is given too, as the file it leads to. Nothing is left out by
         name, and a file is given once per (name, path). A start that leads to the root or one of
         its ancestors gives nothing, as a link there is not followed, and a link back to the start's
-        directory or above it is not followed either."""
+        directory or above it is not followed either.
+
+        `budget` (the namespace walk only): a callable given each directory entry as the listing reads
+        it, before the listing is sorted, which raises to stop the walk (tree_state.Budget: an
+        observation's entry, time and cancel bounds, ADR-0015 decision 3). A walk it stopped keeps no
+        table."""
         if start is None:
-            return self._walk_namespace()
+            return self._walk_namespace(budget)
+        if budget is not None:
+            raise ValueError("a walk from a start takes no budget")
         return self._walk_from(start)
 
     def _ensure_table(self) -> _Table:
@@ -892,19 +901,28 @@ class Project:
             return None
         return ("dir" if os.path.isdir(target) else "file"), target
 
-    def _listed(self, directory: str) -> list[tuple[os.DirEntry, str]]:
+    def _listed(self, directory: str, budget=None) -> list[tuple[os.DirEntry, str]]:
         """The entries of `directory` in code point order of their names, each with its kind; the
-        listing is kept for the spelling. Nothing for a directory that cannot be listed."""
+        listing is kept for the spelling. Nothing for a directory that cannot be listed. A `budget`
+        (walk) is given each entry as it is read, before any is sorted: one directory with very many
+        entries is not read past it."""
         try:
             with os.scandir(directory) as listing:
-                entries = sorted(listing, key=lambda entry: entry.name)
+                if budget is None:
+                    entries = sorted(listing, key=lambda entry: entry.name)
+                else:
+                    entries = []
+                    for entry in listing:
+                        budget(entry)
+                        entries.append(entry)
+                    entries.sort(key=lambda entry: entry.name)
         except (OSError, ValueError):
             return []
         kinds = {entry.name: _kind(entry) for entry in entries}
         self.spelling.remember(directory, kinds)
         return [(entry, kinds[entry.name]) for entry in entries]
 
-    def _walk_namespace(self):
+    def _walk_namespace(self, budget=None):
         table = _Table()
         self.forget(listings=False)
         self._claim(table, self._root, "")
@@ -915,13 +933,13 @@ class Project:
                 self._claim(table, self.spelling.path(os.path.realpath(
                     os.path.join(self._root, name), strict=True)), name)
         pending: list[tuple[str, str, str]] = []
-        yield from self._walk_tree(table, self._root, "", pending)
+        yield from self._walk_tree(table, self._root, "", pending, budget)
         while pending:
             ns, kind, target = heapq.heappop(pending)
             if kind == "dir":
                 if self._claim(table, target, ns):
                     table.boundaries.append((ns, target))
-                    yield from self._walk_tree(table, target, ns, pending)
+                    yield from self._walk_tree(table, target, ns, pending, budget)
                 continue
             parent, name = os.path.split(target)
             key = self._key(parent)
@@ -932,13 +950,13 @@ class Project:
             yield ns, target, None
         self._table = table
 
-    def _walk_tree(self, table: _Table, top: str, top_ns: str, pending: list):
+    def _walk_tree(self, table: _Table, top: str, top_ns: str, pending: list, budget=None):
         stack = [(top, top_ns)]
         while stack:
             directory, ns = stack.pop()
             key = table.key_of_path.get(directory)
             subdirectories = []
-            for entry, kind in self._listed(directory):
+            for entry, kind in self._listed(directory, budget):
                 # An ignored top-level name is left out as a directory or a link, as on main; a
                 # managed directory stored in another case is that directory.
                 if not ns and (self._kit_name(entry.name) or entry.name) in self.layout.ignored_dirs:
@@ -1225,6 +1243,27 @@ class HashCache:
         self.data[key] = [st.st_size, st.st_mtime_ns, digest]
         self.dirty = True
         return digest
+
+    def fresh(self, path) -> str | None:
+        """sha of `path` read from its bytes whatever the cache holds, kept as its entry: for a file
+        whose identity changed while its size and mtime did not (a copy that kept the mtime), where
+        the cached entry would give the bytes it replaced (ADR-0015 decision 3). None when there is no
+        file to read."""
+        path = Path(path)
+        try:
+            st = path.stat()
+            if not path.is_file():
+                return None
+            digest = sha256_file(path)
+        except OSError:
+            return None
+        self.remember(path, st.st_size, st.st_mtime_ns, digest)
+        return digest
+
+    def remember(self, path, size: int, mtime_ns: int, digest: str) -> None:
+        """Keep `digest` as the entry of `path` at that size and time, replacing what was there."""
+        self.data[str(path)] = [size, mtime_ns, digest]
+        self.dirty = True
 
     def line_endings_only(self, path, recorded) -> bool:
         """Whether a file whose bytes differ from `recorded` (a sha256) differs only in its line
@@ -2965,6 +3004,9 @@ def status(project: Project, limit: int = STATUS_LIMIT, *, part=None, asset_sess
                          "recording_status": rec.get("recording_status"),
                          "reasons": rec.get("reasons", [])})
     open_items, key_items, gaps = lists.open, lists.key, lists.feedback
+    observed_view = relations.observed_summary(journal)
+    observed_sources = {journal.source_of(e) for e in relations.observed_activities(journal)}
+    observed_views = {id(view) for view in events if source[id(view)] in observed_sources}
     key_rows = []
     for e in key_items[-limit * 2:]:
         name = source[id(e)]
@@ -3007,6 +3049,7 @@ def status(project: Project, limit: int = STATUS_LIMIT, *, part=None, asset_sess
         "counts": {"datasets": len(datasets), "runs": len(runs),
                    "runs_failed": sum(1 for r in runs if r.get("status") != "ok"),
                    "charts": len(current_charts), "events": len(events),
+                   "observed": len(observed_views),
                    "open": len(open_items), "gaps": len(gaps)},
         "as_of_seq": model.as_of_seq,
         "source_revision": model.source_revision,
@@ -3025,7 +3068,9 @@ def status(project: Project, limit: int = STATUS_LIMIT, *, part=None, asset_sess
         "charts": chart_rows,
         "open": [_brief(e, source[id(e)]) for e in open_items[-limit * 2:]],
         "key": key_rows,
-        "recent": [_brief(e, source[id(e)]) for e in events[-10:]],
+        # An observed activity is counted on a line of its own, not listed (ADR-0015 decision 7).
+        "recent": [_brief(e, source[id(e)]) for e in [e for e in events if id(e) not in observed_views][-10:]],
+        "observed": observed_view,
         "metrics": metric_view,
         **({"asset_suggestions": suggestion_view} if suggestion_view is not None else {}),
     }
@@ -3240,7 +3285,7 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
     checkpoint_id = part == "context" and isinstance(id, str) and (id.startswith("e") or id.startswith("journal:"))
     if part == "context" and as_of_seq is not None and not checkpoint_id:
         raise AnalyticsError("bad_query", "historical context requires its exact context version ID")
-    observed = []
+    revisions = []
     for _attempt in range(3):
         cache = HashCache(project)
         model = read_model(project, cache)
@@ -3344,7 +3389,7 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
                 result["checkpoint"] = checkpoint_view(model, event, limit=limit)
         frame = _project_migration(project)[2] if project.marker_state().state == writer.CURRENT else None
         after, current_revision = relations.observed_basis(project.root, frame)
-        observed.append(current_revision)
+        revisions.append(current_revision)
         changed = snapshot != after
         if not changed and not reader_updating:
             break
@@ -3354,8 +3399,8 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
         if trail:
             result["edges"], result["trail"] = [], None
         result["omitted"] = {"count": "unknown", "reason": "updating"}
-    result.update(source_revision=observed[-1], as_of_seq=as_of_seq if as_of_seq is not None else model.as_of_seq,
-                  updating=changed or reader_updating, observed_revisions=observed,
+    result.update(source_revision=revisions[-1], as_of_seq=as_of_seq if as_of_seq is not None else model.as_of_seq,
+                  updating=changed or reader_updating, observed_revisions=revisions,
                   index=index_state, unsupported=list(model.unsupported),
                   damaged={"journal": model.journal.damaged, "files": model.damaged_files},
                   evidence_availability="checked now; as_of_seq bounds recorded knowledge, not file snapshots",
@@ -3621,7 +3666,7 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
     more_charts = counts["charts"] - len(st["charts"])
     older_open = counts["open"] - len(st["open"])
     key_at_limit = len(st["key"]) >= 2 * STATUS_LIMIT
-    earlier = counts["events"] - len(st["recent"])
+    earlier = counts["events"] - counts.get("observed", 0) - len(st["recent"])
     add("head", f"project: {p['title']} ({p['root']})")
     if p.get("migration_hint"):
         add("head", OLDER_FORMAT_LINE)
@@ -3788,7 +3833,21 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
                       f"{e['kind']}: {_one_line(e['text'], 120)}")
     if earlier > 0:
         add("recent", f"  … {earlier:,} earlier entries not listed: in the journal", note=True)
+    line = observed_line(st.get("observed"))
+    if line:
+        add("recent", line)
     return out
+
+
+def observed_line(summary) -> str | None:
+    """The overview's one line for the observed activities (ADR-0015 decision 7), none when there is no
+    observation: how many, the latest, how many saw changes no run or import recorded, in how many
+    sessions changes stopped being observed, and how to read them."""
+    if not summary or not summary.get("count"):
+        return None
+    return (f"observed outside the kit: {summary['count']} (latest {summary['latest']}; "
+            f"{summary['unexplained']} with changes no run recorded; changes not observed in "
+            f"{len(summary['sessions_off'])} sessions) — part=records kind={relations.OBSERVED_KIND}")
 
 
 # How many places, producer candidates or targets one line of the overview names before it says how
@@ -4131,9 +4190,11 @@ ENTRY_CHARS = 300
 
 
 def context_block(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHARS,
-                  max_items: int = 12) -> str:
+                  max_items: int = 12, *, session=None) -> str:
     """Project context appended to the system prompt. Only slow-changing parts, so it stays
-    stable across prompts: CONTEXT.md, unresolved key information and open questions."""
+    stable across prompts: CONTEXT.md, unresolved key information and open questions; and, for the
+    aelix `session` given, one line when bash calls in it were observed outside the kit (ADR-0015
+    decision 7)."""
     marker = readable(project, "context")
     model = read_model(project)
     lists = JournalLists(model.journal)
@@ -4164,6 +4225,7 @@ def context_block(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHAR
         f"Journal knowledge: as_of_seq {model.as_of_seq}; source_revision {model.source_revision}; "
         f"updating {model.updating}. "
         "past judgments are records, not proof of current data or reviewed conclusions.",
+        *([line] if (line := observed_session_line(model.journal, session)) else []),
         "",
         "## CONTEXT.md",
         preamble or "(empty — fill in goal, questions, data sources and definitions)",
@@ -4185,6 +4247,23 @@ def context_block(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHAR
         parts += ["", "## Open questions and todos"]
         parts += _journal_entries(open_items, max_items, project.journal)
     return "\n".join(parts)
+
+
+def observed_session_line(journal, session) -> str | None:
+    """The context block's line for one aelix session's observed activities: how many and the latest,
+    that their inputs and environment were not captured, and whether its file changes are no longer
+    observed. None without a session or an observation in it."""
+    if session is None:
+        return None
+    summary = relations.observed_summary(journal, session=session)
+    if not summary["count"]:
+        return None
+    line = (f"Observed outside the kit in this session: {summary['count']} bash call(s), latest "
+            f"{summary['latest']}; their inputs and environment were not captured — run analysis steps "
+            "with analytics_run.")
+    if summary["off"]:
+        line += " File changes around bash calls are no longer observed in this session."
+    return line
 
 
 def metric_focus_text(view, journal) -> list[str]:

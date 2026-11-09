@@ -84,7 +84,11 @@ def test_real_loader_registers_the_basic_contract_surface():
     assert set(ext.commands) == {"analytics"}
     assert set(ext.flags) == {"analytics-project"}
     assert set(ext.handlers) == {"before_agent_start", "tool_execution_start", "tool_execution_end",
-                                 "tool_result", "agent_end", "user_bash"}
+                                 "tool_call", "tool_result", "agent_end", "user_bash"}
+    # The observation of a bash call never breaks a turn (ADR-0015 decision 6).
+    for event in ("tool_call", "tool_result"):
+        (handler,) = ext.handlers[event]
+        assert ext.handler_error_modes[(event, id(handler))] == "continue"
 
 
 @pytest.mark.parametrize("history", ["mode", "notification"])
@@ -523,6 +527,11 @@ def test_a_tool_call_s_project_lookup_lists_no_directory_once_warm(lab, monkeypa
     assert flags == ["wrote_managed_path"]
 
 
+def tool_result(module, event, ctx=None):
+    """The extension's tool_result handler (a coroutine since #171) run to its end."""
+    return asyncio.run(module.on_tool_result(event, ctx))
+
+
 def bash_result(command: str, *, is_error: bool = False):
     from aelix_agent_core.harness.hooks import ToolResultHookEvent
     from aelix_ai.messages import TextContent
@@ -544,7 +553,7 @@ def test_python_outside_the_kit_is_told_it_was_not_recorded(lab, is_error):
     module, _root = lab
     module.STATE["session"] = "session-a"
     event = bash_result("uv run python scripts/x.py", is_error=is_error)
-    first = module.on_tool_result(event, None)
+    first = tool_result(module, event, None)
     assert isinstance(first, ToolResultPatch)
     assert first.content[:-1] == event.content and len(first.content) == 2
     assert first.content[-1].text == module.UNRECORDED_NOTICE
@@ -552,13 +561,13 @@ def test_python_outside_the_kit_is_told_it_was_not_recorded(lab, is_error):
     assert [block.text for block in event.content] == ["out\n"] and event.is_error is is_error
     assert "no run was recorded" in module.UNRECORDED_NOTICE and "analytics_run" in module.UNRECORDED_NOTICE
     assert "`analytics run scripts/x.py --title" in module.UNRECORDED_NOTICE
-    again = module.on_tool_result(bash_result("python scripts/y.py", is_error=is_error), None)
+    again = tool_result(module, bash_result("python scripts/y.py", is_error=is_error), None)
     assert again.content[-1].text == module.UNRECORDED_NOTICE_AGAIN
     assert (again.is_error, again.details, again.terminate) == (None, None, None)
     assert "analytics_run" in module.UNRECORDED_NOTICE_AGAIN
     assert len(module.UNRECORDED_NOTICE_AGAIN) < len(module.UNRECORDED_NOTICE) // 2
     module.STATE["session"] = "session-b"
-    assert module.on_tool_result(bash_result("python scripts/y.py"), None).content[-1].text == (
+    assert tool_result(module, bash_result("python scripts/y.py"), None).content[-1].text == (
         module.UNRECORDED_NOTICE)
 
 
@@ -572,7 +581,7 @@ def test_python_beside_or_naming_the_kit_is_told(lab, command):
     """Issue #170 (the reviews of 351b1ff): Python beside a kit command, or whose code, comment or
     argument says `analytics`, ran outside the kit all the same: the line is given."""
     module, _root = lab
-    patch = module.on_tool_result(bash_result(command), None)
+    patch = tool_result(module, bash_result(command), None)
     assert patch is not None and patch.content[-1].text == module.UNRECORDED_NOTICE
 
 
@@ -594,7 +603,7 @@ def test_a_kit_command_or_one_without_python_is_not_told(lab, command):
     `-m aelix_analytics`, an `import aelix_analytics`) record what they run, and a command that runs
     no Python runs nothing to record: no line."""
     module, _root = lab
-    assert module.on_tool_result(bash_result(command), None) is None
+    assert tool_result(module, bash_result(command), None) is None
 
 
 def test_no_line_without_a_project_this_kit_writes_or_for_another_tool(lab, tmp_path, monkeypatch):
@@ -607,22 +616,22 @@ def test_no_line_without_a_project_this_kit_writes_or_for_another_tool(lab, tmp_
     module, root = lab
     read = ToolResultHookEvent(tool_name="read", args={"command": "python scripts/x.py",
                                                        "path": str(root / "CONTEXT.md")})
-    assert module.on_tool_result(read, None) is None
-    assert module.on_tool_result(SimpleNamespace(tool_name="bash", args=None, content=[]), None) is None
-    assert module.on_tool_result(SimpleNamespace(tool_name="bash", args={"command": "python x.py"}),
+    assert tool_result(module, read, None) is None
+    assert tool_result(module, SimpleNamespace(tool_name="bash", args=None, content=[]), None) is None
+    assert tool_result(module, SimpleNamespace(tool_name="bash", args={"command": "python x.py"}),
                                  None) is None  # no content to keep: nothing rather than a guess
     monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(LegacyProject(tmp_path / "older").root))
-    assert module.on_tool_result(bash_result("python scripts/x.py"), None) is None
+    assert tool_result(module, bash_result("python scripts/x.py"), None) is None
     monkeypatch.delenv("AELIX_ANALYTICS_PROJECT")
     monkeypatch.chdir(root)
-    assert module.on_tool_result(bash_result("python scripts/x.py"), None) is not None  # trusted here
+    assert tool_result(module, bash_result("python scripts/x.py"), None) is not None  # trusted here
     # A marker that is not one this user created or chose activates nothing.
     monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(tmp_path / "another-user-s-trust.json"))
-    assert module.on_tool_result(bash_result("python scripts/x.py"), None) is None
+    assert tool_result(module, bash_result("python scripts/x.py"), None) is None
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
-    assert module.on_tool_result(bash_result("python scripts/x.py"), None) is None
+    assert tool_result(module, bash_result("python scripts/x.py"), None) is None
 
 
 def test_the_real_host_gives_the_model_the_line_after_the_bash_result(tmp_path, monkeypatch):
@@ -681,6 +690,392 @@ def test_the_real_host_gives_the_model_the_line_after_the_bash_result(tmp_path, 
     assert results[0].content[-1].text == module.UNRECORDED_NOTICE and len(results[0].content) == 2
     assert results[1].is_error and results[1].content[-1].text == module.UNRECORDED_NOTICE_AGAIN
     assert results[2].content == bare[2].content
+
+
+# --- the observed activity of a bash call (Issue #171, ADR-0015) ---------------------------------------
+
+
+def bash_call(command: str, call_id: str = "b1"):
+    from aelix_agent_core.harness.hooks import ToolCallHookEvent
+
+    return ToolCallHookEvent(tool_call_id=call_id, tool_name="bash", args={"command": command})
+
+
+def bash_done(command: str, call_id: str = "b1", text: str = "out\n", *, is_error: bool = False):
+    from aelix_agent_core.harness.hooks import ToolResultHookEvent
+    from aelix_ai.messages import TextContent
+
+    return ToolResultHookEvent(tool_call_id=call_id, tool_name="bash", args={"command": command},
+                               content=[TextContent(text=text)], details=SimpleNamespace(exit_code=1 if is_error else 0),
+                               is_error=is_error)
+
+
+def observe(module, command, act=None, *, call_id="b1", cwd=None, final=None):
+    """tool_call, what the command does, tool_result — the extension's two handlers as aelix calls them."""
+    ctx = SimpleNamespace(cwd=str(cwd)) if cwd is not None else SimpleNamespace(cwd=os.getcwd())
+    assert asyncio.run(module.on_tool_call(bash_call(command, call_id), ctx)) is None
+    if act is not None:
+        act()
+    return asyncio.run(module.on_tool_result(bash_done(final or command, call_id), ctx))
+
+
+def journal_rows(root):
+    return [json.loads(line) for line in (root / "journal.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def loaded_module(extension):
+    """The module aelix's loader made of this file: its handlers' globals."""
+    (handler,) = extension.handlers["tool_result"]
+    return SimpleNamespace(**{"STATE": handler.__globals__["STATE"], "core": handler.__globals__["core"],
+                              "globals": handler.__globals__})
+
+
+def harness_run(tmp_path, root, commands, *, extra=(), cwd=None, prepare=None):
+    """aelix 0.1.0b2's loader loads this file (and `extra` extension files), a harness built from them runs
+    the agent loop with aelix's bash tool (in `cwd`, the project by default) and a scripted model, one bash
+    call a turn. Gives the tool results the model read on its last turn and the loaded extensions."""
+    from aelix_agent_core.harness.core import AgentHarness, AgentHarnessOptions
+    from aelix_ai.messages import AssistantMessage, TextContent, ToolCallContent, ToolResultMessage
+    from aelix_ai.streaming import AssistantDoneEvent
+    from aelix_coding_agent.extensions.loader import load_extensions
+    from aelix_coding_agent.tools.bash import create_bash_tool
+
+    turns = []
+
+    async def model(_model, context, _options):
+        turns.append(list(context.messages))
+        if len(turns) <= len(commands):
+            call_ = ToolCallContent(tool_call_id=f"c{len(turns)}", tool_name="bash",
+                                    input={"command": commands[len(turns) - 1]})
+            yield AssistantDoneEvent(reason="toolUse", message=AssistantMessage(content=[call_], stop_reason="tool_use"))
+        else:
+            yield AssistantDoneEvent(message=AssistantMessage(content=[TextContent(text="done")], stop_reason="stop"))
+
+    async def scenario():
+        loaded = await load_extensions([str(EXT), *map(str, extra)])
+        assert loaded.errors == []
+        if prepare is not None:
+            prepare(loaded.extensions)
+        bash = create_bash_tool(str(cwd or root))
+        harness = AgentHarness(AgentHarnessOptions(extensions=loaded.extensions, runtime=loaded.runtime,
+                                                   cwd=str(cwd or root), tools=[bash], stream_fn=model))
+        await harness.prompt("go")
+        return [m for m in turns[-1] if isinstance(m, ToolResultMessage)], loaded.extensions
+
+    return asyncio.run(scenario())
+
+
+@pytest.fixture
+def host_project(tmp_path, monkeypatch):
+    monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(tmp_path / "trust.json"))
+    monkeypatch.setenv("AELIX_ANALYTICS_UV", str(tmp_path / "no-uv" / "uv"))
+    module = fresh_module()
+    root = tmp_path / "proj"
+    module.core.init_project(root, title="T171", template_dir=module.KIT / "aelix_analytics" / "template",
+                             origin=module.core.Origin("test", "sdk"))
+    (root / "scripts").mkdir(exist_ok=True)
+    (root / "data" / "derived").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(root))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATH", os.pathsep.join([str(Path(sys.executable).parent), os.environ["PATH"]]))
+    return module, root
+
+
+def test_the_real_host_records_an_observed_activity_and_tells_the_model(host_project, tmp_path):
+    """Issue #171 through aelix 0.1.0b2 itself (its loader, its harness, its bash tool, a scripted model): a
+    Python script run outside the kit is recorded as an observed activity and the model is told so with its
+    id after the result it read unchanged; `ls` is neither recorded nor told; a `cp` into data/ is recorded
+    for the file it changed that no run recorded, and told so without saying the command wrote it."""
+    module, root = host_project
+    (root / "scripts" / "a.py").write_text("open('data/derived/x.csv', 'w').write('1')\nprint('wrote')\n",
+                                           encoding="utf-8")
+    commands = ["python scripts/a.py", "ls", "cp data/derived/x.csv data/derived/y.csv"]
+    results, _ = harness_run(tmp_path, root, commands)
+    rows = journal_rows(root)
+    observed = [r for r in rows if r["kind"] == "observed_activity"]
+    assert [r["id"] for r in observed] == ["e3", "e4"]
+    assert observed[0]["details"]["performer"]["tool_call_id"] == "c1"
+    assert observed[0]["details"]["reasons"] == ["analysis_command", "changes"]
+    assert observed[1]["details"]["reasons"] == ["changes"]
+    assert "wrote" in results[0].content[0].text and not results[0].is_error and len(results[0].content) == 2
+    first = results[0].content[-1].text
+    assert first.startswith(module.UNRECORDED_NOTICE) and " Observed as e3: " in first
+    assert len(results[1].content) == 1 and "aelix-analytics" not in results[1].content[0].text
+    third = results[2].content[-1].text
+    assert third == ("aelix-analytics: files changed while this ran and no run or import recorded them (observed "
+                     "as e4); record data with analytics_import or analytics_run.")
+    assert json.loads((root / "analytics.json").read_text(encoding="utf-8"))["min_writer_version"] == "0.32.1"
+
+
+def test_a_call_another_extension_blocks_is_not_observed_and_its_start_is_dropped(host_project, tmp_path):
+    """ADR-0015 decisions 1 and 6, with aelix's own loop: a bash call another extension's tool_call blocks
+    gets no tool_result, so nothing is recorded, and what our tool_call kept for it is dropped at
+    tool_execution_end — whichever extension runs first."""
+    module, root = host_project
+    (root / "scripts" / "a.py").write_text("open('data/derived/x.csv', 'w').write('1')\n", encoding="utf-8")
+    blocker = tmp_path / "blocker.py"
+    blocker.write_text(
+        "from aelix_agent_core.harness.hooks import ToolCallResult\n"
+        "def setup(aelix):\n"
+        "    aelix.on('tool_call', lambda event, ctx: ToolCallResult(block=True, reason='not here'))\n",
+        encoding="utf-8")
+    results, extensions = harness_run(tmp_path, root, ["python scripts/a.py"], extra=[blocker])
+    assert results[0].is_error and "not here" in results[0].content[0].text
+    assert [r["kind"] for r in journal_rows(root)] == ["project", "context"]
+    ours = loaded_module(extensions[0])
+    assert ours.STATE["observations"] == {}
+    assert not (root / "data" / "derived" / "x.csv").exists()
+
+
+@pytest.mark.parametrize(("command", "viewed"), [
+    ("analytics run scripts/x.py --title t", False),
+    ("uv run --project . analytics status", False),
+    ("bin/analytics status", False),
+    ("python -m aelix_analytics run scripts/x.py --title t", False),
+    ("uv run analytics run x.py 2>&1 | tail -20", True),
+    ("analytics status; python analysis.py", True),
+    ("python -c 'import aelix_analytics; open(\"data/x.csv\", \"w\")'", True),
+    ("ls", True),
+])
+def test_only_a_line_that_is_one_kit_command_line_skips_the_state(host_project, command, viewed):
+    """ADR-0015 decision 1: the files are not looked at only for a line that is one simple command calling
+    the kit's command line; a kit command beside another, and the SDK through `python -c`, are looked at."""
+    module, root = host_project
+    assert asyncio.run(module.on_tool_call(bash_call(command), SimpleNamespace(cwd=str(root)))) is None
+    prior = module.STATE["observations"].get("b1")
+    assert (prior is not None and prior.state is not None) is viewed, prior
+
+
+@pytest.mark.parametrize(("command", "analysis"), [
+    ("python analysis.py", True),
+    ("uv run python scripts/x.py", True),
+    ("analytics status; python analysis.py", True),
+    ("pip install duckdb", False),
+    ("uv pip install duckdb", False),
+    ("uv sync", False),
+    ("uv add polars", False),
+    ("python --version", False),
+    ("python3 -V", False),
+    ("python -m pip install duckdb", False),
+    ("pip install duckdb && python fit.py", True),
+    ("uv run analytics run x.py 2>&1 | tail -20", False),
+    ("python -c 'import aelix_analytics; print(1)'", False),
+])
+def test_an_analysis_step_is_python_outside_the_kit_that_does_not_only_manage_packages(lab, command, analysis):
+    module, _root = lab
+    assert module.python_command(command) is analysis
+
+
+def test_a_python_command_that_names_nothing_in_the_project_from_outside_it_is_not_recorded(host_project, tmp_path):
+    module, root = host_project
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / "t.py").write_text("print(1)\n", encoding="utf-8")
+    patch = observe(module, "python t.py", cwd=elsewhere)
+    assert patch.content[-1].text == module.UNRECORDED_NOTICE
+    assert [r["kind"] for r in journal_rows(root)] == ["project", "context"]
+    # From inside the project, the same is an analysis step: recorded.
+    (root / "t.py").write_text("print(1)\n", encoding="utf-8")
+    patch = observe(module, "python t.py", call_id="b2", cwd=root)
+    assert " Observed as e3: " in patch.content[-1].text
+
+
+def test_the_sdk_through_python_c_is_looked_at_and_its_write_recorded_as_a_change(lab):
+    """ADR-0015 decision 1: `python -c 'import aelix_analytics; …'` is the kit to #170's judgment (no line
+    of its own), but no run records what it writes: the files are looked at and the write is recorded as a
+    change, told as one no run recorded."""
+    module, root = lab
+    command = "python -c 'import aelix_analytics; open(\"data/x.csv\", \"w\").write(\"1\")'"
+    patch = observe(module, command, lambda: (root / "data" / "x.csv").write_text("1", encoding="utf-8"), cwd=root)
+    row = journal_rows(root)[-1]
+    assert row["kind"] == "observed_activity" and row["details"]["reasons"] == ["changes"]
+    assert patch.content[-1].text.startswith("aelix-analytics: files changed while this ran and no run or import")
+
+
+def test_read_only_and_older_projects_are_neither_looked_at_nor_written(lab, tmp_path, monkeypatch):
+    """ADR-0015 decision 1: where this kit does not write (a lab.json project; a marker whose floor is
+    above this kit), tool_call keeps nothing and tool_result writes nothing — the marker keeps its bytes."""
+    from legacy_records import LegacyProject
+
+    module, root = lab
+    older = LegacyProject(tmp_path / "older").root
+    newer = tmp_path / "newer"
+    module.core.init_project(newer, title="N", template_dir=module.KIT / "aelix_analytics" / "template",
+                             origin=module.core.Origin("test", "sdk"))
+    marker = json.loads((newer / "analytics.json").read_text(encoding="utf-8"))
+    (newer / "analytics.json").write_text(json.dumps({**marker, "min_writer_version": "99.0.0"}), encoding="utf-8")
+    for place in (older, newer):
+        monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(place))
+        before = {p.name: p.read_bytes() for p in place.iterdir() if p.is_file()}
+        patch = observe(module, "python scripts/x.py", lambda p=place: (p / "data").mkdir(exist_ok=True),
+                        cwd=place)
+        assert patch is None and module.STATE["observations"] == {}
+        assert {p.name: p.read_bytes() for p in place.iterdir() if p.is_file()} == before
+        assert not (place / ".analytics" / "observed").exists()
+
+
+def test_a_start_no_result_follows_is_dropped(lab):
+    module, root = lab
+    ctx = SimpleNamespace(cwd=str(root))
+    asyncio.run(module.on_tool_call(bash_call("python a.py", "x1"), ctx))
+    asyncio.run(module.on_tool_call(bash_call("python b.py", "x2"), ctx))
+    assert set(module.STATE["observations"]) == {"x1", "x2"}
+    module.on_tool_end(ToolExecutionEndHookEvent(tool_call_id="x1", tool_name="bash"), ctx)
+    assert set(module.STATE["observations"]) == {"x2"}
+    module.on_agent_end(SimpleNamespace(), ctx)
+    assert module.STATE["observations"] == {}
+
+
+def test_the_telemetry_summary_is_redacted(lab):
+    """ADR-0015 OQ6: telemetry's summary of a bash call is the command with the same rules applied, then cut."""
+    module, root = lab
+    canary = "canary-telemetry-value"
+    command = f"API_TOKEN={canary} curl -H 'Authorization: Bearer {canary}x' https://h.example/x?sig={canary}y"
+    ctx = SimpleNamespace()
+    module.on_tool_start(ToolExecutionStartHookEvent(tool_call_id="t1", tool_name="bash", args={"command": command}), ctx)
+    module.on_tool_end(ToolExecutionEndHookEvent(tool_call_id="t1", tool_name="bash"), ctx)
+    data = (root / ".analytics" / "telemetry.jsonl").read_text(encoding="utf-8")
+    assert canary not in data and hashlib.sha256(canary.encode()).hexdigest() not in data
+    assert json.loads(data.splitlines()[-1])["summary"].startswith("API_TOKEN=[redacted] curl")
+
+
+def test_only_unknown_changes_get_their_own_words(lab):
+    """ADR-0015 decision 11: a change the kit could not check (a secret-named file is never hashed) is told
+    as one it could not check, not as one no run recorded."""
+    module, root = lab
+    patch = observe(module, "cp ../x .env-data", lambda: (root / "data" / ".env").write_text("v\n", encoding="utf-8"),
+                    cwd=root)
+    assert patch.content[-1].text == ("aelix-analytics: files changed while this ran and the kit could not check "
+                                      "whether a run or import recorded them (observed as e3).")
+
+
+def test_turning_the_session_s_observation_off_is_said_once(lab, monkeypatch):
+    module, root = lab
+    monkeypatch.setattr(module.core.observed, "ENTRIES", 3)
+    for i in range(5):
+        (root / "data" / f"f{i}.csv").write_text("x\n", encoding="utf-8")
+    first = observe(module, "python a.py", cwd=root)
+    assert first.content[-1].text.endswith(module.OBSERVATION_OFF_NOTICE)
+    row = journal_rows(root)[-1]
+    assert row["details"]["reasons"] == ["analysis_command", "observation_off"]
+    assert row["details"]["changes"]["reason"] == "too_many_entries"
+    second = observe(module, "python b.py", call_id="b2", cwd=root)
+    assert module.OBSERVATION_OFF_NOTICE not in second.content[-1].text
+    assert journal_rows(root)[-1]["details"]["changes"]["reason"] == "observation_off"
+    assert observe(module, "ls", call_id="b3", cwd=root) is None
+
+
+def test_a_stuck_start_is_abandoned_within_its_bound_and_the_next_one_is_busy(lab, monkeypatch):
+    """ADR-0015 decision 6: a start stuck in its thread (a read that does not return) is waited for 2 s and
+    abandoned; while its thread is still there the next call looks at no state (`busy`), and its result
+    is not recorded either then; once the thread ends, observations go on."""
+    import threading
+
+    module, root = lab
+    release = threading.Event()
+    real = module.core.observed.before
+
+    def stuck(*a, **kw):
+        release.wait(20)
+        return real(*a, **kw)
+
+    monkeypatch.setattr(module.core.observed, "before", stuck)
+    ctx = SimpleNamespace(cwd=str(root))
+    started = time.monotonic()
+    asyncio.run(module.on_tool_call(bash_call("python a.py", "s1"), ctx))
+    took = time.monotonic() - started
+    assert 1.8 < took < 3.0, took
+    assert module.STATE["observations"]["s1"].not_observed == "timeout"
+    asyncio.run(module.on_tool_call(bash_call("python a.py", "s2"), ctx))
+    assert module.STATE["observations"]["s2"].not_observed == "busy"
+    patch = asyncio.run(module.on_tool_result(bash_done("python a.py", "s2"), ctx))
+    assert patch.content[-1].text.endswith("The observation was not recorded (an earlier observation was still running).")
+    release.set()
+    deadline = time.monotonic() + 5
+    while module._observer_busy() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    patch = asyncio.run(module.on_tool_result(bash_done("python a.py", "s1"), ctx))
+    assert " Observed as e3: " in patch.content[-1].text
+    assert journal_rows(root)[-1]["details"]["changes"]["reason"] == "timeout"
+
+
+@pytest.mark.parametrize("committing", [False, True], ids=["before-commit", "commit-begun"])
+def test_an_end_past_its_bound_says_whether_it_could_have_been_recorded(lab, monkeypatch, committing):
+    """ADR-0015 decisions 6 and 11: past its 3 s the tool_result handler stops waiting; abandoned before its
+    commit the observation writes nothing and the notice says it was not recorded; once its commit had
+    begun the notice says the kit could not confirm whether it was."""
+    import threading
+
+    module, root = lab
+    release = threading.Event()
+
+    def slow_after(project, prior, call, *, job, **kw):
+        if committing:
+            assert job.begin_commit()
+        release.wait(20)
+        return module.core.observed.Outcome(reason="cancelled")
+
+    monkeypatch.setattr(module.core.observed, "after", slow_after)
+    ctx = SimpleNamespace(cwd=str(root))
+    asyncio.run(module.on_tool_call(bash_call("python a.py"), ctx))
+    started = time.monotonic()
+    patch = asyncio.run(module.on_tool_result(bash_done("python a.py"), ctx))
+    took = time.monotonic() - started
+    release.set()
+    assert 2.8 < took < 4.0, took
+    expected = (" The kit could not confirm whether the observation was recorded." if committing
+                else " The observation was not recorded (it took longer than its 3 seconds).")
+    assert patch.content[-1].text == module.UNRECORDED_NOTICE + expected
+
+
+def test_a_cancel_while_the_end_is_waited_for_goes_up_and_leaves_the_result_as_it_was(lab, monkeypatch):
+    import threading
+
+    module, root = lab
+    release = threading.Event()
+    real = module.core.observed.after
+
+    def slow_after(*a, **kw):
+        release.wait(10)
+        return real(*a, **kw)
+
+    monkeypatch.setattr(module.core.observed, "after", slow_after)
+    ctx = SimpleNamespace(cwd=str(root))
+    event = bash_done("python a.py")
+    content = list(event.content)
+
+    async def scenario():
+        await module.on_tool_call(bash_call("python a.py"), ctx)
+        task = asyncio.ensure_future(module.on_tool_result(event, ctx))
+        await asyncio.sleep(0.2)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(scenario())
+    assert event.content == content and event.is_error is False
+    release.set()
+
+
+def test_a_failing_observation_does_not_break_the_turn(host_project, tmp_path, monkeypatch):
+    """ADR-0015 decision 6 with aelix's own loop: an observation whose work raises leaves the tool result
+    to the model as it was, with the #170 line, and the turn goes on."""
+    module, root = host_project
+    (root / "scripts" / "a.py").write_text("print('ran')\n", encoding="utf-8")
+
+    def broken(*a, **kw):
+        raise RuntimeError("an observation that fails")
+
+    def prepare(extensions):
+        ours = loaded_module(extensions[0])
+        monkeypatch.setattr(ours.core.observed, "before", broken)
+        monkeypatch.setattr(ours.core.observed, "after", broken)
+
+    results, _ = harness_run(tmp_path, root, ["python scripts/a.py", "echo next"], prepare=prepare)
+    assert "ran" in results[0].content[0].text and not results[0].is_error
+    assert results[0].content[-1].text == module.UNRECORDED_NOTICE + " The observation was not recorded (it failed)."
+    assert results[1].content[0].text.startswith("next")
+    assert [r["kind"] for r in journal_rows(root)] == ["project", "context"]
 
 
 def test_lab_command_where_help_and_gap(lab):

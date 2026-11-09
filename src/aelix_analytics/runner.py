@@ -28,7 +28,7 @@ import types
 import weakref
 from pathlib import Path
 
-from . import _platform, capture, core, relations
+from . import _platform, capture, core, relations, tree_state
 
 WRITE_CALLS = {"write_parquet", "sink_parquet", "write_csv", "sink_csv", "write_ipc", "sink_ipc",
                "write_ndjson", "sink_ndjson", "write_json", "write_excel", "write_delta",
@@ -36,8 +36,7 @@ WRITE_CALLS = {"write_parquet", "sink_parquet", "write_csv", "sink_csv", "write_
                "write_html", "write_image", "save", "copy", "copyfile", "copy2", "move", "rename",
                "replace", "write_text", "write_bytes", "mkdir", "touch", "unlink", "rmtree", "chart"}
 # A project's own top-level files, never a run's outputs, with its marker (the layout's: diff_outputs).
-PROJECT_FILES = {"journal.jsonl", "CONTEXT.md", "pyproject.toml", "uv.lock", ".python-version",
-                 ".gitignore", ".gitattributes"}
+PROJECT_FILES = tree_state.PROJECT_FILES
 PACKAGES = ("duckdb", "polars", "pyarrow", "matplotlib", "plotly", "numpy", "pygments",
             "markdown-it-py")
 OUTPUT_TAIL = core.OUTPUT_TAIL
@@ -116,53 +115,15 @@ def _recordable(path: Path) -> bool:
     return True
 
 
-class TreeStat(dict):
-    """{path a record holds: (size, mtime_ns)} of every file of the namespace (core.Project.walk),
-    with each one's real path (`real`) and the boundaries the walk went through (`boundaries`)."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.real: dict[str, str] = {}
-        self.boundaries: tuple = ()
+# The state of the namespace and what changed in it, shared with an observed activity's window
+# (tree_state, ADR-0015 decision 3).
+TreeStat = tree_state.TreeStat
+rekeyed = tree_state.rekeyed
+_modified_ns = tree_state.modified_ns
 
 
 def tree_stat(project: core.Project) -> TreeStat:
-    out = TreeStat()
-    for rel, real, _entry in project.walk():
-        with contextlib.suppress(OSError):
-            st = os.stat(real)  # not the listing's: Windows updates it late for a file still open
-            out[rel] = (st.st_size, st.st_mtime_ns)
-            out.real[rel] = real
-    out.boundaries = project.boundaries()
-    return out
-
-
-def rekeyed(project: core.Project, before: TreeStat) -> TreeStat:
-    """`before` with each file under the path a record holds for it now: a run that made or removed
-    a link changed which boundary some files are seen under, and a file that did not change must not
-    show as deleted and created."""
-    out = TreeStat()
-    out.boundaries = before.boundaries
-    for rel, st in before.items():
-        place = before.real.get(rel)
-        now = (project.identity_of_real(place) if place else None) or rel
-        out[now] = st
-        if place:
-            out.real[now] = place
-    return out
-
-
-def _modified_ns(path: Path) -> int:
-    """When `path` was last modified, by the clock the file system stamps files with (a clock tick
-    behind time.time_ns on Linux and Windows); now where it cannot be read."""
-    try:
-        return os.stat(path).st_mtime_ns
-    except OSError:
-        return time.time_ns()
-
-
-def _below_any(rel: str, places) -> bool:
-    return any(rel == ns or rel.startswith(f"{ns}/") for ns in places)
+    return tree_state.tree_stat(project)
 
 
 def parquet_info(path: Path) -> dict:
@@ -178,37 +139,28 @@ def parquet_info(path: Path) -> dict:
 
 def diff_outputs(project, before, after, cache, since: int | None = None) -> list[dict]:
     """The files the run created, modified or deleted: `after` against `before`, by the path a
-    record holds. A boundary only one of the two walks went through is a link the run made, removed
-    or repointed, not files it wrote: a file below a boundary new in `after` is an output only when
-    it was modified at or after `since` (the script's start, the time the file system stamped on
-    the run's stdout log as it was opened), and a file below one gone from it is deleted only when
-    its real path no longer leads to a file (docs/CONTRACTS.md G)."""
-    made = {ns for ns, _ in set(getattr(after, "boundaries", ())) -
-            set(getattr(before, "boundaries", ()))}
-    gone = {ns for ns, _ in set(getattr(before, "boundaries", ())) -
-            set(getattr(after, "boundaries", ()))}
-    own = PROJECT_FILES | {project.layout.marker}
+    record holds (tree_state.changes: a boundary only one of the two walks went through is a link the
+    run made, removed or repointed, not files it wrote; `since` is the script's start, the time the
+    file system stamped on the run's stdout log as it was opened). A file whose size and mtime are
+    the same but not its identity (`cp -p`, `rsync -a`) is hashed from its bytes: the hash cache knows
+    a file by its size and mtime alone and would give the bytes it replaced. A file the walk listed
+    but could not stat is left out: it is not known to be deleted (ADR-0015 decision 3)."""
     outputs = []
-    for rel, st in sorted(after.items()):
-        if rel in own or before.get(rel) == st:
+    for change in tree_state.changes(project, before, after, since):
+        rel, kind = change["path"], change["change"]
+        if kind == "unreadable":
             continue
-        if made and since is not None and st[1] < since and _below_any(rel, made):
-            continue  # there before the run, and seen since through a link it made
+        if kind == "deleted":
+            outputs.append({"path": rel, "change": "deleted"})
+            continue
         path = project.root / rel
-        entry = {"path": rel, "change": "created" if rel not in before else "modified",
-                 "bytes": st[0], "sha256": cache.sha(path)}
+        sha = cache.fresh(path) if change["identity_only"] else cache.sha(path)
+        entry = {"path": rel, "change": kind, "bytes": change["stat"][0], "sha256": sha}
         if path.suffix.lower() == ".parquet":
             entry.update(parquet_info(path))
         if not rel.startswith("data/"):
             entry["outside_data"] = True
         outputs.append(entry)
-    real = getattr(before, "real", {})
-    for rel in sorted(set(before) - set(after)):
-        if rel in own:
-            continue
-        if gone and rel in real and _below_any(rel, gone) and os.path.isfile(real[rel]):
-            continue  # still there, below a link the run removed or repointed
-        outputs.append({"path": rel, "change": "deleted"})
     return outputs
 
 

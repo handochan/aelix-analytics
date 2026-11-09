@@ -535,7 +535,12 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
   `python_via_bash`인 bash 호출에는 그 결과 끝에 "이 실행은 기록되지 않았다, `analytics_run`이나 셸의 `analytics run`으로 다시 실행하라"는
   한 줄이 붙습니다(세션의 첫 번은 길게, 그 뒤는 짧게. 결과의 원래 내용과 오류 여부는 그대로, kit 0.32.1). kit 명령(`analytics …`,
   `uv run analytics …`)은 표시하지 않습니다. 판정은 명령의 글자를 읽으므로 `echo python`에도 붙고 `.venv/bin/python x.py`에는 붙지 않습니다.
-  범위와 한계는 [현재 계약](docs/CONTRACTS.md) C5입니다.
+  범위와 한계는 [현재 계약](docs/CONTRACTS.md) C5입니다. telemetry의 bash 명령은 비밀로 보이는 값을 가린 뒤 남습니다(kit 0.32.1).
+- kit 밖에서 한 bash 작업은 **관찰된 활동**(`observed_activity`)으로 journal에 남습니다(kit 0.32.1): kit 밖 Python을 돌렸거나 run·가져오기가
+  기록하지 않은 파일이 그 bash 호출 동안 바뀌었으면, 가린 명령 글과 바뀐 파일, 명령이 가리킨 스크립트의 바이트를 남기고 결과 끝의 안내에
+  `Observed as eN`을 붙입니다. run이 아니므로 입력·환경은 포착되지 않고 재실행할 수 없습니다. 분석 단계는 계속 `analytics_run`으로 돌리세요.
+  가림은 거부 목록이라 모든 비밀을 잡지 못하며, 사본은 git이 추적하는 `.analytics/observed/`에 남습니다(git이 무시하는 파일·비밀일 수 있는 파일·
+  노트북은 복사하지 않음). `analytics status --part records --kind observed_activity`로 읽습니다. 범위와 한계는 [현재 계약](docs/CONTRACTS.md) C22입니다.
 - Workspace의 **Evaluation** 탭(옛 '평가' 탭): Workflow feedback(`workflow_feedback`·옛 `gap` 목록), Record coverage(입력 미감지 run, 첨부 표 없는 차트,
   프로젝트 밖 입력, 입력이 바뀐 차트, 재실행 비교 결과), Tool usage(도구별 호출·오류·시간), Possible workarounds(우회 의심 호출).
 - 기존 비교 실험의 축과 시나리오: [과거 평가 가이드](docs/EVALUATION.md).
