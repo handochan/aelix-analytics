@@ -6,13 +6,13 @@
 
 ## 측정한 코드
 
-- 커밋 `36cc1a3`(로컬 branch `feat/issue-171-observed-activity`): main `6fd956c`에 병합 전인 [PR #175](https://github.com/handochan/aelix-analytics/pull/175)
-  (ADR-0015, `47f2c50`)와 [PR #176](https://github.com/handochan/aelix-analytics/pull/176)(#170의 판정, `7df7d31`)을 로컬 `--no-ff`로 병합한 위의 구현
-  `d87a8f1`과 구현 리뷰(독립 1회·Codex 1회, 2026-11-10)의 지적을 고친 `36cc1a3`이다. 처음 잰 값은 `d87a8f1`이었고 리뷰 수정 뒤 모두 다시 쟀다.
-  두 PR이 main에 병합되면 rebase하므로 커밋 해시가 바뀐다. rebase 뒤 문서가 아닌 차이가 생기면 병합 전에 다시 잰다.
+- 커밋 `2b28525`(branch `feat/issue-171-observed-activity`). 바탕은 병합 승인된 여덟 PR(#175 → #176 → #178 → #174 → #180 → #173 → #179 → #177)을
+  쌓은 `2a96e50`이고, 그 위에 이 PR의 커밋만 있다: 구현 `46178fb`, 구현 리뷰(독립 1회·Codex 1회, 2026-11-10)의 수정 `46aebce`, 수정 diff 확인의 수정
+  `2b28525`. 처음 잰 값은 리뷰 전 `d87a8f1`(main `6fd956c`에 #175·#176을 로컬 병합한 위), 다음은 리뷰 수정 뒤 `36cc1a3`이었고, 바탕이 바뀌어
+  `2b28525`에서 모두 다시 쟀다. 아래 값은 마지막 측정이다.
 - 기기: macOS 26.6.2 arm64(Apple M5 Pro, 18코어, 64 GB), 로컬 APFS SSD의 임시 디렉터리, CPython 3.12.13, aelix 0.1.0b2. 다른 작업이 같은
-  기기를 쓰는 동안 쟀으므로 시간은 대략의 값이다. Linux·Windows는 이 PR을 push한 뒤 CI가 같은 시험(`record_observation`의 `observed-cost-*`)으로
-  남긴다(지금 `not_run`).
+  기기를 쓰는 동안 쟀으므로 시간은 대략의 값이다. Linux·Windows는 이 PR의 CI가 같은 시험(`record_observation`의 `observed-cost-*`)으로
+  남긴다(이 기록을 쓸 때 `not_run`).
 
 ## 비용 상한(OQ4)
 
@@ -22,23 +22,23 @@
 
 | `data/` | 앞(`tool_call`) ms | 뒤(`tool_result`) ms | 결과 |
 |---|---|---|---|
-| 파일 1,000개(디렉터리당 100) | 23.6 · 25.8 · 22.8 · 22.3 | 34.9 · 34.7 · 34.7 · 35.2 | 매번 `observed`, 줄 2,062 B |
-| 파일 10,000개 | 50.0 · 53.9 · 48.4 · 50.7 | 63.5 · 63.5 · 64.4 · 66.5 | 매번 `observed`, 줄 2,063 B |
-| 파일 50,000개 | 78.7 · 19.3 · 19.4 · 22.3 | 31.9 · 30.1 · 30.3 · 30.3 | 첫 번 `not_observed`(`too_many_entries`)와 세션 끄기, 그 뒤 `observation_off` |
-| 한 디렉터리에 항목 25,000개 | 28.9 · 21.6 · 10.1(`ls`) | 31.9 · 32.5 · 10.0 | 첫 번 `too_many_entries`, 그 뒤 Python만 기록·`ls`는 기록 없음 |
+| 파일 1,000개(디렉터리당 100) | 22.9 · 22.7 · 23.5 · 23.0 | 36.5 · 35.9 · 35.5 · 37.4 | 매번 `observed`, 줄 2,062 B |
+| 파일 10,000개 | 50.8 · 54.2 · 54.4 · 50.1 | 72.3 · 69.5 · 70.8 · 76.5 | 매번 `observed`, 줄 2,063 B |
+| 파일 50,000개 | 95.1 · 10.6 · 11.0 · 10.6 | 24.2 · 23.6 · 23.0 · 24.7 | 첫 번 `not_observed`(`too_many_entries`)와 세션 끄기, 그 뒤 `observation_off` |
+| 한 디렉터리에 항목 25,000개 | 21.4 · 10.5 · 0.7(`ls`) | 25.5 · 22.7 · 0.4 | 첫 번 `too_many_entries`, 그 뒤 Python만 기록·`ls`는 기록 없음 |
 
-- 한 bash 호출에 더해진 지연은 파일 1만 개에서 약 115 ms였다(ADR의 측정 "두 번의 상태 보기 약 100 ms"와 같은 범위). 리뷰 수정으로 프로젝트의
+- 한 bash 호출에 더해진 지연은 파일 1만 개에서 약 125 ms였다(ADR의 측정 "두 번의 상태 보기 약 100 ms"와 같은 범위). 리뷰 수정으로 프로젝트의
   해석과 쓰기 판정이 hook의 상한 안 스레드로 옮겨 상태를 보지 않는 호출도 각 10–30 ms가 든다. 상한(앞 2초, 뒤 3초)에 닿은 호출은 없었다. 상한을
-  넘는 `data/`는 정렬 전에 20,000번째 항목에서 멈춰 80 ms 안에 끝났다.
-- kit 함수만(`tests/test_observed.py`의 측정 시험, 확장·asyncio 없이): 1,000개 앞 19.5 ms·뒤 15.4 ms, 10,000개 앞 46.9 ms·뒤 48.3 ms,
-  한 디렉터리 25,000개는 18.9 ms에 멈춤.
-- **해시**(뒤 단계에서 바뀐 파일 하나): 64 MiB 45 ms, 200 MiB 97 ms(둘 다 `hashed`), 512 MiB는 합 상한 256 MiB를 넘어 읽지 않고 `over_budget`(21 ms)이며
+  넘는 `data/`는 정렬 전에 20,000번째 항목에서 멈춰 100 ms 안에 끝났다.
+- kit 함수만(`tests/test_observed.py`의 측정 시험, 확장·asyncio 없이): 1,000개 앞 3.8 ms·뒤 3.9 ms, 10,000개 앞 31.3 ms·뒤 32.8 ms,
+  한 디렉터리 25,000개는 10.3 ms에 멈춤.
+- **해시**(뒤 단계에서 바뀐 파일 하나): 64 MiB 37 ms, 200 MiB 93 ms(둘 다 `hashed`), 512 MiB는 합 상한 256 MiB를 넘어 읽지 않고 `over_budget`(11 ms)이며
   그 변경은 `unknown`이라 알림이 "could not check"라고 말했다.
 - **줄 크기**: 보통의 관찰 2,073 B, 바뀐 파일 400개 13,705 B(인라인 목록은 12 KiB까지, 전체는 `changes.json`), 20 KB 명령 6,167 B(인라인 4 KiB, 전문은
   `command.txt`). 직렬화한 `details`가 24 KiB를 넘을 때의 최소 details는 상한을 낮춘 시험이 쓴다.
 - **가림의 시간**: 규칙마다 긴 글을 한 번만 읽는다. 리뷰가 찾은 꼴(하이픈으로 이은 100 KB 줄이 헤더 규칙에서 20초, `?a?a…`가 질의 규칙에서
   0.56초)을 포함한 16가지 100 KB 줄이 각각 0.5초 안에 가려진다(`test_redaction_reads_a_hostile_100_kb_line_in_linear_time`, 이 기기에서 각 30 ms 이하).
-  그런 명령의 관찰도 상한 안에서 기록되고 telemetry 요약은 0.5초 안이다.
+  그런 명령의 관찰도 상한 안에서 기록되고 telemetry 요약은 0.5초 안이다(요약은 명령 전체를 가린 뒤 자르며 256 KiB를 넘으면 길이만 남김).
 - **상한을 지키는 쪽**(시험의 단언): 항목마다 느려진 walk가 0.5초 기한에서 1초 안에 멈춤, 멈춘 앞 작업은 1.8–3.0초에 버리고 다음 호출은 `busy`, 3초를
   넘긴 뒤 작업은 2.8–4.0초에 결과를 돌려주며 커밋 전이면 "not recorded", 커밋 뒤면 "could not confirm", 다른 쪽이 잡은 journal 잠금은 0.6초 기한에서
   1.5초 안에 `journal_busy`, 멈춘 프로젝트 해석은 앞 hook을 2.5초 안에 끝냄(그 동안의 결과 hook은 0.5초 안, 새 작업 없음).
@@ -60,7 +60,7 @@
 ## 옛 kit과 floor(결정 12)
 
 `older171.py`: 이 커밋의 kit으로 관찰 하나를 쓴 프로젝트(e3, 표식 floor 0.32.1)를 두 체크아웃으로 읽고 썼다(`PYTHONDONTWRITEBYTECODE=1`, 체크아웃은 그대로).
-`36cc1a3`에서 다시 돌려 같은 결과였다.
+`36cc1a3`과 `2b28525`에서 다시 돌려 같은 결과였다.
 
 | kit | 읽기(`status`) | 쓰기(`record note`) |
 |---|---|---|
@@ -91,14 +91,14 @@
 
 | 검사 | 결과 |
 |---|---|
-| `uv run --locked pytest -q --timeout 600 --timeout-method=thread -p no:cacheprovider`(개발 환경 전체) | `36cc1a3`(clean): 3340 passed, 148 skipped(748초). 처음 `d87a8f1`: 3305 passed, 148 skipped |
-| aelix 0.1.0b2 통합 다섯 파일(`test_extension`·`test_asset_extension`·`test_checkpoint_extension`·`test_usage_report`·`test_agent_cli`) | `36cc1a3`: 3.12·3.11 각 1057 passed. 처음 `d87a8f1`: 각 1053 passed |
-| `python3.11 tools/platform_smoke.py --stdlib-only --gate required` | `36cc1a3`: holds 15, violated 0 |
+| `uv run --locked pytest -q --timeout 600 --timeout-method=thread -p no:cacheprovider`(개발 환경 전체) | PR-2의 끝 `5648b71`(이 커밋을 포함, clean): 3424 passed, 148 skipped(790초). 앞의 값: `36cc1a3` 3340 passed, `d87a8f1` 3305 passed(각 148 skipped) |
+| `2b28525`에서 `tests/test_observed.py` | 129 passed |
+| aelix 0.1.0b2 통합 다섯 파일(`test_extension`·`test_asset_extension`·`test_checkpoint_extension`·`test_usage_report`·`test_agent_cli`) | `5648b71`: 3.12·3.11 각 1089 passed. 앞의 값: `36cc1a3` 각 1057, `d87a8f1` 각 1053 |
+| `python3.11 tools/platform_smoke.py --stdlib-only --gate required` | `5648b71`: holds 15, violated 0 |
 | `uv run --locked ruff check tests extension src tools` · `tools/check_docs.py` · `tools/release_check.py version` | 통과 · 오류 0 · 0.32.1 |
-| `d87a8f1`에서 `tests/test_observed.py tests/test_line_endings.py` | 166 passed(리뷰 전) |
 
 ## 하지 않은 것
 
 - Linux·Windows의 비용과 시험(push 뒤 CI), cold cache(OS 파일 캐시 비우기)·네트워크 드라이브·FAT, 실제 모델 세션, 시스템 호출에서 멈춘 읽기의 실제
   네트워크 마운트(멈춘 작업은 함수 대역으로 재현함).
-- 리뷰 수정의 수정 diff 확인(대기), PR-2(Workspace·C18, 따로 기록).
+- PR-2(Workspace·C18)는 따로 기록했다. 리뷰 예산의 수정 diff 확인은 한 번 받았고 그 지적을 `2b28525`에서 고쳤다(다시 리뷰받지 않음).

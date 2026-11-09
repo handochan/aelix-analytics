@@ -7,15 +7,14 @@
  "part": "PR-1: writing and minimal reads",
  "run_id": "e8d4ebf7-429d-4cd5-96da-567b206449e8",
  "measured_source": {
-  "commit": "36cc1a3",
-  "first_measured": "d87a8f1",
+  "commit": "2b28525",
+  "base": "2a96e50 (the eight approved PRs stacked: #175 #176 #178 #174 #180 #173 #179 #177)",
   "branch": "feat/issue-171-observed-activity",
-  "base": "6fd956c9ffdcd67f48bab2503a1e2c6db3e19c30",
-  "merged_locally": {
-   "pr_175": "47f2c50",
-   "pr_176": "7df7d31"
-  },
-  "note": "re-measured after the implementation reviews' fixes; local commits before the rebase onto main once #175 and #176 are merged"
+  "earlier": [
+   "d87a8f1 (before the reviews)",
+   "36cc1a3 (after the review fixes)"
+  ],
+  "note": "re-measured on the stacked base; the PR's own commits are 46178fb, 46aebce, 2b28525 and the record commits"
  },
  "machine": {
   "platform": "macOS-26.6.2-arm64-arm-64bit",
@@ -58,8 +57,8 @@
     "files": 1000,
     "calls": [
      {
-      "before_ms": 23.6,
-      "after_ms": 34.9,
+      "before_ms": 22.9,
+      "after_ms": 36.5,
       "recorded": "e3",
       "line_bytes": 2062,
       "changes_state": "observed",
@@ -68,8 +67,8 @@
       "session_observation": "on"
      },
      {
-      "before_ms": 25.8,
-      "after_ms": 34.7,
+      "before_ms": 22.7,
+      "after_ms": 35.9,
       "recorded": "e4",
       "line_bytes": 2062,
       "changes_state": "observed",
@@ -78,8 +77,8 @@
       "session_observation": "on"
      },
      {
-      "before_ms": 22.8,
-      "after_ms": 34.7,
+      "before_ms": 23.5,
+      "after_ms": 35.5,
       "recorded": "e5",
       "line_bytes": 2062,
       "changes_state": "observed",
@@ -88,8 +87,8 @@
       "session_observation": "on"
      },
      {
-      "before_ms": 22.3,
-      "after_ms": 35.2,
+      "before_ms": 23.0,
+      "after_ms": 37.4,
       "recorded": "e6",
       "line_bytes": 2062,
       "changes_state": "observed",
@@ -103,8 +102,8 @@
     "files": 10000,
     "calls": [
      {
-      "before_ms": 50.0,
-      "after_ms": 63.5,
+      "before_ms": 50.8,
+      "after_ms": 72.3,
       "recorded": "e3",
       "line_bytes": 2063,
       "changes_state": "observed",
@@ -113,8 +112,8 @@
       "session_observation": "on"
      },
      {
-      "before_ms": 53.9,
-      "after_ms": 63.5,
+      "before_ms": 54.2,
+      "after_ms": 69.5,
       "recorded": "e4",
       "line_bytes": 2063,
       "changes_state": "observed",
@@ -123,8 +122,8 @@
       "session_observation": "on"
      },
      {
-      "before_ms": 48.4,
-      "after_ms": 64.4,
+      "before_ms": 54.4,
+      "after_ms": 70.8,
       "recorded": "e5",
       "line_bytes": 2063,
       "changes_state": "observed",
@@ -133,8 +132,8 @@
       "session_observation": "on"
      },
      {
-      "before_ms": 50.7,
-      "after_ms": 66.5,
+      "before_ms": 50.1,
+      "after_ms": 76.5,
       "recorded": "e6",
       "line_bytes": 2063,
       "changes_state": "observed",
@@ -148,18 +147,18 @@
     "files": 50000,
     "calls": [
      {
-      "before_ms": 78.7,
-      "after_ms": 31.9,
+      "before_ms": 95.1,
+      "after_ms": 24.2,
       "recorded": "e3",
-      "line_bytes": 1859,
+      "line_bytes": 1860,
       "changes_state": "not_observed",
       "changes_reason": "too_many_entries",
       "changes_total": null,
       "session_observation": "off"
      },
      {
-      "before_ms": 19.3,
-      "after_ms": 30.1,
+      "before_ms": 10.6,
+      "after_ms": 23.6,
       "recorded": "e4",
       "line_bytes": 1839,
       "changes_state": "not_observed",
@@ -168,8 +167,8 @@
       "session_observation": "off"
      },
      {
-      "before_ms": 19.4,
-      "after_ms": 30.3,
+      "before_ms": 11.0,
+      "after_ms": 23.0,
       "recorded": "e5",
       "line_bytes": 1839,
       "changes_state": "not_observed",
@@ -178,8 +177,8 @@
       "session_observation": "off"
      },
      {
-      "before_ms": 22.3,
-      "after_ms": 30.3,
+      "before_ms": 10.6,
+      "after_ms": 24.7,
       "recorded": "e6",
       "line_bytes": 1839,
       "changes_state": "not_observed",
@@ -194,8 +193,8 @@
    "entries": 25000,
    "calls": [
     {
-     "before_ms": 28.9,
-     "after_ms": 31.9,
+     "before_ms": 21.4,
+     "after_ms": 25.5,
      "recorded": "e3",
      "line_bytes": 1859,
      "changes_state": "not_observed",
@@ -204,8 +203,8 @@
      "session_observation": "off"
     },
     {
-     "before_ms": 21.6,
-     "after_ms": 32.5,
+     "before_ms": 10.5,
+     "after_ms": 22.7,
      "recorded": "e4",
      "line_bytes": 1839,
      "changes_state": "not_observed",
@@ -214,8 +213,8 @@
      "session_observation": "off"
     },
     {
-     "before_ms": 10.1,
-     "after_ms": 10.0,
+     "before_ms": 0.7,
+     "after_ms": 0.4,
      "recorded": "e4",
      "line_bytes": 1839,
      "changes_state": "not_observed",
@@ -228,19 +227,19 @@
  },
  "kit_cost": {
   "files_1000": {
-   "after_ms": 15.4,
-   "before_ms": 19.5,
+   "after_ms": 3.9,
+   "before_ms": 3.8,
    "files": 1000,
-   "line_bytes": 1663
+   "line_bytes": 1662
   },
   "files_10000": {
-   "after_ms": 48.3,
-   "before_ms": 46.9,
+   "after_ms": 32.8,
+   "before_ms": 31.3,
    "files": 10000,
    "line_bytes": 1663
   },
   "single_directory_25000": {
-   "before_ms": 18.9,
+   "before_ms": 10.3,
    "bound": 20000,
    "entries": 25000
   }
@@ -248,17 +247,17 @@
  "hash": [
   {
    "mib": 64,
-   "after_ms": 44.7,
+   "after_ms": 37.1,
    "hash": "hashed"
   },
   {
    "mib": 200,
-   "after_ms": 96.9,
+   "after_ms": 92.9,
    "hash": "hashed"
   },
   {
    "mib": 512,
-   "after_ms": 21.1,
+   "after_ms": 11.1,
    "hash": "over_budget"
   }
  ],
@@ -296,7 +295,8 @@
   "whole_value_cases": 10,
   "hostile_100_kb_lines": 16,
   "hostile_bound_s": 0.5,
-  "named_changed_files": "a file the command names whose bytes match the rules keeps no hash or size"
+  "named_changed_files": "a file the command names whose bytes match the rules keeps no hash or size",
+  "telemetry": "the whole command redacted, then cut to 300 characters; over 256 KiB only its length"
  },
  "sharing": {
   "profiles": [
@@ -364,46 +364,51 @@
  "verification": [
   {
    "command": "uv run --locked pytest -q --timeout 600 --timeout-method=thread -p no:cacheprovider",
-   "source": "36cc1a3 (clean)",
+   "source": "5648b71 (PR-2 tip, includes 2b28525; clean)",
    "result": "pass",
-   "summary": "3340 passed, 148 skipped, 748 s"
+   "summary": "3424 passed, 148 skipped, 790 s"
+  },
+  {
+   "command": "uv run --locked pytest tests/test_observed.py",
+   "source": "2b28525 (clean)",
+   "result": "pass",
+   "summary": "129 passed"
   },
   {
    "command": "uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 ... five aelix files",
-   "source": "36cc1a3 (clean)",
+   "source": "5648b71",
    "result": "pass",
-   "summary": "1057 passed"
+   "summary": "1089 passed"
   },
   {
    "command": "same with --python 3.11",
-   "source": "36cc1a3 (clean)",
+   "source": "5648b71",
    "result": "pass",
-   "summary": "1057 passed"
+   "summary": "1089 passed"
   },
   {
    "command": "python3.11 tools/platform_smoke.py --stdlib-only --gate required",
-   "source": "36cc1a3 (clean)",
+   "source": "5648b71",
    "result": "pass",
    "summary": "holds 15, violated 0"
   },
   {
-   "command": "uv run --locked ruff check tests extension src tools; tools/check_docs.py; tools/release_check.py version",
-   "source": "36cc1a3",
+   "command": "ruff check; tools/check_docs.py; tools/release_check.py version",
+   "source": "5648b71",
    "result": "pass"
   },
   {
-   "command": "first measurement and tests before the reviews",
-   "source": "d87a8f1",
+   "command": "earlier measurements",
+   "source": "d87a8f1, 36cc1a3",
    "result": "pass",
-   "summary": "3305 passed, 148 skipped; aelix 1053 passed (3.12, 3.11)"
+   "summary": "3305 / 3340 passed; aelix 1053 / 1057"
   }
  ],
  "not_run": [
-  "Linux and Windows (CI after push)",
+  "Linux and Windows (this PR's CI)",
   "cold OS file cache, network drives, FAT",
   "a real model session",
   "a read stuck in a real network mount (reproduced with a function double)",
-  "the fix-diff check of the review fixes",
   "PR-2: Workspace screens and C18 provenance (its own record)"
  ],
  "reviews": {
@@ -411,6 +416,8 @@
    "independent (2026-11-10)",
    "Codex (2026-11-10)"
   ],
-  "fixed_in": "36cc1a3"
+  "fixed_in": "46aebce",
+  "fix_diff_check": "Codex (2026-11-10)",
+  "fix_diff_fixed_in": "2b28525"
  }
 }
