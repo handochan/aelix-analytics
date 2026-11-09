@@ -135,7 +135,7 @@ def test_context_pages_preserve_whole_sections_and_reference_lookup(tmp_path):
 
 def test_repeated_source_changes_return_updating_without_facts(tmp_path, monkeypatch):
     p = project_at(tmp_path)
-    record(p)
+    first = record(p)
     original = relations.QueryPolicy.page
     calls = []
     def changing(self, *args, **kwargs):
@@ -147,6 +147,11 @@ def test_repeated_source_changes_return_updating_without_facts(tmp_path, monkeyp
     assert len(calls) == 3
     assert result["updating"] and not result["items"]
     assert result["omitted"]["reason"] == "updating" and result["total"] == "unknown"
+    # A read of one record that keeps changing says nothing of the record's text either (#156).
+    selected = core.retrieve(p, id=first["id"])
+    assert len(calls) == 6
+    assert selected["updating"] and not selected["items"]
+    assert "text_chars" not in selected and "text_truncated" not in selected and "record_state" not in selected
 
 
 def test_equal_relevance_preserves_old_and_new_judgments(tmp_path):

@@ -2878,7 +2878,10 @@ TEXT_RULES = {
     relations.EVENT_V1: f"lab.event/1: a kit before 0.8.0 kept only the first {LEGACY_TEXT_CHARS:,} "
                         "characters of a text",
     relations.EVENT_V2: "analytics.event/2: the writer keeps the whole text it is given (white space around "
-                        f"it aside) and refuses one over {writer.TEXT_LIMIT:,} bytes of UTF-8, never cutting it",
+                        f"it aside) and refuses one over {writer.TEXT_LIMIT:,} bytes of UTF-8, never cutting it; "
+                        "a text the kit makes (project, import, run) may quote a shortened field — a title or "
+                        f"description past {writer.EXCERPT_CHARS:,} characters, a run's error summary of "
+                        "300 — whose whole value is kept in its own record",
 }
 
 

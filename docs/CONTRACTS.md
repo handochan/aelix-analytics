@@ -211,11 +211,11 @@ kit 0.11.0의 같은 기준에 묶인 cursor·다음 페이지·부분 조회는
   `run:<run_id>`·`report:<report_id>/<revision_id>`를 받습니다. 필드 값은 문자열·JSON까지 통째로 반환하며 자르지 않습니다.
   그래서 큰 한 필드가 한 페이지 목표 크기를 넘을 수 있습니다. 알 수 없거나 읽지 못한 ID는 `record_not_found`, 중복 ID는
   `ambiguous_id`와 줄 후보입니다. run·Report 검색은 관련 journal의 완료 기록으로 찾고 그 버전 ID로 읽습니다.
-  기록에 문자열 `text`가 있으면 모든 페이지가 그 글자 수 `text_chars`를 줍니다(kit 0.32.1, #156): Unicode 코드 포인트(Python의 `len`)이고,
+  기록에 문자열 `text`가 있으면 모든 페이지가(`updating` 응답 제외: 그때는 항목도 비어 있음) 그 글자 수 `text_chars`를 줍니다(kit 0.32.1, #156): Unicode 코드 포인트(Python의 `len`)이고,
   검색 결과의 `text_chars`와 같은 단위이며 `journal.jsonl`의 UTF-8 바이트 수가 아닙니다. 기록 형식이 쓴 쪽의 규칙을 말해 주면
-  `text_truncated`(`state`와 그 규칙의 글 `rule`)도 줍니다. `analytics.event/2`는 `no`입니다: 공통 writer는 받은 글을 통째로 남기고,
-  UTF-8로 32 KiB를 넘는 글은 자르지 않고 거절합니다(C1). kit이 만든 본문이 다른 곳에 통째로 남는 필드를 4,000자까지 인용한 것(C1의
-  `writer.excerpt`)도 writer가 자른 것이 아니라 `no`입니다. `lab.event/1`은 4,000자 미만이면 `no`, 꼭 4,000자이면 `possibly`입니다:
+  `text_truncated`도 줍니다. `text_truncated`는 불리언인 `context_truncated`(status)·`truncated`(query)와 달리 객체 `{state, rule}`(상태와 그 규칙의 글)입니다: `state`가 `no`여도 참·거짓으로 판정하면 참이므로 `state`를 읽습니다. `analytics.event/2`는 `no`입니다: 공통 writer는 받은 글을 통째로 남기고,
+  UTF-8로 32 KiB를 넘는 글은 자르지 않고 거절합니다(C1). kit이 만든 본문(`project`·`import`·`run` 기록)이 다른 곳에 통째로 남는 필드를 줄여 인용한 것 — 4,000자 뒤를 `…`로 줄인 제목·설명(C1의
+  `writer.excerpt`), run 오류의 300자 요약(전체는 `run.json`의 `error.message`) — 도 writer가 자른 것이 아니라 `no`이고, `rule`이 그렇게 말합니다. `lab.event/1`은 4,000자 미만이면 `no`, 꼭 4,000자이면 `possibly`입니다:
   kit 0.8.0 전의 writer가 4,000자 뒤를 버렸고, 그보다 길었는지는 기록에 없습니다. 4,000자보다 긴 `lab.event/1` 글(그 writer가 쓰지
   않은 글)에는 `text_truncated`가 없습니다. run·Report처럼 `text`가 없는 기록에는 둘 다 없습니다. 글자 수는 32 KiB 쓰기 상한에 얼마나
   가까운지를 말하지 않습니다(그 상한은 바이트입니다).
