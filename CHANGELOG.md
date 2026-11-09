@@ -25,8 +25,8 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   `.analytics/observed/<activity_id>/`). run이 아니며 입력·환경·출력은 남기지 않습니다. 결과 끝의 #170 안내는 `Observed as eN`을 덧붙이고, Python이
   아닌 명령도 설명되지 않은 변경을 남겼으면 짧게 알립니다(그 명령이 썼다고 말하지 않음). 명령 글은 토큰·비밀번호·URL 질의 값·알려진 키 꼴 등을
   `[redacted]`로 가린 뒤에만 남고, 비밀일 수 있는 이름의 파일은 해시하거나 복사하지 않습니다. 큰 `data/`(파일 2만 개 초과)나 연속 시간 초과에서는 그
-  세션의 변경 관찰을 끄고 그렇다고 알립니다. `analytics_status`는 관찰을 최근 기록에서 빼고 한 줄로 세고(`part=records kind=observed_activity`로
-  읽음), 맥락 블록은 현재 세션의 관찰이 있을 때 한 줄을 넣습니다. 공유본에는 들지 않고 내용 기준도 움직이지 않습니다. 첫 관찰이 표식의
+  세션의 변경 관찰을 끄고 그렇다고 알립니다. 앞선 관찰이 아직 돌고 있어 건너뛴 호출은 telemetry의 `observation_skipped`로 남고 수로 보입니다.
+  `analytics_status`는 관찰을 최근 기록에서 빼고 한 줄로 세고(`part=records kind=observed_activity`로 읽음), 맥락 블록은 현재 세션의 관찰이 있을 때 한 줄을 넣습니다. 공유본에는 들지 않고 내용 기준도 움직이지 않습니다. 첫 관찰이 표식의
   `min_writer_version`을 0.32.1로 올립니다(CONTRACTS C22).
 
 - #170: aelix에서 모델이 bash로 kit을 거치지 않고 Python을 돌리면(`python scripts/x.py`, `uv run python …` 등 telemetry의

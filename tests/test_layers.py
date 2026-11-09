@@ -105,7 +105,7 @@ LAYERS: dict[str, Layer] = {
                    "the project model: domain and shared application, not split yet"),
     # Issue #171 (ADR-0015): the file state shared by a run's outputs and an observed activity, and the
     # observation itself, with an injected project and Writer; core imports it so the aelix process has it.
-    "observation": _layer(2, ("ports", "read_model", "observation"), (),
+    "observation": _layer(2, ("ports", "read_model", "writer", "observation"), (),
                           "the project's file state before and after a command, and the observed activity of a bash "
                           "call, with an injected project and Writer and no core or host import"),
     "asset_application": _layer(2, ("ports", "read_model", "writer", "asset_application"), (),

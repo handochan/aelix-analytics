@@ -10,6 +10,8 @@ readers make of the record. Test values that stand for secrets are named canary/
 
 from __future__ import annotations
 
+import contextlib
+import copy
 import hashlib
 import json
 import os
@@ -897,3 +899,252 @@ def test_the_schema_and_the_reader_refuse_what_is_no_observation(proj, change):
     change(event)
     assert not EVENT.is_valid(event)
     assert relations.observed_activity_problem(event) is not None
+
+
+# --- review fixes (implementation reviews of 2026-11-10) -------------------------------------------------
+
+WHOLE_VALUES = {
+    "comma": ("API_TOKEN=canary-w1,marker-w1 python x.py", "canary-w1 marker-w1"),
+    "quoted_space": ("curl -u 'user:canary-w2 marker-w2' https://h.example", "canary-w2 marker-w2"),
+    "escaped_space": ("curl -u user:canary-w3\\ marker-w3 https://h.example", "canary-w3 marker-w3"),
+    "inner_quotes": ('export DB_PASSWORD=canary-w4"marker-w4 x"y && python x.py', "canary-w4 marker-w4"),
+    "option_quoted": ("python x.py --token 'canary-w5 marker-w5'", "canary-w5 marker-w5"),
+    "after_note": ("echo note: x https://h.example -H X-Auth-Token:canary-w6", "canary-w6"),
+    "dict_cookie": ("python -c '{\"Cookie\": \"sessionid=canary-w7\"}'", "canary-w7"),
+    "api_key_header": ("curl -H 'api-key: canary-w8' https://h.example", "canary-w8"),
+    "gitlab_header": ("curl -H 'PRIVATE-TOKEN: canary-w9' https://h.example", "canary-w9"),
+    "option_after_option": ("python x.py --title --token canary-w10", "canary-w10"),
+}
+
+
+@pytest.mark.parametrize("case", sorted(WHOLE_VALUES))
+def test_a_value_is_redacted_whole(proj, case):
+    """Review (Codex 1, independent m1): a value is one shell word — quotes, escapes and separators in it
+    included — so no part of it is kept; a name that holds no secret earlier on a line hides nothing."""
+    command, canaries = WHOLE_VALUES[case]
+    d = details(Observer(proj)(command + " " + "#" * (observed.COMMAND_INLINE + 10), python=True))
+    folder = proj / ".analytics" / "observed" / d["activity_id"]
+    stored = (proj / "journal.jsonl").read_bytes() + b"".join(p.read_bytes() for p in folder.rglob("*") if p.is_file())
+    for canary in canaries.split():
+        assert canary.encode() not in stored, (case, canary)
+
+
+HOSTILE = {"dates": "2026-11-10-" * 9100, "acgt": "ACGT-" * 20000, "query": "?a" * 50000, "eq": "a=" * 50000,
+           "double_quotes": '"' * 100000, "single_quotes": "'" * 100000, "hyphens": "-" * 100000,
+           "options": "--a" * 33000, "x_headers": "x-" * 50000, "jwt_heads": "eyJ" * 33000, "colons": "a:" * 50000,
+           "backslashes": "\\" * 100000, "dict_heads": "{'" * 50000, "user_options": "-u " * 33000,
+           "header_words": "x-api-key " * 10000, "urls": "https://" * 12000}
+
+
+@pytest.mark.parametrize("case", sorted(HOSTILE))
+def test_redaction_reads_a_hostile_100_kb_line_in_linear_time(case):
+    """Review (independent D1): every rule reads a long run once; a 100 KB line of each shape that made a
+    pattern quadratic before (a hyphenated run under the header rule took 20 s) is redacted at once."""
+    started = time.perf_counter()
+    observed.redact(HOSTILE[case])
+    assert time.perf_counter() - started < 0.5, case
+
+
+def test_a_hostile_command_is_observed_within_the_bound(proj):
+    command = "python x.py " + "2026-11-10-" * 9100
+    started = time.perf_counter()
+    out = Observer(proj)(command)
+    assert out.event is not None and time.perf_counter() - started < observed.BEFORE_SECONDS + observed.AFTER_SECONDS
+
+
+def test_a_file_the_command_wrote_with_a_secret_keeps_no_hash_or_size(proj):
+    """Review (independent D2): a file the command names (a heredoc's target, a script) whose bytes match
+    the redaction rules keeps neither its sha256 nor its size in the changes, as its script copy is
+    refused; a file it names without a secret is hashed as before."""
+    pin = "pin4821canary"
+    command = (f"cat > analysis.py <<'EOF'\nAPI_TOKEN = \"{pin}\"\nEOF\ncat > conf.json <<'EOF'\n"
+               f"{{\"api_key\": \"{pin}\"}}\nEOF\necho ok > plain.txt\npython analysis.py")
+
+    def act():
+        write(proj / "analysis.py", f'API_TOKEN = "{pin}"\n')
+        write(proj / "conf.json", f'{{"api_key": "{pin}"}}\n')
+        write(proj / "plain.txt", "ok\n")
+
+    d = details(Observer(proj)(command, act))
+    items = {i["path"]: i for i in d["changes"]["items"]}
+    for path in ("analysis.py", "conf.json"):
+        assert (items[path]["hash"], items[path]["sha256"], items[path]["bytes"], items[path]["reason"]) == (
+            "withheld", None, None, "secret_like"), path
+    assert items["plain.txt"]["hash"] == "hashed"
+    [script] = d["scripts"]["items"]
+    assert (script["hash"], script["sha256"], script["bytes"]) == ("withheld", None, None)
+    stored = (proj / "journal.jsonl").read_text(encoding="utf-8")
+    for data in (f'API_TOKEN = "{pin}"\n', f'{{"api_key": "{pin}"}}\n'):
+        assert sha(data.encode()) not in stored and pin not in stored
+
+
+def test_a_project_inside_a_repository_is_judged_by_the_repository_s_ignore_rules(tmp_path):
+    """Review (Codex 2): a project in a folder of a git repository (no `.git` of its own) asks git, so a
+    script the repository's .gitignore leaves out is not copied."""
+    if shutil.which("git") is None:
+        pytest.skip("no git")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    write(repo / ".gitignore", "proj/scripts/private_*\n")
+    root = core.init_project(repo / "proj", title="Inside", template_dir=TEMPLATE, origin=core.Origin("test", "sdk")).root
+    write(root / "scripts" / "private_x.py", "print(1)\n")
+    write(root / "scripts" / "public.py", "print(2)\n")
+    d = details(Observer(root)("python scripts/private_x.py scripts/public.py"))
+    items = {i["path"]: i for i in d["scripts"]["items"]}
+    assert (items["scripts/private_x.py"]["copy"], items["scripts/private_x.py"]["copy_reason"]) == (None, "ignored")
+    assert items["scripts/public.py"]["copy"] == "scripts/scripts/public.py"
+
+
+def test_an_error_once_the_line_may_be_written_keeps_the_attachments(proj, monkeypatch):
+    """Review (Codex 3): the attachments are removed only when no event is certain. A write that fails
+    after its bytes went out leaves the observation `unconfirmed` with its attachments; an error after the
+    event was written (the lock's release) keeps the event and the attachments."""
+    write(proj / "scripts" / "a.py", "print(1)\n")
+    real = writer.append_line
+
+    def cut_short(path, line, **kw):
+        real(path, line, **kw)
+        raise OSError(5, "the write was cut short")
+
+    monkeypatch.setattr(writer, "append_line", cut_short)
+    out = Observer(proj)("python scripts/a.py")
+    assert out.event is None and out.reason == "unconfirmed"
+    row = journal(proj)[-1]
+    assert row["kind"] == "observed_activity"
+    assert (proj / ".analytics" / "observed" / row["details"]["activity_id"]).is_dir()
+    monkeypatch.setattr(writer, "append_line", real)
+
+    real_locked = writer.Writer.locked
+
+    @contextlib.contextmanager
+    def failing_release(self, op="write", **kw):
+        with real_locked(self, op, **kw) as held:
+            yield held
+        raise OSError(5, "the lock could not be released")
+
+    monkeypatch.setattr(writer.Writer, "locked", failing_release)
+    out = Observer(proj)("python scripts/a.py")
+    assert out.event is not None
+    assert (proj / ".analytics" / "observed" / out.event["details"]["activity_id"]).is_dir()
+
+
+def test_a_deletion_with_a_run_record_that_cannot_be_read_is_unknown(proj):
+    """Review (Codex 5): a run completed in the window but its record cannot be read: a deletion no other
+    explanation covers is `unknown` (`run_record_unread`), not `unexplained`."""
+    write(proj / "data" / "gone.csv", "x\n")
+    observer = Observer(proj)
+    prior = observer.before("sh x.sh")
+    (proj / "data" / "gone.csv").unlink()
+    row = {"schema": "analytics.event/2", "seq": 3, "id": "e3", "recorded_at": "2026-11-10T00:00:00.000+00:00",
+           "kind": "run", "actor": "human", "text": "a run", "refs": [
+               {"type": "run", "run_id": "20261110-000000-nowhere", "relation": "about", "basis": "observed",
+                "version_binding": "author"}]}
+    with open(proj / "journal.jsonl", "ab") as fh:
+        fh.write(json.dumps(row).encode() + b"\n")
+    d = details(observer.after(prior, python=False))
+    [item] = d["changes"]["items"]
+    assert (item["change"], item["explanation"], item["reason"]) == ("deleted", "unknown", "run_record_unread")
+
+
+def _required_paths(schema_node, defs, prefix=()):
+    """Every (path, key) the record schema requires below observed_activity_details: nested objects and
+    the first item of a list."""
+    node = schema_node
+    if "$ref" in node:
+        node = defs[node["$ref"].rsplit("/", 1)[1]]
+    out = []
+    for key in node.get("required", ()):
+        out.append((prefix, key))
+    for key, child in (node.get("properties") or {}).items():
+        if isinstance(child, dict) and child.get("type") == "object" or "$ref" in child and key != "sha256" and key not in (
+                "started_at", "ended_at", "activity_id"):
+            out += _required_paths(child, defs, (*prefix, key))
+        elif isinstance(child, dict) and child.get("type") == "array" and isinstance(child.get("items"), dict) \
+                and child["items"].get("type") == "object":
+            out += _required_paths(child["items"], defs, (*prefix, key, 0))
+    return out
+
+
+def test_the_reader_refuses_every_row_the_schema_refuses_for_a_missing_field(proj):
+    """Review (Codex 6): each field the record schema requires, at every level, missing → the schema and
+    the reader both refuse the row, so it is neither counted nor left out of a share's content basis."""
+    from aelix_analytics.publishing.basis import content_basis
+
+    write(proj / "scripts" / "a.py", "print(1)\n")
+    event = journal(proj) and details(Observer(proj)("python scripts/a.py --rows 1",
+                                                     lambda: write(proj / "data" / "x.csv", "x\n"))) and journal(proj)[-1]
+    defs = SCHEMA["$defs"]
+    paths = _required_paths(defs["observed_activity_details"], defs)
+    assert len(paths) > 40
+    for prefix, key in paths:
+        broken = copy.deepcopy(event)
+        target = broken["details"]
+        for step in prefix:
+            target = target[step]
+        target.pop(key)
+        assert not EVENT.is_valid(broken), (prefix, key)
+        assert relations.observed_activity_problem(broken) is not None, (prefix, key)
+    broken = copy.deepcopy(event)
+    broken["details"]["performer"].pop("tool_call_id")
+    data = (proj / "journal.jsonl").read_bytes().rsplit(b"\n", 2)[0] + b"\n" + json.dumps(broken).encode() + b"\n"
+    read = relations.Journal(data)
+    basis, _ = content_basis(read, validate_reference=writer.reference_problem)
+    assert basis.content.content_seq == read.as_of_seq
+    assert relations.observed_activities(read) == []
+
+
+def test_a_path_unreadable_after_that_was_not_there_before_is_no_change(proj, monkeypatch):
+    """Review (independent D3): a file the walk lists but can never stat (a folder that can be listed and
+    not entered) is not a change of every window."""
+    write(proj / "data" / "private" / "x.csv", "x\n")
+    target = os.fspath(core.Project(proj).locate(proj / "data" / "private" / "x.csv")[1])
+    real_stat = os.stat
+
+    def stat(p, *a, **kw):
+        if os.fspath(p) == target:
+            raise PermissionError(13, "denied")
+        return real_stat(p, *a, **kw)
+
+    monkeypatch.setattr(tree_state.os, "stat", stat)
+    assert Observer(proj)("ls", python=False).reason == "nothing_to_record"
+
+
+def test_the_hash_budget_counts_the_bytes_read(proj, monkeypatch):
+    """Review (minor): a file that grows after the walk saw it is read only up to the budget."""
+    monkeypatch.setattr(observed, "HASH_BYTES", 8)
+    observer = Observer(proj)
+    prior = observer.before("sh x.sh")
+    path = write(proj / "data" / "grow.csv", b"abcd")
+    seen = tree_state.stat_of(path)
+    real = tree_state.stat_of
+    monkeypatch.setattr(observed.tree_state, "stat_of", lambda p: seen if os.fspath(p).endswith("grow.csv") else real(p))
+    monkeypatch.setattr(observed.tree_state, "tree_stat", _with_size_of(tree_state.tree_stat, "data/grow.csv", seen))
+    path.write_bytes(b"abcd" * 3)
+    d = details(observer.after(prior, python=False))
+    [item] = d["changes"]["items"]
+    assert (item["hash"], item["sha256"]) == ("over_budget", None)
+
+
+def _with_size_of(real, rel, st):
+    def tree_stat(project, budget=None):
+        out = real(project, budget)
+        if rel in out:
+            out[rel] = st
+        return out
+    return tree_stat
+
+
+def test_a_turning_off_no_record_could_hold_is_recorded_by_the_next_observation(proj):
+    """Review (Codex 4): the session's observation turned off by a view no record followed is pending,
+    and the next observation of the session records `observation_off`."""
+    observer = Observer(proj)
+    sessions = observer.sessions
+    sessions.viewed("s1", None)
+    for _ in range(3):
+        sessions.viewed("s1", "timeout")
+    assert sessions.off("s1") and sessions.pending("s1")
+    d = details(observer("ls", python=False, view=False))
+    assert d["reasons"] == ["observation_off"] and d["session_observation"] == "off"
+    assert not sessions.pending("s1")
+    assert observer("ls", python=False, view=False).reason == "nothing_to_record"

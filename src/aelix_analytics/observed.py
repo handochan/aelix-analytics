@@ -30,6 +30,7 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 
 from . import _platform, relations, tree_state
+from .writer import AnalyticsError
 
 KIND = relations.OBSERVED_KIND
 CONTRACT = relations.OBSERVED_CONTRACT
@@ -108,9 +109,21 @@ def secret_name(name: str) -> bool:
     return any(word in folded for word in _SECRET_WORDS) or bool(re.search(r"[_-]key$", name, re.IGNORECASE))
 
 
-# A value as a shell or code text writes it: quoted (its quotes kept) or a run of what is not space,
-# quote or a separator.
-_VALUE = r"""(?:"(?:[^"\\\n]|\\.)*"|'[^'\n]*'|[^\s"';&|<>(){},]+)"""
+# The headers whose value is a credential whatever their name says (rule 5), and a key or header name that
+# may hold a secret: rule 1's, or one of these.
+_CREDENTIAL_HEADERS = frozenset({"authorization", "proxy-authorization", "cookie", "set-cookie"})
+
+
+def secret_key(name: str) -> bool:
+    return name.lower() in _CREDENTIAL_HEADERS or secret_name(name)
+
+
+# A value as a shell writes one word: unquoted characters, escapes and quoted parts, up to an unquoted
+# space or operator — so `API_TOKEN=a,b` and `--token 'a b'` are one value each, whole. Each part starts
+# with a character the others cannot, so a long run is read once (no backtracking).
+_SHELL_WORD = r"""(?:[^\s;&|<>()'"\\`]|\\.|'[^']*'|"(?:[^"\\]|\\.)*")+"""
+# A value as code writes one: a quoted string (its escapes read), or a bare run up to a separator.
+_CODE_VALUE = r"""(?:"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|[^\s,;}\])]+)"""
 _PEM = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|\Z)",
                   re.DOTALL)
 _KNOWN = re.compile(
@@ -124,22 +137,58 @@ _KNOWN = re.compile(
     r"|AIza[A-Za-z0-9_-]{35}"
     r"|hf_[A-Za-z0-9]{16,}|npm_[A-Za-z0-9]{16,})")
 _URL_USER = re.compile(r"(?<=://)([^\s/@:'\"]+):([^\s/@'\"]+)(?=@)")
-_URL_QUERY = re.compile(r"(?<=[?&])([^\s=&#'\"]+)=([^\s&#'\"]*)")
-_HEADER = re.compile(r"(?i)\b(authorization|proxy-authorization|cookie|set-cookie|[A-Za-z0-9-]+)(\s*:\s*)"
-                     r"([^\n'\"]+)")
+# A query's names hold no `?`: each name is read from the `?` or `&` before it only (a long `?a?a…` once).
+_URL_QUERY = re.compile(r"(?<=[?&])([^\s=&#?'\"]+)=([^\s&#'\"]*)")
+# A header's name (or a `name: value` line's) starts where no letter, digit or `-` is before it, so a long
+# hyphenated run is read once; only the name and its colon are matched, so a name that holds no secret
+# (`note:`, `https:`) never hides a header after it on the line (_redact_headers).
+_HEADER_NAME = re.compile(r"(?<![A-Za-z0-9-])([A-Za-z][A-Za-z0-9-]*)[ \t]*:[ \t]*")
+_HEADER_VALUE = re.compile(r"[^\n'\"]+")
 _SCHEME = re.compile(r"(?i)\b(bearer|basic)(\s+)([A-Za-z0-9._~+/=-]+)")
-_POWERSHELL_ENV = re.compile(r"(?i)(\$env:)([A-Za-z_][A-Za-z0-9_]*)(\s*=\s*)(" + _VALUE + ")")
-_ASSIGNMENT = re.compile(r"(?<![\w$.-])([A-Za-z_][A-Za-z0-9_]*)(=)(" + _VALUE + ")")
-_CODE_ASSIGNMENT = re.compile(r"""(?<![\w.-])([A-Za-z_][A-Za-z0-9_]*)(\s*[=:]\s*)("(?:[^"\\\n]|\\.)*"|'[^'\n]*')""")
-_DICT_KEY = re.compile(r"""(["'])([^"'\n]+)\1(\s*:\s*)(""" + _VALUE + ")")
-_OPTION_EQ = re.compile(r"(?<![\w-])(--?[A-Za-z][A-Za-z0-9_.-]*)(=)(" + _VALUE + ")")
-_OPTION_NEXT = re.compile(r"(?<![\w-])(--?[A-Za-z][A-Za-z0-9_.-]*)([ \t]+)(" + _VALUE + ")")
-_USER_PASSWORD = re.compile(r"(?<![\w-])(-u|--user)([ \t]+|=)(['\"]?)([^\s:'\"]+):([^\s'\"]+)")
+_POWERSHELL_ENV = re.compile(r"(?i)(\$env:)([A-Za-z_][A-Za-z0-9_]*)(\s*=\s*)(" + _SHELL_WORD + ")")
+_ASSIGNMENT = re.compile(r"(?<![\w$.-])([A-Za-z_][A-Za-z0-9_]*)(=)(" + _SHELL_WORD + ")")
+_CODE_ASSIGNMENT = re.compile(r"""(?<![\w.-])([A-Za-z_][A-Za-z0-9_]*)([ \t]*[=:][ \t]*)("(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*')""")
+_DICT_KEY = re.compile(r"""(["'])([^"'\n]+)\1([ \t]*:[ \t]*)(""" + _CODE_VALUE + ")")
+_OPTION_EQ = re.compile(r"(?<![\w-])(--?[A-Za-z][A-Za-z0-9_.-]*)(=)(" + _SHELL_WORD + ")")
+_OPTION_NEXT = re.compile(r"(?<![\w-])(--?[A-Za-z][A-Za-z0-9_.-]*)([ \t]+)((?!-)" + _SHELL_WORD + ")")
+_USER_PASSWORD = re.compile(r"(?<![\w-])(-u|--user)([ \t]+|=)(" + _SHELL_WORD + ")")
+
+
+def _redact_headers(text: str) -> tuple[str, int]:
+    """Rule 5's headers: the value of each `name:` whose name is a credential's (secret_key) up to the end
+    of its line or a quote."""
+    out, at, count = [], 0, 0
+    for match in _HEADER_NAME.finditer(text):
+        if match.start() < at or not secret_key(match.group(1)):
+            continue
+        value = _HEADER_VALUE.match(text, match.end())
+        if value is None or value.group(0).strip() in ("", REDACTED):
+            continue
+        out += [text[at:match.end()], REDACTED]
+        at = value.end()
+        count += 1
+    return "".join(out) + text[at:], count
+
+
+def _user_password(word: str) -> str | None:
+    """`user:[redacted]` for a `-u`/`--user` value, its quotes kept; None when it holds no password."""
+    quote = word[0] if len(word) > 1 and word[0] in "'\"" and word[-1] == word[0] else ""
+    inner = word[1:-1] if quote else word
+    if quote and inner.count(quote):
+        return REDACTED  # several quoted parts: the whole value
+    if ":" not in inner:
+        return None
+    user = inner.split(":", 1)[0]
+    if any(c in user for c in "'\"\\"):
+        return REDACTED
+    return f"{quote}{user}:{REDACTED}{quote}"
 
 
 def redact(text: str) -> tuple[str, int]:
     """`text` with the values rules_version 1 names replaced by `[redacted]`, and how many were. A deny
-    list (decision 5): it says the rules were applied, never that no secret is left."""
+    list (decision 5): it says the rules were applied, never that no secret is left. Every pattern reads
+    a long run once (no nested repetition, starts after a boundary), so a hostile command costs time in
+    proportion to its length."""
     count = 0
 
     def sub(pattern, keep, value_group, text, *, when=None):
@@ -149,10 +198,13 @@ def redact(text: str) -> tuple[str, int]:
             nonlocal count
             if when is not None and not when(match):
                 return match.group(0)
-            if match.group(value_group) in ("", REDACTED, f'"{REDACTED}"', f"'{REDACTED}'"):
+            if match.group(value_group).strip() in ("", REDACTED, f'"{REDACTED}"', f"'{REDACTED}'"):
                 return match.group(0)
+            replaced = keep(match)
+            if replaced == match.group(0):
+                return replaced
             count += 1
-            return keep(match)
+            return replaced
         return pattern.sub(one, text)
 
     def groups_before(n):
@@ -164,18 +216,17 @@ def redact(text: str) -> tuple[str, int]:
     # Rule 4: a URL's password, and every value of its query.
     text = sub(_URL_USER, lambda m: f"{m.group(1)}:{REDACTED}", 2, text)
     text = sub(_URL_QUERY, lambda m: f"{m.group(1)}={REDACTED}", 2, text)
-    # Rule 5: the values of headers that carry credentials, and what follows Bearer or Basic.
-    text = sub(_HEADER, lambda m: m.group(1) + m.group(2) + REDACTED, 3, text,
-               when=lambda m: m.group(1).lower() in ("authorization", "proxy-authorization", "cookie",
-                                                     "set-cookie") or (m.group(1).lower().startswith("x-")
-                                                                       and secret_name(m.group(1))))
+    # Rule 5: the values of headers that carry credentials (Authorization, Cookie, the X-Api-Key family,
+    # `api-key:`, `PRIVATE-TOKEN:`), and what follows Bearer or Basic.
+    text, headers = _redact_headers(text)
+    count += headers
     text = sub(_SCHEME, lambda m: m.group(1) + m.group(2) + REDACTED, 3, text)
     # Rule 3: `-u user:password`.
-    text = sub(_USER_PASSWORD, lambda m: f"{m.group(1)}{m.group(2)}{m.group(3)}{m.group(4)}:{REDACTED}", 5, text)
-    # Rule 2: assignments whose name is a secret's.
+    text = sub(_USER_PASSWORD, lambda m: m.group(1) + m.group(2) + (_user_password(m.group(3)) or m.group(3)), 3, text)
+    # Rule 2: assignments whose name is a secret's, and quoted keys (a header's name too: {"Cookie": …}).
     text = sub(_POWERSHELL_ENV, groups_before(4), 4, text, when=lambda m: secret_name(m.group(2)))
     text = sub(_DICT_KEY, lambda m: m.group(1) + m.group(2) + m.group(1) + m.group(3) + REDACTED, 4, text,
-               when=lambda m: secret_name(m.group(2)))
+               when=lambda m: secret_key(m.group(2)))
     text = sub(_CODE_ASSIGNMENT, groups_before(3), 3, text, when=lambda m: secret_name(m.group(1)))
     text = sub(_ASSIGNMENT, groups_before(3), 3, text, when=lambda m: secret_name(m.group(1)))
     # Rule 3: options whose name is a secret's, `--name=value` and `--name value`.
@@ -346,19 +397,40 @@ class Job:
     """One piece of an observation's work in a thread: the waiting side cancels it (or its deadline
     passes) and the work stops at its next check; once the work has begun its commit (the journal
     append under the lock) a cancel no longer stops it, and the waiting side says it could not confirm
-    whether the record was written."""
+    whether the record was written. A state view the work made is counted once (count): by the work
+    when it ends it in time, else by the waiting side as a timeout (abandon)."""
 
     def __init__(self, deadline: float):
         self.deadline = deadline
         self._lock = threading.Lock()
         self._cancelled = False
         self.committing = False
+        self.counted = False
+        self.viewing = False  # a state view was started (the waiting side counts it if the work does not)
 
     def cancel(self) -> bool:
         """Stop the work; whether its commit had begun."""
         with self._lock:
             self._cancelled = True
             return self.committing
+
+    def abandon(self, sessions, session) -> bool:
+        """The waiting side gives up: stop the work, count its state view as timed out when the work has
+        not counted it, and whether its commit had begun."""
+        with self._lock:
+            self._cancelled = True
+            if self.viewing and not self.counted:
+                self.counted = True
+                sessions.viewed(session, "timeout")
+            return self.committing
+
+    def count(self, sessions, session, outcome) -> None:
+        """Count the work's state view (Sessions.viewed) unless the waiting side already gave up on it."""
+        with self._lock:
+            if self._cancelled or self.counted:
+                return
+            self.counted = True
+            sessions.viewed(session, outcome)
 
     def cancelled(self) -> bool:
         return self._cancelled or time.monotonic() > self.deadline
@@ -379,33 +451,50 @@ class Job:
 class Sessions:
     """Each aelix session's change observation (decision 6): off once a state view read more than
     ENTRIES entries, or after TIMEOUTS_OFF timed-out state views in a row (its first view, a cold
-    cache, aside). A new session measures again."""
+    cache, aside). A new session measures again. Turning it off is kept as pending until an
+    observation records it (`observation_off`), so it is never lost to a call that wrote nothing.
+    Calls whose state or record was skipped because an earlier observation's work was still running
+    (`busy`) are counted for the telemetry line that says so."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._state: dict = {}
 
+    def _of(self, session) -> dict:
+        return self._state.setdefault(session, {"views": 0, "in_row": 0, "off": False, "pending": False})
+
     def off(self, session) -> bool:
         with self._lock:
             return bool(self._state.get(session, {}).get("off"))
+
+    def pending(self, session) -> bool:
+        """Whether the session's observation was turned off and no observation has recorded it yet."""
+        with self._lock:
+            return bool(self._state.get(session, {}).get("pending"))
+
+    def recorded(self, session) -> None:
+        """An observation recorded the session's `observation_off`."""
+        with self._lock:
+            if session in self._state:
+                self._state[session]["pending"] = False
 
     def viewed(self, session, outcome: str | None) -> bool:
         """Count one state view (`outcome`: None when it finished, else Stopped's reason). Whether this
         view turned the session's observation off."""
         with self._lock:
-            state = self._state.setdefault(session, {"views": 0, "in_row": 0, "off": False})
+            state = self._of(session)
             if state["off"]:
                 return False
             state["views"] += 1
             if outcome == "too_many_entries":
-                state["off"] = True
+                state["off"] = state["pending"] = True
                 return True
             if outcome == "timeout" and state["views"] > 1:
                 state["in_row"] += 1
             elif outcome is None:
                 state["in_row"] = 0
             if state["in_row"] >= TIMEOUTS_OFF:
-                state["off"] = True
+                state["off"] = state["pending"] = True
                 return True
             return False
 
@@ -486,7 +575,8 @@ def before(project, *, activity_id: str, command: str, commands: list[list[str]]
     """What the observation keeps at tool_call: the window's start, the journal's end, the bytes of the
     scripts the command names, and — when `view_state` — the state of the files within the bounds
     (ENTRIES, the job's deadline and cancel). A state view the bounds stopped keeps no state
-    (`not_observed` is the reason) and counts toward turning the session's observation off."""
+    (`not_observed` is the reason) and counts toward turning the session's observation off (Job.count;
+    a view the waiting side gave up on is counted there, Job.abandon)."""
     started = _now()
     out = Before(activity_id, started, time.monotonic(), command, os.fspath(cwd), not_observed=not_observed)
     out.since = time.time_ns() - CLOCK_SLACK_NS
@@ -496,16 +586,18 @@ def before(project, *, activity_id: str, command: str, commands: list[list[str]]
         _read_scripts(out.names, job, out.captured, "before")
     if not view_state:
         return out
+    job.viewing = True
     try:
         if job.cancelled():
             raise tree_state.Stopped("timeout")
         out.state = tree_state.tree_stat(project, tree_state.Budget(ENTRIES, job.deadline, job.cancelled))
-        out.turned_off = sessions.viewed(session, None)
+        job.count(sessions, session, None)
     except tree_state.Stopped as stop:
         out.not_observed = "too_many_entries" if stop.reason == "too_many_entries" else "timeout"
-        out.turned_off = sessions.viewed(session, stop.reason)
+        job.count(sessions, session, "timeout" if stop.reason == "cancelled" else stop.reason)
     except Exception:  # noqa: BLE001 - a walk that fails is a view not made, never a failed tool call
         out.not_observed = "walk_failed"
+    out.turned_off = sessions.pending(session)  # off and not yet recorded: this call records it
     return out
 
 
@@ -522,36 +614,41 @@ class Outcome:
     unknown: int = 0
     turned_off: bool = False
     observed: bool = False
+    not_observed: str | None = None   # why the changes were not looked at, when they were not
 
 
-def _hash(path: str, expected: tuple, budget: dict, job: Job) -> tuple[str | None, str]:
-    """(sha256, hash state) of a changed file read from its bytes, never from the cache: `unstable`
-    when its stat before or after the read is not `expected` (the after state's), `over_budget` past
-    the bytes or the time left."""
+def _hash(path: str, expected: tuple, budget: dict, job: Job, *, keep: bool = False) -> tuple[str | None, str, bytes | None]:
+    """(sha256, hash state, the bytes when `keep` and they are at most SCRIPT_BYTES) of a changed file
+    read from its bytes, never from the cache: `unstable` when its stat before or after the read is not
+    `expected` (the after state's), `over_budget` past the bytes actually read (a file that grows while it
+    is read is stopped at the bound) or the time left."""
     first = tree_state.stat_of(path)
     if first is None:
-        return None, "unreadable"
+        return None, "unreadable", None
     if not tree_state.same(first, expected):
-        return None, "unstable"
+        return None, "unstable", None
     if job.cancelled() or budget["bytes"] + first[0] > HASH_BYTES:
-        return None, "over_budget"
-    digest = hashlib.sha256()
+        return None, "over_budget", None
+    digest, held = hashlib.sha256(), [] if keep and first[0] <= SCRIPT_BYTES else None
     try:
         with open(path, "rb") as fh:
             while True:
-                block = fh.read(1 << 20)
+                block = fh.read(min(1 << 20, HASH_BYTES - budget["bytes"] + 1))
                 if not block:
                     break
+                budget["bytes"] += len(block)
+                if budget["bytes"] > HASH_BYTES or job.cancelled():
+                    return None, "over_budget", None
                 digest.update(block)
-                if job.cancelled():
-                    return None, "over_budget"
+                if held is not None:
+                    held.append(block)
     except OSError:
-        return None, "unreadable"
-    budget["bytes"] += first[0]
+        return None, "unreadable", None
     second = tree_state.stat_of(path)
     if second is None or not tree_state.same(second, expected):
-        return None, "unstable"
-    return digest.hexdigest(), "hashed"
+        return None, "unstable", None
+    data = b"".join(held) if held is not None else None
+    return digest.hexdigest(), "hashed", (data if data is not None and len(data) <= SCRIPT_BYTES else None)
 
 
 def _explainers(project, lines: list[dict]) -> tuple[dict, dict, bool]:
@@ -650,23 +747,24 @@ def after(project, prior: Before, call: Call, *, writer, job: Job, sessions: Ses
     (decision 4), the reasons (decision 1), the redacted command (decision 5), the attachments and then
     the event (decision 2) — each step within the job's deadline. Nothing is written when no reason
     holds or the job was cancelled before its commit."""
-    outcome = Outcome(turned_off=prior.turned_off)
+    outcome = Outcome()
     reason = prior.not_observed
     changes_list, links, after_state, tail_after = None, 0, None, None
     if prior.state is not None:
+        job.viewing = True
         try:
             if job.cancelled():
                 raise tree_state.Stopped("timeout")
             after_state = tree_state.tree_stat(project, tree_state.Budget(ENTRIES, job.deadline, job.cancelled))
         except tree_state.Stopped as stop:
             reason = "too_many_entries" if stop.reason == "too_many_entries" else "timeout"
-            outcome.turned_off = sessions.viewed(session, stop.reason) or outcome.turned_off
+            job.count(sessions, session, "timeout" if stop.reason == "cancelled" else stop.reason)
         except Exception:  # noqa: BLE001 - a walk that fails is a view not made
             reason = "walk_failed"
         else:
             # The window ends when the state after has been seen whole.
             tail_after = journal_tail(project.journal)
-            outcome.turned_off = sessions.viewed(session, None) or outcome.turned_off
+            job.count(sessions, session, None)
             before_state = prior.state
             if before_state.boundaries != after_state.boundaries:
                 before_state = tree_state.rekeyed(project, before_state)
@@ -675,6 +773,9 @@ def after(project, prior: Before, call: Call, *, writer, job: Job, sessions: Ses
             reason = None
     if tail_after is None:
         tail_after = journal_tail(project.journal)
+    # The session's observation was turned off (by this call's views or an earlier call's that wrote
+    # nothing): recorded by this observation, kept pending until one is written.
+    outcome.turned_off = prior.turned_off or sessions.pending(session)
 
     # The names of the command that ran: the final one, after any other extension's change. The bytes
     # read at the start count only for the names the final command has too.
@@ -711,7 +812,13 @@ def after(project, prior: Before, call: Call, *, writer, job: Job, sessions: Ses
                 if secret_file(path):
                     item["hash"] = "withheld"
                 else:
-                    item["sha256"], item["hash"] = _hash(real, change["stat"], budget, job)
+                    # A file the command names (a heredoc's or a redirection's target, a script) may
+                    # hold what its text wrote: its bytes are read with the rules of decision 5, and a
+                    # match keeps neither its hash nor its size, as a script's copy is refused.
+                    named = PurePosixPath(path).name in call.command
+                    item["sha256"], item["hash"], data = _hash(real, change["stat"], budget, job, keep=named)
+                    if data is not None and redact(data.decode("utf-8", errors="replace"))[1]:
+                        item.update(sha256=None, hash="withheld", bytes=None, reason="secret_like")
                     if item["sha256"] is not None and cache is not None:
                         with contextlib.suppress(Exception):
                             cache.remember(os.path.join(project.root, *path.split("/")), change["stat"][0],
@@ -727,9 +834,14 @@ def after(project, prior: Before, call: Call, *, writer, job: Job, sessions: Ses
                 item["reason"] = "window_unread"
             elif kind == "deleted":
                 by = deleted.get(path)
-                item["explanation"], item["by"] = ("explained", by) if by else ("unexplained", None)
+                if by:
+                    item["explanation"], item["by"] = "explained", by
+                elif runs_read:
+                    item["explanation"] = "unexplained"
+                else:
+                    item["reason"] = "run_record_unread"
             elif item["sha256"] is None:
-                item["reason"] = "no_hash"
+                item["reason"] = item["reason"] or "no_hash"
             elif explained.get((path, item["sha256"])) or explained.get((path, None)):
                 item["explanation"] = "explained"
                 item["by"] = explained.get((path, item["sha256"])) or explained.get((path, None))
@@ -774,6 +886,7 @@ def after(project, prior: Before, call: Call, *, writer, job: Job, sessions: Ses
         changes = {"state": "observed", "reason": None, **{name: counts[name] for name in relations.OBSERVED_COUNTS},
                    "items": all_items, "items_complete": True}
     else:
+        outcome.not_observed = reason or "not_viewed"
         changes = {"state": "not_observed", "reason": reason or "not_viewed",
                    **dict.fromkeys(relations.OBSERVED_COUNTS), "items": [], "items_complete": False}
     shown = _fits(all_items, CHANGES_INLINE)
@@ -846,6 +959,10 @@ def after(project, prior: Before, call: Call, *, writer, job: Job, sessions: Ses
             _remove(folder)
             outcome.reason = "attachments_failed"
             return outcome
+    # The attachments are removed only when no event is certain: before the commit began, or when the
+    # append refused the line before writing it (a refusal, a line the record contract does not take).
+    # An error once the line may have been written (a write cut short, the lock's release) keeps them:
+    # the event may be there, and it names them.
     try:
         with writer.locked(OPERATION, within=job.remaining()) as held:
             if not job.begin_commit():
@@ -857,12 +974,23 @@ def after(project, prior: Before, call: Call, *, writer, job: Job, sessions: Ses
     except _platform.LockBusy:
         _remove(folder)
         outcome.reason = "journal_busy"
-    except Exception as exc:  # noqa: BLE001 - a refusal, a full disk: no record, the tool result stands
-        _remove(folder)
-        outcome.reason = getattr(exc, "code", None) or "write_failed"
-    if outcome.event is not None and cache is not None:
-        with contextlib.suppress(Exception):
-            cache.save()
+    except (AnalyticsError, ValueError) as exc:
+        if outcome.event is None:
+            _remove(folder)
+            outcome.reason = getattr(exc, "code", None) or "refused"
+    except Exception:  # noqa: BLE001 - the tool result stands whatever the write meets
+        if outcome.event is None:
+            if job.committing:
+                outcome.reason = "unconfirmed"  # the line may be written: the attachments stay
+            else:
+                _remove(folder)
+                outcome.reason = "write_failed"
+    if outcome.event is not None:
+        if "observation_off" in reasons:
+            sessions.recorded(session)
+        if cache is not None:
+            with contextlib.suppress(Exception):
+                cache.save()
     return outcome
 
 
@@ -923,7 +1051,9 @@ def _scripts(project, names: Names, captured: dict) -> tuple[list, dict]:
             continue
         item["captured"] = c.when
         if redact(c.data.decode("utf-8", errors="replace"))[1]:
-            item["hash"], item["copy_reason"] = "withheld", "secret_like"
+            # Neither its hash nor its size: with the redacted command beside them, a short secret could
+            # be guessed (decision 4-3).
+            item["hash"], item["copy_reason"], item["bytes"] = "withheld", "secret_like", None
             continue
         item["sha256"], item["hash"] = _sha(c.data), "hashed"
         if name.outside:
@@ -941,25 +1071,26 @@ def _scripts(project, names: Names, captured: dict) -> tuple[list, dict]:
 
 
 # The places a new project's .gitignore leaves out (its template), when git cannot be asked.
-_TEMPLATE_IGNORED = (".venv/", "data/", "workspace/", ".analytics/cache/", "runs/")
+_TEMPLATE_IGNORED = (".venv/", "data/", "workspace/", ".analytics/cache/")
 
 
 def _ignored(project, paths: list[str]) -> set[str]:
-    """The paths git ignores in the project (`git check-ignore`, once), or — without git — those below a
-    place the new project template's .gitignore leaves out."""
+    """The paths git ignores in the project: `git check-ignore`, once, from the project's directory — so
+    the rules of a repository it is part of (a monorepo's) count too. Only where git cannot answer (no
+    git, no work tree, an error) the places a new project template's .gitignore leaves out."""
     if not paths:
         return set()
     git = shutil.which("git")
-    if git and (Path(project.root) / ".git").exists():
-        import subprocess  # noqa: PLC0415 - only when there is a git work tree to ask
+    if git:
+        import subprocess  # noqa: PLC0415 - only when there are copies to judge
 
         with contextlib.suppress(Exception):
-            done = subprocess.run([git, "-C", str(project.root), "check-ignore", "--no-index", "-z", "--stdin"],
+            done = subprocess.run([git, "-C", str(project.root), "check-ignore", "-z", "--stdin"],
                                   input="\0".join(paths).encode("utf-8"), capture_output=True, timeout=1.0,
                                   check=False)
             if done.returncode in (0, 1):
                 return {p for p in done.stdout.decode("utf-8", errors="replace").split("\0") if p}
-    return {p for p in paths if any(p.startswith(place) for place in _TEMPLATE_IGNORED)}
+    return {p for p in paths if p.startswith(_TEMPLATE_IGNORED) or "/__pycache__/" in f"/{p}"}
 
 
 def _minimal(details: dict, attachments: dict, command: bytes, all_items: list, script_items: list,

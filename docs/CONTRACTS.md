@@ -563,7 +563,7 @@ kit 0.8.0부터 이 kit이 쓰는 run 기록은 `analytics.run/2`([기록 schema
 | `script` | `{path, sha256, snapshot}` — 실행한 바이트의 sha256과 스냅샷 경로 |
 | `modules[]` | 실행 중 import된 프로젝트 안 `.py`의 `{path, sha256, snapshot}` |
 | `inputs[]` | `{path, sha256, bytes, via[], external}` — `path`는 경로 정체성(E). sha256은 런타임 읽기면 **읽은 시점**, 정적 스캔·선언이면 run 시작 시점의 내용. `via`: `polars.*` `duckdb.*` `analytics.read` `analytics.scan` `analytics.sql` `scan` `declared`. `external`은 정체성이 프로젝트 밖(절대 경로)일 때만 참입니다: 밖을 가리키는 링크 아래의 파일과 밖을 가리키는 파일 링크는 거짓 |
-| `outputs[]` | `{path, change: created/modified/deleted, bytes, sha256, rows?, schema?, via: analytics.save/diff, outside_data?}` — `path`는 경로 정체성, `outside_data`는 그것이 `data/`로 시작하지 않을 때. 실행 전후 상태의 비교는 관찰된 활동과 같은 `tree_state.py`이며(C22), kit 0.32.1(#171)부터 크기·mtime이 같고 정체성(`st_ino`)만 바뀐 파일도 `modified`로 바이트를 다시 읽어 해시하고(해시 캐시는 크기·mtime만 보아 바뀌기 전 바이트를 줄 수 있음), 뒤 walk가 나열했지만 stat하지 못한 파일은 지운 것으로 적지 않고 뺍니다 |
+| `outputs[]` | `{path, change: created/modified/deleted, bytes, sha256, rows?, schema?, via: analytics.save/diff, outside_data?}` — `path`는 경로 정체성, `outside_data`는 그것이 `data/`로 시작하지 않을 때. 실행 전후 상태의 비교는 관찰된 활동과 같은 `tree_state.py`이며(C22), kit 0.32.1(#171)부터 크기·mtime이 같고 정체성(`st_ino`)만 바뀐 파일도 `modified`로 바이트를 다시 읽어 해시하고(해시 캐시는 크기·mtime만 보아 바뀌기 전 바이트를 줄 수 있음), 뒤 walk가 나열했지만 stat하지 못한 파일은 지운 것으로 적지 않고 뺍니다. 정체성이 호출마다 달라지는 파일 시스템(일부 FUSE·네트워크 마운트)에서는 바뀌지 않은 파일도 출력으로 보입니다(한계) |
 | `visualizations[]` | C3 |
 | `error` | `{type, message, line, summary}` — `line`은 스크립트 안의 마지막 traceback 줄 |
 | `finalize_errors` | 기록 단계(출력 수집·모듈 스냅샷·환경·journal·note·run 기록 등)에서 실패한 항목. run의 응답에 있고, 마지막 run 기록을 쓸 수 있으면 거기에도 있습니다 |
@@ -623,8 +623,9 @@ kit 0.8.0부터 이 kit이 쓰는 가져오기 기록은 `analytics.dataset/1`([
 
 - `.analytics/telemetry.jsonl`: `{ts, tool, ms, error, summary, flags[], session}` — `summary`는 bash 명령 앞 300자,
   write·edit·read 경로, `analytics_*` 주요 인자. `flags`: `python_via_bash`, `wrote_managed_path`. kit 0.32.1부터(#171, ADR-0015 OQ6) bash 명령은
-  관찰된 활동과 같은 가림 규칙(C22)을 명령 전체에 적용한 뒤 앞 300자를 남깁니다. 그 전에 쓴 줄은 고쳐 쓰지 않습니다(append-only). 새
-  템플릿의 `.gitignore`는 이 파일을 빼지 않으므로 그 전의 가리지 않은 명령은 git에 남아 있을 수 있습니다.
+  관찰된 활동과 같은 가림 규칙(C22)을 명령의 앞 8 KiB에 적용한 뒤 앞 300자를 남깁니다(개인 키 블록은 잘려도 가립니다). 그 전에 쓴 줄은
+  고쳐 쓰지 않습니다(append-only). 새 템플릿의 `.gitignore`는 이 파일을 빼지 않으므로 그 전의 가리지 않은 명령은 git에 남아 있을 수 있습니다.
+  bash 호출의 관찰을 건너뛰었거나 그 기록을 쓰지 못했으면 그 줄에 `observation_skipped`(사유: `busy` 등, C22)가 있습니다.
   `python_via_bash`는 Python(`python`·`uv run`·`pip`·`ipython`·`jupyter`)을 부르고 kit이 아닌 bash 명령입니다. kit 0.32.1부터(#170) 확장은 명령을
   POSIX 셸처럼 단순 명령으로 나눠(`;`·`&`·`|`·`(`·`)`·새 줄, 따옴표·이스케이프, 주석, here-document의 본문은 그것을 연 명령의 것, 리디렉션과
   그 대상은 낱말이 아님) kit 진입점을 부르는 단순 명령 — 프로그램 `analytics`(`bin/analytics` 등 경로 포함, 변수 대입·`env` 등과 `uv run`의 알려진
@@ -1307,7 +1308,8 @@ operation `observe`로만 씁니다.
   Python 단순 명령이 모두 패키지·환경 관리나 버전 조회(`pip`·`uv pip|sync|add|remove|lock|venv`·`python -m pip`·`--version`·`-V`)는 아니며,
   aelix 작업 디렉터리가 프로젝트 안이거나 명령이 프로젝트 안의 파일을 가리킴. 나누어 읽지 못한 줄은 C5처럼 글 전체로 판정하고 관리 명령으로
   빼지 않습니다. `changes` — 관찰 범위에서 바뀐 파일 가운데 같은 창의 run·가져오기로 설명된다고 확인되지 않은 것(`unexplained`·`unknown`)이 있음.
-  `observation_off` — 이 호출이 그 세션의 변경 관찰을 껐음. 앞뒤 상태를 아예 보지 않는 것은 줄 전체가 kit 명령줄 하나(`analytics`·`bin/analytics`·
+  `observation_off` — 그 세션의 변경 관찰이 꺼졌고 아직 어느 관찰도 그것을 기록하지 않았음(끈 호출이 기록을 남기지 못했으면 그 세션의
+  다음 관찰이 기록합니다). 앞뒤 상태를 아예 보지 않는 것은 줄 전체가 kit 명령줄 하나(`analytics`·`bin/analytics`·
   `python -m aelix_analytics`, `uv run`과 그 옵션 포함, `-c` 없음)일 때뿐입니다. 다른 확장이 막았거나 취소로 `tool_result`가 오지 않은 호출은 기록하지
   않고 남은 앞 상태를 `tool_execution_end`·`agent_end`에서 버립니다. write·edit 도구와 사람의 `!` 명령은 관찰하지 않습니다.
 - **형식**: `analytics.event/2`의 `kind: observed_activity`, `actor: system`·`actor_basis: declared`·`means: hook`·`session`(그 aelix 세션), `refs: []`.
@@ -1320,38 +1322,53 @@ operation `observe`로만 씁니다.
   `mentioned`, `session_observation`(`on`·`off`), `captures`(첨부마다 `{path, role, bytes, sha256}`).
 - **첨부**: 긴 명령 글(`command.txt`, 가린 전문 1 MiB까지), 인라인 12 KiB를 넘는 변경 목록(`changes.json`, 10,000개까지), 3 KiB·2 KiB를 넘는
   스크립트·언급한 파일 목록(`files.json`), 스크립트 사본(`scripts/<정체성 경로>`)은 `.analytics/observed/<activity_id>/`를 배타적으로 만들어 먼저
-  쓰고, 그다음 journal 잠금 안에서 이벤트를 덧붙입니다. **이벤트가 커밋 지점**이며 이벤트 없는 폴더는 개수·읽기에 쓰지 않습니다. 이벤트 전에
-  실패하면 자기 폴더만 지웁니다. 직렬화한 `details`가 24 KiB를 넘으면 수와 첨부 digest만 둔 최소 details로 쓰고 목록은 첨부에 둡니다.
+  쓰고, 그다음 journal 잠금 안에서 이벤트를 덧붙입니다. **이벤트가 커밋 지점**이며 이벤트 없는 폴더는 개수·읽기에 쓰지 않습니다. 이벤트가
+  없다고 확실할 때(커밋 시작 전, 줄을 쓰기 전의 거절)만 자기 폴더를 지웁니다. 줄을 쓰기 시작한 뒤의 오류(쓰기가 끊김, 잠금 해제 실패)는
+  폴더를 남기고 결과를 `unconfirmed`로 둡니다(이벤트가 있으면 그것이 가리킴). 직렬화한 `details`가 24 KiB를 넘으면 수와 첨부 digest만 둔 최소 details로 쓰고 목록은 첨부에 둡니다.
   `.analytics/observed/`는 새 템플릿의 `.gitignore`에 없으므로 git이 추적하는 프로젝트 이력입니다.
 - **앞뒤 상태**: run의 출력 비교와 같은 이름 공간·규칙(`tree_state.py`: 관리 영역·`scripts/`·프로젝트 자신의 파일과 표식을 뺀 모든 파일, 링크 경계
   포함)으로 `{정체성 경로: (크기, mtime_ns, st_ino)}`를 비교합니다(`st_ino`가 0이면 그 칸은 비교하지 않음). 창에서 생기거나 없어진 경계는
-  `links_changed`로 세고 그 아래 파일을 run과 같은 규칙으로 다룹니다. 뒤 stat이 없음 말고 다른 오류로 실패한 파일은 `unreadable`이며 `deleted`가
-  아닙니다. 바뀐 파일은 캐시를 보지 않고 바이트를 읽어 해시하고 그 결과로 캐시 항목을 새로 씁니다. 해시 전후의 stat이 뒤 상태와 다르면 `unstable`
+  `links_changed`로 세고 그 아래 파일을 run과 같은 규칙으로 다룹니다. 앞에 있던 파일의 뒤 stat이 없음 말고 다른 오류로 실패하면 `unreadable`이며
+  `deleted`가 아닙니다(앞에도 stat하지 못한 파일은 변경이 아님). 정체성(`st_ino`)이 호출마다 달라지는 파일 시스템(일부 FUSE·네트워크 마운트)에서는
+  바뀌지 않은 파일도 매번 `modified`(`same_bytes_possible`)로 보이며, run의 출력에도 같은 한계가 있습니다(C2). 바뀐 파일은 캐시를 보지 않고 바이트를 읽어 해시하고 그 결과로 캐시 항목을 새로 씁니다. 해시 전후의 stat이 뒤 상태와 다르면 `unstable`
   (`sha256: null`)입니다. 크기·mtime이 같고 정체성만 바뀐 파일은 시작 바이트를 이 창에서 읽었고(명령이 가리킨 파일) 같으면 변경이 아니고, 아니면
   `same_bytes_possible: true`의 `modified`입니다. 변경마다 `explanation`은 창의 줄에 완료된 run의 `outputs`(경로·sha256)나 가져오기(경로·sha256과 그
   `.meta.json`)와 같으면 `explained`(`by: {type: run|dataset_import, id}`), 창의 줄을 모두 읽었고 해시가 있으며 맞는 것이 없으면 `unexplained`,
-  해시가 없거나 창·run 기록을 읽지 못했으면 `unknown`(`reason`)입니다. 창은 이 도구 호출이 도는 동안 바뀐 것이지 이 명령이 썼다는 뜻이 아닙니다.
+  해시가 없거나 창·run 기록을 읽지 못했으면 `unknown`(`reason`)입니다. 지운 파일도 같아서, run 기록을 읽지 못한 창의 삭제는
+  `unknown`(`run_record_unread`)입니다. 해시의 합 상한은 실제로 읽은 바이트로 셉니다(읽는 동안 커지는 파일도 상한에서 멈춤).
+  명령이 이름을 든 바뀐 파일(heredoc·리디렉션의 대상, 스크립트)은 1 MiB 이하면 그 바이트에 가림 규칙을 적용해, 걸리면 해시도 크기도 남기지 않습니다
+  (`hash: withheld`, `reason: secret_like`). 창은 이 도구 호출이 도는 동안 바뀐 것이지 이 명령이 썼다는 뜻이 아닙니다.
 - **스크립트와 언급한 파일**: 최종 명령(다른 확장이 바꾼 뒤)의 단순 명령 낱말(C5의 읽기, 확신하지 못하는 줄은 공백으로 나눔)을 aelix 작업 디렉터리와
   그 앞의 글자 경로 `cd X`·`pushd X`·`Set-Location X`로 풉니다. 따라갈 수 없는 이동(변수·`cd -`) 뒤의 상대 이름은 `mentioned.unresolved`로만
   셉니다. 접미사 `.py`·`.sql`·`.r`·`.jl`·`.sh`·`.ipynb`인 이름은 `scripts`에 `{name, path, bytes, sha256, hash, captured, stable, copy, copy_reason,
   outside}`로 남습니다: `tool_call` 때 있으면 그 바이트(`captured: before`, 끝에 상태가 같으면 `stable: true`), 시작 때 없던 것은 끝의 바이트
-  (`captured: after`). 사본은 git이 무시하는 파일(`git check-ignore` 한 번, git을 쓸 수 없으면 새 템플릿이 무시하는 자리, `ignored`), 비밀일 수 있는
-  이름(`secret_name`, 해시도 없음), 가림 규칙이 걸리는 바이트(`secret_like`, 해시도 없음), `.ipynb`(`notebook`, 해시만), 상한(8개·파일당 1 MiB·합
+  (`captured: after`). 사본은 git이 무시하는 파일(프로젝트 디렉터리에서 `git check-ignore` 한 번: 프로젝트를 담은 저장소의 규칙도 셈. git이 없거나
+  답하지 못할 때만 새 템플릿이 무시하는 자리, `ignored`), 비밀일 수 있는
+  이름(`secret_name`, 해시도 없음), 가림 규칙이 걸리는 바이트(`secret_like`, 해시·크기도 없음), `.ipynb`(`notebook`, 해시만), 상한(8개·파일당 1 MiB·합
   4 MiB, `over_budget`)에는 만들지 않습니다. 같은 바이트는 사본 하나를 가리킵니다. 프로젝트 밖의 스크립트는 마지막 이름·바이트 수·sha256만
   (`outside: true`, 경로·사본 없음) 둡니다. 스크립트가 아닌 프로젝트 안 파일은 `mentioned`에 경로만 둡니다(읽었다는 주장이 아님).
 - **가림**(rules_version 1): 저장·해시 전에 명령 글을 가립니다(`[redacted]`, 수는 `redaction.count`). 이름에 token·secret·password(passwd·passphrase)·
   credential·auth·api key·access key·private key·signature가 들거나(구분자 `_`·`-` 무시) `_KEY`로 끝나는 변수·옵션·사전 키·헤더의 값,
   `-u user:password`의 비밀번호, URL의 비밀번호와 모든 질의 매개변수 값, `Authorization`·`Proxy-Authorization`·`Cookie` 헤더와 `Bearer`·`Basic` 뒤의 값,
   PEM 개인 키, JWT 꼴, `AKIA`·`ASIA`, `ghp_` 등 GitHub, `glpat-`, `sk-`(`sk-ant-` 포함)·`sk_live_`·`rk_live_`, `xox?-`, `AIza`, `hf_`, `npm_`입니다.
+  값은 셸의 한 낱말 전체입니다: 따옴표·이스케이프 안의 공백과 `,` 같은 구분자까지(`API_TOKEN=a,b`, `-u 'user:a b'`) 가립니다. 헤더 규칙은 이름과
+  콜론만 맞추므로 앞의 다른 `name:`(`note:`, `https:`)이 뒤의 헤더를 가리지 않고, `api-key:`·`PRIVATE-TOKEN:`과 따옴표 안의 헤더 이름 키
+  (`{"Cookie": …}`)도 가립니다. 규칙마다 긴 글을 한 번만 읽습니다(긴 하이픈 줄에서도 명령 길이에 비례하는 시간).
   가리기 전의 글·해시·길이는 남기지 않습니다. 비밀일 수 있는 이름의 파일(`.env`·`.env.*`, `*.pem`·`*.key`, `.netrc`·`.pgpass`, `id_rsa*`·`id_ed25519*`,
   `credentials*`, 이름에 `secret`)은 변경·스크립트 목록에 경로·변경 종류·크기만 두고 해시하거나 복사하지 않습니다(`withheld`). 거부 목록이라 모든
-  비밀을 잡지 못합니다(위치 인자 `mysql -pVALUE`, 이름 없는 문자열, 인코딩한 값). 출력(stdout·stderr)은 남기지 않습니다.
-- **상한과 대기**: aelix는 두 hook을 기다리므로 확장이 기다리는 쪽에서 강제합니다. 앞 상태는 2초·항목 20,000개, 뒤 상태·해시·쓰기는 합해 3초(해시
+  비밀을 잡지 못합니다(위치 인자 `mysql -pVALUE`, 이름 없는 문자열, 인코딩한 값). rules_version 2 후보로 남긴 꼴: `os.environ["X_TOKEN"]="V"`,
+  `https://TOKEN@github.com`, ODBC `PWD=`, `AccountKey=`, `aws configure set … V`, `docker login -p`, `sshpass -p`, Slack webhook 경로.
+  출력(stdout·stderr)은 남기지 않습니다.
+- **상한과 대기**: aelix는 두 hook을 기다리므로 확장이 기다리는 쪽에서 강제합니다. 활성 프로젝트의 해석과 쓰기 판정도 그 작업 안에서 합니다.
+  앞 상태는 2초·항목 20,000개, 뒤 상태·해시·쓰기는 합해 3초(해시
   합 256 MiB, journal 잠금은 남은 시간 동안 기다리지 않는 시도)입니다. 상태 보기는 디렉터리 항목을 정렬하기 전에 하나씩 세며 상한에서 멈추고 그 관찰은
   `changes.state: not_observed`(`reason`)입니다. 작업은 데몬 스레드에서 하고 상한이 지나면 취소 표지를 세워 버립니다. 버린 작업이 남아 있는 동안 새
-  관찰은 상태를 보지 않고(`busy`), 그 동안의 기록도 쓰지 않습니다. 커밋(덧붙이기)이 시작되기 전에 버린 작업은 이벤트를 쓰지 않으며, 시작된 뒤
+  관찰은 상태를 보지 않고(`busy`), 그 동안의 기록도 쓰지 않습니다(한계). 대신 조용히 빠지지 않게, 그렇게 건너뛴 호출과 기록을 쓰지 못한 호출
+  (`timeout`·`unconfirmed`·`journal_busy` 등)은 그 호출의 telemetry 줄에 `observation_skipped`로 남고, `busy`로 건너뛴 수는 현황 줄
+  (`…; N bash calls skipped while an observation was still running`)에 셉니다. 그 동안 기록이 없어도 프로젝트는 마지막으로 쓰기를 판정한 프로젝트로 봅니다. 커밋(덧붙이기)이 시작되기 전에 버린 작업은 이벤트를 쓰지 않으며, 시작된 뒤
   상한이 지나면 알림이 "could not confirm whether the observation was recorded"라고 말합니다. 항목 수 상한을 넘거나, 세션의 첫 상태 보기를 뺀 연속
-  3번의 시간 초과면 그 세션의 변경 관찰을 끄고 그 호출을 `observation_off`로 기록합니다. 끈 뒤에는 분석 실행 조건으로만 기록합니다. `tool_result`
+  3번의 시간 초과면 그 세션의 변경 관찰을 끄고 `observation_off`를 기록합니다. 상태 보기의 시간 초과는 작업이 제때 끝내면 작업이, 기다리는 쪽이
+  포기하면 기다리는 쪽이 한 번만 셉니다. 끈 뒤에는 분석 실행 조건으로만 기록합니다. `tool_result`
   처리기가 취소되면 결과를 바꾸지 않고 취소를 올립니다. 처리기는 `error_mode="continue"`로 등록하고 관찰의 실패는 #170의 안내만 남깁니다.
 - **floor와 호환**: 이 kind의 첫 쓰기가 표식의 `min_writer_version`을 0.32.1로 올립니다(ADR-0015 결정 12: kit 번호를 올리지 않는 예외). 그 뒤 0.32.1
   미만의 writer는 `writer_too_old`로 거절되고, 이 kind를 모르는 reader는 그 줄을 `unsupported`(`unknown_kind`)로 보존·계수하며 다음 seq는 그 줄

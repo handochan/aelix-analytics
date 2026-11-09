@@ -133,8 +133,8 @@ def changes(project, before: TreeStat, after: TreeStat, since: int | None = None
     A boundary only one of the two walks went through is a link made, removed or repointed, not files
     written: a file below a boundary new in `after` is a change only when it was modified at or after
     `since` (the start, by the file system's clock), and a file below one gone from it is deleted only
-    when its real path no longer leads to a file (docs/CONTRACTS.md G). A file `after` listed but could
-    not stat is `unreadable`, never deleted: not reading it is no evidence it is gone."""
+    when its real path no longer leads to a file (docs/CONTRACTS.md G). A file `before` had that `after`
+    listed but could not stat is `unreadable`, never deleted: not reading it is no evidence it is gone."""
     made = {ns for ns, _ in set(getattr(after, "boundaries", ())) -
             set(getattr(before, "boundaries", ()))}
     gone = {ns for ns, _ in set(getattr(before, "boundaries", ())) -
@@ -151,9 +151,11 @@ def changes(project, before: TreeStat, after: TreeStat, since: int | None = None
             continue  # there before, and seen since through a link made meanwhile
         out.append({"path": rel, "change": "created" if prev is None else "modified", "stat": st,
                     "identity_only": prev is not None and prev[:2] == st[:2]})
-    unreadable = getattr(after, "unreadable", set())
+    # Only a file that was there before can have become unreadable: one `after` could not stat that
+    # `before` did not have (both views failed on it) is no change of this window.
+    unreadable = set(getattr(after, "unreadable", set())) & set(before)
     real = getattr(before, "real", {})
-    for rel in sorted((set(before) - set(after)) | (set(unreadable) - set(after))):
+    for rel in sorted(set(before) - set(after)):
         if rel in own:
             continue
         if rel in unreadable:

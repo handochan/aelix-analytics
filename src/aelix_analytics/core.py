@@ -3005,6 +3005,7 @@ def status(project: Project, limit: int = STATUS_LIMIT, *, part=None, asset_sess
                          "reasons": rec.get("reasons", [])})
     open_items, key_items, gaps = lists.open, lists.key, lists.feedback
     observed_view = relations.observed_summary(journal)
+    observed_view["skipped"] = observation_skips(project)
     observed_sources = {journal.source_of(e) for e in relations.observed_activities(journal)}
     observed_views = {id(view) for view in events if source[id(view)] in observed_sources}
     key_rows = []
@@ -3839,15 +3840,42 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
     return out
 
 
+def observation_skips(project) -> dict[str, int]:
+    """How many bash calls telemetry says had their observation skipped or not written, by reason
+    (`observation_skipped`: `busy` — an earlier observation's work was still running —, `timeout`, …):
+    the blind spots no journal line holds. Lines that cannot be read count for nothing."""
+    out: dict[str, int] = {}
+    for place in (project.telemetry, project.legacy_state_dir / "telemetry.jsonl"):
+        try:
+            data = place.read_bytes()
+        except OSError:
+            continue
+        if b'"observation_skipped"' not in data:
+            continue
+        for raw in data.splitlines():
+            if b'"observation_skipped"' not in raw:
+                continue
+            with contextlib.suppress(ValueError):
+                reason = json.loads(raw).get("observation_skipped")
+                if isinstance(reason, str):
+                    out[reason] = out.get(reason, 0) + 1
+    return dict(sorted(out.items()))
+
+
 def observed_line(summary) -> str | None:
     """The overview's one line for the observed activities (ADR-0015 decision 7), none when there is no
-    observation: how many, the latest, how many saw changes no run or import recorded, in how many
-    sessions changes stopped being observed, and how to read them."""
-    if not summary or not summary.get("count"):
+    observation and no call skipped: how many, the latest, how many saw changes no run or import
+    recorded, in how many sessions changes stopped being observed, how many bash calls were skipped
+    while an earlier observation was still running, and how to read them."""
+    if not summary:
         return None
-    return (f"observed outside the kit: {summary['count']} (latest {summary['latest']}; "
+    busy = (summary.get("skipped") or {}).get("busy", 0)
+    if not summary.get("count") and not busy:
+        return None
+    skipped = f"; {busy} bash calls skipped while an observation was still running" if busy else ""
+    return (f"observed outside the kit: {summary['count']} (latest {summary['latest'] or '-'}; "
             f"{summary['unexplained']} with changes no run recorded; changes not observed in "
-            f"{len(summary['sessions_off'])} sessions) — part=records kind={relations.OBSERVED_KIND}")
+            f"{len(summary['sessions_off'])} sessions{skipped}) — part=records kind={relations.OBSERVED_KIND}")
 
 
 # How many places, producer candidates or targets one line of the overview names before it says how

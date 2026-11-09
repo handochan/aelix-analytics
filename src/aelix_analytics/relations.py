@@ -1420,11 +1420,45 @@ def _sha_or_none(value) -> bool:
     return value is None or (isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None)
 
 
+def _has(value, keys) -> bool:
+    return isinstance(value, dict) and all(key in value for key in keys)
+
+
+def _str_null(value) -> bool:
+    return value is None or isinstance(value, str)
+
+
+def _change_item_problem(item) -> str | None:
+    if not (_has(item, ("path", "change", "bytes", "sha256", "hash", "explanation", "same_bytes_possible"))
+            and isinstance(item["path"], str) and item["change"] in OBSERVED_CHANGE_KINDS
+            and item["hash"] in OBSERVED_HASHES and item["explanation"] in OBSERVED_EXPLANATIONS
+            and _sha_or_none(item["sha256"]) and _count(item["bytes"], null=True)
+            and isinstance(item["same_bytes_possible"], bool) and _str_null(item.get("reason"))):
+        return "invalid change item"
+    by = item.get("by")
+    if by is not None and not (_has(by, ("type", "id")) and by["type"] in ("run", "dataset_import")
+                               and isinstance(by["id"], str)):
+        return "invalid change item"
+    return None
+
+
+def _script_item_problem(item) -> str | None:
+    if not (_has(item, ("name", "path", "bytes", "sha256", "hash", "captured", "stable", "copy", "outside"))
+            and isinstance(item["name"], str) and _str_null(item["path"]) and _count(item["bytes"], null=True)
+            and _sha_or_none(item["sha256"]) and item["hash"] in ("hashed", "withheld", "over_budget", "unreadable")
+            and item["captured"] in ("before", "after", None) and item["stable"] in (True, False, None)
+            and _str_null(item["copy"]) and isinstance(item["outside"], bool) and _str_null(item.get("copy_reason"))):
+        return "invalid script item"
+    return None
+
+
 def observed_activity_problem(event) -> str | None:
     """Why a journal row is not an observed activity this reader can use (ADR-0015 decision 7), or
     None: an analytics.event/2 `observed_activity` with no references and details of the contract
-    `observed_activity/1` holding every field with a value of its kind. A row with a problem is still a
-    record (listed, citable) but no observation: it is not counted and gives no provenance."""
+    `observed_activity/1` holding every field the record schema requires (`observed_activity_details`,
+    nested objects and list items too) with a value of its kind. A row with a problem is still a record
+    (listed, citable) but no observation: it is not counted, gives no provenance and is not left out of a
+    share's content basis."""
     if (not isinstance(event, dict) or event.get("schema") != EVENT_V2 or event.get("kind") != OBSERVED_KIND
             or type(event.get("seq")) is not int or event["seq"] < 1 or event.get("id") != f"e{event['seq']}"
             or not isinstance(event.get("text"), str) or event.get("refs") != []):
@@ -1438,66 +1472,62 @@ def observed_activity_problem(event) -> str | None:
     if not (isinstance(d["activity_id"], str) and ACTIVITY_ID.fullmatch(d["activity_id"])):
         return "invalid activity_id"
     performer = d["performer"]
-    if not (isinstance(performer, dict) and performer.get("actor") == "agent" and performer.get("tool") == "bash"
-            and (performer.get("tool_call_id") is None or isinstance(performer.get("tool_call_id"), str))):
+    if not (_has(performer, ("actor", "tool", "tool_call_id")) and performer["actor"] == "agent"
+            and performer["tool"] == "bash" and _str_null(performer["tool_call_id"])):
         return "invalid performer"
     if not (_aware(d["started_at"]) and _aware(d["ended_at"]) and _count(d["duration_ms"], null=True)):
         return "invalid window time"
-    if not (isinstance(d["cwd_outside"], bool) and (d["cwd"] is None if d["cwd_outside"] else isinstance(d["cwd"], str))):
+    if not (isinstance(d["cwd_outside"], bool) and _str_null(d["cwd"])):
         return "invalid cwd"
     command = d["command"]
-    redaction = command.get("redaction") if isinstance(command, dict) else None
-    if not (isinstance(command, dict) and isinstance(command.get("text"), str) and _count(command.get("bytes"))
-            and _sha_or_none(command.get("sha256")) and command.get("sha256") is not None
-            and all(isinstance(command.get(k), bool) for k in ("inline_complete", "truncated", "changed_after_start"))
-            and isinstance(redaction, dict) and _count(redaction.get("rules_version"))
-            and _count(redaction.get("count"))):
+    if not (_has(command, ("text", "bytes", "sha256", "inline_complete", "truncated", "changed_after_start",
+                           "redaction"))
+            and isinstance(command["text"], str) and _count(command["bytes"])
+            and isinstance(command["sha256"], str) and _sha_or_none(command["sha256"])
+            and all(isinstance(command[k], bool) for k in ("inline_complete", "truncated", "changed_after_start"))
+            and _has(command["redaction"], ("rules_version", "count"))
+            and _count(command["redaction"]["rules_version"]) and _count(command["redaction"]["count"])):
         return "invalid command"
     result = d["result"]
-    if not (isinstance(result, dict) and (result.get("is_error") is None or isinstance(result.get("is_error"), bool))
-            and (result.get("exit_code") is None or type(result.get("exit_code")) is int)):
+    if not (_has(result, ("is_error", "exit_code")) and result["is_error"] in (True, False, None)
+            and (result["exit_code"] is None or type(result["exit_code"]) is int)):
         return "invalid result"
     reasons = d["reasons"]
     if not (isinstance(reasons, list) and reasons and all(r in OBSERVED_REASONS for r in reasons)
             and len(set(reasons)) == len(reasons)):
         return "invalid reasons"
     window = d["window"]
-    if not (isinstance(window, dict) and _count(window.get("seq_before"), null=True)
-            and _count(window.get("seq_after"), null=True)):
+    if not (_has(window, ("seq_before", "seq_after")) and _count(window["seq_before"], null=True)
+            and _count(window["seq_after"], null=True)):
         return "invalid window"
     changes = d["changes"]
-    if not (isinstance(changes, dict) and changes.get("state") in ("observed", "not_observed")
-            and (changes.get("reason") is None or isinstance(changes.get("reason"), str))
-            and all(_count(changes.get(name), null=changes.get("state") == "not_observed")
-                    for name in OBSERVED_COUNTS)
-            and isinstance(changes.get("items"), list) and isinstance(changes.get("items_complete"), bool)):
+    if not (_has(changes, ("state", "reason", *OBSERVED_COUNTS, "items", "items_complete"))
+            and changes["state"] in ("observed", "not_observed") and _str_null(changes["reason"])
+            and all(_count(changes[name], null=True) for name in OBSERVED_COUNTS)
+            and isinstance(changes["items"], list) and isinstance(changes["items_complete"], bool)):
         return "invalid changes"
     for item in changes["items"]:
-        if not (isinstance(item, dict) and isinstance(item.get("path"), str)
-                and item.get("change") in OBSERVED_CHANGE_KINDS and item.get("hash") in OBSERVED_HASHES
-                and item.get("explanation") in OBSERVED_EXPLANATIONS and _sha_or_none(item.get("sha256"))
-                and _count(item.get("bytes"), null=True) and isinstance(item.get("same_bytes_possible"), bool)):
-            return "invalid change item"
+        problem = _change_item_problem(item)
+        if problem:
+            return problem
     for name in ("scripts", "mentioned"):
         part = d[name]
-        if not (isinstance(part, dict) and _count(part.get("total")) and isinstance(part.get("items"), list)
-                and isinstance(part.get("items_complete"), bool)):
+        if not (_has(part, ("total", "items", "items_complete")) and _count(part["total"])
+                and isinstance(part["items"], list) and isinstance(part["items_complete"], bool)):
             return f"invalid {name}"
-    if not _count(d["mentioned"].get("unresolved")) or not all(isinstance(p, str) for p in d["mentioned"]["items"]):
+    if not ("unresolved" in d["mentioned"] and _count(d["mentioned"]["unresolved"])
+            and all(isinstance(p, str) for p in d["mentioned"]["items"])):
         return "invalid mentioned"
     for item in d["scripts"]["items"]:
-        if not (isinstance(item, dict) and isinstance(item.get("name"), str) and isinstance(item.get("outside"), bool)
-                and (item.get("path") is None if item["outside"] else isinstance(item.get("path"), str))
-                and _count(item.get("bytes"), null=True) and _sha_or_none(item.get("sha256"))
-                and item.get("captured") in ("before", "after", None)
-                and item.get("stable") in (True, False, None)):
-            return "invalid script item"
+        problem = _script_item_problem(item)
+        if problem:
+            return problem
     if d["session_observation"] not in ("on", "off"):
         return "invalid session_observation"
     captures = d["captures"]
     if not (isinstance(captures, list) and all(
-            isinstance(c, dict) and isinstance(c.get("path"), str) and c.get("role") in OBSERVED_ROLES
-            and _count(c.get("bytes")) and _sha_or_none(c.get("sha256")) and c.get("sha256") is not None
+            _has(c, ("path", "role", "bytes", "sha256")) and isinstance(c["path"], str) and c["role"] in OBSERVED_ROLES
+            and _count(c["bytes"]) and isinstance(c["sha256"], str) and _sha_or_none(c["sha256"])
             for c in captures)):
         return "invalid captures"
     return None

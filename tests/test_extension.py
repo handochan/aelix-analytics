@@ -1078,6 +1078,114 @@ def test_a_failing_observation_does_not_break_the_turn(host_project, tmp_path, m
     assert [r["kind"] for r in journal_rows(root)] == ["project", "context"]
 
 
+def test_timed_out_starts_turn_the_session_off_and_the_next_observation_records_it(lab, monkeypatch):
+    """Review (Codex PR-1 4) through the real hooks: starts that time out on the waiting side are counted
+    there (the session's first view aside); the third in a row turns the session's change observation
+    off, and that call's observation — of a command that runs no Python — records `observation_off`
+    and says so, once."""
+    module, root = lab
+    observed = module.core.observed
+    monkeypatch.setattr(observed, "BEFORE_SECONDS", 0.2)
+    real = observed.tree_state.tree_stat
+    slow = {"on": False}
+
+    def tree_stat(project, budget=None):
+        if slow["on"] and budget is not None:
+            time.sleep(0.4)  # the waiting side gives up at 0.2 s; the work ends soon after
+            raise observed.tree_state.Stopped("timeout")
+        return real(project, budget)
+
+    monkeypatch.setattr(observed.tree_state, "tree_stat", tree_stat)
+
+    def settle():  # the command runs while the abandoned start's work ends
+        deadline = time.monotonic() + 5
+        while module._observer_busy() and time.monotonic() < deadline:
+            time.sleep(0.02)
+
+    def call(n):
+        return observe(module, "ls", settle, call_id=f"t{n}", cwd=root)
+
+    assert call(0) is None  # the session's first view: counted, not a timeout in a row
+    slow["on"] = True
+    assert call(1) is None and call(2) is None
+    patch = call(3)
+    assert module.STATE["sessions"].off(module.STATE["session"])
+    row = journal_rows(root)[-1]
+    assert row["kind"] == "observed_activity" and row["details"]["reasons"] == ["observation_off"]
+    assert patch.content[-1].text == module.OBSERVATION_OFF_NOTICE
+    slow["on"] = False
+    assert call(4) is None
+
+
+def test_a_slow_project_lookup_is_bounded_by_the_hooks(lab, monkeypatch):
+    """Review (Codex PR-1 3): the project's resolution and admission run inside the observation's bounded
+    work: a lookup that hangs costs the call at most the hooks' bounds, and nothing is said of a project
+    the kit could not find."""
+    import threading
+
+    module, root = lab
+    release = threading.Event()
+    real = module.resolve_project
+
+    def hanging():
+        release.wait(10)
+        return real()
+
+    monkeypatch.setattr(module, "resolve_project", hanging)
+    ctx = SimpleNamespace(cwd=str(root))
+    try:
+        started = time.monotonic()
+        asyncio.run(module.on_tool_call(bash_call("python a.py", "h1"), ctx))
+        assert time.monotonic() - started < module.core.observed.BEFORE_SECONDS + 0.5
+        started = time.monotonic()
+        patch = asyncio.run(module.on_tool_result(bash_done("python a.py", "h1"), ctx))
+        assert time.monotonic() - started < 0.5  # still busy: no new work, nothing known of the project
+        assert patch is None
+    finally:
+        release.set()
+
+
+def test_a_call_skipped_while_busy_is_counted_and_shown(lab, monkeypatch):
+    """Coordinator's decision on `busy`: a call whose observation was skipped because an earlier one's work
+    was still running is never silent — telemetry keeps `observation_skipped: busy` and the overview's line
+    counts it."""
+    import threading
+
+    module, root = lab
+    release = threading.Event()
+    real = module.core.observed.before
+
+    def stuck(*a, **kw):
+        release.wait(20)
+        return real(*a, **kw)
+
+    monkeypatch.setattr(module.core.observed, "before", stuck)
+    ctx = SimpleNamespace(cwd=str(root))
+    try:
+        asyncio.run(module.on_tool_call(bash_call("python a.py", "k1"), ctx))
+        module.on_tool_start(ToolExecutionStartHookEvent(tool_call_id="k2", tool_name="bash",
+                                                         args={"command": "python b.py"}), ctx)
+        asyncio.run(module.on_tool_call(bash_call("python b.py", "k2"), ctx))
+        asyncio.run(module.on_tool_result(bash_done("python b.py", "k2"), ctx))
+        module.on_tool_end(ToolExecutionEndHookEvent(tool_call_id="k2", tool_name="bash"), ctx)
+    finally:
+        release.set()
+    rows = [json.loads(line) for line in (root / ".analytics" / "telemetry.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert rows[-1]["observation_skipped"] == "busy"
+    text = module.core.status_text(module.core.status(module.core.Project(root)))
+    assert "1 bash calls skipped while an observation was still running" in text
+
+
+def test_the_telemetry_summary_of_a_hostile_command_is_quick(lab):
+    """Review (independent D1): telemetry redacts only the start of a command it keeps 300 characters of,
+    with rules that read a long hyphenated run once."""
+    module, root = lab
+    command = "echo " + "2026-11-10-" * 9100
+    started = time.monotonic()
+    summary, _ = module.summarize_call("bash", {"command": command}, module.core.Project(root))
+    assert time.monotonic() - started < 0.5 and len(summary) == 300
+
+
 def test_lab_command_where_help_and_gap(lab):
     """`/analytics record gap TEXT` (what `/lab gap` was) is refused with the kind's new name
     (design 2.8: bad_kind, workflow_feedback), nothing written; `/analytics record workflow_feedback`
