@@ -301,6 +301,11 @@ WHY_TRUST = ("Using a project puts its CONTEXT.md into the model's prompt, and a
              "Use only a project you trust.")
 NOT_NOW = "Not now"
 NOT_HERE = "Don't ask in this folder"
+# How long the first prompt waits for the walk below the working directory and the judgment of what
+# it found (core.find_projects_below bounds its own time between reads; a read a network mount or a
+# permission prompt holds is bounded only here). Past it the prompt goes on with no project found;
+# the walk's thread ends on its own.
+FIND_SECONDS = 1.0
 
 
 def _named_project() -> bool:
@@ -334,14 +339,6 @@ def _usable(root) -> bool:
     return True
 
 
-def _shown(root, cwd: str) -> str:
-    """A root as a question shows it: relative to the working directory below it, else whole."""
-    try:
-        return str(Path(root).relative_to(core.canonical(cwd))) or str(root)
-    except (ValueError, OSError):
-        return str(root)
-
-
 def _activate(root, ctx, how: str) -> None:
     STATE["found"] = str(root)
     STATE["passed"] = []
@@ -357,11 +354,13 @@ async def activate_found_project(ctx) -> None:
     trusted project is activated without asking: the one in or above the working directory, as
     before, or the one trusted project below. A project the trust list does not hold, or a choice
     among several, follows the setting (core.read_settings: `ask`, `always`, `never`) and the
-    folders where it does not ask: in aelix's interactive UI a person answers; a run that cannot ask
-    (-p, json, rpc) activates no project it would have asked about, and the tools' no_project error
-    names what was found. What is activated lasts for the session (STATE["found"]); "use" also adds
-    it to the trust list, so the next session activates it without asking. Never raises: finding a
-    project must not block a prompt or a command."""
+    folders where it does not ask. With `ask`, in aelix's interactive UI a person answers, and a run
+    that cannot ask (-p, json, rpc) activates none of them: the tools' no_project error names those
+    found below, and one in or above the working directory stays project_untrusted. `always` is the
+    person's own choice and activates one such project without asking, in a run that cannot ask as
+    well. What is activated lasts for the session (STATE["found"]); "use" also adds it to the trust
+    list, so the next session activates it without asking. Never raises, and waits for the walk below
+    no longer than FIND_SECONDS: finding a project must not block a prompt or a command."""
     if STATE["looked"]:
         return
     STATE["looked"] = True
@@ -384,14 +383,18 @@ async def _activate_found_project(ctx) -> None:
             return
         await _choose(ctx, cwd, [], [above], "in or above the working directory")
         return
-    roots, _ = await asyncio.to_thread(core.find_projects_below, cwd)
 
-    def judged() -> tuple[list, list]:
+    def found_and_judged() -> tuple[list, list]:
+        roots, _ = core.find_projects_below(cwd)
         usable = [root for root in roots if _usable(root)]
         trusted = [root for root in usable if core.is_trusted(root)]
         return trusted, [root for root in usable if root not in trusted]
 
-    trusted, unknown = await asyncio.to_thread(judged)
+    try:
+        # Off the event loop, and no longer than FIND_SECONDS: the first prompt must not wait on it.
+        trusted, unknown = await asyncio.wait_for(asyncio.to_thread(found_and_judged), FIND_SECONDS)
+    except TimeoutError:  # asyncio.TimeoutError is TimeoutError from Python 3.11
+        return
     if len(trusted) == 1:
         _activate(trusted[0], ctx, "trusted, found below the working directory")
         return
@@ -413,10 +416,9 @@ async def _choose(ctx, cwd: str, trusted: list, unknown: list, where: str) -> No
     candidates = [*trusted, *unknown]
     if not candidates or not _can_ask(ctx) or not await asyncio.to_thread(core.asks_in, cwd):
         return
-    options = {}
-    for root in candidates:
-        tag = "trusted" if root in trusted else "adds it to the trust list"
-        options[f"Use {_shown(root, cwd)} ({tag})"] = root
+    # The whole path, so a person sees which directory it is.
+    options = {f"Use {root} ({'trusted' if root in trusted else 'adds it to the trust list'})": root
+               for root in candidates}
     if len(candidates) == 1:
         title = (f"Aelix Analytics found a project you have not chosen before, {where}:\n"
                  f"  {candidates[0]}\n{WHY_TRUST}")
@@ -424,7 +426,8 @@ async def _choose(ctx, cwd: str, trusted: list, unknown: list, where: str) -> No
         title = (f"Aelix Analytics found {len(candidates)} projects {where}. Choose the one to use "
                  f"in this session.\n{WHY_TRUST}")
     try:
-        choice = await ctx.ui.select(title, [*options, NOT_NOW, NOT_HERE])
+        # "Not now" first, where the selection starts: a stray Enter trusts nothing.
+        choice = await ctx.ui.select(title, [NOT_NOW, *options, NOT_HERE])
     except Exception:  # noqa: BLE001 - a dialog that fails is a question not answered
         return
     if choice == NOT_HERE:
@@ -2253,8 +2256,10 @@ async def analytics_command(args, ctx=None):
                          f"({'installed package' if __package__ else 'checkout file'})")
             lines.append(f"kit: {KIT} (aelix_analytics {core.KIT_VERSION}; {KIT_ROUTE})")
             with contextlib.suppress(Exception):
+                settings = core.read_settings()
+                ignored = f"; not used: {core.SETTINGS_PROBLEMS[settings['ignored']]}" if settings["ignored"] else ""
                 lines.append(f"settings: {core.settings_file()} (unknown projects: "
-                             f"{core.read_settings()['unknown_projects']})")
+                             f"{settings['unknown_projects']}{ignored})")
             try:
                 lines.append(f"uv: {resolve_uv()}")
             except core.AnalyticsError as exc:

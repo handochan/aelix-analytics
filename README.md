@@ -227,19 +227,26 @@ PowerShell 안에서 실행한 `chcp 65001`은 PowerShell이 이미 읽어 둔 �
   `AELIX_ANALYTICS_RUNTIME_PATH=$PACK/src`이고, 체크아웃을 업데이트할 때마다 다시 복사해야 합니다(kit 0.2.0 전의 `$PACK/kit`은 이제
   "kit not found"로 실패합니다).
 - `aelix status`로 로드 여부를 확인할 수 있습니다.
-- **디렉터리로 자동 활성화되는 프로젝트는 "내가 만들었거나 고른 것"뿐입니다.** `analytics init`·`analytics demo`·`analytics migrate`·
-  `/analytics use`가 프로젝트 경로를 신뢰 목록 `~/.aelix/agent/analytics-projects.json`(`analytics.trust/1`, kit 0.8.0)에 적고, 그 목록에
-  있는 프로젝트 안에서 aelix를 실행할 때만 활성화됩니다. kit 0.8.0 전의 목록 `lab-projects.json`은 고치지 않고 `lab.json` 프로젝트의
-  활성화에만 읽습니다. 남에게 받은 사본은 `/analytics use DIR` 한 번이 필요합니다(그 CONTEXT.md가 프롬프트에 들어가고
-  `analytics_run`이 그 코드를 실행하기 때문입니다).
+- **자동 활성화되는 프로젝트는 "내가 만들었거나 고른 것"뿐입니다.** `analytics init`·`analytics demo`·`analytics migrate`·
+  `/analytics use`와 아래 질문의 "쓰기"가 프로젝트 경로를 신뢰 목록 `~/.aelix/agent/analytics-projects.json`(`analytics.trust/1`, kit 0.8.0)에
+  적고, aelix를 켠 폴더나 그 위·아래에서 찾은 프로젝트는 그 목록에 있을 때 묻지 않고 활성화됩니다. 목록에 없는 프로젝트(남에게 받은 사본 등)는
+  사람이 고르거나(`/analytics use DIR`, 질문의 "쓰기") 사람이 설정에서 `always`를 골랐을 때만 활성화됩니다. 활성화하면 그 CONTEXT.md가
+  프롬프트에 들어가고 `analytics_run`이 그 코드를 실행하기 때문입니다. kit 0.8.0 전의 목록 `lab-projects.json`은 고치지 않고 `lab.json`
+  프로젝트의 활성화에만 읽습니다.
 - **상위 폴더에서 켜도 아래의 프로젝트를 찾습니다**(kit 0.32.1). 저장소 루트처럼 프로젝트 위의 폴더에서 aelix를 켜면 첫 프롬프트(또는 그
-  전의 첫 `/analytics` 명령) 때 그 아래를 깊이 3까지 찾습니다(숨김 폴더·`node_modules`·링크는 건너뛰고, 홈 디렉터리 자체에서는 찾지 않음).
-  신뢰 목록에 있는 프로젝트가 하나면 묻지 않고 씁니다. 처음 보는 프로젝트거나 여럿이면 aelix 화면에서 묻습니다: 쓰기(신뢰 목록에 더함) /
-  이번엔 쓰지 않음 / 이 폴더에선 묻지 않음. 물을 수 없는 실행(`aelix -p`, json, rpc)은 처음 보는 프로젝트를 쓰지 않고, 도구의 `no_project`
-  안내에 찾은 경로와 `/analytics use DIR`을 남깁니다. 프로젝트 안에서 켰는데 그 프로젝트가 신뢰 목록에 없을 때도 같은 질문을 합니다.
-  처음 보는 프로젝트를 묻지 않고 쓰려면(`always`, 신뢰 목록에는 더하지 않음) 또는 아예 묻지 않으려면(`never`) 신뢰 목록 옆의
-  `~/.aelix/agent/analytics-settings.json`에 `{"schema": "analytics.settings/1", "unknown_projects": "always"}`처럼 적습니다
-  (기본값 `ask`. 설정 화면은 [#162](https://github.com/handochan/aelix-analytics/issues/162)에서 더합니다). `/analytics where`가 지금 값을 보입니다.
+  전의 첫 `/analytics` 명령) 때 그 아래를 깊이 3까지 찾습니다(숨김 폴더·`node_modules`·링크·홈 디렉터리는 들어가지 않고, 홈 디렉터리 자체에서는
+  찾지 않으며, 1초 안에 끝나지 않으면 찾은 것 없이 프롬프트를 이어 갑니다). 신뢰 목록에 있는 프로젝트가 하나면 묻지 않고 씁니다. 목록에 없는
+  프로젝트나 여러 프로젝트는 설정 `unknown_projects`대로 합니다.
+  - `ask`(기본): aelix 화면에서 묻습니다. 선택지는 이번엔 쓰지 않음(처음 선택된 것) / 쓰기(경로마다, 신뢰 목록에 더함) / 이 폴더에선 묻지
+    않음입니다. 물을 수 없는 실행(`aelix -p`, json, rpc)은 쓰지 않습니다: 아래에서 찾은 것은 도구의 `no_project` 안내에 경로와
+    `/analytics use DIR`을 남기고, aelix를 켠 폴더나 그 위의 프로젝트는 전처럼 `project_untrusted`입니다.
+  - `always`: 목록에 없는 프로젝트가 하나면 묻지 않고 그 세션에 씁니다. 물을 수 없는 실행에서도 그렇습니다(사람이 고른 설정). 신뢰 목록에는
+    더하지 않고, 여럿이면 화면에서 고릅니다.
+  - `never`: 목록에 없는 프로젝트는 묻지도 쓰지도 않습니다.
+
+  설정 파일은 신뢰 목록 옆의 `~/.aelix/agent/analytics-settings.json`입니다. `{"schema": "analytics.settings/1", "unknown_projects": "always"}`처럼
+  적고 나만 쓸 수 있게 둡니다(`chmod 600`. POSIX에서 다른 계정의 파일이나 그룹·다른 사용자가 쓸 수 있는 파일은 쓰지 않습니다). 설정 화면은
+  [#162](https://github.com/handochan/aelix-analytics/issues/162)에서 더합니다. `/analytics where`가 지금 값과, 파일을 쓰지 않으면 그 이유를 보입니다.
 - Aelix Analytics Engine 어댑터와 이름이 겹치지 않습니다
   (`analytics_*`·`/analytics` vs `analytics_engine_*`·`/analytics-engine`).
   다만 비교 평가는 한 번에 하나만 로드해야 공정합니다.

@@ -153,28 +153,37 @@ kit 0.3.0 전의 이름(확장 파일 `extension/aelix_lab.py`, 명령 `/lab`, �
 찾아 활성화합니다(`activate_found_project`). 세션 시작(`session_start`)이 아닌 것은 aelix 0.1.0b2가 TUI에 UI를 붙이기 전에 세션을 시작해 그때는
 물을 수 없기 때문입니다. 이름으로 정한 프로젝트(`/analytics use`·`--analytics-project`·`AELIX_ANALYTICS_PROJECT`)가 있으면 찾지 않습니다.
 작업 디렉터리와 그 조상에서 찾은 프로젝트가 먼저입니다: 신뢰된 것은 전처럼 묻지 않고 쓰고, 읽을 수 없는 것(두 표식, 커밋하지 않은 전환의
-목적지)은 전처럼 거절하며, 신뢰 목록에 없는 것은 아래처럼 정합니다(전에는 늘 `project_untrusted`). 그런 프로젝트가 없으면 작업 디렉터리
-**아래**를 찾습니다(`core.find_projects_below`): 깊이 3까지(작업 디렉터리의 자식이 1), 너비 우선·이름 순으로, 숨김 디렉터리(`.`으로 시작:
-`.git`·`.venv`·`.analytics` 등)·`node_modules`·`__pycache__`·링크(심볼릭 링크·junction)·찾은 디렉터리 안으로는 들어가지 않습니다. 표식이나
-전환 기록이 있는 디렉터리를 찾는 것은 `find_project`와 같습니다. 디렉터리를 2,000개 읽었거나 0.5초가 지나면 그때까지 찾은 것으로 멈추고,
-읽지 못하는 디렉터리는 건너뛰며, 홈 디렉터리 자체와 파일 시스템의 루트에서는 찾지 않습니다(프로젝트 밖의 것이 많고, macOS는 Documents
-같은 폴더를 읽을 때 사람에게 권한을 물을 수 있음). 찾은 디렉터리 가운데 `/analytics use`처럼 읽을 수 있는 것만 후보입니다.
+목적지)은 전처럼 거절하며, 신뢰 목록에 없는 것은 아래처럼 설정과 사람이 정합니다(전에는 늘 `project_untrusted`). 그런 프로젝트가 없으면 작업
+디렉터리 **아래**를 찾습니다(`core.find_projects_below`): 깊이 3까지(작업 디렉터리의 자식이 1), 너비 우선·이름 순으로, 숨김 디렉터리(`.`으로
+시작: `.git`·`.venv`·`.analytics` 등)·`node_modules`·`__pycache__`·링크(심볼릭 링크·junction)·홈 디렉터리·찾은 디렉터리 안으로는 들어가지
+않습니다(그래서 `/Users`·`C:\Users`에서 켜도 홈의 Desktop·Documents 등을 읽지 않음). 표식이나 전환 기록이 있는 디렉터리를 찾는 것은
+`find_project`와 같습니다. 디렉터리를 2,000개 읽었거나 0.5초가 지나면 그때까지 찾은 것으로 멈춥니다. 시간은 디렉터리 사이와 한 디렉터리의
+항목마다 봅니다. 읽지 못하는 디렉터리는 건너뛰고, 홈 디렉터리 자체와 파일 시스템의 루트에서는 찾지 않습니다(프로젝트 밖의 것이 많고, macOS는
+Documents 같은 폴더를 읽을 때 사람에게 권한을 물을 수 있음). 파일 시스템이 한 번의 읽기에 답하지 않는 경우(멈춘 네트워크 마운트, 권한
+질문)는 찾기 안에서 끊지 못하므로, 확장은 찾기와 후보의 판정을 aelix의 event loop 밖(작업 스레드)에서 하고 1초(`FIND_SECONDS`)만 기다립니다.
+그 뒤에는 찾은 것 없이 프롬프트를 이어 가고, 남은 스레드는 스스로 끝납니다. 찾은 디렉터리 가운데 `/analytics use`처럼 읽을 수 있는 것만
+후보입니다.
 - 신뢰된 후보가 하나면(처음 보는 후보가 함께 있어도) 묻지 않고 활성화하고, UI가 있으면 알립니다(`notify`).
-- 신뢰된 후보가 여럿이거나 처음 보는 후보만 있으면 사용자 설정(B "사용자 설정"의 `unknown_projects`)과 사람이 정합니다. `never`는 처음 보는
-  후보를 묻지도 활성화하지도 않고, `always`는 신뢰된 후보 없이 처음 보는 후보가 하나일 때 묻지 않고 활성화합니다(신뢰 목록에는 더하지
-  않음). 나머지는 aelix의 대화형 UI(`ctx.has_ui`)가 있고 작업 디렉터리가 설정의 `not_asked_in`에 없을 때 `ctx.ui.select`로 묻습니다. 선택지는
-  후보마다 `Use <경로> (trusted)` 또는 `(adds it to the trust list)`(작업 디렉터리 아래의 것은 상대 경로)와 `Not now`, `Don't ask in this
-  folder`이고, 질문 글은 프로젝트를 쓰면 그 CONTEXT.md가 모델의 프롬프트에 들어가고 `analytics_run`이 그 프로젝트의 스크립트를 그 프로젝트의
-  Python 환경으로 실행한다는 것, 믿는 프로젝트만 쓰라는 것을 말합니다. `Use`는 처음 보는 후보를 신뢰 목록에 더하고(쓰지 못해도 이 세션에는
-  씀) 활성화하고, `Not now`와 닫은 질문은 이 세션에 활성화하지 않으며(다음 세션에 다시 물음), `Don't ask in this folder`는 작업 디렉터리를
-  `not_asked_in`에 더합니다(그 디렉터리만, 아래 디렉터리는 아님).
-- 물을 수 없는 실행(`-p`·`--mode json`·RPC, UI가 없는 맥락)은 처음 보는 후보와 여러 후보를 활성화하지 않습니다. 활성화하지 않은 후보는 도구와
-  명령의 `no_project` 글(`Found below the working directory and not activated: …`)에 남고, hint가 사람의 `/analytics use DIR`을 알립니다.
-  stderr에는 쓰지 않습니다.
+- 신뢰된 후보가 여럿이거나 처음 보는 후보만 있으면 사용자 설정(B "사용자 설정"의 `unknown_projects`)과 사람이 정합니다.
+  - `ask`(기본): aelix의 대화형 UI(`ctx.has_ui`)가 있고 작업 디렉터리가 설정의 `not_asked_in`에 없을 때 `ctx.ui.select`로 묻습니다. 선택지는
+    처음에 선택된 `Not now`(실수로 누른 Enter가 아무것도 신뢰하지 않도록), 후보마다 `Use <전체 경로> (trusted)` 또는 `(adds it to the trust
+    list)`, `Don't ask in this folder`입니다. 질문 글은 프로젝트를 쓰면 그 CONTEXT.md가 모델의 프롬프트에 들어가고 `analytics_run`이 그
+    프로젝트의 스크립트를 그 프로젝트의 Python 환경으로 실행한다는 것, 믿는 프로젝트만 쓰라는 것을 말합니다. `Use`는 처음 보는 후보를 신뢰
+    목록에 더하고(쓰지 못해도 이 세션에는 씀) 활성화하고, `Not now`와 닫은 질문은 이 세션에 활성화하지 않으며(다음 세션에 다시 물음),
+    `Don't ask in this folder`는 작업 디렉터리를 `not_asked_in`에 더합니다(그 디렉터리만, 아래 디렉터리는 아님). 물을 수 없는 실행(`-p`·
+    `--mode json`·RPC, UI가 없는 맥락)은 처음 보는 후보와 여러 후보를 활성화하지 않습니다: 아래에서 찾은 후보는 도구와 명령의 `no_project`
+    글(`Found below the working directory and not activated: …`)에 경로로 남고 hint가 사람의 `/analytics use DIR`을 알리며, 작업 디렉터리나
+    그 위의 신뢰되지 않은 프로젝트는 전처럼 `project_untrusted`입니다. stderr에는 쓰지 않습니다.
+  - `always`: 신뢰된 후보 없이 처음 보는 후보가 하나면 묻지 않고 그 세션에 활성화합니다(신뢰 목록에는 더하지 않음). 사람이 자기 설정으로
+    고른 것이므로 물을 수 없는 실행에서도 그렇습니다. 후보가 여럿이면 `ask`처럼 묻고, 물을 수 없으면 활성화하지
+    않습니다.
+  - `never`: 처음 보는 후보는 묻지도 활성화하지도 않습니다(`no_project`·`project_untrusted`는 `ask`의 물을 수 없는 실행과 같음).
 - 활성화는 그 세션 동안입니다(다시 설정한 세션은 다시 찾음). 작업 디렉터리 아래에서 찾은 프로젝트의 `via`는 `below the working directory`,
-  작업 디렉터리와 그 조상의 것은 전처럼 `working directory`입니다. `/analytics where`는 설정 파일과 `unknown_projects`의 값도 보입니다.
+  작업 디렉터리와 그 조상의 것은 전처럼 `working directory`입니다. `/analytics where`는 설정 파일과 `unknown_projects`의 값, 파일을 쓰지 않으면
+  그 이유도 보입니다.
 - aelix는 확장에 권한 모드(default·yolo 등)를 알려 주지 않으므로 확장은 그것을 보지 않습니다. 묻지 않고 쓰려는 사람은 `always`를 고릅니다.
-  실제 TUI에서 질문이 보이는 모습은 사람 검증으로 남겼습니다(시험은 가짜 UI). 깊이와 한도 밖의 프로젝트는 `/analytics use DIR`로 정합니다.
+  실제 TUI에서 질문이 보이는 모습은 사람 검증으로 남겼습니다(시험은 가짜 UI와 aelix의 실제 hook 맥락). 깊이와 한도 밖의 프로젝트는
+  `/analytics use DIR`로 정합니다.
 aelix는 세션을 만들 때마다(시작, `/new`, `/resume`, `/fork`, `/reload`) 확장을 다시 설정합니다. 파일 로드는 그때마다 새
 모듈이지만 설치본의 모듈은 프로세스에 한 번 import되므로, `setup()`이 활성 프로젝트·세션 같은 상태를 매번 처음부터
 시작합니다(체크아웃 경로와 같은 결과). 그래서 설치본을 업그레이드하면 aelix를 다시 시작해야 새 코드가 로드됩니다.
@@ -308,7 +317,7 @@ FTS5는 있으면 vocabulary를 만들지만 질의는 substring 경로를 씁�
 | `.gitignore` | 새 프로젝트의 템플릿(kit 0.8.0): `.venv/`, `__pycache__/`, `.analytics/`의 `cache/`·잠금 넷·`adhoc/`·`publications/`, `workspace/`, `data/`, `runs/*/visualizations/*.data.parquet`. 전환이 옛 `.gitignore` 끝에 더하는 새 이름과 같은 목록입니다(시험이 비교). 기존 파일은 고쳐 쓰지 않음 |
 | `pyproject.toml`·`uv.lock` | 프로젝트 환경(Python `>=3.12`, 분석 라이브러리)의 선언과 lock. 새 프로젝트의 템플릿은 duckdb·polars·pyarrow·matplotlib·plotly·pygments·markdown-it-py의 범위와 보안 수정의 하한 `pillow>=13`(kit 0.32.0, #131: Pillow 12.3.0까지 GHSA-8g5g-8vmr-9782 등 9건)을 둡니다. 런처·`bin/analytics`·확장의 init은 이어서 `uv sync`로 `uv.lock`과 환경을 만들고, 실패하면 `--offline`으로 한 번 더 합니다(kit 자신의 `init`과 SDK는 lock을 만들지 않고, 첫 `uv run`이 만듭니다). 그래서 오프라인이고 uv 캐시에 하한을 채우는 버전이 없으면 환경을 만들지 못합니다. kit은 이미 만든 프로젝트의 Pillow를 올리지 않습니다(lock이 pyproject와 맞지 않을 때 kit이 시작한 `uv run`이 lock을 다시 쓰는 것은 아래 "읽기 전용"과 같습니다). 이전 템플릿의 프로젝트에서는 사람이 `uv lock --upgrade-package pillow`와 `uv sync`를 실행합니다(그 `pyproject.toml`이 Pillow를 13 미만으로 묶었으면 올라가지 않음). `build`는 이미 있는 `.venv`를 그대로 쓰므로 동기화하지 않습니다 |
 | 신뢰 목록 | 프로젝트 **밖**의 `~/.aelix/agent/analytics-projects.json`(`analytics.trust/1`, [기록 schema](schemas/analytics-records.schema.json)의 `trust_1`, kit 0.8.0부터. `AELIX_ANALYTICS_TRUST_FILE`·`AELIX_CODING_AGENT_DIR`로 변경). init, `/analytics use`, 전환의 커밋, 작업 디렉터리에서 찾은 프로젝트를 묻는 질문의 `Use`(kit 0.32.1, A)가 추가하며(이미 있으면 파일을 그대로 둠), 작업 디렉터리와 그 조상이나 아래에서 찾은 프로젝트가 묻지 않고 활성화되려면 목록에 있어야 합니다(설정 `always`는 예외, 아래 행). 같은 디렉터리의 옛 목록 `lab-projects.json`(`lab.trust/1`, kit 0.8.0 전의 것)은 읽기만 하고 그 경로는 `lab.json` 프로젝트의 활성화에만 씁니다(항목을 옮기지 않음). `AELIX_ANALYTICS_TRUST_FILE`이 있으면 그 파일 하나를 어느 가족이든 읽어 모든 프로젝트에 쓰고, 더할 때 `analytics.trust/1`로 씁니다. 목록이 파일 링크면 그 대상을 씁니다 |
-| 사용자 설정 | 프로젝트 **밖**, 신뢰 목록과 같은 디렉터리의 `analytics-settings.json`(`analytics.settings/1`, [기록 schema](schemas/analytics-records.schema.json)의 `settings_1`, kit 0.32.1, [#169](https://github.com/handochan/aelix-analytics/issues/169). 기본은 `~/.aelix/agent/`, `AELIX_ANALYTICS_TRUST_FILE`이 있으면 그 파일의 디렉터리). aelix 확장이 작업 디렉터리에서 찾은 프로젝트를 활성화하는 방식(A): `unknown_projects` — 신뢰 목록에 없는 프로젝트를 `ask`(기본, 물을 수 있을 때 묻기)·`always`(묻지 않고 그 세션에 활성화, 신뢰 목록에 더하지 않음)·`never`(묻지도 활성화하지도 않음) — 와 `not_asked_in`(묻지 않을 작업 디렉터리의 canonical 경로, 그 디렉터리만). 없는 필드는 기본값이고, 모르는 값이나 다른 가족·버전의 파일, 읽지 못하는 파일도 기본값으로 읽습니다(묻는 쪽). 쓰기는 원자적 교체이고 모르는 필드를 남기며, 다른 가족·버전의 파일은 덮지 않습니다(`settings_unsupported`). JSON 객체가 아닌 파일은 바꿔 씁니다. 파일이 대상이 있는 링크면 그 대상을 씁니다. 바꾸는 함수는 `core.set_unknown_projects`(목록 밖의 값은 `setting_invalid`)와 `core.stop_asking_in`(질문의 `Don't ask in this folder`)입니다. `unknown_projects`를 바꾸는 화면은 아직 없으므로([#162](https://github.com/handochan/aelix-analytics/issues/162)) 그 전에는 파일을 직접 고칩니다 |
+| 사용자 설정 | 프로젝트 **밖**, 신뢰 목록과 같은 디렉터리의 `analytics-settings.json`(`analytics.settings/1`, [기록 schema](schemas/analytics-records.schema.json)의 `settings_1`, kit 0.32.1, [#169](https://github.com/handochan/aelix-analytics/issues/169). 기본은 `~/.aelix/agent/`, `AELIX_ANALYTICS_TRUST_FILE`이 있으면 그 파일의 디렉터리). aelix 확장이 작업 디렉터리에서 찾은 프로젝트를 활성화하는 방식(A): `unknown_projects` — 신뢰 목록에 없는 프로젝트를 `ask`(기본, 물을 수 있을 때 묻기)·`always`(묻지 않고 그 세션에 활성화, 물을 수 없는 실행에서도. 신뢰 목록에 더하지 않음)·`never`(묻지도 활성화하지도 않음) — 와 `not_asked_in`(묻지 않을 작업 디렉터리의 canonical 경로, 그 디렉터리만). 없는 필드는 기본값입니다. 확장은 settings_1에 맞는 파일만 씁니다: `schema`가 `analytics.settings/1`이고 `unknown_projects`가 세 값 가운데 하나(enum은 닫혀 있음)이며 `not_asked_in`이 겹치지 않는 비지 않은 문자열의 목록인 JSON 객체(모르는 필드는 허용하고 남김). 맞지 않는 파일(다른 가족·버전, 모르는 값, JSON이 아님)과 읽지 못하는 파일은 모든 설정이 기본값(`ask`, 묻는 쪽)인 것으로 읽고 고쳐 쓰지 않으며(`settings_unsupported`, `details.reason`: `invalid`·`unreadable`), 읽기와 쓰기가 같은 판정을 씁니다. POSIX에서는 이 사용자의 것이 아니거나(파일이나 그 링크, `not_owned`) 그룹·다른 사용자가 쓸 수 있는(`writable_by_others`) 파일도 쓰지 않습니다: 신뢰 목록 옆 디렉터리를 다른 계정이 쓸 수 있으면(`AELIX_ANALYTICS_TRUST_FILE`이 공유 디렉터리) 그 계정이 `always`를 심을 수 있기 때문입니다. 확장이 쓴 파일은 POSIX에서 이 사용자만 읽고 쓰는 `0600`입니다. Windows는 소유자와 권한을 보지 않습니다(한계). 신뢰 목록 자체는 이 판정을 하지 않습니다(전과 같음). 쓰기는 원자적 교체이고, 파일이 대상이 있는 링크면 그 대상을 씁니다. 두 프로세스가 함께 바꾸면 나중의 교체가 이기고 앞의 변경은 사라집니다(신뢰 목록과 같은 한계). 바꾸는 함수는 `core.set_unknown_projects`(목록 밖의 값은 `setting_invalid`)와 `core.stop_asking_in`(질문의 `Don't ask in this folder`)이고, 읽는 함수는 `core.read_settings`(`ignored`: 파일을 쓰지 않는 이유)입니다. `unknown_projects`를 바꾸는 화면은 아직 없으므로([#162](https://github.com/handochan/aelix-analytics/issues/162)) 그 전에는 파일을 직접 고칩니다 |
 
 run의 **출력 비교 대상**은 프로젝트의 이름 공간(E의 경로 정체성)에서 `.venv .analytics runs workspace scripts .git __pycache__ …`와
 `analytics.json journal.jsonl CONTEXT.md pyproject.toml uv.lock .python-version .gitignore .gitattributes`를 뺀 모든 파일입니다(`.gitattributes`는
@@ -1532,7 +1541,7 @@ leak_found로 멈추고 모델 필드 또는 사본 ItemKey/역할을 짚습니�
 | CONTEXT 이력 | 읽는 화면(`status`의 `context_updated`, Workspace의 Context history와 그 수, 타임라인의 버전 링크)은 `.analytics/context/`(새 형식, kit 0.7.0부터)와 `.lab/context/`의 `*.md`를 이름(= 시각) 순으로 함께 보입니다. 같은 이름이 둘에 있으면 `.analytics/context/`의 것이고, 맥락 참조가 그 이름을 푸는 순서(`relations.CONTEXT_DIRS`)와 같습니다. kit 0.8.0이 쓰는 버전은 `.analytics/context/`에만 남깁니다(그 전의 kit은 `.lab/context/`에만) |
 | 읽기 전용 쿼리 | 한 문장이어야 하고 종류가 SELECT(DESCRIBE·SUMMARIZE·SHOW·PRAGMA 포함)여야 합니다. `EXPLAIN`은 안쪽이 SELECT일 때만, `EXPLAIN ANALYZE`는 거절. 연결은 `allowed_directories=[<project>/data/]` + `enable_external_access=false` + `lock_configuration=true`로 묶습니다 |
 | SQL 계보 | DuckDB 파서(`json_serialize_sql`)로 참조 테이블을 찾고 CTE 이름은 그 범위 안에서만 제외합니다. 파서가 받지 않는 문장은 FROM·JOIN 뒤 이름만 맞춰 보는 대비책을 씁니다 |
-| 프로젝트 활성화 | `/analytics use`·flag·env는 명시적 선택입니다. 작업 디렉터리와 그 조상이나 아래에서 찾은 프로젝트는 신뢰 목록에 있거나 이 세션에 사람이 고르거나 설정 `always`가 활성화한 것만 쓰고(kit 0.32.1, A "작업 디렉터리에서 찾은 프로젝트"), 아니면 작업 디렉터리와 그 조상의 것은 `project_untrusted`, 아래의 것은 `no_project`로 거절하며 맥락 주입·telemetry도 하지 않습니다 |
+| 프로젝트 활성화 | 프로젝트는 사람이 만들거나 고른 것만 활성화됩니다. `/analytics use`·flag·env는 명시적 선택입니다. 작업 디렉터리와 그 조상이나 아래에서 찾은 프로젝트는 신뢰 목록에 있는 것(init·demo·전환·`/analytics use`·질문의 `Use`가 더함), 이 세션에 사람이 질문의 `Use`로 고른 것, 사람이 자기 설정에서 `always`를 고른 때의 것만 쓰고(kit 0.32.1, A "작업 디렉터리에서 찾은 프로젝트", B "사용자 설정"), 아니면 작업 디렉터리와 그 조상의 것은 `project_untrusted`, 아래의 것은 `no_project`(찾은 경로를 적음)로 거절하며 맥락 주입·telemetry도 하지 않습니다 |
 
 ## F. 실행 환경과 지원 플랫폼
 

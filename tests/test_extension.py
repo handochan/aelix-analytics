@@ -16,6 +16,8 @@ import os
 import re
 import shutil
 import sys
+import threading
+import time
 import unicodedata
 import uuid
 from pathlib import Path
@@ -969,14 +971,15 @@ def test_a_session_started_above_activates_the_one_trusted_project_below_without
 def test_an_unknown_project_below_is_asked_about_and_the_answer_is_followed(started_above, answer):
     module, repo, make = started_above
     root = make("analysis")
-    pick = {"use": lambda options: options[0], "not now": module.NOT_NOW, "dismissed": None,
+    pick = {"use": lambda options: options[1], "not now": module.NOT_NOW, "dismissed": None,
             "not here": module.NOT_HERE}[answer]
     ui = FakeUI(pick)
     out = first_prompt(module, with_ui(ui))
     [(title, options)] = ui.asked
     # The question says why trust matters.
     assert str(root) in title and "CONTEXT.md" in title and "analytics_run" in title and "trust" in title
-    assert options == ["Use analysis (adds it to the trust list)", "Not now", "Don't ask in this folder"]
+    # "Not now" first, where the selection starts (a stray Enter trusts nothing), and the whole path.
+    assert options == ["Not now", f"Use {root} (adds it to the trust list)", "Don't ask in this folder"]
     if answer == "use":
         assert "(title: analysis)" in out.system_prompt and module.core.is_trusted(root)
         assert module.resolve_project()[1] == "below the working directory"
@@ -1014,11 +1017,11 @@ def test_without_a_ui_an_unknown_project_is_not_activated(started_above, ctx):
 def test_several_projects_below_are_chosen_among(started_above):
     module, repo, make = started_above
     first, second = make("a"), make("b")
-    ui = FakeUI(lambda options: options[1])
+    ui = FakeUI(lambda options: options[2])
     out = first_prompt(module, with_ui(ui))
     [(title, options)] = ui.asked
     assert "found 2 projects below the working directory" in title and "CONTEXT.md" in title
-    assert options == ["Use a (adds it to the trust list)", "Use b (adds it to the trust list)", "Not now",
+    assert options == ["Not now", f"Use {first} (adds it to the trust list)", f"Use {second} (adds it to the trust list)",
                        "Don't ask in this folder"]
     assert "(title: b)" in out.system_prompt
     assert module.core.is_trusted(second) and not module.core.is_trusted(first)
@@ -1026,15 +1029,13 @@ def test_several_projects_below_are_chosen_among(started_above):
 
 def test_several_trusted_projects_below_are_a_choice_a_run_without_a_ui_does_not_make(started_above):
     module, repo, make = started_above
-    make("a", trusted=True)
-    make("b", trusted=True)
-    make("c")
+    a, b, c = make("a", trusted=True), make("b", trusted=True), make("c")
     assert first_prompt(module, SimpleNamespace()) is None
     assert "[no_project]" in text_of(call(tools_of(module)["analytics_status"], {}))
-    ui = FakeUI(lambda options: options[1])
+    ui = FakeUI(lambda options: options[2])
     out = first_prompt(fresh_module(), with_ui(ui))
-    assert ui.asked[0][1] == ["Use a (trusted)", "Use b (trusted)", "Use c (adds it to the trust list)", "Not now",
-                              "Don't ask in this folder"]
+    assert ui.asked[0][1] == ["Not now", f"Use {a} (trusted)", f"Use {b} (trusted)",
+                              f"Use {c} (adds it to the trust list)", "Don't ask in this folder"]
     assert "(title: b)" in out.system_prompt
 
 
@@ -1046,7 +1047,7 @@ def test_the_setting_for_unknown_projects(started_above, mode, ui_bound):
     module, repo, make = started_above
     root = make("analysis")
     module.core.set_unknown_projects(mode)
-    ui = FakeUI(lambda options: options[0])
+    ui = FakeUI(lambda options: options[1])
     out = first_prompt(module, with_ui(ui) if ui_bound else SimpleNamespace())
     asked = mode == "ask" and ui_bound
     assert len(ui.asked) == (1 if asked else 0)
@@ -1069,13 +1070,13 @@ def test_an_unknown_project_aelix_starts_in_is_asked_about_too(tmp_path, monkeyp
     monkeypatch.chdir(root / "notes")
     if how == "always":
         module.core.set_unknown_projects("always")
-    ui = FakeUI(lambda options: options[0]) if how == "asked" else FakeUI()
+    ui = FakeUI(lambda options: options[1]) if how == "asked" else FakeUI()
     out = first_prompt(module, with_ui(ui))
     assert "(title: cloned)" in out.system_prompt and module.resolve_project()[1] == "working directory"
     if how == "asked":
         [(title, options)] = ui.asked
         assert "in or above the working directory" in title and str(root) in title
-        assert options[0] == f"Use {root} (adds it to the trust list)" and module.core.is_trusted(root)
+        assert options[1] == f"Use {root} (adds it to the trust list)" and module.core.is_trusted(root)
     else:
         assert ui.asked == [] and not module.core.is_trusted(root)
 
@@ -1104,7 +1105,7 @@ def test_a_named_or_found_above_project_comes_before_the_search(started_above, t
 def test_a_command_before_the_first_prompt_asks_as_the_prompt_would(started_above):
     module, repo, make = started_above
     root = make("analysis")
-    ui = FakeUI(lambda options: options[0])
+    ui = FakeUI(lambda options: options[1])
     where = asyncio.run(module.analytics_command("where", with_ui(ui)))
     assert f"project: {root} (via below the working directory)" in where and len(ui.asked) == 1
     assert f"settings: {module.core.settings_file()} (unknown projects: ask)" in where
@@ -1137,7 +1138,7 @@ def test_aelix_s_own_hook_context_asks_through_the_ui_aelix_bound(started_above,
     command = asyncio.run(first_prompt_in_aelix(None))
     assert not module.core.is_trusted(root)
     assert f"not activated: {root}" in asyncio.run(command("where"))
-    ui = FakeUI(lambda options: options[0])
+    ui = FakeUI(lambda options: options[1])
     command = asyncio.run(first_prompt_in_aelix(ui))
     assert len(ui.asked) == 1 and module.core.is_trusted(root)
     assert f"project: {root} (via below the working directory)" in asyncio.run(command("where"))
@@ -1152,6 +1153,97 @@ def test_a_question_that_fails_activates_nothing_and_blocks_no_prompt(started_ab
 
     assert first_prompt(module, with_ui(FakeUI(closed))) is None
     assert not module.core.is_trusted(root) and module.STATE["found"] is None
+
+
+def test_a_stray_enter_on_the_question_trusts_nothing(started_above):
+    """The selection starts at the first choice, "Not now" (review of PR #177)."""
+    module, repo, make = started_above
+    root = make("analysis")
+    ui = FakeUI(lambda options: options[0])
+    assert first_prompt(module, with_ui(ui)) is None
+    assert ui.asked[0][1][0] == module.NOT_NOW
+    assert not module.core.is_trusted(root) and module.STATE["found"] is None
+
+
+def test_a_walk_that_hangs_does_not_hold_the_first_prompt(started_above, monkeypatch):
+    """A read a network mount or a permission prompt holds is bounded at the call: after
+    FIND_SECONDS the prompt goes on with no project found (review of PR #177)."""
+    module, repo, make = started_above
+    make("analysis", trusted=True)
+    released = threading.Event()
+
+    def hangs(*args, **kwargs):
+        released.wait(10)
+        return [], False
+
+    monkeypatch.setattr(module.core, "find_projects_below", hangs)
+    monkeypatch.setattr(module, "FIND_SECONDS", 0.2)
+
+    async def scenario():
+        began = time.monotonic()
+        out = await module.on_before_agent_start(
+            BeforeAgentStartHookEvent(prompt="hi", system_prompt="BASE"), with_ui(FakeUI()))
+        took = time.monotonic() - began
+        released.set()
+        return out, took
+
+    out, took = asyncio.run(scenario())
+    assert out is None and module.STATE["found"] is None
+    assert took < 2.0, took
+
+
+def test_the_walk_below_runs_off_the_event_loop(started_above, monkeypatch):
+    module, repo, make = started_above
+    make("analysis", trusted=True)
+    seen = []
+    walk = module.core.find_projects_below
+
+    def watched(*args, **kwargs):
+        try:
+            asyncio.get_running_loop()
+            seen.append("event loop")
+        except RuntimeError:
+            seen.append("main thread" if threading.current_thread() is threading.main_thread() else "worker")
+        return walk(*args, **kwargs)
+
+    monkeypatch.setattr(module.core, "find_projects_below", watched)
+    assert first_prompt(module, with_ui(FakeUI())) is not None
+    assert seen == ["worker"]
+
+
+class FakeAelix:
+    """What setup() calls on aelix's extension API. aelix sets the extension up again for every
+    session it builds (/new, /resume, /fork, /reload); the installed module keeps its globals."""
+
+    events = None
+
+    def register_flag(self, *args, **kwargs):
+        pass
+
+    def register_tool(self, tool):
+        pass
+
+    def register_command(self, *args, **kwargs):
+        pass
+
+    def on(self, *args, **kwargs):
+        pass
+
+    def get_flag(self, name):
+        return None
+
+
+def test_a_new_session_starts_the_look_over(started_above):
+    module, repo, make = started_above
+    root = make("analysis")
+    first_prompt(module, with_ui(FakeUI(module.NOT_NOW)))
+    assert module.STATE["looked"] and module.STATE["passed"] == [root]
+    module.setup(FakeAelix())
+    assert (module.STATE["looked"], module.STATE["found"], module.STATE["passed"]) == (False, None, [])
+    again = FakeUI(lambda options: options[1])
+    assert "(title: analysis)" in first_prompt(module, with_ui(again)).system_prompt and len(again.asked) == 1
+    module.setup(FakeAelix())
+    assert (module.STATE["looked"], module.STATE["found"]) == (False, None)
 
 
 def test_a_new_script_name_windows_cannot_store_is_refused(lab):

@@ -83,11 +83,27 @@ def test_a_marker_in_another_case_counts_where_the_file_system_ignores_case(tmp_
 
 
 def test_the_home_directory_and_a_file_system_root_are_not_searched(tmp_path, monkeypatch):
-    home = tmp_path / "home"
+    users = tmp_path / "Users"
+    home = users / "me"
     marker(home / "analyses" / "q3")
+    marker(users / "other" / "proj")
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
     assert core.find_projects_below(home) == ([], False)
     assert below(home / "analyses") == (["q3"], True)
+    # Started above it (/Users, C:\Users): the walk does not go into the home directory either, so
+    # it reads none of its folders (Desktop, Documents, Downloads).
+    home_listed = []
+    scandir = os.scandir
+    real_home = Path(core.canonical(home))
+
+    def watched(path):
+        if Path(path) == real_home or real_home in Path(path).parents:
+            home_listed.append(path)
+        return scandir(path)
+
+    monkeypatch.setattr(core.os, "scandir", watched)
+    assert below(users) == (["other/proj"], True)
+    assert home_listed == []
 
     def listed(*args, **kwargs):
         raise AssertionError(f"a file system root was listed: {args}")
@@ -121,9 +137,56 @@ def test_the_search_stops_at_its_limits_and_keeps_what_it_found(tmp_path, monkey
     # The number of directories: what it found before the limit is kept, and it says it stopped.
     assert below(repo, max_dirs=5) == (["aaa"], False)
     assert len(calls) == 1 + 5
-    # The time: a clock that has run out stops it before the next listing.
-    ticks = iter([0.0, 0.0, 0.0, 9.0, 9.0, 9.0])
-    assert below(repo, seconds=1.0, clock=lambda: next(ticks)) == (["aaa"], False)
+    # The time: a clock that has run out from the start stops it at the first entry.
+    ticks = iter([0.0] + [9.0] * 100)
+    assert below(repo, seconds=1.0, clock=lambda: next(ticks)) == ([], False)
+
+
+class CountedListing:
+    """os.scandir's context of one directory, counting the entries the walk took from it."""
+
+    def __init__(self, inner):
+        self.inner, self.read = inner, 0
+
+    def __enter__(self):
+        self.entries = self.inner.__enter__()
+        return self
+
+    def __exit__(self, *exc):
+        return self.inner.__exit__(*exc)
+
+    def __iter__(self):
+        for entry in self.entries:
+            self.read += 1
+            yield entry
+
+
+def test_the_time_runs_out_in_the_middle_of_a_directory(tmp_path, monkeypatch):
+    """A directory of very many entries (or a slow one) does not hold the walk past its time: the
+    clock is looked at after each entry, not only between directories (review of PR #177)."""
+    repo = tmp_path / "repo"
+    marker(repo / "aaa")
+    for i in range(200):
+        (repo / "huge" / f"d{i:03}").mkdir(parents=True)
+    marker(repo / "zzz")
+    listings = {}
+    scandir = os.scandir
+
+    def counted(path):
+        listing = CountedListing(scandir(path))
+        listings[Path(path).name] = listing
+        return listing
+
+    monkeypatch.setattr(core.os, "scandir", counted)
+    now = [0.0]
+
+    def clock():  # 10 ms a look: the time (half a second) runs out after about 50 looks
+        now[0] += 0.01
+        return now[0]
+
+    assert below(repo, seconds=0.5, clock=clock) == (["aaa"], False)
+    assert 0 < listings["huge"].read < 100, listings["huge"].read
+    assert "zzz" not in listings
 
 
 def test_the_search_of_a_big_tree_is_short(tmp_path):
@@ -163,7 +226,7 @@ def test_a_directory_that_cannot_be_listed_is_passed_over(tmp_path, monkeypatch)
 def test_the_settings_are_beside_the_trust_list_and_default_to_asking(tmp_path, monkeypatch):
     assert core.settings_file() == core.trust_file().parent / "analytics-settings.json"
     assert not core.settings_file().exists()
-    assert core.read_settings() == {"unknown_projects": "ask", "not_asked_in": []}
+    assert core.read_settings() == {"unknown_projects": "ask", "not_asked_in": [], "ignored": None}
     assert core.SCHEMA_SETTINGS == writer.FAMILIES["settings"] == "analytics.settings/1"
     # Without AELIX_ANALYTICS_TRUST_FILE, beside analytics-projects.json in the host's agent directory.
     monkeypatch.delenv("AELIX_ANALYTICS_TRUST_FILE")
@@ -178,19 +241,39 @@ def test_each_value_of_the_setting_is_written_as_analytics_settings_1(mode):
     stored = json.loads(core.settings_file().read_text(encoding="utf-8"))
     assert stored == {"schema": "analytics.settings/1", "unknown_projects": mode}
     assert schema_errors(stored) == []
-    assert core.read_settings() == {"unknown_projects": mode, "not_asked_in": []}
+    assert core.read_settings() == {"unknown_projects": mode, "not_asked_in": [], "ignored": None}
     assert b"\r" not in core.settings_file().read_bytes()
+    if hasattr(os, "getuid"):  # this user's alone where the platform has owners
+        assert core.settings_file().stat().st_mode & 0o777 == 0o600
 
 
-def test_a_value_the_kit_does_not_know_is_refused_and_read_as_the_default():
+def by_hand(text: str) -> Path:
+    """A settings file a person wrote, this user's alone (a group-writable one is not used)."""
+    path = core.settings_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    path.chmod(0o600)
+    return path
+
+
+def test_a_value_the_kit_does_not_know_is_refused_and_a_file_with_one_is_not_used():
+    """The schema's enum is closed, and the reader and the writer agree with it: a file holding a
+    value analytics.settings/1 does not have is not valid, so it is read as the defaults (ignored:
+    invalid) and not written over (review of PR #177)."""
     with pytest.raises(core.AnalyticsError) as refused:
         core.set_unknown_projects("sometimes")
     assert refused.value.code == "setting_invalid" and not core.settings_file().exists()
-    core.settings_file().parent.mkdir(parents=True, exist_ok=True)
-    core.settings_file().write_text(json.dumps({"schema": "analytics.settings/1", "unknown_projects": "sometimes",
-                                                "not_asked_in": "not a list"}), encoding="utf-8")
-    assert core.read_settings() == {"unknown_projects": "ask", "not_asked_in": []}
-    assert schema_errors(json.loads(core.settings_file().read_text(encoding="utf-8")))
+    for value in ({"schema": "analytics.settings/1", "unknown_projects": "sometimes", "not_asked_in": ["/a"]},
+                  {"schema": "analytics.settings/1", "unknown_projects": "always", "not_asked_in": "not a list"},
+                  {"schema": "analytics.settings/1", "unknown_projects": "always", "not_asked_in": ["/a", "/a"]}):
+        assert schema_errors(value)
+        text = json.dumps(value)
+        path = by_hand(text)
+        assert core.read_settings() == {"unknown_projects": "ask", "not_asked_in": [], "ignored": "invalid"}
+        with pytest.raises(core.AnalyticsError) as refused:
+            core.set_unknown_projects("never")
+        assert refused.value.code == "settings_unsupported" and refused.value.details["reason"] == "invalid"
+        assert path.read_text(encoding="utf-8") == text
 
 
 def test_folders_not_to_ask_in_are_kept_canonical_and_only_that_folder(tmp_path):
@@ -205,26 +288,51 @@ def test_folders_not_to_ask_in_are_kept_canonical_and_only_that_folder(tmp_path)
     assert value == {"schema": "analytics.settings/1", "not_asked_in": [core.canonical(repo)]}
     assert schema_errors(value) == []
     core.set_unknown_projects("never")
-    assert core.read_settings() == {"unknown_projects": "never", "not_asked_in": [core.canonical(repo)]}
+    assert core.read_settings() == {"unknown_projects": "never", "not_asked_in": [core.canonical(repo)],
+                                    "ignored": None}
 
 
-def test_a_write_keeps_fields_it_does_not_know_and_leaves_another_version_alone():
-    path = core.settings_file()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"schema": "analytics.settings/1", "panel": {"open": True}}), encoding="utf-8")
+def test_a_write_keeps_fields_it_does_not_know_and_leaves_any_file_it_does_not_use_alone():
+    """Only a file read_settings uses is written: another version, a broken or a hand-edited file
+    that is not valid is left as it is (review of PR #177)."""
+    path = by_hand(json.dumps({"schema": "analytics.settings/1", "panel": {"open": True}}))
     core.set_unknown_projects("always")
     assert json.loads(path.read_text(encoding="utf-8")) == {
         "schema": "analytics.settings/1", "panel": {"open": True}, "unknown_projects": "always"}
-    newer = json.dumps({"schema": "analytics.settings/2", "unknown_projects": "always"})
-    path.write_text(newer, encoding="utf-8")
-    assert core.read_settings()["unknown_projects"] == "ask"  # not this kit's: the defaults
+    for text in (json.dumps({"schema": "analytics.settings/2", "unknown_projects": "always"}), "{not json",
+                 json.dumps(["analytics.settings/1"]), json.dumps({"unknown_projects": "always"})):
+        by_hand(text)
+        assert core.read_settings() == {"unknown_projects": "ask", "not_asked_in": [], "ignored": "invalid"}
+        with pytest.raises(core.AnalyticsError) as refused:
+            core.set_unknown_projects("never")
+        assert refused.value.code == "settings_unsupported", text
+        with pytest.raises(core.AnalyticsError):
+            core.stop_asking_in(Path.cwd())
+        assert path.read_text(encoding="utf-8") == text
+
+
+@pytest.mark.skipif(not hasattr(os, "getuid"), reason="file owners and modes are POSIX's; Windows is a documented limit")
+def test_a_settings_file_another_account_could_have_written_is_not_used(monkeypatch):
+    """Beside a trust list in a shared directory (AELIX_ANALYTICS_TRUST_FILE in /tmp) another account
+    could plant `always`: a file this user does not own, or one group or others may write, is not
+    used and not written over (review of PR #177)."""
+    text = json.dumps({"schema": "analytics.settings/1", "unknown_projects": "always"})
+    path = by_hand(text)
+    assert core.read_settings()["unknown_projects"] == "always"
+    path.chmod(0o620)
+    assert core.read_settings() == {"unknown_projects": "ask", "not_asked_in": [], "ignored": "writable_by_others"}
+    path.chmod(0o602)
+    assert core.read_settings()["ignored"] == "writable_by_others"
     with pytest.raises(core.AnalyticsError) as refused:
         core.set_unknown_projects("never")
-    assert refused.value.code == "settings_unsupported"
-    assert path.read_text(encoding="utf-8") == newer
-    path.write_text("{not json", encoding="utf-8")
-    assert core.read_settings()["unknown_projects"] == "ask"
-    assert core.set_unknown_projects("never")["unknown_projects"] == "never"  # a broken file is replaced
+    assert refused.value.details["reason"] == "writable_by_others"
+    path.chmod(0o600)
+    monkeypatch.setattr(core.os, "getuid", lambda: os.stat(path).st_uid + 1)
+    assert core.read_settings() == {"unknown_projects": "ask", "not_asked_in": [], "ignored": "not_owned"}
+    with pytest.raises(core.AnalyticsError) as refused:
+        core.set_unknown_projects("never")
+    assert refused.value.details["reason"] == "not_owned"
+    assert path.read_text(encoding="utf-8") == text
 
 
 def test_the_schema_holds_the_settings_family():
