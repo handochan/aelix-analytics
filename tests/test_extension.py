@@ -1837,6 +1837,24 @@ def test_the_shells_get_the_project_found_below_or_used_and_not_the_working_dire
     assert module.resolve_project()[1] == "working directory" and shells_project(module) == (None, False)
 
 
+def test_a_project_variable_set_after_the_extension_s_is_the_person_s(started_above, tmp_path, monkeypatch):
+    """The mark holds the value the extension put there: a host or a measurement that names another
+    project later (tools/usage_report.py does, fixture by fixture) is read as the person's name."""
+    module, repo, make = started_above
+    make("analysis", trusted=True)
+    first_prompt(module, with_ui(FakeUI()))
+    assert shells_project(module)[1]
+    named = Path(module.core.canonical(analytics_project(tmp_path / "named", title="named")))
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(named))
+    # A name comes before a project found (resolve_project's order), as for any name the person gives.
+    assert module.resolve_project()[1] == "AELIX_ANALYTICS_PROJECT"
+    later = fresh_module()
+    assert "(title: named)" in first_prompt(later, SimpleNamespace()).system_prompt
+    assert later.resolve_project()[1] == "AELIX_ANALYTICS_PROJECT"
+    later.take_back_the_project_from_the_environment()
+    assert os.environ["AELIX_ANALYTICS_PROJECT"] == str(named)  # the person's stays
+
+
 def test_the_person_s_own_project_variable_is_never_replaced(started_above, tmp_path, monkeypatch):
     module, repo, make = started_above
     make("analysis", trusted=True)

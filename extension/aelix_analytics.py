@@ -1387,22 +1387,28 @@ def put_the_author_in_the_environment() -> None:
     take_back_the_project_from_the_environment()
 
 
-# Beside AELIX_ANALYTICS_PROJECT in the aelix process's environment: the value there is the one this
-# extension put for the shells aelix starts (put_the_project_in_the_environment), not the person's own.
-# An internal protocol, as AELIX_ANALYTICS_MEANS (CONTRACTS A, D).
+# Beside AELIX_ANALYTICS_PROJECT in the aelix process's environment: the value this extension put
+# there for the shells aelix starts (put_the_project_in_the_environment). While the two are the same,
+# AELIX_ANALYTICS_PROJECT is the extension's and not the person's own; a value set there since (by the
+# host, or by a measurement that names its fixture) is the person's again. An internal protocol, as
+# AELIX_ANALYTICS_MEANS (CONTRACTS A, D).
 SHELL_PROJECT_MARK = "AELIX_ANALYTICS_PROJECT_FROM_AELIX"
+
+
+def _ours_in_the_environment() -> bool:
+    value = os.environ.get("AELIX_ANALYTICS_PROJECT")
+    return bool(value) and os.environ.get(SHELL_PROJECT_MARK) == value
 
 
 def _person_s_project_variable() -> str | None:
     """AELIX_ANALYTICS_PROJECT as the person set it; None where this extension put it there."""
-    if os.environ.get(SHELL_PROJECT_MARK):
-        return None
-    return os.environ.get("AELIX_ANALYTICS_PROJECT")
+    return None if _ours_in_the_environment() else os.environ.get("AELIX_ANALYTICS_PROJECT")
 
 
 def take_back_the_project_from_the_environment() -> None:
-    if os.environ.pop(SHELL_PROJECT_MARK, None):
+    if _ours_in_the_environment():
         os.environ.pop("AELIX_ANALYTICS_PROJECT", None)
+    os.environ.pop(SHELL_PROJECT_MARK, None)
 
 
 def put_the_project_in_the_environment() -> None:
@@ -1427,7 +1433,7 @@ def put_the_project_in_the_environment() -> None:
             take_back_the_project_from_the_environment()
             return
         os.environ["AELIX_ANALYTICS_PROJECT"] = root
-        os.environ[SHELL_PROJECT_MARK] = "1"
+        os.environ[SHELL_PROJECT_MARK] = root
     except Exception:  # noqa: BLE001
         return
 

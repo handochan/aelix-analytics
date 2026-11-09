@@ -17,7 +17,7 @@ Aelix Analytics가 현재 **약속하는 것과 약속하지 않는 것**의 전
 | `on("tool_result", error_mode="continue")` | bash 결과마다 관찰의 끝과 기록(3초 안, C22), 그리고 결과 끝의 글 블록 하나(`ToolResultPatch(content=원래 블록 + 글 블록 하나)`): kit을 거치지 않고 Python을 돌린 결과(C5의 `python_via_bash` 판정)에는 그 실행은 run으로 기록되지 않았고 분석 단계였으면 `analytics_run`(셸에서는 `analytics run scripts/x.py --title "…"`)으로 다시 실행하면 기록된다는 한 줄(한 세션의 첫 번은 길게, 그 뒤는 짧게)에 관찰된 활동의 id(`Observed as eN: …`)나 기록하지 못한 사유를 덧붙임. 그 밖의 명령에는 그 창에 바뀐 파일을 run이나 가져오기가 기록하지 않았을 때만 그 사실과 id(그 명령이 썼다고 말하지 않음). 그 세션의 변경 관찰을 끈 호출에는 그 사실을 한 번. 활성 프로젝트가 없거나 이 kit이 쓰지 않는 프로젝트에서는 아무것도 하지 않음. 막지 않고, 원래 블록·`is_error`·`details`는 그대로(kit 0.32.1, #170·#171) |
 | `on("agent_end")` | 분리된 프로세스로 `render --if-changed` 시작(이 kit이 쓰는 프로젝트에서만) |
 | `on("user_bash")` | 사람의 `!`·`!!` 명령 가운데 aelix가 그 줄을 돌릴 셸로 읽어 줄 전체가 kit 명령 하나인 것(아래 "aelix 안의 작성 주체")에만 `UserBashResult(operations=…)`: aelix의 로컬 셸(`aelix_coding_agent.tools.bash.create_local_bash_operations`, 환경을 주지 않으면 `aelix_coding_agent.util.shell_env.get_shell_env`)에 그 명령의 환경에만 `AELIX_ANALYTICS_ACTOR=human`을 더한 것. 나머지 명령에는 결과를 돌려주지 않음(kit 0.8.0) |
-| aelix 프로세스의 `os.environ` | `setup()`이 `AELIX_ANALYTICS_ACTOR=agent`를 넣고(있던 값을 덮음) `AELIX_ANALYTICS_SESSION`을 지우며, `before_agent_start`가 그 세션의 파일 경로로 바꿈(없으면 지움)(kit 0.8.0). kit 0.32.1부터 `/analytics` 명령도 그 맥락의 세션으로 바꾸고, 세션이 쓰는 프로젝트를 작업 디렉터리가 스스로 찾지 못하면 `AELIX_ANALYTICS_PROJECT`(와 표시 `AELIX_ANALYTICS_PROJECT_FROM_AELIX=1`)로 넣음(아래 "aelix 안의 작성 주체", #162) |
+| aelix 프로세스의 `os.environ` | `setup()`이 `AELIX_ANALYTICS_ACTOR=agent`를 넣고(있던 값을 덮음) `AELIX_ANALYTICS_SESSION`을 지우며, `before_agent_start`가 그 세션의 파일 경로로 바꿈(없으면 지움)(kit 0.8.0). kit 0.32.1부터 `/analytics` 명령도 그 맥락의 세션으로 바꾸고, 세션이 쓰는 프로젝트를 작업 디렉터리가 스스로 찾지 못하면 `AELIX_ANALYTICS_PROJECT`(와 같은 값의 표시 `AELIX_ANALYTICS_PROJECT_FROM_AELIX`)로 넣음(아래 "aelix 안의 작성 주체", #162) |
 | `events.emit` / `events.on` | 채널 `aelix-analytics:instance`로 한 runtime에 사본이 하나만 설정되게 확인 |
 | `ctx.has_ui`·`ctx.ui.select`·`ctx.ui.notify` | 작업 디렉터리에서 찾은 처음 보는 프로젝트를 묻고, 찾아 활성화한 프로젝트를 알림(아래 "작업 디렉터리에서 찾은 프로젝트", kit 0.32.1). `notify`는 `/analytics init`·`demo`의 진행 알림에도 |
 | `ctx.ui.select`·`input`·`editor`·`confirm` | 인자 없는 `/analytics`의 패널(아래 "`/analytics` 패널", kit 0.32.1). `ctx.has_ui`일 때만 |
@@ -74,7 +74,8 @@ aelix가 띄우는 다른 자식(다른 확장의 `exec`, MCP 서버, 사람의 
 만든 환경에 작성 주체를 직접 넣으므로 영향이 없습니다.
 kit 0.32.1부터(#162) 확장은 세션이 쓰는 프로젝트도 같은 길로 셸에 줍니다: 작업 디렉터리 아래에서 찾아 활성화한 프로젝트(A "작업 디렉터리에서 찾은
 프로젝트"), `/analytics use`·`init`·`demo`·`analytics_init`이 정한 프로젝트, `--analytics-project`의 프로젝트를 활성화하거나 프롬프트를 시작할
-때 `AELIX_ANALYTICS_PROJECT`에 그 루트를 넣고, 자기가 넣었다는 표시 `AELIX_ANALYTICS_PROJECT_FROM_AELIX=1`을 함께 둡니다(내부 프로토콜).
+때 `AELIX_ANALYTICS_PROJECT`에 그 루트를 넣고, 자기가 넣었다는 표시로 같은 값의 `AELIX_ANALYTICS_PROJECT_FROM_AELIX`를 함께 둡니다(내부
+프로토콜. 두 값이 다르면 그 뒤에 누가 바꾼 것이므로 사람의 값으로 읽음).
 kit의 명령줄은 `AELIX_ANALYTICS_PROJECT`를 작업 디렉터리보다 먼저 읽으므로, 위 폴더에서 켠 aelix의 에이전트가 bash로 부른 `analytics run
 scripts/x.py …`(#170의 안내)도 그 프로젝트에 기록합니다. 작업 디렉터리나 그 위의 프로젝트(셸의 명령이 스스로 찾는 것)는 넣지 않고, 사람이
 `AELIX_ANALYTICS_PROJECT`를 직접 두었으면 덮지 않습니다(그때 `/analytics use`로 바꾼 프로젝트는 셸에 가지 않음: 한계). 다른 프로젝트로
