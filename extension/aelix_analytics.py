@@ -44,6 +44,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import unicodedata
 from pathlib import Path
 
 from aelix_agent_core.harness.hooks import BeforeAgentStartResult, ToolResultPatch, UserBashResult
@@ -201,12 +202,15 @@ KIT_IMPORT = re.compile(
 
 # Module-level state of one aelix runtime. setup() starts it over: the file loader makes a new module
 # for every session aelix builds, but the installed module is imported once per process.
+# `looked`, `found` and `passed` are what the session's look for a project found where aelix started
+# (activate_found_project, Issue #169) did: whether it ran, the root it activated, and the roots it
+# found and did not activate.
 STATE = {"api": None, "project": None, "session": None, "starts": {}, "render_tasks": {},
-         "told_unrecorded": set()}
+         "told_unrecorded": set(), "looked": False, "found": None, "passed": []}
 
 NO_PROJECT = ("No analytics project is active (checked /analytics use, --analytics-project, "
-              "AELIX_ANALYTICS_PROJECT, and analytics.json or lab.json in the working directory and "
-              "its parents).")
+              "AELIX_ANALYTICS_PROJECT, analytics.json or lab.json in the working directory and "
+              "its parents, and trusted projects below it).")
 
 
 def _error(code, message, hint=None, details=None):
@@ -257,7 +261,8 @@ def _resolve_project():
             return project, via
     root = core.find_project(os.getcwd())
     if root is not None:
-        if not core.is_trusted(root):
+        # A person answered "use" for it this session, or the setting activates it (Issue #169).
+        if not (core.is_trusted(root) or str(root) == STATE["found"]):
             raise core.AnalyticsError(
                 "project_untrusted",
                 f"{root} has a project marker but is not a project this user created or chose, so it "
@@ -266,6 +271,16 @@ def _resolve_project():
                 hint=f"a human can run /analytics use {root} to trust it")
         core.readable(root, "use the project")
         return core.Project(root), "working directory"
+    if STATE["found"]:
+        project = core.Project(STATE["found"])
+        core.readable(project, "use the project")
+        return project, "below the working directory"
+    if STATE["passed"]:
+        listed = ", ".join(map(str, STATE["passed"][:MAX_LIST]))
+        raise core.AnalyticsError(
+            "no_project", f"{NO_PROJECT} Found below the working directory and not activated: {listed}",
+            hint="ask the user whether to use one of them: a human can run /analytics use DIR (it then "
+                 "enters the trust list), or start aelix inside it")
     raise core.AnalyticsError("no_project", NO_PROJECT,
                               hint="ask the user where the project should live, then call analytics_init; a "
                                    "human can run /analytics init DIR or /analytics use DIR")
@@ -277,6 +292,182 @@ def _refuse_incomplete(project) -> None:
     how far its migration went), not as a directory that is no project (design 4.3)."""
     if core.migration_record(project.root):
         core.readable(project, "use the project")
+
+
+# --- a project found where aelix started (Issue #169) ---
+
+# What a question says about trust: why a project found is not used before a person chooses it.
+WHY_TRUST = ("Using a project puts its CONTEXT.md into the model's prompt, and analytics_run runs "
+             "the project's scripts with the project's own Python environment (its pyproject.toml). "
+             "Use only a project you trust.")
+NOT_NOW = "Not now"
+NOT_HERE = "Don't ask in this folder"
+# What a question or notice shows as `?` of a folder name or an error (review of PR #177): control
+# characters (C0, DEL and C1: an ESC sequence, or the \x01…\x02 that prompt_toolkit's ANSI(), through
+# which aelix renders a select's title and options, passes to the terminal as written), format
+# characters (bidi overrides and isolates such as U+202E, which can turn a path around on screen),
+# line and paragraph separators, and lone surrogates (a POSIX name that is not UTF-8).
+SCREEN_UNSAFE = frozenset({"Cc", "Cf", "Cs", "Zl", "Zp"})
+# How long the first prompt waits for the walk below the working directory and the judgment of what
+# it found (core.find_projects_below bounds its own time between reads; a read a network mount or a
+# permission prompt holds is bounded only here). Past it the prompt goes on with no project found;
+# the walk's thread ends on its own.
+FIND_SECONDS = 1.0
+
+
+def _named_project() -> bool:
+    """Whether /analytics use, --analytics-project or AELIX_ANALYTICS_PROJECT names the project:
+    then nothing is looked for (resolve_project uses or refuses what is named)."""
+    if STATE["project"]:
+        return True
+    flag = None
+    with contextlib.suppress(Exception):
+        flag = STATE["api"].get_flag("analytics-project") if STATE["api"] else None
+    return any(isinstance(value, str) and value.strip()
+               for value in (flag, os.environ.get("AELIX_ANALYTICS_PROJECT")))
+
+
+def _can_ask(ctx) -> bool:
+    """aelix's interactive UI is bound (ctx.has_ui): not in a -p, json or rpc run, nor in a context
+    without a UI."""
+    try:
+        return bool(getattr(ctx, "has_ui", False))
+    except Exception:  # noqa: BLE001 - a context that cannot say has no UI to ask in
+        return False
+
+
+def _usable(root) -> bool:
+    """Whether a directory found can be activated at all: readable (not two markers, not a
+    migration's destination that has not committed), as /analytics use requires."""
+    try:
+        core.readable(root, "use the project")
+    except Exception:  # noqa: BLE001
+        return False
+    return True
+
+
+def _screen(text) -> str:
+    """A folder name or an error as a question or notice shows it: SCREEN_UNSAFE characters as `?`."""
+    return "".join("?" if unicodedata.category(c) in SCREEN_UNSAFE else c for c in str(text))
+
+
+def _activate(root, ctx, how: str) -> None:
+    STATE["found"] = str(root)
+    STATE["passed"] = []
+    if _can_ask(ctx):
+        _notify(ctx, f"analytics: active project {_screen(root)} ({_screen(how)})")
+
+
+async def activate_found_project(ctx) -> None:
+    """Once per session (setup starts it over), before the first prompt or the first /analytics
+    command that uses a project: activate the project aelix started in or above, or one below the
+    working directory (Issue #169). A name comes first (_named_project), then the working directory
+    and its parents (core.find_project), then the directories below (core.find_projects_below). A
+    trusted project is activated without asking: the one in or above the working directory, as
+    before, or the one trusted project below. A project the trust list does not hold, or a choice
+    among several, follows the setting (core.read_settings: `ask`, `always`, `never`) and the
+    folders where it does not ask. With `ask`, in aelix's interactive UI a person answers, and a run
+    that cannot ask (-p, json, rpc) activates none of them: the tools' no_project error names those
+    found below, and one in or above the working directory stays project_untrusted. `always` is the
+    person's own choice and activates one such project without asking, in a run that cannot ask as
+    well. What is activated lasts for the session (STATE["found"]); "use" also adds it to the trust
+    list, so the next session activates it without asking. Never raises, and waits for the walk below
+    no longer than FIND_SECONDS: finding a project must not block a prompt or a command."""
+    if STATE["looked"]:
+        return
+    STATE["looked"] = True
+    try:
+        await _activate_found_project(ctx)
+    except Exception:  # noqa: BLE001
+        return
+
+
+async def _activate_found_project(ctx) -> None:
+    if _named_project():
+        return
+    cwd = os.getcwd()
+    above = await asyncio.to_thread(core.find_project, cwd)
+    if above is not None:
+        # In or above the working directory: a trusted one is resolve_project's, as before, and so
+        # is one that cannot be read (it says why); only one the trust list does not hold is asked
+        # about.
+        if await asyncio.to_thread(core.is_trusted, above) or not await asyncio.to_thread(_usable, above):
+            return
+        await _choose(ctx, cwd, [], [above], "in or above the working directory")
+        return
+
+    def found_and_judged() -> tuple[list, list]:
+        roots, _ = core.find_projects_below(cwd)
+        usable = [root for root in roots if _usable(root)]
+        trusted = [root for root in usable if core.is_trusted(root)]
+        return trusted, [root for root in usable if root not in trusted]
+
+    try:
+        # Off the event loop, and no longer than FIND_SECONDS: the first prompt must not wait on it.
+        trusted, unknown = await asyncio.wait_for(asyncio.to_thread(found_and_judged), FIND_SECONDS)
+    except TimeoutError:  # asyncio.TimeoutError is TimeoutError from Python 3.11
+        return
+    if len(trusted) == 1:
+        _activate(trusted[0], ctx, "trusted, found below the working directory")
+        return
+    await _choose(ctx, cwd, trusted, unknown, "below the working directory")
+
+
+async def _choose(ctx, cwd: str, trusted: list, unknown: list, where: str) -> None:
+    """Several trusted projects, or projects the trust list does not hold: what the setting and a
+    person (where aelix can ask) choose. What is not activated is kept for the no_project error."""
+    if not trusted and not unknown:
+        return
+    STATE["passed"] = [*trusted, *unknown]
+    mode = (await asyncio.to_thread(core.read_settings))["unknown_projects"]
+    if mode == "never":
+        unknown = []
+    elif mode == "always" and not trusted and len(unknown) == 1:
+        _activate(unknown[0], ctx, f"found {where}; the setting activates projects without asking")
+        return
+    candidates = [*trusted, *unknown]
+    if not candidates or not _can_ask(ctx) or not await asyncio.to_thread(core.asks_in, cwd):
+        return
+    # The whole path, so a person sees which directory it is, with no character that would act on the
+    # terminal or turn the path around (_screen).
+    options = {}
+    for number, root in enumerate(candidates, 1):
+        label = f"Use {_screen(root)} ({'trusted' if root in trusted else 'adds it to the trust list'})"
+        # Two names that differ only where `?` is shown stay two choices.
+        options[f"{label} [{number}]" if label in options else label] = root
+    if len(candidates) == 1:
+        title = (f"Aelix Analytics found a project you have not chosen before, {where}:\n"
+                 f"  {_screen(candidates[0])}\n{WHY_TRUST}")
+    else:
+        title = (f"Aelix Analytics found {len(candidates)} projects {where}. Choose the one to use "
+                 f"in this session.\n{WHY_TRUST}")
+    try:
+        # "Not now" first, where the selection starts: a stray Enter trusts nothing.
+        choice = await ctx.ui.select(title, [NOT_NOW, *options, NOT_HERE])
+    except Exception:  # noqa: BLE001 - a dialog that fails is a question not answered
+        return
+    if choice == NOT_HERE:
+        try:
+            await asyncio.to_thread(core.stop_asking_in, cwd)
+        except Exception as exc:  # noqa: BLE001
+            _notify(ctx, f"analytics: could not remember not to ask in {_screen(cwd)} ({_screen(exc)})")
+            return
+        _notify(ctx, f"analytics: will not ask about projects when aelix starts in {_screen(cwd)}. "
+                     "/analytics use DIR activates one.")
+        return
+    root = options.get(choice)
+    if root is None:  # "Not now", or the dialog was dismissed
+        return
+    how = "chosen"
+    if root not in trusted:
+        try:
+            # Off the event loop: on Windows a record being read elsewhere makes the replace wait
+            # up to about two seconds before it fails (_platform.WindowsAtomicFiles).
+            await asyncio.to_thread(core.trust_project, root)
+            how = "chosen and added to the trust list"
+        except Exception as exc:  # noqa: BLE001 - the person chose it: used this session anyway
+            how = f"chosen; not added to the trust list: {exc}"
+    _activate(root, ctx, how)
 
 
 def current_session(ctx):
@@ -1716,6 +1907,10 @@ async def on_before_agent_start(event, ctx):
     STATE["session"] = session
     # The shells the agent's commands run in carry this session from here (design 4.2).
     put_the_session_in_the_environment(STATE["session"])
+    # The first prompt of a session: a project found where aelix started (Issue #169). Here, not at
+    # session_start: aelix 0.1.0b2 starts a session before its TUI binds the UI, so a question
+    # asked then could not be shown.
+    await activate_found_project(ctx)
     try:
         project, _ = resolve_project()
     except Exception:  # noqa: BLE001 - no active project must never block a prompt
@@ -2038,6 +2233,9 @@ async def analytics_command(args, ctx=None):
     sub, _, rest = text.partition(" ")
     rest = rest.strip()
     try:
+        if sub not in ("use", "init", "demo", "help", "-h", "--help"):
+            # A command before the session's first prompt finds the project as that prompt would.
+            await activate_found_project(ctx)
         if sub in ("", "status"):
             project, via = resolve_project()
             options = human_options(rest, {"part", "query", "id", "cursor", "kind", "state", "since", "until",
@@ -2073,6 +2271,11 @@ async def analytics_command(args, ctx=None):
             lines.append(f"extension: {Path(__file__).resolve()} "
                          f"({'installed package' if __package__ else 'checkout file'})")
             lines.append(f"kit: {KIT} (aelix_analytics {core.KIT_VERSION}; {KIT_ROUTE})")
+            with contextlib.suppress(Exception):
+                settings = core.read_settings()
+                ignored = f"; not used: {core.SETTINGS_PROBLEMS[settings['ignored']]}" if settings["ignored"] else ""
+                lines.append(f"settings: {core.settings_file()} (unknown projects: "
+                             f"{settings['unknown_projects']}{ignored})")
             try:
                 lines.append(f"uv: {resolve_uv()}")
             except core.AnalyticsError as exc:
@@ -2318,7 +2521,8 @@ def setup(aelix):
     # and keeps its globals, so what belongs to one session starts over here — otherwise a /analytics record
     # before a new session's first prompt would record the previous session's file.
     STATE.update({"api": aelix, "project": None, "session": None, "starts": {},
-                  "render_tasks": {}, "told_unrecorded": set()})
+                  "render_tasks": {}, "told_unrecorded": set(), "looked": False, "found": None,
+                  "passed": []})
     put_the_author_in_the_environment()
     aelix.register_flag("analytics-project", type="str",
                         description="Analytics project directory (holds analytics.json, or an "

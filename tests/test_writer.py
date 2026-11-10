@@ -161,9 +161,11 @@ def test_a_migration_s_destination_has_the_new_layout(tmp_path):
 def test_the_families_the_writer_writes_are_named_by_what_they_are():
     assert writer.FAMILIES == {"project": "analytics.project/2", "event": "analytics.event/2",
                                "run": "analytics.run/2", "dataset": "analytics.dataset/1",
-                               "trust": "analytics.trust/1", "migration": "analytics.migration/1"}
-    # Every family a project holds is one the reader knows; the trust list is the host's, not the project's.
-    assert {v for k, v in writer.FAMILIES.items() if k != "trust"} <= relations.KNOWN
+                               "trust": "analytics.trust/1", "migration": "analytics.migration/1",
+                               "settings": "analytics.settings/1"}
+    # Every family a project holds is one the reader knows; the trust list and the settings beside it
+    # (Issue #169) are the host's, not the project's.
+    assert {v for k, v in writer.FAMILIES.items() if k not in ("trust", "settings")} <= relations.KNOWN
 
 
 def test_the_kinds_a_person_or_an_agent_records():

@@ -143,7 +143,7 @@ PROJECT_FIELDS = ("schema", "project_id", "title", "created_at", "min_writer_ver
 # the tag, so renaming a family is this table.
 FAMILIES = {"project": PROJECT, "event": relations.EVENT_V2, "run": relations.RUN_V2,
             "dataset": relations.DATASET_V2, "trust": "analytics.trust/1",
-            "migration": relations.MIGRATION_V1}
+            "migration": relations.MIGRATION_V1, "settings": "analytics.settings/1"}
 
 # What a directory is, by its markers (design 4.3):
 NONE, LEGACY, CURRENT, UNKNOWN, INVALID, CONFLICT, INCOMPLETE = (

@@ -252,6 +252,8 @@ RECORD_FAMILIES = {
     "analytics.run/2": "partial",
     "analytics.dataset/1": "partial",
     "analytics.trust/1": "excluded_internal",
+    # The user's settings beside the trust list (#169): the host's, outside every project, never shared.
+    "analytics.settings/1": "excluded_internal",
     "analytics.migration/1": "excluded_internal",
 }
 

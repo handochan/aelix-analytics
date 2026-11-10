@@ -67,8 +67,9 @@ Issue·pull request·commit은 누구나 읽습니다. 저장소에는 secret sc
 ([README](README.md#한계), [현재 계약 G](docs/CONTRACTS.md#g-약속하지-않는-것)). 문서가 약속하는 경계를 넘는 방법은 범위 안입니다.
 예를 들면 다음과 같습니다.
 
-- `analytics_query`로 보낸 쿼리가 읽기 전용이 아니거나 프로젝트의 `data/` 밖 파일에 닿는 것, 작업 디렉터리만으로 찾은 프로젝트가
-  신뢰 목록에 없는데도 활성화되는 것([현재 계약 E](docs/CONTRACTS.md#e-계산-규칙)).
+- `analytics_query`로 보낸 쿼리가 읽기 전용이 아니거나 프로젝트의 `data/` 밖 파일에 닿는 것, aelix를 켠 폴더나 그 위·아래에서 찾은
+  프로젝트가 사람이 만들거나 고르지 않았는데도 활성화되는 것 — 활성화되는 것은 신뢰 목록에 있는 것과, 사람이 `/analytics use`나 질문의
+  "쓰기"로 고르거나 자기 설정에서 `always`를 고른 것뿐입니다([현재 계약 E](docs/CONTRACTS.md#e-계산-규칙)).
 - 사람이나 스크립트가 기록한 글(메모, 제목, 열 이름, 경로)을 Workspace가 글자로 보이지 않고 HTML이나 스크립트로 실행하는 것
   ([현재 계약 F1](docs/CONTRACTS.md#f1-이전-구현48b79cc과-달라진-posix-동작)의 #10 '사용자 내용(Workspace)',
   [용어와 언어 §7](docs/TERMINOLOGY-AND-LANGUAGE.md#현재-구현10)).
