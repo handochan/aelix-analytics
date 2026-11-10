@@ -116,11 +116,12 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   그대로이고, fixture S·M의 첫 HTML과 페이지 수도 그대로입니다(전체 HTML M +0.01%). 열이 100개를 넘는 데이터셋은 101번째부터의 열 통계가
   페이지에 없습니다.
 - #184: Workspace의 차트 카드(Overview의 최근 시각화, Visualizations 탭과 그 목록 페이지)에서 입력 데이터가 처음부터 접힙니다. 접힌 줄이
-  입력 수와 상태별 수를 말하고(`14 inputs · ⚠ 2 changed · ⚠ 1 missing`, 모두 같으면 `3 inputs · ✓ all unchanged`; 한국어 `입력 14개 · 2개 바뀜 ·
-  1개 없음`·`입력 3개 · 모두 그대로`), 바뀌었거나 없어진 입력은 처음 3개를 그 아래에 상태의 글과 경로로 보입니다. 펼치면 전처럼 모든 입력이
+  입력 수와 상태별 수를 말하고(`14 inputs · ⚠ 2 changed · ⚠ 1 missing`, 모두 같으면 `3 inputs · ✓ all unchanged`; 한국어 `입력 14개 · ⚠ 2개 바뀜 ·
+  ⚠ 1개 없음`·`입력 3개 · ✓ 바뀐 것 없음`), 바뀌었거나 없어진 입력은 3개를 그 아래에 상태의 글과 경로로 보입니다(없어진 것, 바이트가 바뀐 것,
+  줄 끝만 바뀐 것 순). 펼치면 전처럼 모든 입력이
   run 기록의 순서대로 있습니다(JavaScript 없이 열림). 전에는 입력 경로를 모두 펼쳐 입력이 많은 카드가 경로 목록이 됐습니다. run 페이지의
-  입력 표와 다른 상세 페이지의 목록은 #172 그대로입니다. Overview의 Current insights·Open questions는 긴 글(126열, 한국어 약 63자 또는 세 줄을
-  넘는 글)의 앞부분과 `…`, `Show more`(`더 보기`)를 보이고, 네이티브 `<details>`라 스크립트 없이 펼쳐 글 전체를 봅니다. 종류·상태 배지·참조 배지·
+  입력 표와 다른 상세 페이지의 목록은 #172 그대로입니다. Overview의 Current insights·Open questions는 42열 세 줄에 들지 않는 긴 글의
+  앞부분(낱말 단위로 채운 약 3줄, 문자소 묶음을 떼지 않음)과 `…`, `Show more`(`더 보기`)를 보이고, 네이티브 `<details>`라 스크립트 없이 펼쳐 글 전체를 봅니다. 종류·상태 배지·참조 배지·
   관계 링크는 그대로 보이고, 패널당 6개와 다른 목록의 글은 그대로입니다. 첫 HTML은 fixture S +2.5%, M +2.1%이고, 바뀐 페이지는 index와 시각화 목록 페이지뿐입니다.
 - #171: telemetry(`.analytics/telemetry.jsonl`)의 bash `summary`는 관찰과 같은 규칙으로 가린 뒤 앞 300자를 남깁니다. 이미 쓴 줄은 그대로입니다.
   `analytics_status` 끝에 붙던 telemetry 수 안내(`python was run through bash N time(s)`)는 관찰의 줄로 바뀌었습니다.

@@ -76,12 +76,14 @@ OUTPUT_STATE = {"resolved": ("good", "✓"), "content_changed": ("critical", "�
 SHOWN_CANDIDATES = 3
 # How many changed or missing inputs a chart card shows under its folded input data (#184).
 CARD_WARNINGS = 3
-# How much of a record's text a row of the Overview shows (#184): three lines of 42 columns. A row's text
-# column holds about 54 Latin characters a line at 1366 px (two panels) and 49 at 390 px (one); 42 leaves
-# room for breaking at spaces and for "… Show more", so the start and its control take two or three lines
-# at 1366, 768 and 390 px in English and Korean (Chromium, measured for #184).
+# How much of a record's text a row of the Overview shows (#184): three lines of 42 columns, filled word by
+# word as a browser does (text_head), the last keeping 10 for "… Show more". A row's text column holds
+# about 54 Latin characters a line at 1366 px (two panels) and 49 at 390 px (one); the 42 leave room for
+# letters wider than the mean, so the start and its control take two or three lines at 1366, 768 and
+# 390 px in English and Korean (Chromium, measured for #184).
 OVERVIEW_TEXT_LINES = 3
 OVERVIEW_LINE_COLUMNS = 42
+OVERVIEW_MORE_COLUMNS = 10
 # The index section a page's way back goes to when the page a reader came from is not known: the
 # section its kind is listed in (`back.tab.<section>` names it).
 BACK = {"run": "runs", "dataset": "data", "relations": "insights", "context": "context", "list": "timeline",
@@ -244,36 +246,81 @@ def fold(entries, wrap, *, cap: int | None, beyond: str = "", keep=(), shown: in
 
 
 def joins(ch: str) -> bool:
-    """Whether a character is drawn with the one before it: a combining mark, a joiner or variation
-    selector, a conjoining Hangul vowel or final consonant (a syllable written in jamo)."""
-    return unicodedata.category(ch) in ("Mn", "Me", "Cf") or "\u1160" <= ch <= "\u11ff" or "\ud7b0" <= ch <= "\ud7ff"
+    """Whether a character is drawn with the one before it, so a cut never goes before it: a combining
+    mark with or without a width of its own (Mn, Mc, Me), a format character (a joiner, a variation
+    selector: Cf), a conjoining Hangul vowel or final consonant (a syllable written in jamo), Thai and Lao
+    SARA AM, and an emoji skin-tone modifier. Such a character takes no column of its own."""
+    return (unicodedata.category(ch) in ("Mn", "Mc", "Me", "Cf") or "\u1160" <= ch <= "\u11ff"
+            or "\ud7b0" <= ch <= "\ud7ff" or ch in "\u0e33\u0eb3" or "\U0001f3fb" <= ch <= "\U0001f3ff")
+
+
+def regional(ch: str) -> bool:
+    """A regional indicator: two of them are one flag."""
+    return "\U0001f1e6" <= ch <= "\U0001f1ff"
+
+
+def apart(text: str, cut: int) -> bool:
+    """Whether a cut before text[cut] parts nothing drawn together (joins; and nothing after a zero
+    width joiner or a virama, and no flag's two regional indicators). An approximation of Unicode's
+    grapheme clusters that only keeps more together: Python's library has no segmentation."""
+    if joins(text[cut]) or text[cut - 1] == "\u200d" or unicodedata.combining(text[cut - 1]) == 9:
+        return False
+    if regional(text[cut]):
+        before = cut
+        while before > 0 and regional(text[before - 1]):
+            before -= 1
+        return (cut - before) % 2 == 0
+    return True
+
+
+def columns(text: str) -> int:
+    """The columns a text takes: two for a wide (East Asian) character, none for one drawn with the
+    character before it (joins), one for the rest."""
+    return sum(0 if joins(ch) else 2 if unicodedata.east_asian_width(ch) in "WF" else 1 for ch in text)
+
+
+def overflow(text: str, last: int) -> int | None:
+    """Where `text` leaves OVERVIEW_TEXT_LINES lines of OVERVIEW_LINE_COLUMNS columns, the last one
+    `last` columns wide, filled as a browser fills them: a word that does not fit the rest of its line
+    starts the next one, a word longer than a line breaks where a line ends (overflow-wrap: anywhere), a
+    line break ends its line, spaces at a line's end take no room. None when it fits."""
+    lines, width = OVERVIEW_TEXT_LINES, OVERVIEW_LINE_COLUMNS
+    row = col = 0
+    for part in re.finditer(r"\n|[^\S\n]+|\S+", text):
+        piece, at = part.group(), part.start()
+        if piece == "\n":
+            row, col = row + 1, 0
+            if row == lines:
+                return at if text[at:].strip() else None
+        elif piece.isspace():
+            col += columns(piece)
+        else:
+            if col and col + columns(piece) > (last if row == lines - 1 else width):
+                row, col = row + 1, 0
+                if row == lines:
+                    return at
+            for j, ch in enumerate(piece):
+                size = columns(ch)
+                if col and col + size > (last if row == lines - 1 else width):
+                    row, col = row + 1, 0
+                    if row == lines:
+                        return at + j
+                col += size
+    return None
 
 
 def text_head(text: str) -> str | None:
     """The start of a record's text the Overview shows (#184), or None when it shows the text whole:
-    up to OVERVIEW_TEXT_LINES lines of about OVERVIEW_LINE_COLUMNS columns each, a wide (East Asian)
-    character taking two columns and a line break ending its line. A cut goes back to the last space
-    or line break when one is in the last third, and never parts a character from the marks that go
-    with it. A count of characters, not of the lines a browser draws: the same in every browser, with
-    or without the page's CSS, so the page knows which texts it shortened and gives only those the
-    control (a CSS line clamp cannot tell the page whether it hid anything)."""
-    budget = OVERVIEW_TEXT_LINES * OVERVIEW_LINE_COLUMNS
-    ended, line, cut = 0, 0, None  # the columns of the lines ended, and of the line going on
-    for i, ch in enumerate(text):
-        if ch == "\n":
-            ended += max(1, -(-line // OVERVIEW_LINE_COLUMNS)) * OVERVIEW_LINE_COLUMNS  # a blank line is a line too
-            line = 0
-        elif not joins(ch):
-            line += 2 if unicodedata.east_asian_width(ch) in "WF" else 1
-        if ended + line > budget:
-            cut = i
-            break
-    if cut is None or not text[cut:].strip():
+    what fits OVERVIEW_TEXT_LINES lines of OVERVIEW_LINE_COLUMNS columns (overflow), the last line
+    keeping OVERVIEW_MORE_COLUMNS for "… Show more". So a word is cut only when it is longer than a line
+    (a path, a URL), and the cut never parts characters drawn together (apart). A count of characters,
+    not of the lines a browser draws: the same in every browser, with or without the page's CSS, so the
+    page knows which texts it shortened and gives only those the control (a CSS line clamp cannot tell
+    the page whether it hid anything)."""
+    if overflow(text, OVERVIEW_LINE_COLUMNS) is None:
         return None
-    space = max(text.rfind(" ", 0, cut), text.rfind("\n", 0, cut))
-    if space > cut * 2 // 3:
-        cut = space
-    while 0 < cut and (joins(text[cut]) or text[cut - 1] == "\u200d"):
+    cut = overflow(text, OVERVIEW_LINE_COLUMNS - OVERVIEW_MORE_COLUMNS) or 0
+    while 0 < cut and not apart(text, cut):
         cut -= 1
     return text[:cut].rstrip() or None
 
@@ -283,12 +330,13 @@ def text_html(text, shorten: bool = False) -> str:
     start, then "Show more", in a native <details> that opens without a script and shows the text
     whole; its rest is not lost in a closed fold, with or without the page's CSS. The CSS hides the
     start and swaps the words for "Show less" while it is open (the second words are `hidden`, so a page
-    without its CSS says "Show more" alone)."""
+    without its CSS says "Show more" alone). The start is a <bdi>: a direction control in it whose end
+    is in the rest (U+202E … U+202C) does not turn the words after it around, with or without the CSS."""
     text = "" if text is None else str(text)
     head = text_head(text) if shorten else None
     if head is None:
         return f'<span class="rec-text"{USER}>{esc(text)}</span>'
-    return (f'<details class="rec-fold"><summary><span class="rec-text rec-head"{USER}>{esc(head)}</span>'
+    return (f'<details class="rec-fold"><summary><bdi class="rec-text rec-head"{USER}>{esc(head)}</bdi>'
             f'<span class="rec-cut" aria-hidden="true">…</span> <span class="rec-toggle">{t("overview.text_more")}</span>'
             f'<span class="rec-toggle" hidden>{t("overview.text_less")}</span></summary>'
             f'<div class="rec-text rec-full"{USER}>{esc(text)}</div></details>')
@@ -1035,16 +1083,16 @@ class Site:
         about its chart, and the paths of its inputs took more room than the chart. One line says how
         many inputs there are and how many of them changed, went missing or are unknown now (`24 inputs ·
         2 changed · 1 missing`); opening it lists them all, in the run's order, as before. The changed and
-        missing ones are warnings, so the first CARD_WARNINGS of them stay in sight under the line while
-        it is folded (the CSS hides them while it is open: the list holds them). The run page lists them
-        all in its own table, which does not start folded (#172's rule)."""
+        missing ones are warnings, so CARD_WARNINGS of them stay in sight under the line while it is
+        folded, the worst first (the CSS hides them while it is open: the list holds them). The run page
+        lists them all in its own table, which does not start folded (#172's rule)."""
         entries = fresh["inputs"]
         if not entries:
             return f'<span class="muted">{t("card.no_inputs")}</span>'
         # The inputs several successful runs output the same bytes as: marked in the list, beside the
         # path people wrote, as the card's Producer ambiguous badge says.
         ambiguous = set(fresh.get("ambiguous_inputs") or [])
-        items, warned, counts = [], [], Counter()
+        items, ranked, counts = [], [], Counter()
         for entry in entries:
             state = entry["state"] if entry["state"] in INPUT_STATE else "unknown"
             counts[state] += 1
@@ -1059,7 +1107,10 @@ class Site:
                          f'<span class="state tone-{tone}"{attr("title", "card.file_now." + state)}>{icon}</span>'
                          f'{several}{reason}</span></li>')
             if state in ("changed", "missing"):
-                warned.append(f"<li>{badge(tone, icon, words('input', state))} {path}{reason}</li>")
+                # The worst first (coordinator's decision on the #184 review): a missing input, then one
+                # whose bytes changed, then one changed only in its line ends; in the list's order within each.
+                worst = 0 if state == "missing" else 2 if reason else 1
+                ranked.append((worst, f"<li>{badge(tone, icon, words('input', state))} {path}{reason}</li>"))
         # The line: the count, then each state but the unchanged one (the rest are unchanged), or that
         # all are unchanged. A mark and words, never colour alone (design WORKSPACE-READABILITY 4).
         states = [(state, counts[state]) for state in ("changed", "missing", "unknown") if counts[state]]
@@ -1068,6 +1119,7 @@ class Site:
         line = " · ".join([f'<span class="input-count">{t("card.inputs.count", n=len(entries))}</span>', *(
             f'<span class="input-count"><span class="state tone-{INPUT_STATE[state][0]}" aria-hidden="true">'
             f'{INPUT_STATE[state][1]}</span> {said}</span>' for state, said in parts)])
+        warned = [item for _, item in sorted(ranked, key=lambda pair: pair[0])]
         more = len(warned) - CARD_WARNINGS
         warnings = ("" if not warned else '<ul class="input-warnings">' + "".join(warned[:CARD_WARNINGS])
                     + (f'<li class="muted">{t("list.and_more", n=more)}</li>' if more > 0 else "") + "</ul>")
