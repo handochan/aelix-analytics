@@ -375,6 +375,27 @@ kit 0.21.0은 개별 버전 저장·조회·철회/복원·prepared 정리의 CL
 | 저장한 대상(saved target) | `--save-target NAME --to FOLDER`로 프로젝트의 `.analytics/publish-targets.json`(`analytics.publish_targets/1`)에 적은 이름과 폴더. `--target NAME`으로 부름. git이 무시하는 줄이 없으면 저장하지 않음(`targets_not_ignored`). 오류 `target_unknown`·`saved_targets_invalid` |
 | `others_cannot_read` | 게시한 계정이 본 POSIX 권한으로는 다른 계정이 그 버전을 읽지 못해 보인다는 경고. 권한을 바꾸지 않으며 팀 범위의 판정이 아님 |
 
+### #171 채택한 공개 이름 — 구현 전
+
+[ADR-0015](decisions/0015-observed-activity-outside-the-kit.md)는 2026-11-10 채택했다. #171의 구현 PR 전에는 현재 기록·명령·화면을 뜻하지 않는다.
+
+| 이름 | 범위와 기존 개념과의 차이 |
+|---|---|
+| `observed_activity` / Observed activity | 활성 프로젝트에서 모델이 aelix `bash`로 실행했고 kit이 run으로 기록하지 않은 명령을 확장이 앞뒤에서 본 기록(`analytics.event/2`의 kind). run이 아니며 입력·환경·재현성을 주장하지 않음. 작성 주체는 관찰한 `system`. 사람·에이전트의 기록 kind가 아니라 관찰 응용 기능만 씀 |
+| `performer` | 명령을 실행한 쪽(`agent`, 도구 `bash`, aelix의 `tool_call_id`). 기록의 작성 출처(`actor`)와 구별 |
+| `activity_id` | `act-`와 소문자 ULID. 관찰과 그 첨부 폴더를 구별할 뿐 재시도 키나 순서가 아님(순서는 seq) |
+| `.analytics/observed/<activity_id>/` | 관찰의 첨부: 가린 명령 전문, 긴 목록, 거름을 통과한 스크립트 사본. run 디렉터리·코드 스냅샷(`code_snapshot`)과 구별하며 재실행 대상이 아님 |
+| 관찰 창(observation window) | 앞 상태를 보기 직전부터 뒤 상태를 다 본 때까지. 그 사이에 바뀐 파일은 그 명령이 썼다는 증거가 아님 |
+| `reasons` | 관찰을 기록한 조건: `analysis_command`(kit 밖 Python), `changes`(설명된다고 확인되지 않은 변경), `observation_off`. 재사용 알림의 `trigger`와 다른 이름을 씀 |
+| `explanation`: `explained` / `unexplained` / `unknown` | 창 안에 완료된 run·가져오기가 같은 경로·바이트를 남겼음 / 창의 기록을 다 읽었고 해시가 있으나 맞는 것이 없음 / 해시가 없거나 창의 기록을 읽지 못해 판단하지 못함. `unexplained`만 출처 추적의 관찰 후보 |
+| `same_bytes_possible` | 정체성만 바뀐 파일의 시작 바이트를 그 창에서 읽지 못해 같은 바이트인지 판정하지 못한 `modified` |
+| `changes.state`: `observed` / `not_observed`, `session_observation`: `on` / `off` | 이 관찰에서 앞뒤 상태를 비교했는가 / 상한·`busy`로 비교하지 못함. 세션의 변경 관찰을 끈 뒤에는 Python이 아닌 명령의 변경이 보이지 않으며 그 수를 따로 셈 |
+| 스크립트의 `captured`(`before`·`after`), `stable` | 사본·해시가 시작 때의 바이트인가 끝 때의 바이트인가 / 창 동안 크기·mtime·정체성이 그대로였는가. `stable`도 실행된 바이트라는 보증이 아님 |
+| `mentioned` | 명령 글이 가리킨, 스크립트가 아닌 프로젝트 파일의 경로. 입력이라는 주장이 아니며 출처 추적의 선이 아님 |
+| `observed_changes`, 선 `changed_during`(`basis: unverified`) | 출처 추적에서 그 바이트가 창에 나타난 관찰과 그 선. 생산자 판정 `producer_state`, run이 썼다는 `wrote`(`basis: observed`), 확정 연결이 아님 |
+| `Outside the kit` / "Inputs and environment not captured" | 관찰 행의 배지와 설명. 관찰 기록 자체는 journal에 있으므로 §6의 Not recorded(기록 안 됨)로 쓰지 않음 |
+| `redaction.rules_version` | 명령 글 가림 규칙의 판. 가림을 적용했다는 뜻이지 비밀이 없다는 보증이 아님 |
+
 명칭·영어 기본화는 새 공개 표면에서 한 번에 일관되게 제공한다. 구현 PR은 현재 코드·예제·오류 안내·실제 설치물을 함께 갱신한다.
 옛 도구를 기본 노출 목록에 남기거나 사용자를 두 가지 용어 체계로 안내하지 않는다.
 과거 프로젝트·세션·보존 스크립트는 원래 이름과 바이트를 보존하고 legacy reader·명시적 전환으로 읽는다.
