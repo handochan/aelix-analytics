@@ -29,8 +29,9 @@ STATUS = {"ok": ("good", "✓"), "error": ("critical", "✕"), "timeout": ("seri
 # An edge in the list of lines the page draws: [from, to, kind, flags], `from` the box the arrow
 # leaves (what came first) and `to` the box it reaches. Kinds: c (a record cites: dashed), r (a run
 # read), w (a run wrote), m (a run made); flags: i (inferred from an older kit's path), y (a cycle),
-# a (one of several possible sources).
-EDGE_KIND = {"cites": "c", "read": "r", "wrote": "w", "made": "m"}
+# a (one of several possible sources). o: a file changed while an observed activity ran (ADR-0015
+# decision 8: unverified, drawn as a possible source).
+EDGE_KIND = {"cites": "c", "read": "r", "wrote": "w", "made": "m", "changed_during": "o"}
 # The record kinds whose colour token a box takes (design 4); others take the muted one.
 RECORD_TOKENS = frozenset({"finding", "decision", "assumption", "question", "todo", "gap", "note",
                            "context", "project", "resolve", "run", "import"})
@@ -59,7 +60,7 @@ class Provenance:
         if first is None:
             return []
         shown = ["sources"] if len(first["nodes"]) > 1 else []
-        if first["nodes"][0]["kind"] in ("run", "visualization", "data"):
+        if first["nodes"][0]["kind"] in ("run", "visualization", "data", "observation"):
             uses = self.trail(identity, "uses")
             if uses is not None and len(uses["nodes"]) > 1:
                 shown.append("uses")
@@ -148,7 +149,7 @@ class Provenance:
     def box(self, node: dict, start: bool) -> tuple[str, str]:
         """(classes, HTML) of a box but its id, place and join lines: kind, start, record kind, data state."""
         kind = node["kind"]
-        classes = ["pv", "pv-" + {"record": "rec", "visualization": "viz"}.get(kind, kind)]
+        classes = ["pv", "pv-" + {"record": "rec", "visualization": "viz", "observation": "obs"}.get(kind, kind)]
         if start:
             classes.append("is-start")
         if kind == "record" and node.get("record_kind") in RECORD_TOKENS:
@@ -212,11 +213,22 @@ class Provenance:
                 facts += f'<p class="pf">{marked("warning", "⚠", t("badge.producer_ambiguous"))}</p>'
             if node.get("read_as"):
                 facts += f'<p class="pf ref-note">{t("inferred.note")}</p>'
+            if node.get("observed_deleted"):
+                facts += f'<p class="pf">{t("provenance.observed_deleted")} {s.esc(node["observed_deleted"])}</p>'
             writers = node.get("current_writers")
             if writers is not None:
                 facts += f'<p class="pf">{t("provenance.now_bytes_of")} ' + (
                     ", ".join(self.run_name(r) for r in writers[:3]) if writers else t("provenance.no_matching_output")) + "</p>"
             return t("provenance.kind.imported" if node.get("imported") else "provenance.kind.derived"), name, facts
+        if kind == "observation":
+            what = s.words("kind", "observed_activity") + (" · " + t("provenance.this_record") if start else "")
+            command = f'<code{s.user_language}>{s.esc(node.get("command") or "")}</code>'
+            name = command if start else f'<a href="{s.esc(self.page(node))}">{s.esc(node["id"])}</a> {command}'
+            changed = (t("observed.changes", n=node["changes"], unexplained=node["unexplained"])
+                       if node.get("changes_state") == "observed" else t("observed.not_observed"))
+            facts = (f'<p class="pf">{marked("warning", "◌", t("observed.outside"))} {s.fmt_time(node.get("started_at"))}</p>'
+                     f'<p class="pf">{changed}</p><p class="pf">{t("observed.not_captured")}</p>')
+            return what, name, facts
         if kind == "context":
             link = f'{s.root(1)}context.html#v-{s.href(PurePosixPath(node["version"]).stem)}'
             return t("relations.what.context"), f'<a href="{s.esc(link)}"{s.user_language}>{s.esc(node["version"])}</a>', ""
@@ -243,7 +255,8 @@ class Provenance:
         kind = edge["kind"]
         words = {("read", True): "read", ("read", False): "read_by", ("wrote", True): "wrote",
                  ("wrote", False): "written_by", ("made", True): "made", ("made", False): "made_by",
-                 ("cites", True): "cites", ("cites", False): "cited_by"}[(kind, mine)]
+                 ("cites", True): "cites", ("cites", False): "cited_by",
+                 ("changed_during", True): "saw_change", ("changed_during", False): "changed_during"}[(kind, mine)]
         label = self.short_name(near)
         out = f'{t("provenance.join." + words)} <a href="#{prefix}-{other}"{s.user_language}>{s.esc(label)}</a>'
         if kind == "cites":
@@ -255,6 +268,15 @@ class Provenance:
             out += " " + marked(*s.REF_STATE.get(state, ("muted", "?")), judged)
             if edge.get("confirmed"):
                 out += f' <span class="muted">{t("relations.confirmed")}</span>'
+        if kind == "changed_during":
+            # Never that the command wrote it (ADR-0015 decision 8): a change in its window, unverified.
+            out += f' <span class="muted">{t("provenance.observed.unverified")}</span>'
+            if edge.get("order") == "uncertain":
+                out += f' <span class="ref-note">{t("provenance.observed.uncertain")}</span>'
+            if edge.get("run_also"):
+                out += f' <span class="ref-note">{t("provenance.observed.run_also")}</span>'
+        if kind == "read" and edge.get("order") == "uncertain":
+            out += f' <span class="ref-note">{t("provenance.observed.read_uncertain")}</span>'
         if kind == "read" and edge.get("how") and edge["how"][0] != "read":
             out += f' <span class="muted">{t("provenance.how." + edge["how"][0])}</span>'
         if edge.get("basis") == "inferred" or edge.get("read_as"):
@@ -275,7 +297,7 @@ class Provenance:
             return self.site.dataset_name(node["path"]) or PurePosixPath(node["path"]).name
         if kind == "context":
             return node["version"]
-        if kind == "inputs":
+        if kind in ("inputs", "observation"):
             return node["id"]
         return str(node.get("label") or node.get("path") or "?")
 
@@ -311,7 +333,7 @@ class Provenance:
         """The relation page a box's trail goes on from (its selected version page, design 6.3)."""
         s = self.site
         kind = node["kind"]
-        identity = (node["id"] if kind in ("record", "run", "visualization", "context")
+        identity = (node["id"] if kind in ("record", "run", "visualization", "context", "observation")
                     else node["path"] if kind == "data" else None)
         return s.relations.link(identity, 1) if identity in s.relations.identities else None
 
@@ -376,6 +398,11 @@ class Provenance:
                             for v, k in verdicts.items()))
         else:
             line("none", t("provenance.check.no_reruns"))
+        observed = checks.get("observed") or {}
+        if observed.get("count"):
+            # The observations met, apart: they are not runs and never confirm a source (ADR-0015 decision 8).
+            line("warn", t("provenance.check.observed", n=observed["count"]),
+                 items=[f'<a href="{s.esc(s.relations.link(name, 1))}">{s.esc(name)}</a>' for name in observed["names"][:4]])
         line("none", t("provenance.check.reviews"))
         return (f'<aside class="pv-checks"><h3>{t("provenance.check.title")}</h3><ul>{"".join(lines)}</ul>'
                 f'<p class="muted">{t("provenance.scope")}</p></aside>')

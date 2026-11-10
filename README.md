@@ -540,7 +540,8 @@ kit이 쓰는 텍스트(기록·템플릿 사본·inline 스크립트·Workspace
   기록하지 않은 파일이 그 bash 호출 동안 바뀌었으면, 가린 명령 글과 바뀐 파일, 명령이 가리킨 스크립트의 바이트를 남기고 결과 끝의 안내에
   `Observed as eN`을 붙입니다. run이 아니므로 입력·환경은 포착되지 않고 재실행할 수 없습니다. 분석 단계는 계속 `analytics_run`으로 돌리세요.
   가림은 거부 목록이라 모든 비밀을 잡지 못하며, 사본은 git이 추적하는 `.analytics/observed/`에 남습니다(git이 무시하는 파일·비밀일 수 있는 파일·
-  노트북은 복사하지 않음). `analytics status --part records --kind observed_activity`로 읽습니다. 범위와 한계는 [현재 계약](docs/CONTRACTS.md) C22입니다.
+  노트북은 복사하지 않음). `analytics status --part records --kind observed_activity`로 읽고, Workspace의 Timeline(`Outside the kit` 배지)·기록
+  페이지·Evaluation의 Record coverage와 출처 추적(검증되지 않은 후보 `Changed while this ran`)에 보입니다. 범위와 한계는 [현재 계약](docs/CONTRACTS.md) C22입니다.
 - Workspace의 **Evaluation** 탭(옛 '평가' 탭): Workflow feedback(`workflow_feedback`·옛 `gap` 목록), Record coverage(입력 미감지 run, 첨부 표 없는 차트,
   프로젝트 밖 입력, 입력이 바뀐 차트, 재실행 비교 결과), Tool usage(도구별 호출·오류·시간), Possible workarounds(우회 의심 호출).
 - 기존 비교 실험의 축과 시나리오: [과거 평가 가이드](docs/EVALUATION.md).

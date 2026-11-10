@@ -1,0 +1,116 @@
+{
+ "record_kind": "aelix-analytics-record-format-verification",
+ "observed_at": "2026-11-10",
+ "issue": "https://github.com/handochan/aelix-analytics/issues/171",
+ "decision": "docs/decisions/0015-observed-activity-outside-the-kit.md",
+ "pull_request": null,
+ "part": "PR-2: Workspace screens and provenance",
+ "run_id": "e8d4ebf7-429d-4cd5-96da-567b206449e8",
+ "measured_source": {
+  "commit": "7f40f16",
+  "branch": "feat/issue-171-observed-screens",
+  "on": "60cc85c (PR-1) on 2a96e50 (the eight approved PRs)",
+  "earlier": [
+   "bd057ce (before the reviews)",
+   "9f77671 (after the review fixes)"
+  ]
+ },
+ "machine": {
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "cpu": "Apple M5 Pro",
+  "python": "3.12.13",
+  "load": "shared machine; times indicative"
+ },
+ "probe": {
+  "screens171.py": "b0361f6f2de2333d816213c8654f514451936c2d0ac6994cd072fc0401f78d65",
+  "kept": ".devstate (this machine only)"
+ },
+ "workspace_builds": [
+  {
+   "observations": 0,
+   "build_ms": [
+    44,
+    18,
+    18
+   ],
+   "pages": 15,
+   "html_bytes": 73355
+  },
+  {
+   "observations": 100,
+   "build_ms": [
+    47,
+    50,
+    49
+   ],
+   "pages": 119,
+   "html_bytes": 1611527
+  },
+  {
+   "observations": 300,
+   "build_ms": [
+    130,
+    134,
+    142
+   ],
+   "pages": 327,
+   "html_bytes": 4576167
+  }
+ ],
+ "trail": {
+  "observations_of_the_bytes": 50,
+  "trail_ms": 0.8,
+  "candidates": 50,
+  "nodes": 20,
+  "omitted": {
+   "nodes": 32,
+   "edges": 32
+  },
+  "checks_observed": 50
+ },
+ "verification": [
+  {
+   "command": "uv run --locked pytest -q --timeout 600 --timeout-method=thread -p no:cacheprovider",
+   "source": "5648b71 (same tree before the record rebase; clean)",
+   "result": "pass",
+   "summary": "3424 passed, 148 skipped, 790 s"
+  },
+  {
+   "command": "uv run --locked pytest tests/test_observed_screens.py",
+   "source": "7f40f16",
+   "result": "pass",
+   "summary": "21 passed"
+  },
+  {
+   "command": "aelix 0.1.0b2 integration, five files, --python 3.12 and 3.11",
+   "source": "5648b71",
+   "result": "pass",
+   "summary": "1089 passed each"
+  },
+  {
+   "command": "ruff check; tools/check_docs.py; tools/release_check.py version",
+   "source": "7f40f16",
+   "result": "pass"
+  },
+  {
+   "command": "earlier measurements",
+   "source": "bd057ce, 9f77671",
+   "result": "pass",
+   "summary": "3318 / 3359 passed"
+  }
+ ],
+ "not_run": [
+  "Linux and Windows (this PR's CI)",
+  "browser views (Chromium E2E, narrow screens, forced colors) and a person's check",
+  "the Workspace S/M scale fixtures with observations"
+ ],
+ "reviews": {
+  "implementation": [
+   "independent (2026-11-10)",
+   "Codex (2026-11-10)"
+  ],
+  "fixed_in": "6067578",
+  "fix_diff_check": "Codex (2026-11-10)",
+  "fix_diff_fixed_in": "7f40f16"
+ }
+}

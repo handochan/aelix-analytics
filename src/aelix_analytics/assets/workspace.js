@@ -397,7 +397,8 @@
     });
   }
   const SVG = "http://www.w3.org/2000/svg";
-  const LINE_WORDS = { c: "provenance.line.cites", r: "provenance.line.read", w: "provenance.line.wrote", m: "provenance.line.made" };
+  const LINE_WORDS = { c: "provenance.line.cites", r: "provenance.line.read", w: "provenance.line.wrote", m: "provenance.line.made",
+    o: "provenance.line.changed_during" };
   function drawTrails() {
     if (!document.createElementNS) return;
     document.querySelectorAll(".pv-list").forEach(list => {
@@ -428,7 +429,7 @@
       const first = list.querySelector("li[id]");
       const prefix = first ? first.id.replace(/-\d+$/, "") : "";
       (list.dataset.e || "").split(" ").forEach(spec => {
-        const m = /^(\d+)>(\d+)([crwm])([aiy]*)$/.exec(spec);
+        const m = /^(\d+)>(\d+)([crwmo])([aiy]*)$/.exec(spec);
         const a = m && document.getElementById(prefix + "-" + m[1]), b = m && document.getElementById(prefix + "-" + m[2]);
         if (!a || !b || a.hidden || b.hidden) return;
         const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
@@ -451,7 +452,7 @@
           // A bent line has no label: the gap is too narrow for one, and the boxes' words say it.
           if (Math.abs(y2 - y1) < 1) { lx = (x1 + x2) / 2; ly = y1 - 5; }
         }
-        const tone = m[3] === "c" ? "c" : /[ai]/.test(m[4]) ? "maybe" : "";
+        const tone = m[3] === "c" ? "c" : m[3] === "o" || /[ai]/.test(m[4]) ? "maybe" : "";
         const path = document.createElementNS(SVG, "path"); path.setAttribute("d", d); if (tone) path.setAttribute("class", tone);
         const head = document.createElementNS(SVG, "path");
         head.setAttribute("class", "head " + tone);

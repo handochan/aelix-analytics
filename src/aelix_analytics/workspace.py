@@ -23,6 +23,7 @@ import re
 import shutil
 import stat
 from collections import Counter, defaultdict
+from datetime import timedelta
 from importlib import resources
 from pathlib import Path
 from urllib.parse import quote
@@ -580,6 +581,134 @@ class Site:
             return ""
         return f'<p class="note">{esc(t("publish.result_not_recorded"))}</p>'
 
+    # --- observed activities (ADR-0015 decision 7) ---------------------------------------------------
+
+    def observed_row_html(self, event: dict) -> str:
+        """What a list row adds to an observed activity: that it was outside the kit, what changed in its
+        window (and how much of it no run or import recorded), the window, and that its inputs and
+        environment were not captured. A row whose details this kit cannot read says so."""
+        if relations.observed_activity_problem(event) is not None:
+            return f'<p class="note">{badge("muted", "◌", t("observed.outside"))} {t("observed.unreadable")}</p>'
+        d = event["details"]
+        changes = d["changes"]
+        if changes["state"] == "observed":
+            changed = t("observed.changes", n=changes["total"] or 0, unexplained=changes["unexplained"] or 0)
+            if changes.get("unknown"):
+                changed += " · " + t("observed.changes_unknown", n=changes["unknown"])
+        else:
+            changed = t("observed.not_observed") + " · " + words("observed.reason", changes["reason"])
+        return (f'<p class="note observed">{badge("warning", "◌", t("observed.outside"))} {changed} · '
+                f'{fmt_time(d["started_at"])}–{fmt_time(d["ended_at"], with_date=False)} · '
+                f'{t("observed.not_captured")}</p>')
+
+    def observed_page_html(self, event: dict, depth: int) -> str:
+        """An observed activity's own section on its record page: the redacted command (and its whole
+        text where it was attached), the working directory, the window and the result as aelix gave it,
+        the scripts (their copies, or why there is none), the files changed (a dataset's page, the run that
+        explained a change), the files the command named, and what the record does not keep."""
+        if relations.observed_activity_problem(event) is not None:
+            return (f'<section class="observed panel" id="observed"><h2>{t("observed.heading")}</h2>'
+                    f'<p>{t("observed.unreadable")}</p></section>')
+        d = event["details"]
+        folder = f".analytics/observed/{d['activity_id']}/"
+        command = d["command"]
+        whole = next((c for c in d["captures"] if c["role"] == "command"), None)
+        lines = [f'<pre class="observed-command"{USER}>{esc(command["text"])}</pre>']
+        if whole:
+            lines.append(f'<p><a href="{esc(self.file_link(folder + whole["path"], depth))}">{t("observed.whole_command")}</a>'
+                         + (f' {t("observed.command_truncated")}' if command["truncated"] else "") + "</p>")
+        facts = [t("observed.redacted", n=command["redaction"]["count"])]
+        if command["changed_after_start"]:
+            facts.append(t("observed.changed_after_start"))
+        lines.append(f'<p class="muted">{" · ".join(facts)}</p>')
+        cwd = (f'<code{USER}>{esc(d["cwd"])}</code>' if not d["cwd_outside"] else t("observed.cwd_outside"))
+        result = d["result"]
+        ended = (t("observed.exit", code=result["exit_code"]) if result["exit_code"] is not None
+                 else t("observed.exit_unknown"))
+        rows = [(t("observed.cwd"), cwd),
+                (t("observed.window"), f'{fmt_time(d["started_at"])}–{fmt_time(d["ended_at"], with_date=False)}'
+                                       + (f' · {fmt_num(d["duration_ms"])} ms' if d["duration_ms"] is not None else "")),
+                (t("observed.result"), ended + (" · " + badge("critical", "✕", t("observed.error")) if result["is_error"] else "")),
+                (t("observed.reasons"), ", ".join(
+                    t("observed.why.changes_unknown") if r == "changes" and not d["changes"]["unexplained"]
+                    else words("observed.why", r) for r in d["reasons"])),
+                (t("observed.session"), words("observed.session_state", d["session_observation"]))]
+        table = "".join(f"<tr><th>{k}</th><td>{v}</td></tr>" for k, v in rows)
+        scripts = "".join(self._observed_script(item, folder, depth) for item in d["scripts"]["items"])
+        changes = d["changes"]
+        if changes["state"] == "observed":
+            changed = "".join(self._observed_change(item, depth) for item in changes["items"])
+            more = (changes["total"] or 0) - len(changes["items"])
+            summary = t("observed.changes", n=changes["total"] or 0, unexplained=changes["unexplained"] or 0)
+            if changes.get("unknown"):
+                summary += " · " + t("observed.changes_unknown", n=changes["unknown"])
+            changed_html = (f'<p>{summary}</p>'
+                            + (f'<ul class="plain observed-changes">{changed}</ul>' if changed else "")
+                            + (self._observed_more(d, "changes", more, folder, depth) if more > 0 else ""))
+        else:
+            changed_html = f'<p>{t("observed.not_observed")} · {words("observed.reason", changes["reason"])}</p>'
+        mentioned = d["mentioned"]
+        named = "".join(f"<li>{self.path_html(path, depth)}</li>" for path in mentioned["items"])
+        named_html = (f'<ul class="plain">{named}</ul>' if named else f'<p class="muted">{t("evaluation.none")}</p>')
+        more_named = mentioned["total"] - len(mentioned["items"])
+        if more_named > 0:
+            named_html += self._observed_more(d, "files", more_named, folder, depth)
+        if mentioned["unresolved"]:
+            named_html += f'<p class="muted">{t("observed.unresolved", n=mentioned["unresolved"])}</p>'
+        return (f'<section class="observed panel" id="observed"><h2>{t("observed.heading")}</h2>'
+                f'<p>{badge("warning", "◌", t("observed.outside"))} {t("observed.lead")}</p>'
+                f'<h3>{t("observed.command")}</h3>{"".join(lines)}'
+                f'<div class="table-wrap"><table class="kv">{table}</table></div>'
+                f'<h3>{t("observed.scripts", n=d["scripts"]["total"])}</h3>'
+                + (f'<ul class="plain observed-scripts">{scripts}</ul>' if scripts else f'<p class="muted">{t("evaluation.none")}</p>')
+                + (self._observed_more(d, "files", d["scripts"]["total"] - len(d["scripts"]["items"]), folder, depth)
+                   if d["scripts"]["total"] > len(d["scripts"]["items"]) else "")
+                + f'<h3>{t("observed.changed_heading")}</h3>{changed_html}'
+                f'<h3>{t("observed.mentioned", n=mentioned["total"])}</h3>{named_html}'
+                f'<h3>{t("observed.not_kept_heading")}</h3><p>{t("observed.not_kept")}</p></section>')
+
+    def _observed_script(self, item: dict, folder: str, depth: int) -> str:
+        if item["outside"]:
+            name = f'<code{USER}>{esc(item["name"])}</code> {t("observed.outside_project")}'
+        else:
+            name = self.path_html(item["path"], depth) if item.get("path") else f'<code{USER}>{esc(item["name"])}</code>'
+        bits = [name]
+        if item.get("sha256"):
+            bits.append(f'<code>{esc(short(item["sha256"]))}</code>')
+        if item.get("captured"):
+            bits.append(words("observed.captured", item["captured"]))
+        if item.get("stable") is False:
+            bits.append(badge("warning", "⚠", t("observed.unstable_script")))
+        if item.get("copy"):
+            bits.append(f'<a href="{esc(self.file_link(folder + item["copy"], depth))}">{t("observed.copy")}</a>')
+        else:
+            bits.append(t("observed.no_copy") + " · " + words("observed.copy_reason", item.get("copy_reason")))
+        return f"<li>{' · '.join(bits)}</li>"
+
+    def _observed_change(self, item: dict, depth: int) -> str:
+        bits = [words("change", item["change"]), self.path_html(item["path"], depth)]
+        if item.get("sha256"):
+            bits.append(f'<code>{esc(short(item["sha256"]))}</code>')
+        elif item.get("hash") not in (None, "hashed", "deleted"):
+            bits.append(words("observed.hash", item["hash"]))
+        by = item.get("by")
+        if item["explanation"] == "explained" and isinstance(by, dict):
+            if by.get("type") == "run" and by.get("id") in self.run_by_id:
+                bits.append(f'{t("observed.explained_by_run")} <a href="{esc(self.run_link(by["id"], depth))}">{esc(by["id"])}</a>')
+            else:
+                bits.append(t("observed.explained_by_import"))
+        else:
+            bits.append(words("observed.explanation", item["explanation"]))
+        if item.get("same_bytes_possible"):
+            bits.append(t("observed.same_bytes_possible"))
+        return f"<li>{' · '.join(bits)}</li>"
+
+    def _observed_more(self, d: dict, role: str, more: int, folder: str, depth: int) -> str:
+        capture = next((c for c in d["captures"] if c["role"] == role), None)
+        link = (f' <a href="{esc(self.file_link(folder + capture["path"], depth))}">{t("observed.whole_list")}</a>'
+                if capture else "")
+        return f'<p class="muted">{t("list.and_more", n=more)}{link}</p>'
+
     def publication_event_html(self, event: dict, depth: int) -> str:
         details = event.get("details")
         pid = details.get("publication_id") if isinstance(details, dict) else None
@@ -709,7 +838,8 @@ class Site:
         event = self.relations.events.get(source)
         publication = (self.publication_event_html(event.value, depth)
                        if kind == "publication" and event else
-                       self.publish_attempt_html(event.value) if kind == "publish_attempt" and event else "")
+                       self.publish_attempt_html(event.value) if kind == "publish_attempt" and event else
+                       self.observed_row_html(event.value) if kind == relations.OBSERVED_KIND and event else "")
         return (f'<li class="ev rec" id="{esc(row_id)}" data-kind="{esc(kind)}" data-selection="{quote(source or "", safe="")}">'
                 f'<span class="rec-kind kind-{esc(kind)}"><span class="dot" aria-hidden="true"></span>{words("kind", kind)}</span>'
                 f'<div class="rec-main"><div class="rec-line"><span class="rec-text"{USER}>{esc(ev.get("text"))}</span>{state}</div>'
@@ -1844,6 +1974,7 @@ def evaluation_section(site: Site) -> str:
         row("evaluation.reruns", len(reruns), " · ".join(f"{verdict_label(k)} {v}" for k, v in verdicts.items())),
         row("evaluation.queries", len(site.queries),
             t("evaluation.query_errors", n=sum(1 for q in site.queries if q.get('error')))),
+        *observed_rows(site, row),
     ])
     by_tool: dict[str, list[dict]] = defaultdict(list)
     for tel in site.telemetry:
@@ -1880,6 +2011,64 @@ def evaluation_section(site: Site) -> str:
     <div class="panel"><h3>{t("evaluation.workarounds", n=len(flagged))}</h3>{flag_html}</div>
   </div>
 </section>"""
+
+
+def observed_rows(site: Site, row) -> list[str]:
+    """Record coverage's lines for the observed activities (ADR-0015 decision 7): how many, how many
+    saw changes no run or import recorded, how many could not look at the changes (by reason), and for
+    each session whose change observation was turned off, the bash calls after it whose changes were
+    not observed — counted from telemetry, "at least" where telemetry holds fewer calls than the
+    observations made after it."""
+    journal = site.model.journal
+    observations = relations.observed_activities(journal)
+    out = []
+    if observations:
+        summary = relations.observed_summary(journal)
+        links = ", ".join(f'<a href="{esc(site.relations.link(journal.source_of(e), 0))}">{esc(journal.source_of(e))}</a>'
+                          for e in observations[-6:][::-1])
+        out += [row("evaluation.observed", len(observations), links),
+                row("evaluation.observed_unexplained", summary["unexplained"]),
+                row("evaluation.observed_not_observed", sum(summary["not_observed"].values()),
+                    " · ".join(f"{words('observed.reason', reason)} {n}"
+                               for reason, n in sorted(summary["not_observed"].items())))]
+    # Calls telemetry says were skipped or not written are shown with no observation too: a session whose
+    # every observation was skipped has nothing else to say it.
+    skipped: dict[str, int] = {}
+    for tel in site.telemetry:
+        reason = tel.get("observation_skipped")
+        if isinstance(reason, str):
+            skipped[reason] = skipped.get(reason, 0) + 1
+    if skipped:
+        out.append(row("evaluation.observed_skipped", sum(skipped.values()),
+                       " · ".join(f"{words('observed.skipped', reason)} {n}" for reason, n in sorted(skipped.items()))))
+    if not observations:
+        return out
+    for session in summary["sessions_off"]:
+        mine = [e for e in observations if str(e.value.get("session")) == session]
+        off = next((e for e in mine if "observation_off" in e.value["details"]["reasons"]), mine[0])
+        # A call counts when it started after the window of the observation that recorded the turning off:
+        # that call's own telemetry line (written as it ends, after the record) is not a later call.
+        since = relations._instant(off.value["details"].get("ended_at"))
+        later = sum(1 for e in mine if e.seq is not None and off.seq is not None and e.seq > off.seq)
+        calls = 0
+        for tel in site.telemetry:
+            at = relations._instant(tel.get("ts"))
+            if tel.get("tool") != "bash" or str(tel.get("session")) != session or at is None or since is None:
+                continue
+            ms = tel.get("ms")
+            if not isinstance(ms, (int, float)) or isinstance(ms, bool):
+                continue  # no duration: its start cannot be placed after the window (`at least` covers it)
+            try:
+                calls += at - timedelta(milliseconds=ms) > since
+            except TypeError:
+                continue
+        counted = t("evaluation.observed_after", n=max(calls, later)) if calls >= later else \
+            t("evaluation.observed_after_at_least", n=later)
+        name = esc(session.replace("\\", "/").rsplit("/", 1)[-1])
+        out.append(row("evaluation.observed_off", 1,
+                       f'<a href="{esc(site.relations.link(journal.source_of(off), 0))}">{esc(journal.source_of(off))}</a> '
+                       f'<code{USER}>{name}</code> · {counted}'))
+    return out
 
 
 # --- run page ---

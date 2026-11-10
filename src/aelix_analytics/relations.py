@@ -311,6 +311,8 @@ OBSERVED_KIND = "observed_activity"
 OBSERVED_CONTRACT = "observed_activity/1"
 OBSERVED_WRITER_SINCE = "0.32.1"
 ACTIVITY_ID = re.compile(r"act-[0-9a-hjkmnp-tv-z]{26}\Z")
+# Where an observation's attachments are (the new format's state directory).
+OBSERVED_DIR = ".analytics/observed"
 # A migration's plan, mapping and report (design 2.7 and 6.8), told apart by their `record`.
 MIGRATION_V1 = "analytics.migration/1"
 # Where import records are, each with the family it holds (design 2.3).
@@ -1922,6 +1924,7 @@ class ReadModel:
         self._version_of: dict[tuple, dict] = {}
         self._trail_nodes: dict[str, dict] = {}
         self._code_kept: dict[str, str] = {}
+        self._observed: tuple[dict, dict, dict] | None = None
 
     # --- runs, imports and Report revisions --------------------------------------------------------
 
@@ -3543,6 +3546,130 @@ class ReadModel:
     # (`sources`) or what was made from it (`uses`): not a proof of a conclusion, not row-level lineage.
     # A step is a run: what is reached before the next run is on the step of the run before it.
 
+    # --- observed activities in provenance (ADR-0015 decision 8) -----------------------------------
+
+    def _observed_index(self) -> tuple[dict, dict, dict]:
+        """({(path, sha256): [observation]}, {path: [observation that saw it deleted]}, {source: observation})
+        of the observed activities this reader can use, in seq order. An observation is `{id, started_at,
+        ended_at, items}`; only a change it holds `unexplained`, `created` or `modified`, with a hash, is a
+        candidate for its bytes (`unknown` and hashless ones are not). Its whole change list is the inline
+        one, or the attached `changes.json` when its digest is the one the record holds."""
+        if self._observed is None:
+            by_bytes: dict[tuple, list] = {}
+            deleted: dict[str, list] = {}
+            by_source: dict[str, dict] = {}
+            for event in observed_activities(self.journal):
+                d = event.value["details"]
+                source = self.journal.source_of(event)
+                items = self._observed_items(d)
+                entry = {"id": source, "started_at": _instant(d["started_at"]), "ended_at": _instant(d["ended_at"]),
+                         "details": d, "items": items}
+                by_source[source] = entry
+                for item in items:
+                    path, sha = _str(item.get("path")), _str(item.get("sha256"))
+                    if path is None:
+                        continue
+                    if item.get("change") == "deleted" and item.get("explanation") == "unexplained":
+                        deleted.setdefault(path, []).append(entry)
+                    elif (item.get("change") in ("created", "modified") and item.get("explanation") == "unexplained"
+                          and sha):
+                        rows = by_bytes.setdefault((path, sha), [])
+                        if entry not in rows:
+                            rows.append(entry)
+            self._observed = (by_bytes, deleted, by_source)
+        return self._observed
+
+    def _observed_items(self, details: dict) -> list[dict]:
+        """An observation's changes: the inline ones, or all of them from its `changes.json` attachment
+        when that file's bytes are the ones its captures name."""
+        items = [i for i in details["changes"]["items"] if isinstance(i, dict)]
+        if details["changes"].get("total") is not None and len(items) >= details["changes"]["total"]:
+            return items
+        capture = next((c for c in details["captures"] if c.get("role") == "changes"), None)
+        if capture is None:
+            return items
+        path = self.root / OBSERVED_DIR / details["activity_id"] / capture["path"]
+        try:
+            data = path.read_bytes()
+            if hashlib.sha256(data).hexdigest() != capture["sha256"]:
+                return items
+            listed = json.loads(data)
+        except (OSError, ValueError):
+            return items
+        return [i for i in listed if isinstance(i, dict)] if isinstance(listed, list) else items
+
+    def _observation_node(self, source: str) -> dict:
+        entry = self._observed_index()[2][source]
+        d = entry["details"]
+        event = self.journal.event_of(source)
+        return {"id": source, "kind": "observation", "activity_id": d["activity_id"],
+                "summary": " ".join(str(event.value.get("text") or "").split())[:240] if event else "",
+                "command": " ".join(d["command"]["text"].split())[:160], "recorded_at": event.recorded_at if event else None,
+                "started_at": d["started_at"], "ended_at": d["ended_at"], "changes": d["changes"]["total"],
+                "unexplained": d["changes"]["unexplained"], "changes_state": d["changes"]["state"],
+                "session_observation": d["session_observation"]}
+
+    def observed_candidates(self, path: str, sha256, *, before_run: str | None = None) -> list[dict]:
+        """The observations whose window saw these bytes appear at `path` with no run or import recording
+        them (ADR-0015 decision 8), oldest first: `{id, order, run_also}`. For the input of a run
+        (`before_run`): only those whose window ended before the run started (`before`), and those whose
+        window spans its start (`uncertain`); later ones are that file's history, not its source. Without
+        one every observation of the bytes (`order` null). Times
+        are compared as instants; one that cannot be compared is `uncertain`. `run_also`: a run's output
+        has the same path and bytes — a run candidate is the likelier source."""
+        if not (isinstance(path, str) and isinstance(sha256, str)):
+            return []
+        rows = self._observed_index()[0].get((path, sha256), [])
+        if not rows:
+            return []
+        run_also = bool(self._output_index().get((path, sha256)))
+        started = _instant((self._runs.get(before_run) or {}).get("started_at")) if before_run else None
+        out = []
+        for entry in rows:
+            order = None  # a start that is no run's input: every observation of the bytes, in time order
+            if before_run is not None:
+                ended, began = entry["ended_at"], entry["started_at"]
+                try:
+                    if started is None or ended is None or began is None:
+                        order = "uncertain"
+                    elif ended < started:
+                        order = "before"
+                    elif began < started:
+                        order = "uncertain"
+                    else:
+                        continue
+                except TypeError:
+                    order = "uncertain"
+            out.append({"id": entry["id"], "order": order, "run_also": run_also})
+        return out
+
+    def _observed_order(self, entry: dict, run_id: str) -> str:
+        """Where a run's start falls against an observation's window: `before` the window ended (`earlier`
+        when it started before the window began), `after` it, or `uncertain` (within it, or a time that
+        cannot be compared: a run with no start time, an older kit's)."""
+        started = _instant((self._runs.get(run_id) or {}).get("started_at"))
+        ended, began = entry["ended_at"], entry["started_at"]
+        try:
+            if started is None or ended is None or began is None:
+                return "uncertain"
+            if started < began:
+                return "earlier"
+            if started > ended:
+                return "after"
+            return "uncertain"
+        except TypeError:
+            return "uncertain"
+
+    def _observed_paths(self) -> set[str]:
+        """The paths an observation saw change with no run or import recording them."""
+        by_bytes, deleted, _ = self._observed_index()
+        return {path for path, _ in by_bytes} | set(deleted)
+
+    def observed_deletion(self, path: str) -> str | None:
+        """The last observation that saw `path` deleted with nothing recording it (for a file missing now)."""
+        rows = self._observed_index()[1].get(path) if isinstance(path, str) else None
+        return rows[-1]["id"] if rows else None
+
     def trail_start(self, identity) -> dict | None:
         """The node a trail from `identity` begins with — a record (`e<seq>`, `journal:<line>`,
         `report:<report_id>/<revision_id>`), a run (`run:<run_id>`), a Visualization version
@@ -3553,7 +3680,7 @@ class ReadModel:
             return None
         event = self.journal.event_of(identity)
         if event is not None:
-            return self._record_node(self.journal.source_of(event))
+            return self._record_node(self.journal.source_of(event))  # an observation's own node too
         if identity.startswith("report:"):
             report, _, revision = identity[len("report:"):].partition("/")
             return self._report_node(identity) if (report, revision) in self._saved else None
@@ -3570,7 +3697,7 @@ class ReadModel:
             if sha and self._holds(path, sha):
                 return self._data_node(path, sha, state=self._state_now(path, sha), origin=("bytes",))
             return None
-        if identity in self._path_entries() or self._imports(identity):
+        if identity in self._path_entries() or self._imports(identity) or identity in self._observed_paths():
             current = self._sha(self.root / identity)
             state = "same" if current else "missing" if self._state_now(identity, None) == "missing" else "unknown"
             return self._data_node(identity, current, state=state, origin=("now",))
@@ -3580,6 +3707,8 @@ class ReadModel:
         """Whether a run's input or output, or an import record, holds these bytes at this path."""
         if any(_str(meta.get("sha256")) == sha for meta in self._imports(path)):
             return True
+        if (path, sha) in self._observed_index()[0]:
+            return True  # bytes an observation saw (ADR-0015): a start, its producer judgment unchanged
         return any(_str(entry.get("sha256")) == sha for entries in self._path_entries().get(path, {}).values()
                    for _, entry in entries)
 
@@ -3757,7 +3886,8 @@ class ReadModel:
 
     def _record_node(self, source: str) -> dict:
         if source not in self._trail_nodes:
-            self._trail_nodes[source] = self._make_record_node(source)
+            self._trail_nodes[source] = (self._observation_node(source) if source in self._observed_index()[2]
+                                         else self._make_record_node(source))
         return dict(self._trail_nodes[source])
 
     def _make_record_node(self, source: str) -> dict:
@@ -3839,6 +3969,13 @@ class ReadModel:
         producer = self._producer_of(node)
         if producer is not None:
             node["producer"] = producer["producer"]
+        observed = self._observed_of(node)
+        if observed:
+            node["observed_changes"] = observed
+        if state == "missing":
+            gone = self.observed_deletion(path)
+            if gone is not None:
+                node["observed_deleted"] = gone
         if recorded is not None and recorded != path:
             node["read_as"] = path
             node["recorded_path"] = recorded
@@ -3918,7 +4055,8 @@ class ReadModel:
         (the dicts here are shared)."""
         key = (direction, node["id"], node.get("_origin"), state)
         if key not in self._trail_cache:
-            self._trail_cache[key] = [(child, edge, (edge["from"], edge["to"], edge["kind"]), int(child["kind"] == "run"))
+            self._trail_cache[key] = [(child, edge, (edge["from"], edge["to"], edge["kind"]),
+                                       int(child["kind"] in ("run", "observation")))
                                       for child, edge in self._children(node, direction, state)]
         return self._trail_cache[key]
 
@@ -3941,8 +4079,12 @@ class ReadModel:
                 out += self._run_visualizations(node["run"])
             elif kind == "data":
                 out += self._writers(node)
+                out += self._observers(node)
+            # An observation is one step, as a run: what it read was not captured, so the trail stops there.
             return out
-        if kind == "run":
+        if kind == "observation":
+            out += self._observed_files(node)
+        elif kind == "run":
             run_id = node["run"]
             for entry in _dicts(self._runs[run_id].get("outputs")):
                 path, sha = _str(entry.get("path")), _str(entry.get("sha256"))
@@ -3956,7 +4098,7 @@ class ReadModel:
             out += self._run_visualizations(run_id)
         elif kind == "data":
             out += self._readers(node, state)
-        if kind in ("record", "run", "visualization", "context", "data"):
+        if kind in ("record", "run", "visualization", "context", "data", "observation"):
             out += self._citing(node)
         return out
 
@@ -4023,6 +4165,48 @@ class ReadModel:
                     "candidates": candidates, "inferred_candidates": inferred}
         return None
 
+    def _observed_of(self, node: dict) -> list[dict]:
+        """The observation candidates of a data node's bytes (observed_candidates): for the bytes a run read,
+        or a run's input a record cites, by that run's start; for the bytes now, an import's and bytes a
+        trail names, every one in time order; none for bytes a run of the trail wrote or a record cites as
+        a run's output, nor for bytes an observation of the trail met."""
+        origin, sha = node["_origin"], node.get("sha256")
+        if not sha:
+            return []
+        if origin[0] == "read":
+            return self.observed_candidates(node["path"], sha, before_run=origin[1])
+        if origin[0] == "cited" and origin[2] == "input":
+            return self.observed_candidates(node["path"], sha, before_run=origin[1])
+        if origin[0] in ("now", "import", "bytes"):
+            return self.observed_candidates(node["path"], sha)
+        return []
+
+    def _observers(self, node: dict) -> list[tuple[dict, dict]]:
+        """The observations a data node's bytes were seen to change in (`changed_during`, basis
+        `unverified`, never a confirmed link): from the node's own candidates."""
+        out = []
+        for candidate in node.get("observed_changes") or ():
+            child = self._record_node(candidate["id"])
+            out.append((child, {"from": child["id"], "to": node["id"], "kind": "changed_during", "basis": "unverified",
+                                "confirmed": False, "order": candidate["order"], "run_also": candidate["run_also"]}))
+        return out
+
+    def _observed_files(self, node: dict) -> list[tuple[dict, dict]]:
+        """What an observation saw change with no run or import recording it (its `unexplained` created or
+        modified files with a hash), as data nodes of those bytes (uses direction)."""
+        entry = self._observed_index()[2].get(node["id"])
+        out = []
+        for item in (entry or {}).get("items", []):
+            path, sha = _str(item.get("path")), _str(item.get("sha256"))
+            if (path is None or not sha or item.get("explanation") != "unexplained"
+                    or item.get("change") not in ("created", "modified")):
+                continue
+            child = self._data_node(path, sha, state=self._observed_input_state({"path": path, "sha256": sha}),
+                                    origin=("observed", node["id"]))
+            out.append((child, {"from": node["id"], "to": child["id"], "kind": "changed_during", "basis": "unverified",
+                                "confirmed": False}))
+        return out
+
     def _writers(self, node: dict) -> list[tuple[dict, dict]]:
         """The runs a trail says wrote a data file's bytes: the producer candidates of its judgment
         (_producer_of), or the run whose output a record cites."""
@@ -4064,11 +4248,18 @@ class ReadModel:
             return []
         origin = node["_origin"]
         writer = origin[1] if origin[0] == "wrote" else None
+        observation = self._observed_index()[2].get(origin[1]) if origin[0] == "observed" else None
         out = []
         for run_id, entry in self._input_index().get((node["path"], sha), []):
             if run_id == writer:
                 continue
             if writer is not None and writer not in self.producers(entry.get("path"), sha, consumer=run_id):
+                continue
+            # Bytes an observation saw change are used by the runs that read them later only (ADR-0015
+            # decision 8, the rule of observed_candidates the other way): a run that started before the
+            # window began is not their user; one that started within it is `uncertain`.
+            order = self._observed_order(observation, run_id) if observation is not None else None
+            if order == "earlier":
                 continue
             run = self._run_node(run_id)
             via = [v for v in _strings(entry.get("via") or []) if isinstance(v, str)]
@@ -4077,6 +4268,8 @@ class ReadModel:
                     "state": state(entry, self._own_outputs(run_id))}
             if entry.get("path") != node["path"]:
                 edge["read_as"] = node["path"]  # the run recorded another spelling (ADR-0006 9): inferred
+            if order == "uncertain":
+                edge["order"] = "uncertain"
             out.append((run, edge))
         return out
 
@@ -4229,7 +4422,10 @@ class ReadModel:
             key = str(rerun["verdict"]) if rerun["verdict"] is not None else "none"
             verdicts[key] = verdicts.get(key, 0) + 1
         not_succeeded = [{"run": n["run"], "status": n["status"]} for n in runs if n["status"] != "ok"]
+        met = [n["id"] for n in nodes if n["kind"] == "observation"]
         return {"citations": citations,
+                # ADR-0015 decision 8: the observations the trail met, apart from every other line.
+                "observed": {"count": len(met), "names": met[:20]},
                 "runs": {"total": len(runs), "succeeded": len(runs) - len(not_succeeded), "not_succeeded": not_succeeded[:cap]},
                 "code": {state: {"count": len(rows), "runs": sorted(rows)[:cap]} for state, rows in sorted(code.items())},
                 "imported": files([n for n in data if n["imported"]]),
