@@ -148,16 +148,16 @@ Aelix 통합 시험은 aelix 0.1.0b2(와 그 의존성), pytest, pytest-timeout�
 ```sh
 uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with pytest==9.1.1 --with pytest-timeout==2.4.0 \
   python -m pytest -q -p no:cacheprovider --timeout 300 --timeout-method=thread tests/test_extension.py tests/test_asset_extension.py \
-  tests/test_checkpoint_extension.py tests/test_usage_report.py tests/test_agent_cli.py
+  tests/test_checkpoint_extension.py tests/test_usage_report.py tests/test_agent_cli.py tests/test_panel_extension.py
 ```
 
-이 다섯 파일은 모듈 머리에서 `pytest.importorskip("aelix_coding_agent")`로 aelix가 없으면 건너뜁니다. 그런 파일을 더하면 위 명령과
+이 여섯 파일은 모듈 머리에서 `pytest.importorskip("aelix_coding_agent")`로 aelix가 없으면 건너뜁니다. 그런 파일을 더하면 위 명령과
 CI의 두 aelix 레그에 함께 넣습니다. 빠지면 어디에서도 돌지 않습니다(`tests/test_ci_workflow.py`가 확인합니다).
 
 3.11은 `--python 3.11`입니다. `--isolated`를 빼지 마세요. 빼면 3.12에서 uv가 체크아웃의 개발 `.venv` 위에 임시 환경을 얹어
 aelix 프로세스가 분석 라이브러리를 import할 수 있게 되고, 이 시험이 보이려는 것(호스트가 분석 라이브러리를 로드하지 않음)이
 가려집니다. 런처의 하한 시험은 같은 방식으로 `--python 3.11 --with pytest==9.1.1 --with pytest-timeout==2.4.0`에서
-`tests/test_launcher.py`를 실행합니다. 개발 환경의 저장소 시험에는 aelix가 없어 위 다섯 aelix 시험 파일을 건너뜁니다.
+`tests/test_launcher.py`를 실행합니다. 개발 환경의 저장소 시험에는 aelix가 없어 위 여섯 aelix 시험 파일을 건너뜁니다.
 `tests/test_agent_cli.py`는 aelix의 확장 로더와 hook 버스로 확장을 실제로 등록하고, aelix의 bash 도구와 `!` 명령 처리로 kit CLI를 불러
 기록된 작성 주체를 확인합니다(모델·네트워크·로그인 없음, HOME과 aelix 에이전트 디렉터리는 시험의 임시 디렉터리). 줄 전체가 kit 명령
 하나인 `!` 명령과 다른 명령과 합친 줄을 셸을 돌려주는 확장·막는 확장과 두 등록 순서로 나눠 봅니다. `tests/test_extension.py`의 함정 줄

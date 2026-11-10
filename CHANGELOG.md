@@ -66,6 +66,21 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   `changed_during`(검증 안 됨) 선과 `observed_changes` 후보로 보입니다. run의 입력에는 그 run보다 먼저 끝난 관찰만, 시작에 걸친 관찰은 `uncertain`으로
   붙고, run도 같은 바이트를 기록했으면 그렇다고 말합니다. 관찰에서 사용처로 갈 때도 같은 시간 방향을 따르고, 관찰만 본 파일도 출처 조회의
   출발점입니다. 공유본에는 들지 않습니다.
+- #162: aelix에서 인자 없는 `/analytics`가 패널을 엽니다(aelix의 대화형 화면에서. `-p`·json·rpc와 `/analytics status`는 전과 같은 상태
+  텍스트). 첫 화면은 프로젝트와 dataset·run·chart·열린 질문과 할 일의 수이고, Status, Workspace 열기·다시 만들기, Reports(목록·보기, 폴더에서
+  새 Report나 새 버전 저장), 기록(note·finding·decision 등을 편집기로), 공유(미리보기·비공개 빌드·게시·zip·게시 시도), 분석 자산(목록·보기·
+  검토·등록), Settings, 프로젝트 바꾸기·만들기, where·맥락·명령 도움말을 고릅니다. 각 동작은 사람이 칠 수 있는 `/analytics` 명령줄을 같은
+  명령 처리로 돌리고 그 답을 보이므로 기록과 결과가 텍스트 명령과 같습니다. 게시, 프로젝트를 신뢰 목록에 더하는 사용, 처음 보는 프로젝트를
+  묻지 않고 쓰는 설정 `always`, 자산 등록은 확인을 거칩니다. aelix의 공개 대화(`select`·`input`·`editor`·`confirm`)만 씁니다. 실제 TUI에서의
+  모습은 사람 확인이 남았습니다.
+- #162: 사람 명령 `/analytics settings [unknown_projects ask|always|never | not_asked_in add|remove DIR]`(#169의 사용자 설정을 보이고 바꿈.
+  "이 폴더에선 묻지 않음"을 되돌리는 `core.ask_again_in`)와 `/analytics reports list | show ID@REV | save ID --files DIR --entry FILE --title
+  TITLE --previous none|REV`(kit의 `analytics reports`와 같은 저장·조회. `--files`는 프로젝트 루트에서 읽고, 저장 뒤 Workspace를 다시
+  만듭니다). 모델 도구는 사용자 설정에 닿지 않습니다. `/analytics record --literal KIND TEXT`는 TEXT를 옵션으로 읽지 않고 그대로
+  기록합니다(패널의 편집기가 씀. 전에는 따옴표로 시작한 글 뒤의 `--refs-json` 같은 낱말이 옵션으로 읽혔음).
+- #162: `analytics_run`의 guideline 한 줄이 그 밖의 kit 동작은 bash의 `analytics COMMAND`(체크아웃에서는 `bin/analytics`)로 하고, 게시·신뢰·
+  자산 제안 모드와 등록·전환은 사용자에게(/analytics) 맡기라고 알립니다(2026-11-09 소유자 결정). 도구 글은 6,421자에서 6,610자로 189자
+  늘었습니다.
 
 ### Changed
 
@@ -116,6 +131,11 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   방법을 알립니다. 이미 지워진 파일은 kit이 되살리지 못합니다.
 - #168: 이름에 `#`·`%`가 든 파일로 가는 Workspace의 링크가 그 파일에 닿습니다. 전에는 `q#3.html`이 `q`를, `x%41.html`이 `xA.html`을
   가리켰습니다(Report 파일 표의 내려받기 링크 등, 프로젝트 안 파일로 가는 모든 링크).
+- #162: 위 폴더에서 켠 aelix에서 세션이 쓰는 프로젝트(아래에서 찾은 것, `/analytics use`·`init`, `--analytics-project`)를 에이전트의
+  bash도 찾습니다. 확장이 그 루트를 aelix 프로세스의 `AELIX_ANALYTICS_PROJECT`에 넣어(작업 디렉터리가 스스로 찾는 프로젝트나 사람이 둔 값이면
+  넣지 않음) #170의 안내대로 부른 `analytics run scripts/x.py …`가 그 프로젝트에 기록합니다. 전에는 작업 디렉터리에서 프로젝트를 찾지 못했습니다.
+- #162: `/analytics`의 명령이 세션의 첫 프롬프트 전에도 그 세션을 기록·Report·렌더에 남깁니다. 전에는 `status`·`assets` 말고는 첫
+  프롬프트가 넣은 세션을 써서, 그 전의 `/analytics record` 등은 세션 없이 기록됐습니다.
 
 ## [0.32.0] - 2026-10-30
 

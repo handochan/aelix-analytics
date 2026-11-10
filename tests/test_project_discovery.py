@@ -1,7 +1,7 @@
 """Projects below the aelix working directory and the user's settings for activating them (Issue #169):
 core.find_projects_below's depth, exclusions and limits, and the settings file analytics.settings/1 beside
-the trust list (core.read_settings, set_unknown_projects, stop_asking_in). The extension's questions are in
-tests/test_extension.py."""
+the trust list (core.read_settings, set_unknown_projects, stop_asking_in, and ask_again_in of #162). The
+extension's questions are in tests/test_extension.py, its settings screen in tests/test_panel_extension.py."""
 
 from __future__ import annotations
 
@@ -290,6 +290,27 @@ def test_folders_not_to_ask_in_are_kept_canonical_and_only_that_folder(tmp_path)
     core.set_unknown_projects("never")
     assert core.read_settings() == {"unknown_projects": "never", "not_asked_in": [core.canonical(repo)],
                                     "ignored": None}
+
+
+def test_a_folder_taken_off_the_list_is_asked_in_again(tmp_path):
+    """core.ask_again_in, the settings screen's undo of "Don't ask in this folder" (#162): by the
+    folder's canonical path or as it is stored, so a folder that is gone since can be taken off too."""
+    repo, gone = tmp_path / "repo", tmp_path / "gone"
+    (repo / "sub").mkdir(parents=True)
+    gone.mkdir()
+    assert core.ask_again_in(repo) == core.read_settings() and not core.settings_file().exists()
+    core.stop_asking_in(repo)
+    core.stop_asking_in(gone)
+    gone.rmdir()
+    stored = core.ask_again_in(repo / "sub" / "..")
+    assert stored["not_asked_in"] == [core.canonical(gone)] and core.asks_in(repo)
+    assert core.ask_again_in(stored["not_asked_in"][0])["not_asked_in"] == []
+    value = json.loads(core.settings_file().read_text(encoding="utf-8"))
+    assert value == {"schema": "analytics.settings/1", "not_asked_in": []} and schema_errors(value) == []
+    by_hand("{not json")
+    with pytest.raises(core.AnalyticsError) as refused:
+        core.ask_again_in(repo)
+    assert refused.value.code == "settings_unsupported"
 
 
 def test_a_write_keeps_fields_it_does_not_know_and_leaves_any_file_it_does_not_use_alone():
