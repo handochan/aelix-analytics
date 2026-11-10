@@ -22,6 +22,7 @@ import os
 import re
 import shutil
 import stat
+import unicodedata
 from collections import Counter, defaultdict
 from datetime import timedelta
 from importlib import resources
@@ -73,6 +74,14 @@ ROW_REFS = 4
 OUTPUT_STATE = {"resolved": ("good", "✓"), "content_changed": ("critical", "⚠"),
                 "missing": ("critical", "⚠"), "unknown": ("muted", "?")}
 SHOWN_CANDIDATES = 3
+# How many changed or missing inputs a chart card shows under its folded input data (#184).
+CARD_WARNINGS = 3
+# How much of a record's text a row of the Overview shows (#184): three lines of 42 columns. A row's text
+# column holds about 54 Latin characters a line at 1366 px (two panels) and 49 at 390 px (one); 42 leaves
+# room for breaking at spaces and for "… Show more", so the start and its control take two or three lines
+# at 1366, 768 and 390 px in English and Korean (Chromium, measured for #184).
+OVERVIEW_TEXT_LINES = 3
+OVERVIEW_LINE_COLUMNS = 42
 # The index section a page's way back goes to when the page a reader came from is not known: the
 # section its kind is listed in (`back.tab.<section>` names it).
 BACK = {"run": "runs", "dataset": "data", "relations": "insights", "context": "context", "list": "timeline",
@@ -232,6 +241,57 @@ def fold(entries, wrap, *, cap: int | None, beyond: str = "", keep=(), shown: in
     if len(made) < len(entries):
         out.append(f'<p class="more-beyond">{t("fold.beyond", n=len(entries) - len(made))} {beyond}</p>')
     return "".join(out)
+
+
+def joins(ch: str) -> bool:
+    """Whether a character is drawn with the one before it: a combining mark, a joiner or variation
+    selector, a conjoining Hangul vowel or final consonant (a syllable written in jamo)."""
+    return unicodedata.category(ch) in ("Mn", "Me", "Cf") or "\u1160" <= ch <= "\u11ff" or "\ud7b0" <= ch <= "\ud7ff"
+
+
+def text_head(text: str) -> str | None:
+    """The start of a record's text the Overview shows (#184), or None when it shows the text whole:
+    up to OVERVIEW_TEXT_LINES lines of about OVERVIEW_LINE_COLUMNS columns each, a wide (East Asian)
+    character taking two columns and a line break ending its line. A cut goes back to the last space
+    or line break when one is in the last third, and never parts a character from the marks that go
+    with it. A count of characters, not of the lines a browser draws: the same in every browser, with
+    or without the page's CSS, so the page knows which texts it shortened and gives only those the
+    control (a CSS line clamp cannot tell the page whether it hid anything)."""
+    budget = OVERVIEW_TEXT_LINES * OVERVIEW_LINE_COLUMNS
+    ended, line, cut = 0, 0, None  # the columns of the lines ended, and of the line going on
+    for i, ch in enumerate(text):
+        if ch == "\n":
+            ended += max(1, -(-line // OVERVIEW_LINE_COLUMNS)) * OVERVIEW_LINE_COLUMNS  # a blank line is a line too
+            line = 0
+        elif not joins(ch):
+            line += 2 if unicodedata.east_asian_width(ch) in "WF" else 1
+        if ended + line > budget:
+            cut = i
+            break
+    if cut is None or not text[cut:].strip():
+        return None
+    space = max(text.rfind(" ", 0, cut), text.rfind("\n", 0, cut))
+    if space > cut * 2 // 3:
+        cut = space
+    while 0 < cut and (joins(text[cut]) or text[cut - 1] == "\u200d"):
+        cut -= 1
+    return text[:cut].rstrip() or None
+
+
+def text_html(text, shorten: bool = False) -> str:
+    """A record's text as written (USER). Shortened (the Overview's rows, #184) when it is long: its
+    start, then "Show more", in a native <details> that opens without a script and shows the text
+    whole; its rest is not lost in a closed fold, with or without the page's CSS. The CSS hides the
+    start and swaps the words for "Show less" while it is open (the second words are `hidden`, so a page
+    without its CSS says "Show more" alone)."""
+    text = "" if text is None else str(text)
+    head = text_head(text) if shorten else None
+    if head is None:
+        return f'<span class="rec-text"{USER}>{esc(text)}</span>'
+    return (f'<details class="rec-fold"><summary><span class="rec-text rec-head"{USER}>{esc(head)}</span>'
+            f'<span class="rec-cut" aria-hidden="true">…</span> <span class="rec-toggle">{t("overview.text_more")}</span>'
+            f'<span class="rec-toggle" hidden>{t("overview.text_less")}</span></summary>'
+            f'<div class="rec-text rec-full"{USER}>{esc(text)}</div></details>')
 
 
 def ref_words(state, reason=None) -> str:
@@ -825,10 +885,11 @@ class Site:
             return closed + badge(tone, mark, t("record.conflict", n=len(by)), title_attr(", ".join(by)))
         return closed + badge(tone, mark, t("record." + shown))
 
-    def record_row(self, ev: dict, depth: int, *, row_id: str, time_only: bool = False) -> str:
+    def record_row(self, ev: dict, depth: int, *, row_id: str, time_only: bool = False, shorten: bool = False) -> str:
         """One record in a list (design 8.1): its kind, its text as written with its state when that
         changed, then its id, time and actor and its references as badges, and one link to its
-        relations. Rows of every list are alike."""
+        relations. Rows of every list are alike; the Overview's (`shorten`) show a long text's start
+        (text_html)."""
         source = self.source(ev)
         kind = ev.get("kind")
         shown_id = esc(ev.get("id"))
@@ -842,7 +903,7 @@ class Site:
                        self.observed_row_html(event.value) if kind == relations.OBSERVED_KIND and event else "")
         return (f'<li class="ev rec" id="{esc(row_id)}" data-kind="{esc(kind)}" data-selection="{quote(source or "", safe="")}">'
                 f'<span class="rec-kind kind-{esc(kind)}"><span class="dot" aria-hidden="true"></span>{words("kind", kind)}</span>'
-                f'<div class="rec-main"><div class="rec-line"><span class="rec-text"{USER}>{esc(ev.get("text"))}</span>{state}</div>'
+                f'<div class="rec-main"><div class="rec-line">{text_html(ev.get("text"), shorten)}{state}</div>'
                 f'<div class="rec-meta"><span class="rec-id">{shown_id}</span> · {fmt_time(ev.get("ts"), with_date=not time_only)} · '
                 f'<span class="actor">{words("actor", ev.get("actor"))}</span>'
                 f'{self.refs_html(ev, depth, limit=ROW_REFS, empty=kind in core.KEY_KINDS)}</div>{publication}</div>'
@@ -937,21 +998,6 @@ class Site:
                      f'<span class="sha">@{short(script.get("sha256"))}</span>')
         if line:
             code_link += f' · <a href="{run_page}#L-main-{line}">L{line}</a>'
-        inputs = []
-        # The inputs several successful runs output the same bytes as: marked here, beside the path
-        # people wrote, as the card's Producer ambiguous badge says.
-        ambiguous = set(fresh.get("ambiguous_inputs") or [])
-        for entry in fresh["inputs"]:
-            state = entry["state"] if entry["state"] in INPUT_STATE else "unknown"
-            tone, icon = INPUT_STATE[state]
-            reason = (f" {line_endings_badge()}" if entry.get("reason") == core.LINE_ENDINGS_ONLY
-                      else "")
-            several = (f'<span class="state tone-warning"{attr("title", "card.producer_ambiguous")}>?</span>'
-                       if entry["path"] in ambiguous else "")
-            inputs.append(f'<span class="input">{self.path_html(entry["path"], depth)} '
-                          f'<span class="sha">{short(entry.get("sha256"))}</span>'
-                          f'<span class="state tone-{tone}"{attr("title", "card.file_now." + state)}>{icon}</span>'
-                          f'{several}{reason}</span>')
         if chart.get("data"):
             data_html = (f'<a href="{run_page}#chart-{esc(chart["id"])}-data">'
                          f'{t("card.rows_columns", rows=fmt_num(chart.get("data_rows")), columns=len(chart.get("data_columns") or []))}</a>'
@@ -976,13 +1022,57 @@ class Site:
   {caption}
   <dl class="prov">
     <div><dt>{t("card.code")}</dt><dd>{code_link}</dd></div>
-    <div><dt>{t("card.input_data")}</dt><dd>{''.join(inputs) or f'<span class="muted">{t("card.no_inputs")}</span>'}</dd></div>
+    <div><dt>{t("card.input_data")}</dt><dd>{self.card_inputs(fresh, depth)}</dd></div>
     <div><dt>{t("card.attached_data")}</dt><dd>{data_html}</dd></div>
     <div><dt>{t("card.run")}</dt><dd><a href="{run_page}">{esc(chart['run'])}</a> · {fmt_time(run.get('started_at'))} · {run.get('duration_s', '-')}s</dd></div>
   </dl>
   {version_links}
   {self.relation_actions(chart["run"] + "/" + str(chart["id"]), depth)}
 </article>"""
+
+    def card_inputs(self, fresh: dict, depth: int) -> str:
+        """A chart card's input data, folded from the start (#184, owner decision 2026-11-10): a card is
+        about its chart, and the paths of its inputs took more room than the chart. One line says how
+        many inputs there are and how many of them changed, went missing or are unknown now (`24 inputs ·
+        2 changed · 1 missing`); opening it lists them all, in the run's order, as before. The changed and
+        missing ones are warnings, so the first CARD_WARNINGS of them stay in sight under the line while
+        it is folded (the CSS hides them while it is open: the list holds them). The run page lists them
+        all in its own table, which does not start folded (#172's rule)."""
+        entries = fresh["inputs"]
+        if not entries:
+            return f'<span class="muted">{t("card.no_inputs")}</span>'
+        # The inputs several successful runs output the same bytes as: marked in the list, beside the
+        # path people wrote, as the card's Producer ambiguous badge says.
+        ambiguous = set(fresh.get("ambiguous_inputs") or [])
+        items, warned, counts = [], [], Counter()
+        for entry in entries:
+            state = entry["state"] if entry["state"] in INPUT_STATE else "unknown"
+            counts[state] += 1
+            tone, icon = INPUT_STATE[state]
+            reason = (f" {line_endings_badge()}" if entry.get("reason") == core.LINE_ENDINGS_ONLY
+                      else "")
+            several = (f'<span class="state tone-warning"{attr("title", "card.producer_ambiguous")}>?</span>'
+                       if entry["path"] in ambiguous else "")
+            path = self.path_html(entry["path"], depth)
+            items.append(f'<li><span class="input">{path} '
+                         f'<span class="sha">{short(entry.get("sha256"))}</span>'
+                         f'<span class="state tone-{tone}"{attr("title", "card.file_now." + state)}>{icon}</span>'
+                         f'{several}{reason}</span></li>')
+            if state in ("changed", "missing"):
+                warned.append(f"<li>{badge(tone, icon, words('input', state))} {path}{reason}</li>")
+        # The line: the count, then each state but the unchanged one (the rest are unchanged), or that
+        # all are unchanged. A mark and words, never colour alone (design WORKSPACE-READABILITY 4).
+        states = [(state, counts[state]) for state in ("changed", "missing", "unknown") if counts[state]]
+        parts = [(state, t("card.inputs." + state, n=n)) for state, n in states] or \
+            [("same", t("card.inputs.unchanged", n=len(entries)))]
+        line = " · ".join([f'<span class="input-count">{t("card.inputs.count", n=len(entries))}</span>', *(
+            f'<span class="input-count"><span class="state tone-{INPUT_STATE[state][0]}" aria-hidden="true">'
+            f'{INPUT_STATE[state][1]}</span> {said}</span>' for state, said in parts)])
+        more = len(warned) - CARD_WARNINGS
+        warnings = ("" if not warned else '<ul class="input-warnings">' + "".join(warned[:CARD_WARNINGS])
+                    + (f'<li class="muted">{t("list.and_more", n=more)}</li>' if more > 0 else "") + "</ul>")
+        return (f'<details class="inputs-fold"><summary><span class="inputs-line">{line}</span></summary><ul class="inputs">{"".join(items)}</ul></details>'
+                f"{warnings}")
 
     # --- tables ---
 
@@ -1649,7 +1739,7 @@ def overview_section(site: Site, context_text: str) -> str:
         if not items:
             return f'<div class="empty">{t(empty_key)}</div>'
         return '<ol class="records">' + "".join(
-            site.record_row(e, 0, row_id=prefix + site.anchor(e)) for e in reversed(items[-OVERVIEW_ROWS:])) + "</ol>"
+            site.record_row(e, 0, row_id=prefix + site.anchor(e), shorten=True) for e in reversed(items[-OVERVIEW_ROWS:])) + "</ol>"
 
     def panel(panel_id: str, title_key: str, shown_key: str, items, prefix, empty_key, link: str, link_words: str,
               total: int) -> str:

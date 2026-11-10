@@ -147,6 +147,17 @@
  "card.file_now.unknown": "File now: Unknown",
  "card.in_plotly_json": "In the plotly figure JSON",
  "card.input_data": "Input data",
+ "card.inputs.changed": "{n} changed",
+ "card.inputs.count": {
+  "one": "{n} input",
+  "other": "{n} inputs"
+ },
+ "card.inputs.missing": "{n} missing",
+ "card.inputs.unchanged": {
+  "one": "unchanged",
+  "other": "all unchanged"
+ },
+ "card.inputs.unknown": "{n} unknown",
  "card.no_inputs": "No inputs detected",
  "card.producer_ambiguous": "Several possible sources: several successful runs output these bytes",
  "card.rows_columns": "{rows} rows · {columns} columns",
@@ -696,6 +707,8 @@
  "overview.shown_current": "{shown} of {total} current",
  "overview.shown_open": "{shown} of {total} open",
  "overview.shown_total": "{shown} of {total}",
+ "overview.text_less": "Show less",
+ "overview.text_more": "Show more",
  "page.context_history": "Context history",
  "page.relations": "Relations",
  "page.workspace": "Workspace",

@@ -333,6 +333,15 @@ dl.prov > div { display: contents; }
 dl.prov dt { color: var(--muted); }
 dl.prov dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .input { display: inline-flex; gap: 0.3rem; align-items: baseline; margin-right: 0.75rem; }
+/* A card's input data starts folded (#184): a line of counts, and while it is folded the changed and missing
+   inputs under it (the list holds them while it is open). The terms and the line share a baseline. */
+dl.prov dt, dl.prov dd { align-self: baseline; }
+details.inputs-fold > summary { display: flex; align-items: center; padding: 0; color: var(--ink-2); }
+details.inputs-fold[open] + ul.input-warnings { display: none; }
+.input-count { white-space: nowrap; }
+ul.inputs, ul.input-warnings { list-style: none; margin: 0; padding: 0; }
+ul.inputs { margin-bottom: 0.25rem; }
+ul.inputs li, ul.input-warnings li { padding: 0.125rem 0; }
 .versions { margin-top: 0.5rem; font-size: 0.78rem; color: var(--muted); }
 .prov-line { margin-top: 0.5rem; font-size: 0.8125rem; color: var(--ink-2); overflow-wrap: anywhere; }
 .data-block { margin-top: 0.625rem; }
@@ -363,6 +372,17 @@ ol.records > li:first-child { border-top: 0; }
 .rec-main { min-width: 0; }
 .rec-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.5rem; }
 .rec-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.9rem; }
+/* The Overview's long record text (#184): its start and "Show more" in a native disclosure; open, the text whole
+   under "Show less" (those words are `hidden` until then, so a page without this CSS says "Show more" alone). */
+details.rec-fold { min-width: 0; max-width: 100%; }
+details.rec-fold > summary { padding: 0; }
+details.rec-fold > summary::before { content: none; }
+.rec-toggle { color: var(--link-text); font-size: 0.8125rem; text-decoration: underline; white-space: nowrap; }
+details.rec-fold[open] > summary { display: flex; align-items: center; }
+details.rec-fold[open] > summary > :is(.rec-head, .rec-cut, .rec-toggle:not([hidden])) { display: none; }
+/* `hidden` is display: none !important on every page (below): these words override it while the text is open. */
+details.rec-fold[open] > summary > .rec-toggle[hidden] { display: inline !important; }
+details.rec-fold > .rec-full { display: block; }
 .rec-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.375rem; margin-top: 0.1875rem; color: var(--muted); font-size: 0.78rem; }
 .rec-action, .workspace-actions a.action { display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; padding: 0 0.75rem;
   border: 1px solid var(--border); border-radius: 8px; font-size: 0.8125rem; font-weight: 600; white-space: nowrap; }
