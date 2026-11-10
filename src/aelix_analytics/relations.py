@@ -1007,6 +1007,30 @@ def _run_dirs(root: Path) -> list[str]:
         return sorted(e.name for e in entries if RUN_ID_RE.match(e.name) and e.is_dir())
 
 
+def runs_started(text, names) -> list[str]:
+    """The run IDs of `names` a run ID as given names (#158): `text` when it is one of them; else every
+    one that starts with `text` and a hyphen — the ID shortened at a hyphen, as people and models write
+    `YYYYMMDD-HHMMSS-NN` of `YYYYMMDD-HHMMSS-NN-name`. Only text shaped as a run ID (its date, time and
+    at least the start of its name) names any, and an ID is never cut inside a part: `…-0` is no
+    shortening of `…-01-name`. The kit (runs_named) and the evaluation's scorer read IDs by this one
+    rule. Nothing is stored or rewritten here: what a stored reference names is its whole run_id
+    (ADR-0006 3)."""
+    if not isinstance(text, str) or not RUN_ID_RE.match(text) or "\n" in text:
+        return []
+    names = [name for name in names if isinstance(name, str)]
+    if text in names:
+        return [text]
+    return sorted(name for name in names if name.startswith(text + "-"))
+
+
+def runs_named(root: Path, text) -> list[str]:
+    """runs_started over the run directories under runs/, readable or not, so a damaged run makes a
+    shortened ID ambiguous rather than leaving the other one."""
+    if isinstance(text, str) and RUN_ID_RE.match(text) and "\n" not in text and (root / "runs" / text).is_dir():
+        return [text]
+    return runs_started(text, _run_dirs(root))
+
+
 def _report_dirs(root: Path) -> list[tuple[str, bool]]:
     """(project-relative directory, staging) of every saved and prepared Report revision."""
     base = root / "artifacts" / "reports"

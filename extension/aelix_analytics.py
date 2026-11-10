@@ -889,6 +889,9 @@ async def tool_run(args, ctx):
         if not core.RUN_ID_RE.match(rerun_of):
             raise core.AnalyticsError("rerun_id", f"{rerun_of!r} is not a run id",
                                       hint="analytics_status lists run ids such as 20260916-143012-monthly-sales")
+        # #158: a run ID shortened at a hyphen is the one run it starts; one that starts several is
+        # refused here, before the project's environment or the kit is started.
+        rerun_of = await asyncio.to_thread(core.writer.whole_run_id, project.root, rerun_of)
         cmd = ["run", "--rerun-of", rerun_of]
     elif code:
         name = str(name or "").strip()
@@ -957,8 +960,16 @@ def recorded_line(written, kind: str) -> str:
             said += f"; already resolved by {made['id']}"
         parts.append(said + ")")
     if written.bindings:
-        parts.append("refs: " + ", ".join(f"{b['input']} ({b['binding']})" for b in written.bindings))
+        parts.append("refs: " + ", ".join(f"{b['input']}{_whole_run(b)} ({b['binding']})" for b in written.bindings))
     return "; ".join(parts)
+
+
+def _whole_run(binding) -> str:
+    """` -> <run id>` when a run ID shortened at a hyphen was bound to the whole ID of the run it starts
+    (#158), so the model sees which run it cited; nothing for any other name."""
+    ref = binding.get("ref") or {}
+    whole = ref.get("run_id")
+    return f" -> {whole}" if ref.get("type") == "run" and whole and whole != binding.get("input") else ""
 
 
 async def tool_init(args, ctx):

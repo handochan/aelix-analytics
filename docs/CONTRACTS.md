@@ -219,6 +219,12 @@ kit 0.11.0의 같은 기준에 묶인 cursor·다음 페이지·부분 조회는
   kit 0.8.0 전의 writer가 4,000자 뒤를 버렸고, 그보다 길었는지는 기록에 없습니다. 4,000자보다 긴 `lab.event/1` 글(그 writer가 쓰지
   않은 글)에는 `text_truncated`가 없습니다. run·Report처럼 `text`가 없는 기록에는 둘 다 없습니다. 글자 수는 32 KiB 쓰기 상한에 얼마나
   가까운지를 말하지 않습니다(그 상한은 바이트입니다).
+- run을 가리키는 ID — `run:<run_id>`, 관계의 run ID, 출처 경로의 `<run_id>/<visualization_id>` — 는 줄여 쓴 run ID(C1, kit 0.32.1, #158)도
+  받습니다. 그 run의 전체 id로 읽고(요청과 cursor도 전체 id의 것), 응답의 `resolved_id`(`input`: 준 ID, `id`: 읽은 ID)가 어느 run인지 말합니다.
+  둘 이상의 run의 앞부분이면 `ambiguous_id`와 준 모양의 후보(`run:<run_id>` 등)입니다. 준 ID 그대로 기록이 아는 것을 가리키면 풀지 않고
+  그대로 읽습니다: 기록·run·Report 버전, 앞선 기록이 그 글자로 가리킨 대상(0.32.1 전의 kit이 줄인 run ID 그대로 쓴 참조의 대상 —
+  `run:<줄인 ID>`의 incoming이 그 기록을 보임), 출처 경로의 시작점(첫 부분이 줄인 run ID처럼 생긴 데이터 파일의 정체성 경로
+  `20261104-012254-01/input.csv` 등). 그때는 `resolved_id`가 없습니다.
 - `relations` + `id`: 선택한 ID의 한 단계 참조 판정이며 `direction=outgoing|incoming|both`를 받습니다. 참조의
   `state`·`basis`·`version_binding`·`confirmed`는 공유 reader(E)의 값입니다. 누락·미확인·추론 참조를 확정 근거로 만들지 않습니다.
 - `relations` + `id` + `direction=sources|uses`(kit 0.24.0, #100): 출처 경로입니다([C18](#c18-출처-추적-kit-0240-100)). 기록·run(`run:<id>`)·
@@ -458,6 +464,17 @@ kit CLI, SDK, 확장, init·데모, run·가져오기·맥락 동기화가 남�
   결박합니다. kit CLI의 `--resolves`(확장 도구의 `resolves`)는 `relation: resolves`의 이벤트 참조이고, 대상이 journal에 없으면 `unknown_event`,
   `resolve`에 대상이 없으면 `resolve_needs_target`입니다. 이미 닫힌 대상을 다시 닫는 기록도 씁니다(응답의 `targets`, D). run·가져오기·맥락 버전의
   완료 기록은 그 대상을 `relation: about`·`basis: observed`·`author`로 가리킵니다(run의 완료 기록은 run id 하나). kit 0.9.0의 SDK `analytics.record`는 이름·typed 참조와 details를 받으며, run 안의 기록은 그 run도 가리킵니다.
+- **줄여 쓴 run ID**(kit 0.32.1, #158). run id는 `YYYYMMDD-HHMMSS-<스크립트 이름>`이라, 사람과 모델은 날짜·시각과 이름의 첫 부분까지
+  (`20261104-012254-01-eda-distributions`의 `20261104-012254-01`)만 쓰곤 합니다. run id 모양(날짜·시각·이름의 한 부분 이상)인 이름이 run
+  디렉터리가 아니고 하이픈 경계에서 한 run의 id의 앞부분이면 그 run입니다(`relations.runs_named`·`runs_started`, 평가 채점기도 같은 함수). 부분 안에서 자른 것(`…-0`, `…-01-ed`)은
+  아닙니다. 둘 이상의 run(읽지 못한 run 디렉터리 포함)의 앞부분이면 어느 것도 고르지 않고 `ambiguous_id`(`details`: `id`, 후보 `candidates`)이고,
+  아무것도 쓰지 않습니다(재실행은 맥락 동기화 전에, 확장의 `analytics_run`은 kit을 부르기 전에 거절). 어느 run의 앞부분도 아니면 전처럼 준 글자 그대로입니다. 받는 곳은 기록하는 이름(kit CLI `--ref`, 확장 도구의 `refs`,
+  SDK의 이름 참조), 한 기록·관계·출처 경로의 읽기(A2), 재실행의 대상(kit CLI `run --rerun-of`, 확장 `analytics_run`의 `rerun_of`)입니다.
+  기록에는 run의 전체 id를 씁니다: 이름 참조는 `{type: run, run_id: <전체 id>, token: <준 글자>}`이고 kit이 이름으로 run을 고른 것이므로
+  `version_binding: inferred`(ADR-0006 3: Visualization id의 최신 버전과 같은 결박, 확정 연결이 아님)이며, 응답의 `bindings`도 그렇습니다. 전체 id를
+  준 참조는 전처럼 `author`입니다. 재실행 run의 `rerun_of`와 `reproduction.of`도 전체 id입니다. 그래서 나중에 같은 앞부분의 run이 생겨도 기록이
+  가리키는 run은 바뀌지 않습니다. 저장된 참조는 읽을 때 다시 풀지 않습니다: 0.32.1 전의 kit이 줄인 글자 그대로 쓴 `author` 참조는 지금도
+  `missing`이고, 그 글자로 읽으면(A2) 그 기록이 보입니다. typed 참조(`{type: run, run_id: …}`)의 `run_id`도 정확한 id로 보고 풀지 않습니다.
 - **작성 출처**([설계](design/RECORD-WRITER-AND-MIGRATION.md) 4.2절). kit CLI는 `AELIX_ANALYTICS_ACTOR`가 있으면 그 값(`declared`), 없으면
   `human`(`inferred`)이고, 실행 수단은 `AELIX_ANALYTICS_MEANS`(없으면 `cli`, D)입니다. 런처·`bin/analytics`는 kit 0.8.0부터 `AELIX_ANALYTICS_ACTOR`를
   채워 넘기지 않습니다. SDK는 run 밖에서 `AELIX_ANALYTICS_ACTOR`의 값이나 `human`(`inferred`), `sdk`, `AELIX_ANALYTICS_SESSION`이고(kit 0.8.0 전에는
@@ -508,7 +525,7 @@ kit 0.8.0부터 이 kit이 쓰는 run 기록은 `analytics.run/2`([기록 schema
 | `finalize_errors` | 기록 단계(출력 수집·모듈 스냅샷·환경·journal·note·run 기록 등)에서 실패한 항목. run의 응답에 있고, 마지막 run 기록을 쓸 수 있으면 거기에도 있습니다 |
 | `stdout`, `stderr` | 로그 파일 경로 |
 | `env` | `{python, executable, platform, packages{}, uv_lock_sha256, kit_version, kit_sha256}` |
-| `rerun_of`, `reproduction` | 재실행일 때. `reproduction = {of, verdict, inputs_same, visualizations{}, outputs{}}` |
+| `rerun_of`, `reproduction` | 재실행일 때. `reproduction = {of, verdict, inputs_same, visualizations{}, outputs{}}`. `rerun_of`·`of`는 다시 실행한 run의 전체 id입니다(줄여 쓴 run ID로 부른 재실행도, C1) |
 | `warnings[]` | 기록 품질 경고 |
 
 **두 형식**(kit 0.7.0부터 둘 다 읽고 kit 0.8.0부터 `/2`를 씀, [설계](design/RECORD-WRITER-AND-MIGRATION.md) 2.6절): `lab.run/1`과 다른 것은

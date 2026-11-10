@@ -1365,15 +1365,25 @@ def project_cited(text: str, ev: Evidence) -> list[str]:
 
 # An id cut short where the text quotes it so (`20260916-214600-03-…`): the start of an id that exists.
 SHORTENED = re.compile(r"-?(?:…|\.\.\.)")
+# Where a run id the kit would take as a whole argument ends in a text: before a character that is no part
+# of a name — not a letter or digit, `_`, `-`, `:`, `/` or a `.` before a letter or digit — so the kit's
+# rule (#158) is not applied to the start of something else: `20261104-003146-00:31-01-…` names no run.
+RUN_ID_END = re.compile(r"(?![A-Za-z0-9_:/-]|\.[A-Za-z0-9])")
 
 
 def fabricated_ids(text: str, existing: set) -> list[str]:
+    """The record and run ids the text holds that the project does not. A run id shortened at a hyphen
+    is the run it starts when the kit would read it so (#158, relations.runs_started: it starts exactly one
+    run's id, `20261104-012254-01` of `20261104-012254-01-eda-distributions`) and it ends there; one marked
+    as cut (`…-03-…`) is the start of any."""
     found = set(RECORD_ID.findall(text))
     for match in RUN_ID.finditer(text):
         run_id = match.group(0)
-        if run_id not in existing and SHORTENED.match(text, match.end()) and any(
-                e.startswith(run_id + "-") for e in existing):
-            continue  # #24's campaign: an answer quoted an index's "same bytes as run 20260916-214600-03-…"
+        if run_id not in existing:
+            if SHORTENED.match(text, match.end()) and any(e.startswith(run_id + "-") for e in existing):
+                continue  # #24's campaign: an answer quoted an index's "same bytes as run 20260916-214600-03-…"
+            if RUN_ID_END.match(text, match.end()) and len(read_model().runs_started(run_id, existing)) == 1:
+                continue  # #158
         found.add(run_id)
     return sorted(i for i in found if i not in existing)
 

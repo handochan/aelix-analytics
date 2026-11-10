@@ -366,12 +366,31 @@ def test_a_period_in_a_quotation_does_not_end_the_sentence(config):
 
 def test_an_id_quoted_cut_short_is_not_one_that_does_not_exist():
     """#24's campaign: an answer quoted an index's text, "same bytes as run 20260916-214600-03-…"; the start
-    of a run id that exists is not a fabricated id. A cut that matches no id, or one not marked as cut, is."""
+    of a run id that exists is not a fabricated id. A cut that matches no id is."""
     existing = {"20260916-214600-03-sample-zscores", "e8"}
     assert me.fabricated_ids("same bytes as run 20260916-214600-03-… (e8)", existing) == []
     assert me.fabricated_ids("run 20260916-214600-03-sample... 그리고", existing) == []
     assert me.fabricated_ids("run 20260916-214600-03-other-… 와 e99", existing) == ["20260916-214600-03-other", "e99"]
-    assert me.fabricated_ids("run 20260916-214600-03 이 만들었다", existing) == ["20260916-214600-03"]
+
+
+def test_a_run_id_shortened_to_one_run_is_not_one_that_does_not_exist():
+    """#158: the kit reads a run id shortened at a hyphen as the one run it starts (`20261104-012254-01` of
+    `20261104-012254-01-eda-distributions`, #24's E4), so an answer that writes it so without a mark names
+    that run. One that starts several runs, none, or is cut inside a part names none of them."""
+    existing = {"20261104-012254-01-eda-distributions", "20261104-013000-02-model", "20261104-013000-02-model-2",
+                "e8"}
+    assert me.fabricated_ids("run 20261104-012254-01 이 만들었다", existing) == []
+    assert me.fabricated_ids("run 20261104-012254-01-eda 이 만들었다", existing) == []
+    assert me.fabricated_ids("run 20261104-013000-02 이 만들었다", existing) == ["20261104-013000-02"]
+    assert me.fabricated_ids("run 20261104-013000-02-… 이 만들었다", existing) == []  # marked as cut: the start of one
+    assert me.fabricated_ids("run 20261104-012254-01-ed 와 20261104-012254-09", existing) == [
+        "20261104-012254-01-ed", "20261104-012254-09"]
+    # Only where the kit would take it whole: an id run on into other characters (E4's mixed-up
+    # `…-00:31-01-…`, a file name, a Visualization) is not a shortened one.
+    setup = {*existing, "20261104-003146-00-setup"}
+    assert me.fabricated_ids("run 20261104-003146-00:31-01-model", setup) == ["20261104-003146-00"]
+    assert me.fabricated_ids("20261104-012254-01.csv, 20261104-012254-01/chart", existing) == ["20261104-012254-01"]
+    assert me.fabricated_ids("run 20261104-012254-01이 만들었다. 끝은 20261104-012254-01.", existing) == []
 
 
 def test_numbers_percentages_and_ids_are_read_with_their_boundaries(config):

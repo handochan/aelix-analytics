@@ -2916,6 +2916,37 @@ def _query_record(model, source):
     raise AnalyticsError("record_not_found", "no readable record with this ID", details={"id": source})
 
 
+def _run_reference_parts(given: str) -> tuple[str, str, str] | None:
+    """(prefix, run ID, the rest) of a read's ID that holds a run ID: a run (`run:<id>`, or a bare run
+    ID as a reference target) or a Visualization version (`<run_id>/<visualization_id>`); else None."""
+    prefix = "run:" if given.startswith("run:") else ""
+    run_id, slash, rest = given[len(prefix):].partition("/")
+    return (prefix, run_id, slash + rest) if RUN_ID_RE.match(run_id) and "\n" not in run_id else None
+
+
+def _names_a_node(model, part: str, given: str, direction: str) -> bool:
+    """Whether a read's ID as given names something the records know, so it is read as given (#158: a
+    whole ID wins, and a shortened one is never read in place of a node): a record, a run, a Report
+    revision, a target an earlier record named by that text (a run ID a kit before 0.32.1 wrote shortened,
+    say), or a trail's start — a data file's identity path (`20261104-012254-01/input.csv`) among them."""
+    if model.record_payload(given) is not None or len(model.journal.lines_of.get(given, [])) > 1:
+        return True
+    if direction in relations.TRAIL_DIRECTIONS:
+        return model.trail_start(given) is not None
+    return part == "relations" and direction != "outgoing" and bool(model.incoming_sources(given))
+
+
+def _whole_run_reference(project: Project, model, part: str, given: str, direction: str) -> str:
+    """A read's ID with the run ID in it whole (#158): an ID holding a run ID shortened at a hyphen that
+    names nothing as given reads as the one run it starts (writer.whole_run_id); one starting several runs'
+    IDs is ambiguous_id with them, in the form it was given. Any other ID is returned as it is."""
+    parts = _run_reference_parts(given)
+    if parts is None or _names_a_node(model, part, given, direction):
+        return given
+    prefix, run_id, rest = parts
+    return prefix + writer.whole_run_id(project.root, run_id, shown=lambda value: prefix + value + rest) + rest
+
+
 # The directions of a relations read: one hop of references, or a provenance trail (design
 # WORKSPACE-READABILITY 6, the owner's decision 3 of 2026-10-17): what the item was made from
 # (`sources`) or what was made from it (`uses`), bounded as the Workspace shows it.
@@ -2960,6 +2991,7 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
         raise AnalyticsError("bad_query", "selected ID and search filters are separate reads")
     if part == "relations" and not id:
         raise AnalyticsError("bad_query", "relations requires an ID")
+    given_id = id
     checkpoint_id = part == "context" and isinstance(id, str) and (id.startswith("e") or id.startswith("journal:"))
     if part == "context" and as_of_seq is not None and not checkpoint_id:
         raise AnalyticsError("bad_query", "historical context requires its exact context version ID")
@@ -2973,6 +3005,10 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
             if as_of_seq > model.as_of_seq:
                 raise AnalyticsError("bad_query", "as_of_seq is beyond the observed journal")
             model = model.through(as_of_seq)
+        # A shortened run ID that names nothing as given reads as its run's whole ID from here on: the
+        # request (and so a cursor) is the whole one's, and the answer says which it read (`resolved_id`).
+        if given_id and part != "context":
+            id = _whole_run_reference(project, model, part, given_id, direction)
         legacy_resolved = model.journal.legacy_resolutions()
         request = {"part": part, "query": query, "id": id, "kind": kind, "state": state,
                    "since": since, "until": until, "direction": direction, "as_of_seq": as_of_seq}
@@ -3080,6 +3116,8 @@ def retrieve(project: Project, *, part="records", query="", id=None, cursor=None
                   evidence_availability="checked now; as_of_seq bounds recorded knowledge, not file snapshots",
                   time_filter_scope="only parseable UTC-offset recorded timestamps" if since or until else None,
                   search_scope="readable journal records" if part == "records" and id is None else part)
+    if id != given_id:
+        result["resolved_id"] = {"input": given_id, "id": id}
     if result["updating"]:
         result["total"] = "unknown"
         if result.get("checkpoint") is not None:
