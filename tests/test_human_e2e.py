@@ -27,6 +27,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
@@ -313,13 +314,23 @@ def test_only_what_the_session_started_is_waited_for_or_stopped(tmp_path):
     out = tmp_path / "q17"
     (out / "agents" / "m" / "project").mkdir(parents=True)
     other = subprocess.Popen(["sleep", "60"], cwd=out / "agents" / "m" / "project")  # an agent's session
-    shell = subprocess.Popen(["/bin/sh", "-c", "sleep 60 & sleep 2 & sleep 0.5"], cwd=out)
+    # The shell ends once the test has seen the tracker find both jobs, not after a fixed half second: on a
+    # loaded runner one `ps -A` can take longer than that, and jobs orphaned before a poll are not seen
+    # (Descendants, NOT_COVERED) — the macOS leg of PR #183 failed so, with nothing found.
+    go = out / "go"
+    shell = subprocess.Popen(["/bin/sh", "-c", f"sleep 60 & sleep 3 & while [ ! -e '{go}' ]; do sleep 0.05; done"],
+                             cwd=out)
     tracked = he.Descendants(shell.pid, interval=0.1).start()
+    deadline = time.monotonic() + 30
+    while sum(command.startswith("sleep 60") or command.startswith("sleep 3")
+              for _, command in list(tracked.seen.values())) < 2 and time.monotonic() < deadline:
+        time.sleep(0.05)
+    go.touch()
     shell.wait()
     tracked.stop()
     try:
-        left = he.end_left_running(tracked, wait=4)
-        assert sorted(p["action"] for p in left) == ["SIGTERM", "waited for"]
+        left = he.end_left_running(tracked, wait=5)
+        assert sorted((p["action"], p["command"]) for p in left) == [("SIGTERM", "sleep 60"), ("waited for", "sleep 3")]
         assert all(p["pid"] != other.pid for p in left) and other.poll() is None
         assert he.end_left_running(tracked, wait=0) == []
     finally:

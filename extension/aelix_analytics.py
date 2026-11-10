@@ -3496,11 +3496,12 @@ class AnalyticsPanel:
     async def use_project(self) -> bool:
         """`use DIR`, confirmed; True once it ran, so that the first screen shows the project now."""
         try:
-            active = str(resolve_project()[0].root)
+            active = core.canonical(resolve_project()[0].root)
         except core.AnalyticsError:
             active = None
-        # What the look where aelix started found and did not activate, less the one in use now.
-        found = [str(root) for root in STATE["passed"] if str(root) != active][:MAX_LIST]
+        # What the look where aelix started found and did not activate, less the one in use now
+        # (compared as canonical paths: one spelling of a folder on every platform).
+        found = [str(root) for root in STATE["passed"] if core.canonical(root) != active][:MAX_LIST]
         labels = _numbered(f"Use {_tail(root, PANEL_WIDTH - 12)}" for root in found)
         other = "A project in another folder…"
         choice = await self._select("Use a project — one found where aelix started, or another",

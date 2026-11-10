@@ -512,7 +512,7 @@ def test_switching_projects_shows_the_new_one_and_does_not_offer_the_one_in_use(
     monkeypatch.chdir(repo)
     # Long paths are cut at their start, so the folders that tell them apart stay.
     use_a, use_b = (f"1. Use {module._tail(str(root), module.PANEL_WIDTH - 12)}" for root in (a, b))
-    assert use_a.endswith("repo/a") and use_b.endswith("repo/b")
+    assert use_a.endswith(str(Path("repo", "a"))) and use_b.endswith(str(Path("repo", "b")))
     ui = PanelUI([module.NOT_NOW,  # the question about the projects found below, before the panel
                   "Use a project…", use_a, back,
                   "Switch or create a project", "Use a project…", "Back", "Back", "Close"], confirms=[True])
