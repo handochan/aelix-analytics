@@ -279,7 +279,9 @@ def test_a_path_only_an_observation_saw_is_a_start(proj):
     m = model(proj)
     now = m.trail_start("data/derived/only.csv")
     assert now is not None and now["producer"] == "none" and [c["id"] for c in now["observed_changes"]] == ["e3"]
-    sha = hashlib.sha256(b"o\n").hexdigest()
+    # The bytes the command left, which the observation recorded: its script writes in text mode, so on
+    # Windows the line ends in `\r\n` and a hash of `o\n` names bytes no record holds.
+    sha = hashlib.sha256((proj / "data" / "derived" / "only.csv").read_bytes()).hexdigest()
     assert m.trail_start(f"data:data/derived/only.csv@{sha}") is not None
     found = m.provenance("data/derived/only.csv", "sources")
     assert [n["kind"] for n in found["nodes"]] == ["data", "observation"]
