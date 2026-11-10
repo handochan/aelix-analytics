@@ -2515,6 +2515,9 @@ def test_bounded_status_reads_share_ids_and_preserve_complete_text(lab, monkeypa
         assert not detail.is_error
         parsed = json.loads(text_of(detail).split("\n", 1)[1])
         assert parsed == detail.details
+        # Every page says how long the text is, in characters (#156), as the kit's read does.
+        assert parsed["text_chars"] == len(entry["text"]) < len(entry["text"].encode("utf-8"))
+        assert parsed["text_truncated"]["state"] == "no"
         fields.update((row["field"], row["value"]) for row in parsed["items"])
         if not parsed["has_more"]:
             break

@@ -27,6 +27,10 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   (`.venv/bin/python x.py`)에는 붙지 않습니다(CONTRACTS C5). 그 판정에 맞춰 `python_via_bash`는 명령을 단순 명령으로 나눠 kit 진입점을 부르는
   것(`uv run analytics run …`, `--title`에 `python`이 든 `analytics run …` 등)을 빼고 판정합니다. 그 옆의 다른 Python(`python a.py && analytics
   status`)에는 전처럼 붙습니다. README에 skill이 셸의 `analytics run`으로 스크립트를 돌리면 기록된다는 안내가 있습니다.
+- #156: 한 기록을 읽으면(`analytics_status`의 `part: records`·`id`, `analytics status --part records --id`, SDK `analytics.status(part="records", id=…)`)
+  본문의 글자 수 `text_chars`(Unicode 코드 포인트)가 모든 페이지에 있습니다(`updating` 응답 제외). 전에는 글만 주어 모델이 `journal.jsonl`의 바이트를 직접 세기도
+  했습니다. 기록 형식이 쓴 쪽의 규칙을 말해 주면 `text_truncated`도 있습니다: `analytics.event/2`는 `no`(자르지 않고 거절), kit 0.8.0 전의
+  `lab.event/1`은 4,000자 미만이면 `no`, 꼭 4,000자이면 `possibly`(그 kit이 4,000자 뒤를 버렸고 더 길었는지는 기록에 없음). `text_truncated`는 불리언이 아니라 객체 `{state, rule}`입니다.
 
 ### Changed
 
