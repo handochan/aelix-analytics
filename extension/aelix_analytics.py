@@ -31,6 +31,7 @@ that read it refuses it (docs/CONTRACTS.md A, D).
 import asyncio
 import base64
 import contextlib
+import functools
 import hashlib
 import importlib.machinery
 import importlib.util
@@ -45,7 +46,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from aelix_agent_core.harness.hooks import BeforeAgentStartResult, UserBashResult
+from aelix_agent_core.harness.hooks import BeforeAgentStartResult, ToolResultPatch, UserBashResult
 from aelix_agent_core.types import AgentTool
 from aelix_ai.messages import ImageContent, TextContent
 from aelix_ai.tools import ToolExecutionContext, ToolResult
@@ -200,7 +201,8 @@ KIT_IMPORT = re.compile(
 
 # Module-level state of one aelix runtime. setup() starts it over: the file loader makes a new module
 # for every session aelix builds, but the installed module is imported once per process.
-STATE = {"api": None, "project": None, "session": None, "starts": {}, "render_tasks": {}}
+STATE = {"api": None, "project": None, "session": None, "starts": {}, "render_tasks": {},
+         "told_unrecorded": set()}
 
 NO_PROJECT = ("No analytics project is active (checked /analytics use, --analytics-project, "
               "AELIX_ANALYTICS_PROJECT, and analytics.json or lab.json in the working directory and "
@@ -1725,12 +1727,182 @@ def on_tool_start(event, ctx):
     STATE["starts"][event.tool_call_id] = (time.monotonic(), event.tool_name, dict(event.args or {}))
 
 
+# The longest bash command whose simple commands are read one by one (python_outside_the_kit); a
+# longer one is judged whole by the regular expressions alone, as before kit 0.32.1. The reading is
+# one pass over the text: this bounds its time on aelix's event loop (some 20 ms at this length).
+JUDGED_CHARS = 32_768
+# Words of a POSIX shell's grammar that may come before a command's program (`if python …`, `then
+# analytics …`, `{ …`): left out before the program is looked for.
+SHELL_RESERVED = frozenset({"!", "{", "if", "then", "else", "elif", "while", "until", "do"})
+# The redirection operators a simple command may hold, the longest first. Each takes the next word
+# (its target, no word of the command); `<<` and `<<-` take a here-document's delimiter, whose body
+# follows the next new line.
+REDIRECTIONS = ("<<<", "<<-", "<<", "<>", "<&", ">>", ">&", ">|", "<", ">")
+
+
+class _Commands:
+    """The state of _simple_commands' one pass: the simple commands read so far, each its words and
+    the parts of the text it is, and what the next word is."""
+
+    def __init__(self) -> None:
+        self.commands: list[tuple[list[str], list[tuple[int, int]]]] = []
+        self.words: list[str] = []
+        self.pieces: list[tuple[int, int]] = []
+        self.word: list[str] = []
+        self.in_word = False
+        self.plain = True  # the word so far has no quote and no escape: its digits may be a descriptor
+        self.start = 0  # where the current piece of the text starts
+        self.next = None  # the next word: a redirection's "target", a "delimiter" (or "delimiter-": tabs stripped)
+        self.heredocs: list[tuple[list[tuple[int, int]], str, bool]] = []  # bodies after the next new line
+
+    def add(self, text: str, *, plain: bool = True) -> None:
+        self.word.append(text)
+        self.in_word = True
+        self.plain = self.plain and plain
+
+    def end_word(self) -> None:
+        if self.in_word:
+            text = "".join(self.word)
+            if self.next is None:
+                self.words.append(text)
+            elif self.next != "target":
+                self.heredocs.append((self.pieces, text, self.next == "delimiter-"))
+            self.next = None
+        self.word.clear()
+        self.in_word, self.plain = False, True
+
+    def end_command(self, at: int) -> None:
+        self.end_word()
+        self.pieces.append((self.start, at))
+        self.commands.append((self.words, self.pieces))
+        self.words, self.pieces, self.next, self.start = [], [], None, at + 1
+
+    def bodies(self, text: str, at: int) -> int | None:
+        """Past the bodies of the here-documents the line before `at` started, each joined to its
+        command; None when one has no end line."""
+        for pieces, delimiter, strip in self.heredocs:
+            body = at
+            while True:
+                if at >= len(text):
+                    return None
+                end = text.find("\n", at)
+                end = len(text) if end < 0 else end
+                line = text[at:end]
+                at = end + 1
+                if (line.lstrip("\t") if strip else line) == delimiter:
+                    pieces.append((body, end - len(line)))
+                    break
+        self.heredocs.clear()
+        self.start = at
+        return at
+
+
+def _simple_commands(command: str) -> list[tuple[list[str], list[tuple[int, int]]]] | None:
+    """The simple commands of an agent's bash command as a POSIX shell splits them: each one's words
+    (quotes and escapes removed, redirections and their targets left out) and the parts of the text
+    it is (with its here-documents' bodies; a comment is in none). `;` `&` `|` `(` `)` and a new line
+    end a command. None for what this reading leaves open, and the command is judged whole then: a
+    command or process substitution (`$(`, a backtick, `<(`, `>(`), a quote not closed, a
+    here-document without its end line, a command longer than JUDGED_CHARS. A PowerShell line is
+    read the same way (its `;` `|` `&&` `&`, quotes and comments split alike)."""
+    if len(command) > JUDGED_CHARS:
+        return None
+    reader, i, n = _Commands(), 0, len(command)
+    while i < n:
+        c = command[i]
+        if c in " \t\r":
+            reader.end_word()
+            i += 1
+        elif c == "\n":
+            reader.end_command(i)
+            i = reader.bodies(command, i + 1)
+            if i is None:
+                return None
+        elif c == "#" and not reader.in_word:
+            end = command.find("\n", i)
+            end = n if end < 0 else end
+            reader.pieces.append((reader.start, i))
+            reader.start, i = end, end
+        elif c == "`" or (c in "$<>" and command[i + 1:i + 2] == "("):
+            return None
+        elif c in "<>":
+            if reader.in_word and reader.plain and "".join(reader.word).isdigit():
+                reader.word.clear()  # a descriptor number, no word
+                reader.in_word = False
+            reader.end_word()
+            operator = next(o for o in REDIRECTIONS if command.startswith(o, i))
+            reader.next = {"<<": "delimiter", "<<-": "delimiter-"}.get(operator, "target")
+            i += len(operator)
+        elif c in ";&|()":
+            reader.end_command(i)
+            i += 1
+        elif c == "\\":
+            if command[i + 1:i + 2] not in ("", "\n"):  # a backslash before a new line joins the lines
+                reader.add(command[i + 1], plain=False)
+            i += 2
+        elif c == "'":
+            end = command.find("'", i + 1)
+            if end < 0:
+                return None
+            reader.add(command[i + 1:end], plain=False)
+            i = end + 1
+        elif c == '"':
+            j, text = i + 1, []
+            while j < n and command[j] != '"':
+                if command[j] == "`" or command.startswith("$(", j):
+                    return None
+                if command[j] == "\\" and command[j + 1:j + 2] in ("$", "`", '"', "\\", "\n"):
+                    text.append(command[j + 1] if command[j + 1] != "\n" else "")
+                    j += 2
+                else:
+                    text.append(command[j])
+                    j += 1
+            if j >= n:
+                return None
+            reader.add("".join(text), plain=False)
+            i = j + 1
+        else:
+            reader.add(c)
+            i += 1
+    reader.end_command(n)
+    return None if reader.heredocs else reader.commands
+
+
+def _calls_the_kit(words: list[str]) -> bool:
+    """Whether one simple command's words run a kit entry point (_runs_the_kit, as a POSIX shell reads
+    them), after the shell's own words that may come first (SHELL_RESERVED)."""
+    i = 0
+    while i < len(words) and words[i] in SHELL_RESERVED:
+        i += 1
+    return _runs_the_kit(words[i:], "posix")
+
+
+@functools.lru_cache(maxsize=16)  # telemetry and the tool_result hook judge the same command
+def python_outside_the_kit(command: str) -> bool:
+    """Whether an agent's bash command runs Python (python, `uv run`, pip, ipython, jupyter) that is
+    not the kit — telemetry's python_via_bash, and the bash results told they were not recorded
+    (on_tool_result). The simple commands that run a kit entry point — the kit's program `analytics`
+    (`bin/analytics`, `uv run [options] [--] analytics`), `python -m aelix_analytics`, a `python -c`
+    that imports it (_calls_the_kit) — are left out first; what is left is judged by its text as
+    before kit 0.32.1: a word `python` (PYTHON_IN_SHELL), and no `-m aelix_analytics` or `import
+    aelix_analytics` (KIT_IN_SHELL, here-document bodies included) and no `bin/analytics`. A command
+    _simple_commands leaves open is judged whole by the text alone. So Python named by a path
+    (`.venv/bin/python x.py`) is not seen and a word `python` in an argument is (CONTRACTS C5)."""
+    if not PYTHON_IN_SHELL.search(command):
+        return False
+    commands = _simple_commands(command)
+    if commands is not None:
+        command = "\n".join(command[start:end] for words, pieces in commands if not _calls_the_kit(words)
+                            for start, end in pieces)
+    return (bool(PYTHON_IN_SHELL.search(command)) and not KIT_IN_SHELL.search(command)
+            and "bin/analytics" not in command)
+
+
 def summarize_call(tool: str, args: dict, project) -> tuple[str, list]:
     flags = []
     if tool == "bash":
         command = str(args.get("command") or "")
-        if PYTHON_IN_SHELL.search(command) and not KIT_IN_SHELL.search(command) \
-                and "bin/analytics" not in command:
+        if python_outside_the_kit(command):
             flags.append("python_via_bash")
         return command[:300], flags
     if tool in ("write", "edit"):
@@ -1776,6 +1948,40 @@ def on_tool_end(event, ctx):
             "ms": round((time.monotonic() - start[0]) * 1000) if start else None,
             "summary": summary, "flags": flags, "session": STATE["session"]})
     return None
+
+
+# What a bash result gets after it when the command ran Python outside the kit while a project is
+# active (on_tool_result, Issue #170): in full the first time in a session, short after that.
+UNRECORDED_NOTICE = (
+    "aelix-analytics: this Python ran outside the kit, so no run was recorded for it (no code "
+    "snapshot, inputs or charts). If it was an analysis step, run it again with analytics_run (in the "
+    "shell: `analytics run scripts/x.py --title \"…\"`) to record it.")
+UNRECORDED_NOTICE_AGAIN = ("aelix-analytics: this Python ran outside the kit and was not recorded; "
+                           "run analysis steps with analytics_run.")
+
+
+def on_tool_result(event, ctx):
+    """A bash call that ran Python outside the kit (python_outside_the_kit, telemetry's
+    python_via_bash) while a project this kit writes is active gets one text block after its result:
+    the run was not recorded, and how to record it (Issue #170) — in full the first time in a session,
+    short after that. It tells and does not block: the patch sets only `content`, the result's own
+    blocks and then that one, so its error state and details stay as they are. Nothing for any other
+    call, without an active project, or where this kit does not write (analytics_run would be refused
+    there). Never raises: a tool's result must reach the model whatever this judgment meets."""
+    try:
+        if event.tool_name != "bash" or not python_outside_the_kit(
+                str((event.args or {}).get("command") or "")):
+            return None
+        project, _ = resolve_project()
+        if core.admit(project, "say a run was not recorded", side=True) is None:
+            return None
+        told, session = STATE["told_unrecorded"], STATE["session"]
+        patch = ToolResultPatch(content=[*event.content, TextContent(
+            text=UNRECORDED_NOTICE_AGAIN if session in told else UNRECORDED_NOTICE)])
+        told.add(session)  # only once the full line is given
+        return patch
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def on_agent_end(event, ctx):
@@ -2101,7 +2307,7 @@ def setup(aelix):
     # and keeps its globals, so what belongs to one session starts over here — otherwise a /analytics record
     # before a new session's first prompt would record the previous session's file.
     STATE.update({"api": aelix, "project": None, "session": None, "starts": {},
-                  "render_tasks": {}})
+                  "render_tasks": {}, "told_unrecorded": set()})
     put_the_author_in_the_environment()
     aelix.register_flag("analytics-project", type="str",
                         description="Analytics project directory (holds analytics.json, or an "
@@ -2114,6 +2320,7 @@ def setup(aelix):
     aelix.on("before_agent_start", on_before_agent_start)
     aelix.on("tool_execution_start", on_tool_start)
     aelix.on("tool_execution_end", on_tool_end)
+    aelix.on("tool_result", on_tool_result)
     aelix.on("agent_end", on_agent_end)
     aelix.on("user_bash", on_user_bash)
     if events is not None:

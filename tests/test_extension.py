@@ -82,7 +82,7 @@ def test_real_loader_registers_the_basic_contract_surface():
     assert set(ext.commands) == {"analytics"}
     assert set(ext.flags) == {"analytics-project"}
     assert set(ext.handlers) == {"before_agent_start", "tool_execution_start", "tool_execution_end",
-                                 "agent_end", "user_bash"}
+                                 "tool_result", "agent_end", "user_bash"}
 
 
 @pytest.mark.parametrize("history", ["mode", "notification"])
@@ -519,6 +519,166 @@ def test_a_tool_call_s_project_lookup_lists_no_directory_once_warm(lab, monkeypa
     assert how == "AELIX_ANALYTICS_PROJECT"
     _, flags = module.summarize_call("write", {"path": str(root / "data" / "x.csv")}, project)
     assert flags == ["wrote_managed_path"]
+
+
+def bash_result(command: str, *, is_error: bool = False):
+    from aelix_agent_core.harness.hooks import ToolResultHookEvent
+    from aelix_ai.messages import TextContent
+
+    return ToolResultHookEvent(tool_call_id="b1", tool_name="bash", args={"command": command},
+                               content=[TextContent(text="out\n")], details={"truncation": None},
+                               is_error=is_error)
+
+
+@pytest.mark.parametrize("is_error", [False, True], ids=["ok", "error"])
+def test_python_outside_the_kit_is_told_it_was_not_recorded(lab, is_error):
+    """Issue #170: a bash call that ran Python outside the kit while a project is active gets one text
+    block after its result saying the run was not recorded and how to record it — in full the first
+    time in a session, short after that, in full again in another session. The patch sets nothing
+    but the content, which starts with the result's own blocks: its error state, details and
+    termination are aelix's as they were, and the event is not changed."""
+    from aelix_agent_core.harness.hooks import ToolResultPatch
+
+    module, _root = lab
+    module.STATE["session"] = "session-a"
+    event = bash_result("uv run python scripts/x.py", is_error=is_error)
+    first = module.on_tool_result(event, None)
+    assert isinstance(first, ToolResultPatch)
+    assert first.content[:-1] == event.content and len(first.content) == 2
+    assert first.content[-1].text == module.UNRECORDED_NOTICE
+    assert (first.is_error, first.details, first.terminate) == (None, None, None)
+    assert [block.text for block in event.content] == ["out\n"] and event.is_error is is_error
+    assert "no run was recorded" in module.UNRECORDED_NOTICE and "analytics_run" in module.UNRECORDED_NOTICE
+    assert "`analytics run scripts/x.py --title" in module.UNRECORDED_NOTICE
+    again = module.on_tool_result(bash_result("python scripts/y.py", is_error=is_error), None)
+    assert again.content[-1].text == module.UNRECORDED_NOTICE_AGAIN
+    assert (again.is_error, again.details, again.terminate) == (None, None, None)
+    assert "analytics_run" in module.UNRECORDED_NOTICE_AGAIN
+    assert len(module.UNRECORDED_NOTICE_AGAIN) < len(module.UNRECORDED_NOTICE) // 2
+    module.STATE["session"] = "session-b"
+    assert module.on_tool_result(bash_result("python scripts/y.py"), None).content[-1].text == (
+        module.UNRECORDED_NOTICE)
+
+
+@pytest.mark.parametrize("command", [
+    "python scripts/a.py && analytics status",
+    "python plot.py --title 'Revenue (analytics)'",
+    "python -c 'print(7)' # ; analytics status",
+    "python - <<'EOF'\nanalytics = load()\nprint(len(analytics))\nEOF",
+])
+def test_python_beside_or_naming_the_kit_is_told(lab, command):
+    """Issue #170 (the reviews of 351b1ff): Python beside a kit command, or whose code, comment or
+    argument says `analytics`, ran outside the kit all the same: the line is given."""
+    module, _root = lab
+    patch = module.on_tool_result(bash_result(command), None)
+    assert patch is not None and patch.content[-1].text == module.UNRECORDED_NOTICE
+
+
+@pytest.mark.parametrize("command", [
+    "analytics run scripts/x.py --title 'fit with python'",
+    "uv run analytics run scripts/x.py --title t",
+    "cd proj && uv run --project . analytics status",
+    "uv run --project 'my project' analytics run scripts/x.py --title python",
+    "uv run -- analytics run scripts/x.py --title python",
+    "analytics record finding - <<'EOF'\nfit with python\nEOF",
+    "uv run --project . python -m aelix_analytics run scripts/x.py --title t",
+    "python -c 'import aelix_analytics as analytics; print(analytics.datasets())'",
+    "bin/analytics status",
+    "ls -la",
+    "cat scripts/x.py",
+])
+def test_a_kit_command_or_one_without_python_is_not_told(lab, command):
+    """Issue #170: the kit's own commands (its program `analytics`, through `uv run` too, `bin/analytics`,
+    `-m aelix_analytics`, an `import aelix_analytics`) record what they run, and a command that runs
+    no Python runs nothing to record: no line."""
+    module, _root = lab
+    assert module.on_tool_result(bash_result(command), None) is None
+
+
+def test_no_line_without_a_project_this_kit_writes_or_for_another_tool(lab, tmp_path, monkeypatch):
+    """Issue #170: no line for another tool's result, without an active project (none named, and a
+    marker the user never chose), or in a project this kit does not write (a lab.json project, where
+    analytics_run is refused); a result it cannot read gets none either, and nothing raises."""
+    from aelix_agent_core.harness.hooks import ToolResultHookEvent
+    from legacy_records import LegacyProject
+
+    module, root = lab
+    read = ToolResultHookEvent(tool_name="read", args={"command": "python scripts/x.py",
+                                                       "path": str(root / "CONTEXT.md")})
+    assert module.on_tool_result(read, None) is None
+    assert module.on_tool_result(SimpleNamespace(tool_name="bash", args=None, content=[]), None) is None
+    assert module.on_tool_result(SimpleNamespace(tool_name="bash", args={"command": "python x.py"}),
+                                 None) is None  # no content to keep: nothing rather than a guess
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(LegacyProject(tmp_path / "older").root))
+    assert module.on_tool_result(bash_result("python scripts/x.py"), None) is None
+    monkeypatch.delenv("AELIX_ANALYTICS_PROJECT")
+    monkeypatch.chdir(root)
+    assert module.on_tool_result(bash_result("python scripts/x.py"), None) is not None  # trusted here
+    # A marker that is not one this user created or chose activates nothing.
+    monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(tmp_path / "another-user-s-trust.json"))
+    assert module.on_tool_result(bash_result("python scripts/x.py"), None) is None
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    assert module.on_tool_result(bash_result("python scripts/x.py"), None) is None
+
+
+def test_the_real_host_gives_the_model_the_line_after_the_bash_result(tmp_path, monkeypatch):
+    """Issue #170 through aelix 0.1.0b2 itself: its loader loads this file, a harness built from it runs
+    the agent loop with aelix's bash tool and a scripted model (no provider, no network), one bash
+    call a turn. The tool results the model reads on its last turn are what the bash tool gave for
+    each command, unchanged and with the same error state, and after them the line: in full for the
+    first Python, short for the second (which fails, and stays an error), none for a command that
+    runs no Python."""
+    from aelix_agent_core.harness.core import AgentHarness, AgentHarnessOptions
+    from aelix_ai.messages import AssistantMessage, TextContent, ToolCallContent, ToolResultMessage
+    from aelix_ai.streaming import AssistantDoneEvent
+    from aelix_coding_agent.extensions.loader import load_extensions
+    from aelix_coding_agent.tools.bash import create_bash_tool
+
+    monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(tmp_path / "trust.json"))
+    monkeypatch.setenv("AELIX_ANALYTICS_UV", str(tmp_path / "no-uv" / "uv"))
+    root = tmp_path / "proj"
+    module = fresh_module()
+    module.core.init_project(root, title="T170", template_dir=module.KIT / "aelix_analytics" / "template",
+                             origin=module.core.Origin("test", "sdk"))
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(root))
+    monkeypatch.chdir(tmp_path)
+    # `python` is this interpreter, found by its name as a model's command finds it.
+    monkeypatch.setenv("PATH", os.pathsep.join([str(Path(sys.executable).parent), os.environ["PATH"]]))
+    (tmp_path / "ok.py").write_text("print('ran ok')\n", encoding="utf-8")
+    (tmp_path / "fails.py").write_text("raise SystemExit(3)\n", encoding="utf-8")
+    commands = ["python ok.py", "python fails.py", "echo plain"]
+    turns = []
+
+    async def model(_model, context, _options):
+        turns.append(list(context.messages))
+        if len(turns) <= len(commands):
+            call = ToolCallContent(tool_call_id=f"c{len(turns)}", tool_name="bash",
+                                   input={"command": commands[len(turns) - 1]})
+            yield AssistantDoneEvent(reason="toolUse",
+                                     message=AssistantMessage(content=[call], stop_reason="tool_use"))
+        else:
+            yield AssistantDoneEvent(message=AssistantMessage(content=[TextContent(text="done")],
+                                                              stop_reason="stop"))
+
+    async def scenario():
+        loaded = await load_extensions([str(EXT)])
+        assert loaded.errors == []
+        bash = create_bash_tool(str(tmp_path))
+        harness = AgentHarness(AgentHarnessOptions(extensions=loaded.extensions, runtime=loaded.runtime,
+                                                   cwd=str(tmp_path), tools=[bash], stream_fn=model))
+        await harness.prompt("go")
+        bare = [await bash.execute({"command": c}, ToolExecutionContext()) for c in commands]
+        return [m for m in turns[-1] if isinstance(m, ToolResultMessage)], bare
+
+    results, bare = asyncio.run(scenario())
+    for result, given in zip(results, bare, strict=True):
+        assert result.content[:len(given.content)] == given.content and result.is_error is given.is_error
+    assert "ran ok" in results[0].content[0].text and not results[0].is_error
+    assert results[0].content[-1].text == module.UNRECORDED_NOTICE and len(results[0].content) == 2
+    assert results[1].is_error and results[1].content[-1].text == module.UNRECORDED_NOTICE_AGAIN
+    assert results[2].content == bare[2].content
 
 
 def test_lab_command_where_help_and_gap(lab):

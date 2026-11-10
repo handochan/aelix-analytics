@@ -2708,7 +2708,8 @@ def _aelix_stubs() -> dict:
         "aelix_agent_core": core_pkg,
         "aelix_agent_core.harness": core_pkg.harness,
         "aelix_agent_core.harness.hooks": module("aelix_agent_core.harness.hooks",
-                                                 BeforeAgentStartResult=Any, UserBashResult=Any),
+                                                 BeforeAgentStartResult=Any, ToolResultPatch=Any,
+                                                 UserBashResult=Any),
         "aelix_agent_core.types": module("aelix_agent_core.types", AgentTool=Any),
         "aelix_ai": ai_pkg,
         "aelix_ai.messages": module("aelix_ai.messages", ImageContent=Any, TextContent=Any),
@@ -2940,6 +2941,7 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
         "    def __init__(self, *a, **k): self.__dict__.update(k)\n"
         "for name, attrs in (('aelix_agent_core', {}), ('aelix_agent_core.harness', {}),\n"
         "                    ('aelix_agent_core.harness.hooks', {'BeforeAgentStartResult': Any,\n"
+        "                                                        'ToolResultPatch': Any,\n"
         "                                                        'UserBashResult': Any}),\n"
         "                    ('aelix_agent_core.types', {'AgentTool': Any}),\n"
         "                    ('aelix_ai', {}), ('aelix_ai.messages', {'ImageContent': Any, 'TextContent': Any}),\n"
@@ -3034,6 +3036,35 @@ def test_importing_the_package_imports_nothing_of_the_kit():
     ("python -c 'print(\"import aelix_analytics\")'", True),
     ("python -u scripts/x.py -m aelix_analytics", True),
     ("ls -la", False),
+    # Issue #170: the simple commands that run the kit's own program — also through `uv run` and its
+    # options (a quoted value, `--`), a path to it, with the word `python` in its arguments or its
+    # here-document — are left out; any other Python beside them is still flagged.
+    ("analytics run scripts/x.py --title 'fit with python'", False),
+    ("uv run analytics run scripts/x.py --title t", False),
+    ("uv run --project . -p3.12 --with=polars analytics status --title python", False),
+    ("uv run --project 'my project' analytics run scripts/x.py --title python", False),
+    ("uv run -- analytics run scripts/x.py --title python", False),
+    ("cd proj && .venv/bin/analytics run scripts/x.py --title 'pip check'", False),
+    ("cd p && analytics run x.py --title python 2>&1 | tail -5; echo done", False),
+    ("if true; then analytics run x.py --title python; fi", False),
+    ("analytics record finding - <<'EOF'\nfit with python\nEOF", False),
+    ("python scripts/a.py && analytics status", True),
+    ("analytics run x.py --title t\npython y.py", True),
+    ("python -m aelix_analytics status && python scripts/x.py", True),
+    # A directory, an option value, a comment, a string or Python code that says analytics is no
+    # call of the kit (the reviews of 351b1ff).
+    ("cd ~/analytics && python scripts/x.py", True),
+    ("uv run --with analytics python scripts/x.py", True),
+    ("python scripts/x.py --out analytics", True),
+    ("python plot.py --title 'Revenue (analytics)'", True),
+    ("python -c 'print(7)' # ; analytics status", True),
+    ("python -c \"print('x; analytics status')\"", True),
+    ("python -c 'print(analytics)'", True),
+    ("python - <<'EOF'\nanalytics = load()\nprint(len(analytics))\nEOF", True),
+    # What the reading leaves open is judged whole by the text, as before (CONTRACTS C5).
+    ("x=$(python scripts/a.py); analytics status", True),
+    ("uv run --not-an-option analytics status --title python", True),
+    ("echo python", True),
 ])
 def test_python_via_bash_leaves_out_only_the_kit_itself(monkeypatch, tmp_path, command, flagged):
     module = load_extension(monkeypatch, "ext_python_via_bash")
@@ -3041,6 +3072,27 @@ def test_python_via_bash_leaves_out_only_the_kit_itself(monkeypatch, tmp_path, c
                                              template_dir=KIT / "aelix_analytics" / "template").root)
     _, flags = module.summarize_call("bash", {"command": command}, project)
     assert ("python_via_bash" in flags) is flagged, (command, flags)
+
+
+@pytest.mark.parametrize("command", [
+    "a=( " * 8_000,  # 32 KB: 2.7 s with 351b1ff's expression, 13 s at 80 KB
+    "python " + "a=( " * 8_000,
+    "python " + "a=( " * 20_000,  # longer than JUDGED_CHARS: judged whole
+    "python x.py; " + "uv run --with x " * 2_000 + "analytics",
+    "python " + "2>&1 " * 6_000,
+    "python " + "# x\n" * 8_000,
+    "python <<E\n" + "x\n" * 15_000 + "E\n",
+    "python " + "<<E " * 4_000 + "\n" + "E\n" * 4_000,
+], ids=["parens", "python-parens", "python-parens-whole", "uv-options", "redirections", "comments", "heredoc-body",
+        "heredoc-openers"])  # short ids: pytest puts the id in PYTEST_CURRENT_TEST, capped at 32,767 characters on Windows
+def test_judging_a_long_bash_command_takes_no_time(monkeypatch, command):
+    """Issue #170 review (351b1ff): the judgment runs on aelix's event loop for every bash call, and a
+    regular expression that backtracked took seconds on 32 KB. The one-pass reading and the
+    expressions take milliseconds; a second is the bound here."""
+    module = load_extension(monkeypatch, "ext_long_command")
+    started = time.perf_counter()
+    module.python_outside_the_kit(command)
+    assert time.perf_counter() - started < 1.0, len(command)
 
 
 def test_the_kit_check_of_a_bash_command_takes_time_linear_in_its_length(monkeypatch):
@@ -3155,7 +3207,7 @@ def test_the_extension_registers_only_the_new_names(monkeypatch):
         [("flag", "analytics-project"), ("command", "analytics"),
          *[("tool", f"analytics_{n}") for n in ("status", "query", "import", "run", "record", "init")],
          *[("on", e) for e in ("before_agent_start", "tool_execution_start", "tool_execution_end",
-                               "agent_end", "user_bash")]])
+                               "tool_result", "agent_end", "user_bash")]])
 
 
 def test_the_analytics_command_records_and_has_no_old_subcommands(monkeypatch, tmp_path):

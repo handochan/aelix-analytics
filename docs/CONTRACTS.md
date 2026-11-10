@@ -13,6 +13,7 @@ Aelix Analytics가 현재 **약속하는 것과 약속하지 않는 것**의 전
 | `register_command("analytics")` | 사람 명령(`/analytics`) |
 | `on("before_agent_start")` | `BeforeAgentStartResult(system_prompt=기존 + 맥락 블록)` — 그 요청에만 적용, 누적되지 않음 |
 | `on("tool_execution_start" / "tool_execution_end")` | 모든 도구 호출을 `.analytics/telemetry.jsonl`에 기록(이 kit이 쓰는 프로젝트에서만, B "표식 판정과 쓰기". kit 0.8.0 전에는 `.lab/telemetry.jsonl`) |
+| `on("tool_result")` | kit을 거치지 않고 Python을 돌린 bash 결과(C5의 `python_via_bash` 판정)에만, 활성 프로젝트가 있고 이 kit이 쓰는 프로젝트일 때 `ToolResultPatch(content=원래 블록 + 글 블록 하나)`: 그 실행은 기록되지 않았고, 분석 단계였으면 `analytics_run`(셸에서는 `analytics run scripts/x.py --title "…"`)으로 다시 실행하면 기록된다는 한 줄. 한 세션의 첫 번은 길게, 그 뒤는 짧게. 막지 않고, 원래 블록·`is_error`·`details`는 그대로. 나머지 결과에는 돌려주지 않음(kit 0.32.1, #170) |
 | `on("agent_end")` | 분리된 프로세스로 `render --if-changed` 시작(이 kit이 쓰는 프로젝트에서만) |
 | `on("user_bash")` | 사람의 `!`·`!!` 명령 가운데 aelix가 그 줄을 돌릴 셸로 읽어 줄 전체가 kit 명령 하나인 것(아래 "aelix 안의 작성 주체")에만 `UserBashResult(operations=…)`: aelix의 로컬 셸(`aelix_coding_agent.tools.bash.create_local_bash_operations`, 환경을 주지 않으면 `aelix_coding_agent.util.shell_env.get_shell_env`)에 그 명령의 환경에만 `AELIX_ANALYTICS_ACTOR=human`을 더한 것. 나머지 명령에는 결과를 돌려주지 않음(kit 0.8.0) |
 | aelix 프로세스의 `os.environ` | `setup()`이 `AELIX_ANALYTICS_ACTOR=agent`를 넣고(있던 값을 덮음) `AELIX_ANALYTICS_SESSION`을 지우며, `before_agent_start`가 그 세션의 파일 경로로 바꿈(없으면 지움)(kit 0.8.0) |
@@ -544,6 +545,18 @@ kit 0.8.0부터 이 kit이 쓰는 가져오기 기록은 `analytics.dataset/1`([
 
 - `.analytics/telemetry.jsonl`: `{ts, tool, ms, error, summary, flags[], session}` — `summary`는 bash 명령 앞 300자,
   write·edit·read 경로, `analytics_*` 주요 인자. `flags`: `python_via_bash`, `wrote_managed_path`.
+  `python_via_bash`는 Python(`python`·`uv run`·`pip`·`ipython`·`jupyter`)을 부르고 kit이 아닌 bash 명령입니다. kit 0.32.1부터(#170) 확장은 명령을
+  POSIX 셸처럼 단순 명령으로 나눠(`;`·`&`·`|`·`(`·`)`·새 줄, 따옴표·이스케이프, 주석, here-document의 본문은 그것을 연 명령의 것, 리디렉션과
+  그 대상은 낱말이 아님) kit 진입점을 부르는 단순 명령 — 프로그램 `analytics`(`bin/analytics` 등 경로 포함, 변수 대입·`env` 등과 `uv run`의 알려진
+  옵션·`--` 뒤 포함), `python -m aelix_analytics`, `aelix_analytics`를 import하는 `python -c` — 을 빼고, 남은 글을 전처럼 글자로 판정합니다: 낱말
+  `python` 등이 있고, `-m aelix_analytics`·문장 처음의 `import aelix_analytics`(F1, here-document 본문 포함)·`bin/analytics`가 없으면 붙습니다.
+  그래서 `uv run analytics run …`, `uv run --project 'my project' analytics …`, `--title`에 `python`이 든 `analytics run`은 붙지 않고,
+  `python a.py && analytics status`, `cd ~/analytics && python x.py`, 코드·주석·문자열·인자에 `analytics`가 든 Python에는 붙습니다.
+  한계: 글자로 읽으므로 경로로 부른 Python(`.venv/bin/python x.py`)에는 붙지 않고, 인자 속 낱말 `python`(`echo python`, `grep -rn python src`,
+  `which python`)과 `pip install`에는 붙습니다. 나누어 읽지 않고 명령 전체를 글자로 판정하는 경우 — 명령·프로세스 치환(`$(…)`, 백틱, `<(…)`),
+  닫히지 않은 따옴표, 끝 줄이 없는 here-document, 32,768자를 넘는 명령 — 에는 kit 명령도 빼지 않으므로 kit 명령 안의 낱말 `python`에 붙을 수
+  있습니다. `uv run`의 옵션 가운데 확장이 모르는 것(새 uv 옵션) 뒤의 `analytics`, `uvx`, 셸 함수·별칭으로 부른 kit은 kit으로 보지 않고,
+  PowerShell 줄도 POSIX 셸처럼 읽습니다. 같은 판정이 bash 결과 끝의 안내를 정합니다(A의 `on("tool_result")`).
   `tool`은 실제로 불린 도구의 이름입니다(호스트 도구 `bash`·`read` 등 포함). 기록 종류처럼 닫힌 enum이 아니라 관측한 값이어서
   [ADR-0005](decisions/0005-names-first-storage-with-the-new-writer.md) 결정 2가 동결한 이름이 아닙니다. 그래서 kit 0.3.0부터 새 줄은
   `analytics_*`이고, 이전 세션의 줄은 `lab_*` 그대로 남습니다. 리포트의 도구 사용표는 두 이름을 각각 셉니다. 둘을 같은 도구로
@@ -1963,6 +1976,11 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
   활성인 프로젝트의 것이고 다른 프로젝트의 파일은 바뀌지 않았습니다(시험, aelix 0.1.0b2). 도구 호출이 도는 중에 `/analytics use`로
   바꾸면 그 호출의 telemetry는 끝날 때 활성인 프로젝트에 기록되고 시작한 프로젝트에는 남지 않습니다(시험이 고정합니다.
   이전 구현과 같습니다. [#32](https://github.com/handochan/aelix-analytics/issues/32)).
+- kit 밖 Python의 안내(#170). bash 결과 끝의 한 줄은 알림이지 기록이 아닙니다: 그 실행은 run으로 기록되지 않고(코드 스냅샷·입력·차트 없음,
+  telemetry의 `python_via_bash` 표시뿐), 모델이 다시 실행하지 않으면 그대로입니다. 판정의 한계는 C5에 있습니다(경로로 부른 Python에는 붙지 않고
+  인자 속 낱말 `python`이나 `pip install`에도 붙음). 저장소 도구 `tools/usage_report.py`는 이 줄(첫 번 248자, 그 뒤 109자)을 재지 않습니다. aelix 0.1.0b2는 `tool_result` 처리기들의 patch를 등록 순서대로 쌓으므로, 이 확장 뒤에 등록된
+  확장이 결과의 `content`를 통째로 바꾸면 그 줄이 빠질 수 있습니다. 실제 aelix 로더와 harness로 한 세션의 결과에 붙는 것을 시험했고, 실제
+  모델이 그 줄을 보고 다시 실행하는지는 측정하지 않았습니다.
 - Windows의 한계. [측정 기록](verification/2026-09-24-issue-8-platforms.md)과 [Windows 인벤토리 기록](verification/2026-10-02-issue-8-windows-inventory.md)에서 실행한 것과
   추론한 것을 구별해 적습니다. 측정한 Windows 구성은 F에 있는 하나입니다. 긴 경로·콘솔·환경의 한계는 끝의
   [#38](https://github.com/handochan/aelix-analytics/issues/38) 항목들입니다.
