@@ -40,9 +40,6 @@ PREVIEW = "preview/report.html"
 COPIES = "files"
 # What a view folder keeps to know it is the view of these bytes by this renderer.
 STAMP = "view.json"
-# A history this long or shorter shows every version as a row of its own; a longer one folds the
-# versions between the first and the latest into one row (each keeps its section and anchor).
-FOLD_AFTER = 5
 # The problems that leave a version with no manifest to trust (ReadModel.report_histories): no body.
 MANIFEST_PROBLEMS = frozenset({"completion_mismatch", "manifest_unavailable", "unsupported_manifest"})
 # Originals a browser shows as data: any other (HTML, SVG, scripts, unknown) is linked to download,
@@ -208,25 +205,18 @@ class Reports:
         return s.page(1, title, crumb, "".join(body), "report", page_path=f"{REPORT_DIR}/{name}", selection=rid)
 
     def history_html(self, versions: list[dict]) -> str:
-        """The versions as #99 shows every target's: the strip, then a row each (the versions between
-        the first and the latest folded when there are many), each linking its section."""
+        """The versions as #99 shows every target's: the strip, then a row each, newest first, each
+        linking its section. A long history folds as every list does (design WORKSPACE-READABILITY
+        8.4), the latest and the first version in sight."""
         history = self.site.history
         total = len(versions)
         points = [{"at": v["recorded_at"], "mark": "shown" if v["number"] == total else "version",
                    "label": f'v{v["number"]}', "use": len(self.cited_by(v))} for v in versions]
-        keep = set(range(1, total + 1)) if total <= FOLD_AFTER else {1, total}
-        rows = []
-        for kind, item in history.arrange([list(range(1, total + 1))], [], keep):
-            if kind == "version":
-                rows.append(self.history_row(versions[item - 1], total))
-            else:
-                members = [self.history_row(versions[n - 1], total) for n in item[::-1]]
-                cited = sum(len(self.cited_by(versions[n - 1])) for n in item)
-                rows.append(history.group(history.number_range(item), t("reports.cited", n=cited) if cited else "", members))
+        rows = [self.history_row(v, total) for v in reversed(versions)]
         facts = " · ".join([t("versions.count", n=total), history.span(versions[0]["recorded_at"], versions[-1]["recorded_at"])])
         legend = history.legend(["version", "shown", *(["use_cited"] if any(p["use"] for p in points) else [])])
         return history.block("report-history", facts, history.strip(points, [], "report"), legend, rows,
-                             f'<p class="vh-foot">{t("reports.history_rule")}</p>')
+                             f'<p class="vh-foot">{t("reports.history_rule")}</p>', keep=[0, total - 1])
 
     def history_row(self, version: dict, total: int) -> str:
         s = self.site
@@ -301,8 +291,11 @@ class Reports:
         that names none says it is linked to no evidence, not that it has none."""
         s = self.site
         rows = [j for j in self.judged(version) if not j.get("structural")]
-        items = " ".join(s.ref_html(j, 1) for j in rows)
-        body = f'<p class="refs">{items}</p>' if rows else f'<p class="muted">{t("reports.no_evidence")}</p>'
+        key = relations.report_key(version["report_id"], version["revision_id"])
+        # Every reference is on the version's relation page (design 8.4: past the cap).
+        body = s.fold(rows, lambda part: f'<p class="refs">{" ".join(s.ref_html(j, 1) for j in part)}</p>', cap=s.FOLD_CAP,
+                      beyond=f'<a href="{s.esc(s.relations.link(key, 1))}">{t("fold.relation_page")}</a>') \
+            if rows else f'<p class="muted">{t("reports.no_evidence")}</p>'
         return f'<section class="report-part"><h3>{t("reports.evidence")}</h3>{body}<p class="muted">{t("reports.evidence_rule")}</p></section>'
 
     def members_html(self, version: dict) -> str:
@@ -344,8 +337,10 @@ class Reports:
         said += [t(f"reports.collection.{k}", n=counts[k]) for k in ("failed", "not_generated") if counts[k]]
         return (f'<section class="report-part"><h3>{t("reports.collection")}</h3><p>{" · ".join(said)}</p>'
                 f'<details class="report-members"><summary>{t("reports.members", n=counts["requested"])}</summary>'
-                f'<div class="table-wrap"><table class="list"><thead><tr>{head}</tr></thead><tbody>{"".join(rows)}</tbody></table></div>'
-                f'</details><p class="muted">{t("reports.collection_rule")}</p></section>')
+                + s.fold(rows, lambda part: f'<div class="table-wrap"><table class="list"><thead><tr>{head}</tr></thead>'
+                         f'<tbody>{"".join(part)}</tbody></table></div>', cap=s.FOLD_CAP, beyond=self.record_link(
+                             version, f"content/{relations.REPORT_METADATA_FILE}"))
+                + f'</details><p class="muted">{t("reports.collection_rule")}</p></section>')
 
     def user_files(self, version: dict) -> list[dict]:
         """The files its author saved: the manifest's, the kit's metadata sidecar left out."""
@@ -401,8 +396,19 @@ class Reports:
                         f'<td class="num">{s.fmt_bytes(item.get("bytes"))}</td><td class="sha">{s.short(item.get("sha256"), 12)}</td></tr>')
         head = "".join(f"<th>{t('reports.file.col.' + c)}</th>" for c in ("path", "size", "sha"))
         return (f'<section class="report-part"><h3>{t("reports.files")}</h3>{opener}{notes}'
-                f'<div class="table-wrap"><table class="list"><thead><tr>{head}</tr></thead><tbody>{"".join(rows)}</tbody></table></div>'
-                f'<p class="muted">{t("reports.files_rule")}</p></section>')
+                + s.fold(rows, lambda part: f'<div class="table-wrap"><table class="list"><thead><tr>{head}</tr></thead>'
+                         f'<tbody>{"".join(part)}</tbody></table></div>', cap=s.FOLD_CAP,
+                         beyond=self.record_link(version, "manifest.json"))
+                + f'<p class="muted">{t("reports.files_rule")}</p></section>')
+
+    def record_link(self, version: dict, path: str) -> str:
+        """A link to a file of the version's record (its manifest, its metadata): where every item of a
+        list longer than its cap is (design 8.4). A version with no manifest to read has no directory,
+        and no list to cap: no link."""
+        s = self.site
+        if not isinstance(version.get("directory"), str):
+            return ""
+        return f'<a href="{s.esc(s.file_link(version["directory"] + "/" + path, 1))}"><code>{s.esc(path.rpartition("/")[2])}</code></a>'
 
     def text_of(self, version: dict) -> list[str] | None:
         """The entry's lines, when it is text and its bytes are the ones saved; else None."""

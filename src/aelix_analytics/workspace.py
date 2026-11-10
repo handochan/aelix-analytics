@@ -38,9 +38,16 @@ PLOTLY_EMBED_LIMIT = 3_000_000
 LOG_LIMIT = 200_000
 # A run over hundreds of files would otherwise bury the timeline and its own page in paths.
 REF_LIMIT = 12
-FILE_ROW_LIMIT = 60
 INDEX_LIMIT = 50
 CHART_INDEX_LIMIT = 20
+# The folding rule every list that can grow follows (design WORKSPACE-READABILITY 8.4, #172): the
+# first FOLD_SHOWN items show, the next ones up to the list's cap fold into one native <details>
+# that opens without a script, and past the cap the page says how many more there are and where all
+# of them are. FOLD_SHOWN rows are about one screen at 1366x900. A detail page's cap is FOLD_CAP,
+# the window #99 gave a Visualization's history (workspace_versions.WINDOW_ROWS); a list of the
+# index (the first page a reader opens) has INDEX_LIMIT, as its list pages do.
+FOLD_SHOWN = 20
+FOLD_CAP = 100
 # The Workspace's own words are messages of i18n.py: English as written, Korean when a reader
 # switches (TERMINOLOGY 7); what people and scripts wrote is shown as written. An event kind's
 # words are `kind.<kind>`: the stored kind stays the machine value (`gap`, `todo`).
@@ -192,6 +199,40 @@ def kind_chip(kind) -> str:
             f'{words("kind", kind)}</span>')
 
 
+def fold(entries, wrap, *, cap: int | None, beyond: str = "", keep=(), shown: int | None = None,
+         summary: str = "fold.more") -> str:
+    """A list that can grow, as the folding rule shows it (design WORKSPACE-READABILITY 8.4, #172).
+
+    `entries` are the list's items in its order and `wrap` makes the HTML of a run of them in their
+    container (a list, a table with its head), so an item is made only when the page holds it. The
+    first `shown` (FOLD_SHOWN) and the ones at the positions in `keep` (the row a page is about) are in
+    place; each run of the others up to `cap` folds into a <details> whose summary says how many it
+    holds and how many the list has (`summary`: the message saying it; a version history's rows are
+    not its versions, so it says rows and leaves the total to the history's facts). Past `cap` no item
+    is made: a line says how many more there are and `beyond` names where all of them are (a list page,
+    the record). `cap=None`: no cap, for a list nothing else holds whole on a page (a version history,
+    the runs of a dataset) or whose every item has a page of its own already. Folding changes neither the
+    order nor the number: an item keeps its id inside a fold, and an address naming it opens the fold
+    (workspace.js; a browser that opens a <details> for a fragment does it without a script)."""
+    entries = list(entries)
+    made = entries if cap is None else entries[:cap]
+    visible = set(range(FOLD_SHOWN if shown is None else shown)) | set(keep)
+    if len(made) == len(entries) and visible.issuperset(range(len(entries))):
+        return wrap(entries)
+    parts: list[tuple[bool, list]] = []
+    for i, entry in enumerate(made):
+        if parts and parts[-1][0] == (i in visible):
+            parts[-1][1].append(entry)
+        else:
+            parts.append((i in visible, [entry]))
+    out = [wrap(part) if show else
+           f'<details class="more"><summary>{t(summary, n=len(part), total=len(entries))}</summary>{wrap(part)}</details>'
+           for show, part in parts]
+    if len(made) < len(entries):
+        out.append(f'<p class="more-beyond">{t("fold.beyond", n=len(entries) - len(made))} {beyond}</p>')
+    return "".join(out)
+
+
 def ref_words(state, reason=None) -> str:
     """A reference judgment in the kit's words: its reason's when the catalog says it apart
     (`ref.missing.file_absent`), else its state's."""
@@ -249,6 +290,8 @@ class Site:
     badge = staticmethod(badge)
     status_badge = staticmethod(status_badge)
     kind_chip = staticmethod(kind_chip)
+    fold = staticmethod(fold)
+    FOLD_CAP = FOLD_CAP
     user_language = USER
     REF_STATE = REF_STATE
     RECORD_STATE = RECORD_STATE
@@ -303,6 +346,8 @@ class Site:
         # and an older kit's (.lab/) — a migrated project's copy of them is in .analytics/ already.
         logs = dict.fromkeys((project.state_dir, project.legacy_state_dir))
         self.telemetry = [row for place in logs for row in core.read_jsonl(place / "telemetry.jsonl")]
+        # The logs read, where every tool call is (design 8.4: what a list past its cap names).
+        self.telemetry_logs = [place / "telemetry.jsonl" for place in logs if (place / "telemetry.jsonl").is_file()]
         self.queries = [row for place in logs for row in core.read_jsonl(place / "queries.jsonl")]
         # The CONTEXT.md versions of both state directories (design 5.3), as a reference resolves them.
         self.versions = core.context_versions(project)
@@ -1705,47 +1750,55 @@ def asset_section(site: Site) -> str:
     mode = app.suggestion_status(journal=site.model.journal)
     by_id = {event.id: event.value for event in site.model.journal.events
              if site.model.journal.source_of(event) == event.id}
+
+    def version_html(candidate: dict) -> str:
+        event_id = candidate["id"]
+        snapshots = [event for event in by_id.values() if event.get("kind") in ("asset_notification", "record_update")
+                     and isinstance(event.get("details"), dict)
+                     and event["details"].get("candidate_event_id") == event_id
+                     and isinstance(event["details"].get("scores"), dict)
+                     and not relations.asset_event_problem(event)]
+        snapshot = snapshots[-1] if snapshots else None
+        scores = (snapshot.get("details") or {}).get("scores") if snapshot else None
+        score = t("assets.no_score")
+        if (isinstance(scores, dict) and set(scores) == {"demand", "checks", "scope", "benefit"}
+                and all(type(value) is int for value in scores.values())):
+            score = t("assets.score", score=sum(scores.values()), seq=str(snapshot["details"].get("as_of_seq")),
+                      id=snapshot["id"])
+        target = ("#" + site.anchor(candidate)) if event_id in site.recent_sources else site.relations.link(event_id, 0, anchor="#record")
+        source = f'<a href="{esc(target)}">{esc(event_id)} · {t("assets.journal_refs")}</a>'
+        return (f'<details id="asset-{esc(event_id)}"><summary>{source} · {score}</summary>'
+                f'<p{USER}>{esc(candidate["details"]["problem"])}</p>{site.refs_html(candidate, 0)}'
+                f'<h4>{t("assets.stored_fields")}</h4><pre{USER}>{esc(json.dumps(candidate, ensure_ascii=False, indent=2))}</pre>'
+                + (f'<h4>{t("assets.assessment")} {esc(snapshot["id"])}</h4><pre{USER}>{esc(json.dumps(snapshot, ensure_ascii=False, indent=2))}</pre>'
+                   if snapshot else "") + '</details>')
+
+    # The tab is on the index: its lists have the index's cap, then the command or the record that
+    # holds all of them (design 8.4).
     items = []
     for asset in view["assets"]:
-        versions = []
-        for candidate in reversed(asset["versions"]):
-            event_id = candidate["id"]
-            snapshots = [event for event in by_id.values() if event.get("kind") in ("asset_notification", "record_update")
-                         and isinstance(event.get("details"), dict)
-                         and event["details"].get("candidate_event_id") == event_id
-                         and isinstance(event["details"].get("scores"), dict)
-                         and not relations.asset_event_problem(event)]
-            snapshot = snapshots[-1] if snapshots else None
-            scores = (snapshot.get("details") or {}).get("scores") if snapshot else None
-            score = t("assets.no_score")
-            if (isinstance(scores, dict) and set(scores) == {"demand", "checks", "scope", "benefit"}
-                    and all(type(value) is int for value in scores.values())):
-                score = t("assets.score", score=sum(scores.values()), seq=str(snapshot["details"].get("as_of_seq")),
-                          id=snapshot["id"])
-            target = ("#" + site.anchor(candidate)) if event_id in site.recent_sources else site.relations.link(event_id, 0, anchor="#record")
-            source = f'<a href="{esc(target)}">{esc(event_id)} · {t("assets.journal_refs")}</a>'
-            versions.append(f'<details id="asset-{esc(event_id)}"><summary>{source} · {score}</summary>'
-                            f'<p{USER}>{esc(candidate["details"]["problem"])}</p>{site.refs_html(candidate, 0)}'
-                            f'<h4>{t("assets.stored_fields")}</h4><pre{USER}>{esc(json.dumps(candidate, ensure_ascii=False, indent=2))}</pre>'
-                            + (f'<h4>{t("assets.assessment")} {esc(snapshot["id"])}</h4><pre{USER}>{esc(json.dumps(snapshot, ensure_ascii=False, indent=2))}</pre>'
-                               if snapshot else "") + '</details>')
+        versions = fold(list(reversed(asset["versions"])), lambda part: "".join(map(version_html, part)), cap=INDEX_LIMIT,
+                        beyond=f'<code>analytics assets show {esc(asset["asset_id"])}</code>')
         items.append(f'<article class="panel"><h3{USER}>{esc(asset["title"])}</h3>'
                      f'<p>{t("assets.asset")} <code>{esc(asset["asset_id"])}</code> · {esc(asset["artifact_kind"])} · '
-                     f'{t("assets.state")} {esc(asset["state"])} · {t("assets.versions", n=len(asset["versions"]))}</p>{"".join(versions)}</article>')
+                     f'{t("assets.state")} {esc(asset["state"])} · {t("assets.versions", n=len(asset["versions"]))}</p>{versions}</article>')
     for old in view["legacy_candidates"]:
         anchor = old["source"].replace(":", "-")
         items.append(f'<article class="panel"><h3>{t("assets.legacy")}</h3><p>{t("assets.raw_kind")} {esc(old["raw_kind"])} · '
                      f'proposal_id: <span{USER}>{esc(old["proposal_id"])}</span> · '
                      f'<a href="#{esc(anchor)}">{esc(old["source"])}</a></p>'
                      f'<pre{USER}>{esc(json.dumps(old["record"], ensure_ascii=False, indent=2))}</pre></article>')
-    pending = ''.join(f'<li><a href="#{esc(notice["event_id"])}">{esc(notice["event_id"])}</a> '
-                      f'<span{USER}>{esc(notice["text"])}</span> · {esc(notice["surface"])}</li>' for notice in mode["pending"])
+    journal = f'<a href="{site.file_link(site.p.journal.relative_to(site.p.root).as_posix(), 0)}"><code>{esc(site.p.journal.name)}</code></a>'
+    pending = fold(mode["pending"], lambda part: "<ul>" + "".join(
+        f'<li><a href="#{esc(notice["event_id"])}">{esc(notice["event_id"])}</a> '
+        f'<span{USER}>{esc(notice["text"])}</span> · {esc(notice["surface"])}</li>' for notice in part) + "</ul>",
+        cap=INDEX_LIMIT, beyond=journal) if mode["pending"] else f'<ul><li>{t("assets.no_pending")}</li></ul>'
     errors = ''.join(f'<li>{esc(error["code"])}: {esc(error["message"])}</li>' for error in mode["settings_errors"])
     return (f'<section id="assets" class="tab"><div class="toolbar"><h2>{t("tab.assets")}</h2></div>'
             f'<p>{t("assets.mode")} {esc(mode["mode"])}. {t("assets.lead")}</p>'
             + (f'<ul>{errors}</ul>' if errors else '')
-            + f'<h3>{t("assets.pending")}</h3><ul>{pending or "<li>" + t("assets.no_pending") + "</li>"}</ul>'
-            + ''.join(items) + '</section>')
+            + f'<h3>{t("assets.pending")}</h3>{pending}'
+            + fold(items, "".join, cap=INDEX_LIMIT, beyond="<code>analytics assets list</code>") + '</section>')
 
 
 def section_names(sections: list[dict]) -> str:
@@ -1795,21 +1848,25 @@ def evaluation_section(site: Site) -> str:
     by_tool: dict[str, list[dict]] = defaultdict(list)
     for tel in site.telemetry:
         by_tool[str(tel.get("tool"))].append(tel)
-    tool_rows = "".join(
-        f"<tr><td><code>{esc(tool)}</code></td><td class='num'>{len(items)}</td>"
-        f"<td class='num'>{sum(1 for i in items if i.get('error'))}</td>"
-        f"<td class='num'>{fmt_num(round(sum(i.get('ms') or 0 for i in items) / max(1, len(items))))}</td></tr>"
-        for tool, items in sorted(by_tool.items(), key=lambda kv: -len(kv[1]))[:INDEX_LIMIT])
+    # The tool logs read (this kit's and an older kit's) hold every call (design 8.4: the index's cap,
+    # then where all are).
+    log = ", ".join(f'<a href="{site.file_link(path.relative_to(site.p.root).as_posix(), 0)}">'
+                    f'<code>{esc(path.relative_to(site.p.root).as_posix())}</code></a>' for path in site.telemetry_logs)
+    tool_head = "".join(f"<th>{t('evaluation.col.' + c)}</th>" for c in ("tool", "calls", "errors", "mean_ms"))
+    telemetry_html = fold(sorted(by_tool.items(), key=lambda kv: -len(kv[1])), lambda part: (
+        f'<div class="table-wrap"><table class="list"><thead><tr>{tool_head}</tr></thead><tbody>' + "".join(
+            f"<tr><td><code>{esc(tool)}</code></td><td class='num'>{len(items)}</td>"
+            f"<td class='num'>{sum(1 for i in items if i.get('error'))}</td>"
+            f"<td class='num'>{fmt_num(round(sum(i.get('ms') or 0 for i in items) / max(1, len(items))))}</td></tr>"
+            for tool, items in part) + "</tbody></table></div>"),
+        cap=INDEX_LIMIT, beyond=log) if by_tool else f'<div class="empty">{t("evaluation.tools_empty")}</div>'
     flagged = [tel for tel in site.telemetry if tel.get("flags")]
-    flag_items = "".join(
+    flag_html = fold(flagged[::-1], lambda part: '<ul class="plain flagged">' + "".join(
         f"<li>{fmt_time(tel.get('ts'))} <code>{esc(tel.get('tool'))}</code> "
         f"{''.join(badge('warning', '⚑', esc(f)) for f in tel['flags'])} <span class='muted'{USER}>{esc(tel.get('summary'))}</span></li>"
-        for tel in flagged[::-1][:30])
+        for tel in part) + "</ul>", cap=INDEX_LIMIT, beyond=log) if flagged else f'<div class="empty">{t("evaluation.none")}</div>'
     gap_html = site.events_html(gaps[-INDEX_LIMIT:][::-1], 0, prefix="feedback-") if gaps else \
         f'<div class="empty">{t("evaluation.feedback_empty")}</div>'
-    tool_head = "".join(f"<th>{t('evaluation.col.' + c)}</th>" for c in ("tool", "calls", "errors", "mean_ms"))
-    telemetry_html = (f'<div class="table-wrap"><table class="list"><thead><tr>{tool_head}</tr></thead><tbody>{tool_rows}</tbody></table></div>'
-                      if tool_rows else f'<div class="empty">{t("evaluation.tools_empty")}</div>')
     return f"""
 <section id="evaluation" class="tab" data-count="{len(gaps)}">
   <div class="toolbar"><h2>{t("tab.evaluation")}</h2></div>
@@ -1820,7 +1877,7 @@ def evaluation_section(site: Site) -> str:
   </div>
   <div class="columns">
     <div class="panel"><h3>{t("evaluation.tools")}</h3>{telemetry_html}</div>
-    <div class="panel"><h3>{t("evaluation.workarounds", n=len(flagged))}</h3>{('<ul class="plain flagged">' + flag_items + '</ul>') if flag_items else f'<div class="empty">{t("evaluation.none")}</div>'}</div>
+    <div class="panel"><h3>{t("evaluation.workarounds", n=len(flagged))}</h3>{flag_html}</div>
   </div>
 </section>"""
 
@@ -1868,6 +1925,8 @@ def run_page(site: Site, run: dict) -> str:
   <div class="sub">{' · '.join(sub)}</div>
   <div class="sub">{t("run.ran")} <code{USER}>{esc(script.get('path'))}</code>{site.history.run_code(run)} · {t("run.position", n=pos + 1, total=len(same_script))} {' '.join(nav)}</div>
 </div>"""
+    # Where every item of the page's lists is when a list is longer than its cap (design 8.4).
+    record = f'<a href="{site.file_link(f"runs/{rid}/run.json", 1)}">run.json</a>'
     callouts = ""
     if run.get("error"):
         err = run["error"]
@@ -1884,24 +1943,22 @@ def run_page(site: Site, run: dict) -> str:
     if repro:
         tone = {"match": "good", "mismatch": "critical", "failed": "critical"}.get(
             repro.get("verdict"), "muted")
-        details = "".join(f"<li><code{USER}>{esc(k)}</code>: {comparison_words(v)}</li>"
-                          for k, v in {**repro["visualizations"], **repro["outputs"]}.items())
+        details = fold({**repro["visualizations"], **repro["outputs"]}.items(), lambda part: "<ul>" + "".join(
+            f"<li><code{USER}>{esc(k)}</code>: {comparison_words(v)}</li>" for k, v in part) + "</ul>",
+                       cap=FOLD_CAP, beyond=record)
         inputs_same = t("run.inputs_same") if repro.get("inputs_same") else t("run.inputs_different")
         callouts += (f'<div class="callout tone-{tone}"><strong>{t("run.rerun_comparison")} '
                      f'{verdict_label(repro.get("verdict"))}</strong> — {t("run.reran_snapshot")} '
                      f'<a href="{href(repro.get("of", ""))}.html">{esc(repro.get("of"))}</a>. {inputs_same} '
-                     f'{t("run.rerun_not_version")}<ul>{details}</ul></div>')
+                     f'{t("run.rerun_not_version")}{details}</div>')
     if run.get("finalize_errors"):
         callouts += (f'<div class="callout tone-critical"><strong>{t("run.finalize_failed")}</strong><ul>' + "".join(
             f'<li lang="en">{esc(w)}</li>' for w in run["finalize_errors"]) + "</ul></div>")
     if run.get("warnings"):
         # Runs recorded before warnings were grouped can carry one line per input file.
-        shown = run["warnings"][:REF_LIMIT]
-        rest = len(run["warnings"]) - len(shown)
-        callouts += (f'<div class="callout tone-warning"><strong>{t("run.warnings")}</strong><ul>'
-                     + "".join(f'<li lang="en">{esc(w)}</li>' for w in shown)
-                     + (f"<li class='muted'>{t('refs.more', n=rest)}</li>" if rest > 0 else "")
-                     + "</ul></div>")
+        callouts += (f'<div class="callout tone-warning"><strong>{t("run.warnings")}</strong>'
+                     + fold(run["warnings"], lambda part: "<ul>" + "".join(f'<li lang="en">{esc(w)}</li>' for w in part)
+                            + "</ul>", cap=FOLD_CAP, beyond=record) + "</div>")
     recording = site.recording.get(rid) or {}
     if recording.get("recording_status") == "incomplete":
         callouts += (f'<div class="callout tone-warning"><strong>{t("run.recording_incomplete")}</strong><ul>'
@@ -1909,11 +1966,14 @@ def run_page(site: Site, run: dict) -> str:
                                for r in recording.get("reasons") or [])
                      + "</ul></div>")
     if fresh["changed_inputs"]:
-        reasons = fresh.get("change_reasons") or {}
+        # A sentence names the first SHOWN_PLACES; the inputs below list every one, these first.
+        reasons, changed = fresh.get("change_reasons") or {}, fresh["changed_inputs"]
         callouts += (f'<div class="callout tone-critical"><strong>{t("run.inputs_differ")}</strong> '
                      + ", ".join(user_text(path) + (" " + t("run.line_endings_note")
                                                     if reasons.get(path) == core.LINE_ENDINGS_ONLY else "")
-                                 for path in fresh["changed_inputs"]) + "</div>")
+                                 for path in changed[:SHOWN_PLACES])
+                     + (" " + t("list.and_more", n=len(changed) - SHOWN_PLACES) if len(changed) > SHOWN_PLACES else "")
+                     + "</div>")
     if fresh["stale_upstream"]:
         # The stale runs upstream output the same bytes as an input: candidates, not its producer.
         callouts += (f'<div class="callout tone-warning"><strong>{t("run.upstream_stale")}</strong> '
@@ -1973,26 +2033,23 @@ def run_page(site: Site, run: dict) -> str:
 
     pairs = list(zip(run.get("inputs") or [], fresh["inputs"], strict=False))
     n_inputs = len(pairs)
-    # Files whose state changed are the ones a reader came for, so they survive the row cap.
-    ordered = sorted(pairs, key=lambda pair: pair[1]["state"] == "same")[:FILE_ROW_LIMIT]
-    input_rows = []
-    for entry, f_entry in ordered:
+    # Files whose state changed are the ones a reader came for, so they come first and are all on the
+    # page: the cap is FOLD_CAP or, when more changed, how many changed (run.json holds no state now).
+    ordered = sorted(pairs, key=lambda pair: pair[1]["state"] == "same")
+    input_cap = max(FOLD_CAP, sum(1 for _, f_entry in pairs if f_entry["state"] != "same"))
+
+    def input_row(entry: dict, f_entry: dict) -> str:
         state = f_entry["state"] if f_entry["state"] in INPUT_STATE else "unknown"
         tone, icon = INPUT_STATE[state]
         producer = producer_cell(site, site.model.producer(rid, entry.get("path")), 1)
-        input_rows.append(
-            f'<tr><td>{site.path_html(entry["path"], 1)}{site.read_as_html(rid, entry.get("path"), 1)}</td>'
-            f'<td>{esc(", ".join(entry.get("via") or []))}</td>'
-            f'<td class="num">{fmt_bytes(entry.get("bytes"))}</td><td class="sha">{short(entry.get("sha256"), 12)}</td>'
-            f'<td>{badge(tone, icon, words("input", state))}'
-            f'{" " + line_endings_badge() if f_entry.get("reason") == core.LINE_ENDINGS_ONLY else ""}'
-            f'</td><td>{producer}</td></tr>')
-    if n_inputs > len(input_rows):
-        input_rows.append(
-            f'<tr><td colspan="6" class="muted">{t("run.inputs_more", n=n_inputs - len(input_rows))} '
-            f'<a href="{site.file_link(f"runs/{rid}/run.json", 1)}">run.json</a>.</td></tr>')
-    output_rows = []
-    for out in run.get("outputs") or []:
+        return (f'<tr><td>{site.path_html(entry["path"], 1)}{site.read_as_html(rid, entry.get("path"), 1)}</td>'
+                f'<td>{esc(", ".join(entry.get("via") or []))}</td>'
+                f'<td class="num">{fmt_bytes(entry.get("bytes"))}</td><td class="sha">{short(entry.get("sha256"), 12)}</td>'
+                f'<td>{badge(tone, icon, words("input", state))}'
+                f'{" " + line_endings_badge() if f_entry.get("reason") == core.LINE_ENDINGS_ONLY else ""}'
+                f'</td><td>{producer}</td></tr>')
+
+    def output_row(out: dict) -> str:
         if out.get("change") == "deleted":
             now = '<span class="muted">-</span>'
         else:
@@ -2000,12 +2057,13 @@ def run_page(site: Site, run: dict) -> str:
             state = seen["state"] if seen["state"] in OUTPUT_STATE else "unknown"
             tone, icon = OUTPUT_STATE[state]
             now = badge(tone, icon, words("output", state), title_attr(seen.get("reason")))
-        output_rows.append(
-            f'<tr><td>{site.path_html(out["path"], 1)}{site.read_as_html(rid, out.get("path"), 1)}</td>'
-            f'<td>{words("change", out.get("change"))}</td>'
-            f'<td>{esc(out.get("via", ""))}</td><td class="num">{fmt_num(out.get("rows"))}</td>'
-            f'<td{USER}>{esc(", ".join(c[0] for c in (out.get("schema") or [])[:12]))}</td>'
-            f'<td class="sha">{short(out.get("sha256"), 12)}</td><td>{now}</td></tr>')
+        return (f'<tr><td>{site.path_html(out["path"], 1)}{site.read_as_html(rid, out.get("path"), 1)}</td>'
+                f'<td>{words("change", out.get("change"))}</td>'
+                f'<td>{esc(out.get("via", ""))}</td><td class="num">{fmt_num(out.get("rows"))}</td>'
+                f'<td{USER}>{esc(", ".join(c[0] for c in (out.get("schema") or [])[:12]))}</td>'
+                f'<td class="sha">{short(out.get("sha256"), 12)}</td><td>{now}</td></tr>')
+
+    outputs = run.get("outputs") or []
 
     def log_block(label, rel):
         if not rel:
@@ -2025,28 +2083,41 @@ def run_page(site: Site, run: dict) -> str:
                 f'{shown}</details>')
 
     env = run.get("env") or {}
-    env_rows = "".join(f"<tr><th>{esc(k)}</th><td><code>{esc(v)}</code></td></tr>" for k, v in [
+    env_rows = fold([
         ("python", env.get("python")), ("uv.lock sha256", short(env.get("uv_lock_sha256"), 16)),
         ("kit", f"{env.get('kit_version')} · {short(env.get('kit_sha256'), 12)}"),
-        *sorted((env.get("packages") or {}).items())])
-    related = site.related.get(rid, [])
+        *sorted((env.get("packages") or {}).items())],
+        lambda part: '<div class="table-wrap"><table class="kv">' + "".join(
+            f"<tr><th>{esc(k)}</th><td><code>{esc(v)}</code></td></tr>" for k, v in part) + "</table></div>",
+        cap=FOLD_CAP, beyond=record)
+    # The records naming the run; all of them are on its relation page.
+    journal = fold(site.related.get(rid, []), lambda part: site.events_html(part, 1), cap=FOLD_CAP,
+                   beyond=f'<a href="{esc(site.relations.link("run:" + rid, 1))}">{t("fold.relation_page")}</a>')
     jump = "".join(f'<a href="#{anchor}">{t("run.nav." + anchor)}</a>'
                    for anchor in ("charts", "code", "inputs", "outputs", "logs", "env", "journal", "reproduce"))
     input_head = "".join(f"<th>{t('run.col.' + c)}</th>" for c in ("path", "via", "size", "recorded_sha", "now", "producer"))
     output_head = "".join(f"<th>{t('run.col.' + c)}</th>" for c in ("path", "change", "via", "rows", "columns")) + \
         f"<th>sha256</th><th>{t('run.col.now')}</th>"
+    inputs_html = fold(ordered, lambda part: (
+        f'<div class="table-wrap"><table class="list"><thead><tr>{input_head}</tr></thead><tbody>'
+        + "".join(input_row(*pair) for pair in part) + "</tbody></table></div>"), cap=input_cap, beyond=record) \
+        if ordered else f'<div class="empty">{t("run.no_inputs")}</div>'
+    outputs_html = fold(outputs, lambda part: (
+        f'<div class="table-wrap"><table class="list"><thead><tr>{output_head}</tr></thead><tbody>'
+        + "".join(map(output_row, part)) + "</tbody></table></div>"), cap=FOLD_CAP, beyond=record) \
+        if outputs else f'<div class="empty">{t("run.no_outputs")}</div>'
 
     body = f"""{head}{callouts}
 <nav class="jump">{jump}</nav>
 <section id="charts"><h2>{t("run.h.charts", n=len(charts))}</h2>{charts_html}</section>
 <section id="code"><h2>{t("run.h.code")}</h2><p class="muted">{t("run.code_lead")}</p>{''.join(code_blocks) or f'<div class="empty">{t("run.no_code")}</div>'}</section>
 <section id="inputs"><h2>{t("run.h.inputs", n=n_inputs)}</h2><p class="muted">{t("run.inputs_lead")}</p>
-{(f'<div class="table-wrap"><table class="list"><thead><tr>{input_head}</tr></thead><tbody>' + ''.join(input_rows) + '</tbody></table></div>') if input_rows else f'<div class="empty">{t("run.no_inputs")}</div>'}</section>
-<section id="outputs"><h2>{t("run.h.outputs", n=len(output_rows))}</h2>
-{(f'<div class="table-wrap"><table class="list"><thead><tr>{output_head}</tr></thead><tbody>' + ''.join(output_rows) + '</tbody></table></div>') if output_rows else f'<div class="empty">{t("run.no_outputs")}</div>'}</section>
+{inputs_html}</section>
+<section id="outputs"><h2>{t("run.h.outputs", n=len(outputs))}</h2>
+{outputs_html}</section>
 <section id="logs"><h2>{t("run.h.logs")}</h2>{log_block('stdout', run.get('stdout'))}{log_block('stderr', run.get('stderr'))}</section>
-<section id="env"><h2>{t("run.h.env")}</h2><div class="table-wrap"><table class="kv">{env_rows}</table></div></section>
-<section id="journal"><h2>{t("run.h.journal")}</h2>{site.events_html(related, 1)}</section>
+<section id="env"><h2>{t("run.h.env")}</h2>{env_rows}</section>
+<section id="journal"><h2>{t("run.h.journal")}</h2>{journal}</section>
 <section id="reproduce"><h2>{t("run.h.rerun")}</h2><p>{t("run.rerun_lead")}</p>
 <pre class="cmd">aelix: analytics_run(title="Rerun comparison", rerun_of="{esc(rid)}")
 CLI:   analytics run --rerun-of {esc(rid)}</pre></section>"""
@@ -2142,43 +2213,48 @@ def dataset_page(site: Site, ds: dict, view: str) -> str:
                    if o.get("path") == ds["path"]]
         return changes[-1] if changes else None
 
+    # Every list of the page follows the folding rule (design 8.4). The runs and the Visualizations have
+    # no cap: no other page lists them whole (a current-format run's completion names only the run, so
+    # the path's relation page does not hold its readers). The columns past the cap are in the file.
+
+    def plain_list(items, render) -> str:
+        return fold(items, lambda part: "<ul class='plain'>" + "".join(map(render, part)) + "</ul>", cap=None)
+
     if producers:
         # Every successful run that recorded this path as an output, whatever its bytes, and a
         # deletion as such: none of them is said to have made the file.
-        lineage.append(f"<h3>{t('dataset.producers')}</h3><ul class='plain'>"
-                       + "".join(
+        lineage.append(f"<h3>{t('dataset.producers')}</h3>" + plain_list(dict.fromkeys(producers), lambda r: (
             f'<li><a href="{esc(site.run_link(r, 1))}">{esc(r)}</a> {user_text((site.run_by_id.get(r) or {}).get("title"))}'
             f'{" · " + t("dataset.deleted_path") if change(r) == "deleted" else ""}'
             f'{" · " + t("dataset.same_as_now") if r in candidates else ""}'
-            f'{inferred_mark(r, inferred.get("producers"))}</li>'
-            for r in dict.fromkeys(producers)) + "</ul>")
+            f'{inferred_mark(r, inferred.get("producers"))}</li>')))
     users = ds.get("used_by") or []
-    lineage.append(f"<h3>{t('dataset.readers')}</h3>" + ("<ul class='plain'>" + "".join(
+    lineage.append(f"<h3>{t('dataset.readers')}</h3>" + (plain_list(users, lambda r: (
         f'<li><a href="{site.run_link(r, 1)}">{esc(r)}</a> {user_text((site.run_by_id.get(r) or {}).get("title"))}'
-        f'{inferred_mark(r, inferred.get("used_by"))}</li>'
-        for r in users) + "</ul>" if users else f'<div class="empty">{t("dataset.none_yet")}</div>'))
+        f'{inferred_mark(r, inferred.get("used_by"))}</li>')) if users else f'<div class="empty">{t("dataset.none_yet")}</div>'))
     # A chart's run read this data when it recorded its path, or (inferred) an older kit's path read
     # as it.
     used_charts = [c for c in site.charts if not c.get("retired") and ds["path"] in
                    {site.model.read_as(c["run"], i.get("path")) or i.get("path")
                     for i in (site.run_by_id.get(c["run"]) or {}).get("inputs") or []}]
     if used_charts:
-        lineage.append(f"<h3>{t('dataset.charts')}</h3><ul class='plain'>" + "".join(
+        lineage.append(f"<h3>{t('dataset.charts')}</h3>" + plain_list(used_charts, lambda c: (
             f'<li><a href="{site.chart_anchor(c["key"], 1)}"{USER}>{esc(c.get("title"))}</a> <code{USER}>{esc(c["key"])}</code>'
-            f'{inferred_mark(c["run"], inferred.get("used_by"))}</li>'
-            for c in used_charts) + "</ul>")
+            f'{inferred_mark(c["run"], inferred.get("used_by"))}</li>')))
     # A statistic that does not apply to a column type is "–", never "null" (which is a data value).
     schema_rows = [[c["name"], c["dtype"], c.get("nulls"),
                     *("–" if c.get(k) is None else c.get(k) for k in ("min", "max", "mean", "distinct"))]
                    for c in prof.get("columns") or []]
     preview = prof.get("preview") or {}
     schema_head = [t("dataset.col." + c) for c in ("column", "type", "null", "min", "max", "mean", "distinct")]
+    schema = fold(schema_rows, lambda part: site.table(schema_head, part, klass="list", data_head=False), cap=FOLD_CAP,
+                  beyond=f'<a href="{site.file_link(ds["path"], 1)}"><code{USER}>{esc(ds["path"].rsplit("/", 1)[-1])}</code></a>')
     body = f"""
 <div class="page-head"><div class="title-row"><h1{USER}>{esc(label)}</h1><span class="badge tone-muted">{words("data.kind", ds['kind'])}</span></div>
 <div class="sub">{' · '.join(facts)}</div></div>
 {origin}
 {site.history.data_history(ds)}
-<section><h2>{t("dataset.h.schema")}</h2>{site.table(schema_head, schema_rows, klass='list', data_head=False)}</section>
+<section><h2>{t("dataset.h.schema")}</h2>{schema}</section>
 <section><h2>{t("dataset.h.preview")}</h2>{site.table(preview.get('columns') or [], preview.get('rows') or [])}</section>
 <section><h2>{t("dataset.h.relations")}</h2>{''.join(lineage)}</section>
 <section><h2>{t("dataset.h.query")}</h2><pre class="cmd">analytics_query(sql="SELECT * FROM {esc(view)} LIMIT 20")

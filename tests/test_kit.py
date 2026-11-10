@@ -680,7 +680,8 @@ def test_a_run_over_many_files_stays_readable_in_the_journal_and_report(project)
     assert index.count("part_") <= 48, "the timeline dumped every input path"
     page = next((project / "workspace" / "runs").glob("*01-many.html")).read_text(encoding="utf-8")
     assert "Input data (70)" in page, "the run page no longer states the real input count"
-    assert "10 more — changed inputs are listed first" in page and "run.json" in page
+    # The list folds after its first rows (design WORKSPACE-READABILITY 8.4, #172): all 70 are on the page.
+    assert "Show 50 more (70 in all)" in page and page.count('href="../../sources/part_') >= 70
 
 
 def test_import_reads_uuid_as_text_and_warns_about_a_nested_json_object(project, tmp_path):

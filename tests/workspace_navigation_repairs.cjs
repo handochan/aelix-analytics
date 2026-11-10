@@ -72,6 +72,7 @@ function environment(page, state, options={}) {
     requestAnimationFrame:f=>frames.push(f),setInterval(){},setTimeout(){return 1;},clearTimeout(){}});
   while(frames.length) frames.shift()();
   return {window,document,history,notice,tabs,card,bar,buttons,back,retired,diagram,docEvents,events,build,main,
+    go(hash){url=new URL(hash,url);(events.hashchange||[]).forEach(f=>f());},
     click(href){const a={href,hasAttribute(){return false;},closest(selector){return selector==='a[href]'?this:card;}};
       docEvents.click.forEach(f=>f({target:a}));return new URL(a.href,url);},
     reset(href){const a={href,hasAttribute(name){return name==='data-reset';},closest(selector){return selector==='a[href]'?this:card;}};
@@ -111,6 +112,13 @@ assert.equal(codec.next({...initial,page:'lists/charts-0.html',retired:true},'li
 // A card inside closed folds is shown before the return measures and focuses it (independent review of #98, I4).
 const folded=environment('index.html',{...initial,anchor:'recent-e7',tab:'overview',card:'e7'},{tabs:['overview'],folds:2});
 assert.deepEqual(folded.card.folds.map(f=>f.open),[true,true]);
+// An address naming an item of a long list's fold (#172, design WORKSPACE-READABILITY 8.4) opens every fold
+// around it — a member row inside its Report version's fold — when the page opens and when the address changes.
+const addressed=environment('reports/r.html',codec.next(initial,'reports/r.html','m-x-25'),{anchor:'m-x-25',card:'m-x-25',folds:2});
+assert.deepEqual(addressed.card.folds.map(f=>f.open),[true,true]);
+addressed.card.folds.forEach(f=>{f.open=false;});
+addressed.go('#m-x-25');
+assert.deepEqual(addressed.card.folds.map(f=>f.open),[true,true]);
 // A newly opened anchor clears the measured sticky bars instead of landing under them.
 const sticky=[{style:{position:'sticky',top:'0px'},offsetHeight:45},{style:{position:'sticky',top:'45px'},offsetHeight:40},
   {style:{position:'static',top:'auto'},offsetHeight:300}];

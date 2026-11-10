@@ -274,6 +274,16 @@
  "events.shared_id_title": "several journal lines have this id",
  "filters.all": "All",
  "filters.by_kind": "Filter by kind",
+ "fold.beyond": {
+  "one": "{n} more is not on this page. All of them:",
+  "other": "{n} more are not on this page. All of them:"
+ },
+ "fold.more": "Show {n} more ({total} in all)",
+ "fold.more_rows": {
+  "one": "Show {n} more row",
+  "other": "Show {n} more rows"
+ },
+ "fold.relation_page": "the relation page",
  "footer.updating": "updating: the records changed while they were read",
  "inferred.badge": "Inferred from an older kit's path",
  "inferred.count": "({n} inferred)",
@@ -911,8 +921,7 @@
  "run.how_to_fix": "How to fix:",
  "run.inputs_differ": "This run's inputs differ from the files now.",
  "run.inputs_different": "Inputs different.",
- "run.inputs_lead": "via: runtime (seen while polars, duckdb or lab.* read it), scan (a path literal in the code), declared (given with the run). The state compares the file's sha256 now with the record. Producer: every successful run that output this path with these bytes and did not start after this run — same bytes, not a confirmed link.",
- "run.inputs_more": "{n} more — changed inputs are listed first. The full list is in",
+ "run.inputs_lead": "via: runtime (seen while polars, duckdb or lab.* read it), scan (a path literal in the code), declared (given with the run). The state compares the file's sha256 now with the record. Producer: every successful run that output this path with these bytes and did not start after this run — same bytes, not a confirmed link. Inputs that changed, went missing or are unknown come first.",
  "run.inputs_same": "Inputs same.",
  "run.label": "run",
  "run.line": "line",
