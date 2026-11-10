@@ -419,8 +419,11 @@ def test_which_scripts_are_copied(proj, tmp_path):
     write(proj / "scripts" / "one.py", "print('same')\n")
     write(proj / "scripts" / "two.py", "print('same')\n")
     outside = write(tmp_path / "skill" / "run.py", "print('skill')\n")
+    # Quoted as a shell command needs it: aelix's bash tool runs a POSIX shell on every platform (Git Bash on
+    # Windows), where an unquoted `C:\Users\…\run.py` loses its backslashes as escapes and names no file —
+    # the observation reads the words as that shell does (on POSIX the path needs no quotes and gets none).
     command = (f"python scripts/one.py scripts/two.py data/q.sql scripts/my_secret_job.py scripts/keyed.py "
-               f"scripts/nb.ipynb {outside}")
+               f"scripts/nb.ipynb {shlex.quote(str(outside))}")
     d = details(Observer(proj)(command))
     items = {i["path"] or i["name"]: i for i in d["scripts"]["items"]}
     assert (items["data/q.sql"]["copy"], items["data/q.sql"]["copy_reason"], items["data/q.sql"]["hash"]) == (
