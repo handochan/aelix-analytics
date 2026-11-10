@@ -1167,8 +1167,12 @@ def test_a_stray_enter_on_the_question_trusts_nothing(started_above):
 
 # A folder name with an ESC sequence, prompt_toolkit's \x01…\x02 escape marks and U+202E (right-to-left
 # override), and the characters of it the question must not show.
-UNSAFE_NAME = "evil\x1b[2J\x01x\x02\u202egnp"
-UNSAFE_CHARACTERS = "\x1b\x01\x02\u202e"
+if os.name == "nt":  # Windows refuses C0 controls in a file name; bidi controls it takes
+    UNSAFE_NAME, ALIKE_NAME = "evil\u202egnp\u2066x\u2069", "evil\u2066gnp\u202ex\u2069"
+else:
+    UNSAFE_NAME = "evil\x1b[2J\x01x\x02\u202egnp"
+    ALIKE_NAME = UNSAFE_NAME.replace("\x01x\x02", "\x02x\x01")
+UNSAFE_CHARACTERS = "\x1b\x01\x02\u202e\u2066\u2069"
 
 
 def shown(path) -> str:
@@ -1197,7 +1201,7 @@ def test_two_folder_names_shown_alike_stay_two_choices(started_above):
     """Two names that differ only in characters the question shows as `?` are two options, each
     activating its own folder."""
     module, repo, make = started_above
-    first, second = make(UNSAFE_NAME), make(UNSAFE_NAME.replace("\x01x\x02", "\x02x\x01"))
+    first, second = make(UNSAFE_NAME), make(ALIKE_NAME)
     assert shown(first) == shown(second)
     ui = FakeUI(lambda options: options[2])
     assert first_prompt(module, with_ui(ui)) is not None
