@@ -37,6 +37,15 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 - #161: 저장이 report ID를 거절할 때(`name_not_portable`) hint가 쓸 수 있는 예를 줍니다(`monthly_report` → `monthly-report`). run 안에서 부른
   kit 함수가 거절하면 그 hint가 run 오류의 `hint`(도구 응답의 `fix:` 줄)에도 남습니다. README의 스크립트 API에
   Report 저장과 `analytics reports save`·`list` 사용법이 있습니다.
+- #166: 도구와 명령의 응답도 Workspace를 report라 부르지 않습니다. `analytics_run`의 끝 줄이 `journal: e7 · report: …`에서
+  `journal: e7 · workspace: …`로, 빌드 실패 줄이 `report build failed:`에서 `Workspace build failed:`로, `analytics_init`의 `report:`와
+  `analytics_status`·`/analytics`·`analytics status` 글의 머리 줄 `report:`가 `workspace:`로, 같은 글의 읽지 못하는 기록 줄
+  `… not in the report`가 `… not in the Workspace`로, `/analytics render`의 `report rebuilt:`가 `Workspace rebuilt:`로, `/analytics init`·`demo`의
+  `Report:`가 `Workspace:`로, `/analytics` 도움말의 "rebuild the report"가 "rebuild the Workspace"로 바뀌었습니다. 실패한 run의 차트 경고는
+  `… stay out of the Workspace gallery`(전에는 `report gallery`)입니다. 이 경고는 run 기록(`run.json`의 `warnings`)에도 남으므로 이 변경 뒤의
+  run만 새 글이고 이전 run의 기록은 그대로입니다. 같은 0.32.1 번호라도 이 변경 전의 코드는 옛 표기를 냅니다(commit이나 run의
+  `env.kit_sha256`으로 구별). 저장 형식과 결과 JSON의 키는 그대로입니다. 저장소 도구 `tools/usage_report.py`는 run 응답의 옛 줄과 새 줄을 모두
+  읽습니다. 이 줄을 글자로 읽던 스크립트는 고쳐야 합니다.
 
 ### Fixed
 

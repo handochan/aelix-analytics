@@ -3303,7 +3303,7 @@ def _status_lines(st: dict, caps: dict[str, int]) -> list[tuple[str, str, bool]]
     add("head", f"project: {p['title']} ({p['root']})")
     if p.get("migration_hint"):
         add("head", OLDER_FORMAT_LINE)
-    add("head", f"report: {st['workspace']}")
+    add("head", f"workspace: {st['workspace']}")
     if p.get("older_project_above"):
         add("head", older_project_above_line(p["older_project_above"]))
     if p.get("write_refusal"):
@@ -3568,7 +3568,7 @@ def _records_lines(st: dict, journal: Path) -> list[str]:
         # unknown kind of a known version is not.
         newer = sum(1 for u in unsupported if u["reason"] == "unknown_version")
         out.append(f"unsupported: {len(unsupported):,} record(s) this kit cannot read are in no list "
-                   f"here and not in the report — {_places(places, STATUS_PLACES, EVERY_RECORD)}"
+                   f"here and not in the Workspace — {_places(places, STATUS_PLACES, EVERY_RECORD)}"
                    + ("; a newer kit may read them" if newer == len(unsupported) else
                       f"; a newer kit may read the {newer:,} of an unknown version" if newer else ""))
     damaged = st.get("damaged") or {}

@@ -81,7 +81,7 @@ cd ~/analyses/demo
 aelix -e $PACK/extension/aelix_analytics.py
 ```
 
-aelix 안에서: `/analytics`(현황) · `/analytics open`(리포트) · "지역별 성장률 차트에 플롯 데이터도 기록되게 고쳐줘" 같은 요청.
+aelix 안에서: `/analytics`(현황) · `/analytics open`(Workspace) · "지역별 성장률 차트에 플롯 데이터도 기록되게 고쳐줘" 같은 요청.
 
 직접 분석에 필요한 것: [uv](https://docs.astral.sh/uv/)(PATH 또는 `AELIX_ANALYTICS_UV`). Aelix 연동에는 추가로 aelix 0.1.0b2 이상이 필요합니다.
 지원 플랫폼은 Linux·macOS·Windows를 목표로 합니다. 측정한 조합(Windows는 Windows Server 2025의 한 구성)과 Windows의 한계, 아직 실행하지 않은 것(사람이 누른 콘솔 키, Windows의 실제 aelix 세션, 문서를 실제로 여는 프로그램 등)은 [현재 계약](docs/CONTRACTS.md)의 F·G절에 있습니다. Python·운영체제·aelix·설치 경로별로 실제 설치·실행한 범위와 그 증거는 [지원 범위](docs/SUPPORT.md)에 있습니다. Windows 콘솔의 Ctrl+C·Ctrl+Break는 의사 콘솔과 고전 콘솔에서 측정했습니다. Windows에서 알아 둘 것은 [Windows에서 쓸 때](#windows에서-쓸-때)에 있습니다.
@@ -251,7 +251,7 @@ PowerShell 안에서 실행한 `chcp 65001`은 PowerShell이 이미 읽어 둔 �
 1. 프로젝트 만들기: `/analytics init ~/analyses/q3-sales 3분기 매출` — 또는 모델에게 위치를 알려 주고 만들어 달라고 합니다(`analytics_init`).
 2. `CONTEXT.md`에 목표·핵심 질문·데이터 출처·정의를 채웁니다(사람이 직접 또는 모델에게 요청).
 3. "이 CSV를 가져와서 월별 추세를 봐줘" → 모델이 `analytics_import` → `analytics_query`로 탐색 → `scripts/01_*.py` 작성 → `analytics_run`.
-4. `/analytics open`으로 리포트를 열어 둡니다. run·import·메모가 생기면 **자동 새로고침**됩니다.
+4. `/analytics open`으로 Workspace를 열어 둡니다. run·import·메모가 생기면 **자동 새로고침**됩니다.
 5. 확정된 내용은 `analytics_record`(finding·decision·assumption·question·todo), 막히거나 우회가 필요했던 점은 `/analytics record workflow_feedback …`.
 
 ### 모델 도구
@@ -261,16 +261,19 @@ PowerShell 안에서 실행한 `chcp 65001`은 PowerShell이 이미 읽어 둔 �
 | `analytics_status` | 데이터셋·view 이름, 최근 run, 차트 최신 버전과 stale 여부, 열린 질문, 핵심 정보, 최근 journal | 없음 |
 | `analytics_query` | 데이터셋 view 위의 읽기 전용 DuckDB SQL 한 문장(SELECT/WITH/DESCRIBE/SUMMARIZE/EXPLAIN). 쓰기 문장과 `EXPLAIN ANALYZE`는 거절하고, 파일 접근을 `data/`로 제한합니다 | `.analytics/queries.jsonl` 로그만 |
 | `analytics_import` | CSV/TSV/JSON/NDJSON/Parquet → `data/imported/<name>.parquet`(불변), 원본 경로·sha256·스키마 기록 | 예 |
-| `analytics_run` | 스크립트 실행 + 코드 스냅샷·입력 해시·출력·차트·플롯 데이터·로그·환경 기록, 리포트 재생성. `rerun_of`로 재실행 비교 | 예 |
+| `analytics_run` | 스크립트 실행 + 코드 스냅샷·입력 해시·출력·차트·플롯 데이터·로그·환경 기록, Workspace 재생성. `rerun_of`로 재실행 비교 | 예 |
 | `analytics_record` | journal 기록(이전 `lab_note`): finding·decision·assumption·question·todo·note·resolve·workflow_feedback. `resolves`로 이전 질문·할 일을 닫고, 본문은 32 KiB까지 자르지 않음 | 예 |
 | `analytics_init` | 새 프로젝트 + uv 환경 (사용자가 요청했을 때만) | 예 |
 
 PNG 차트는 모델이 이미지 입력을 받을 때 `analytics_run` 결과에 이미지로도 붙습니다(모델이 자기 차트를 봅니다).
+도구와 `/analytics` 명령의 응답은 기록에서 다시 만드는 페이지를 Workspace로 부릅니다: `analytics_run`의 끝 줄 `journal: e7 · workspace: …`,
+`analytics_init`·`analytics_status`의 `workspace: …`, `/analytics render`의 `Workspace rebuilt: …`, `/analytics init`·`demo`의 `Workspace: …`
+(#166 전에는 `report: …`·`report rebuilt: …`·`Report: …`. 같은 0.32.1 번호의 이전 코드도 그렇습니다). Report는 따로 저장한 문서입니다([스크립트 API](#스크립트-api)).
 
 ### 사람 명령
 
 ```text
-/analytics                  현황              /analytics render | open      리포트 재생성 | 브라우저로 열기
+/analytics                  현황              /analytics render | open      Workspace 재생성 | 브라우저로 열기
 /analytics where            프로젝트·kit·uv   /analytics record KIND TEXT   사람 이름으로 journal 기록
 /analytics init DIR [제목]  새 프로젝트       /analytics record workflow_feedback TEXT   사용 중 부족하거나 어색했던 점 기록
 /analytics demo DIR         데모 프로젝트     /analytics context            프롬프트에 주입되는 맥락 블록 보기

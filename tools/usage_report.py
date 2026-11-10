@@ -1068,7 +1068,9 @@ CONTEXT_ITEM = re.compile(r"^- (?P<name>.*) \((?P<lines>\d+) lines\): read offse
                           r"limit (?P<limit>\d+)$")
 TOOL_CALL = re.compile(r"\bCall (?P<tool>[a-z_]+) for (?P<what>[^.]+)\.")
 RUN_MORE = re.compile(r"^  … and (?P<n>[\d,]+) more (?P<label>.+?) — the run page lists them all$")
-RUN_PAGE = re.compile(r"^journal: \S* · report: (?P<page>.+)$")
+# The run reply's page line: `workspace:` from kit 0.32.1 (#166), `report:` before, which the
+# transcripts measured earlier hold.
+RUN_PAGE = re.compile(r"^journal: \S* · (?:workspace|report): (?P<page>.+)$")
 IMAGES = re.compile(r"^images: (?P<shown>\d+) of (?P<total>\d+) chart PNG\(s\) attached below"
                     r"(?P<rest>; open the rest with the read tool at the paths above"
                     r"(?: and, for the (?P<unlisted>\d+) chart\(s\) not listed, at the paths in read "

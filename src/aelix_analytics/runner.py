@@ -1233,7 +1233,7 @@ def run_warnings(record: dict, project: core.Project | None = None) -> list[str]
                         "or literal paths, or declare inputs")
     if record["status"] != "ok" and charts:
         warnings.append(f"{len(charts)} chart(s) were recorded but the run is "
-                        f"{record['status']}, so they stay out of the report gallery")
+                        f"{record['status']}, so they stay out of the Workspace gallery")
     for chart in charts:
         if chart["kind"] == "matplotlib" and not chart.get("data"):
             warnings.append(f"chart {chart['id']}: plotted data not recorded "

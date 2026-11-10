@@ -335,7 +335,7 @@ def test_records_the_lists_cannot_show_are_counted_where_they_are(tmp_path):
     st, text = overview(p)
     assert len(st["unsupported"]) == 7 and st["unsupported"][0] == {"location": "journal:2",
                                                                     "reason": "unknown_kind"}
-    assert ("unsupported: 7 record(s) this kit cannot read are in no list here and not in the report — "
+    assert ("unsupported: 7 record(s) this kit cannot read are in no list here and not in the Workspace — "
             "journal:2 (unknown_kind), journal:3 (unknown_kind), journal:4 (unknown_kind), journal:5 "
             "(unknown_kind), journal:6 (unknown_kind) and 2 more (the kit's `status` command lists "
             "every one in its JSON)") in text

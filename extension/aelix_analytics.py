@@ -689,9 +689,9 @@ def render_run(project, value: dict, attached: tuple[int, int] | None = None) ->
     elif stderr:
         lines.append(f"stderr (not shown, the run is ok; the whole log: read {logs['stderr']})")
     page = project.root / value.get("page", "")
-    lines.append(f"journal: {value.get('event')} · report: {page}")
+    lines.append(f"journal: {value.get('event')} · workspace: {page}")
     if value.get("workspace_error"):
-        lines.append(f"report build failed: {value['workspace_error']}")
+        lines.append(f"Workspace build failed: {value['workspace_error']}")
     kept = core.unmanaged_line(value.get("workspace"))
     if kept:
         lines.insert(1, kept)  # near the top, so a cut reply keeps it (#163)
@@ -978,7 +978,7 @@ async def tool_init(args, ctx):
         lines.append(f"environment: synced from {detail} (DuckDB, Polars, PyArrow, matplotlib, plotly)")
     else:
         lines.append("environment: uv sync FAILED — runs will fail until it succeeds. uv said:\n" + detail)
-    lines += [f"report: {project.workspace_dir / 'index.html'}",
+    lines += [f"workspace: {project.workspace_dir / 'index.html'}",
               "next: fill CONTEXT.md (goal, questions, data sources), analytics_import the data, then write "
               "scripts/01_<topic>.py and analytics_run it."]
     return "\n".join(lines), {"project": str(project.root), "synced": synced,
@@ -2004,7 +2004,7 @@ HELP = """/analytics — Aelix Analytics project
   /analytics init DIR [title]   create a project + environment and make it active
   /analytics demo DIR           new project with synthetic data and example runs
   /analytics use DIR            make DIR the active project for this aelix process
-  /analytics render | open      rebuild the report | open it in the browser
+  /analytics render | open      rebuild the Workspace | open it in the browser
   /analytics build [--preview]  build privately or inspect a sharing preview
   /analytics build --list | --verify PATH | --zip-of ID --zip PATH
   /analytics publish --build ID --to FOLDER | --list  publish a build to a folder
@@ -2091,7 +2091,7 @@ async def analytics_command(args, ctx=None):
                     return render_error("/analytics demo", value)
             else:
                 await run_kit(project, ["render"], timeout=240, actor="human", means="command")
-            return (f"created {project.root} (active). Report: {project.workspace_dir / 'index.html'}"
+            return (f"created {project.root} (active). Workspace: {project.workspace_dir / 'index.html'}"
                     " — /analytics open to view it.")
         if sub == "use":
             if not rest:
@@ -2126,7 +2126,7 @@ async def analytics_command(args, ctx=None):
                     return (f"opened {index} (not updated: this kit reads {project.root} and does "
                             "not write to it; /analytics status says why)")
                 return f"opened {index}"
-            return f"report rebuilt: {index}" + (f"\n{kept}" if kept else "")
+            return f"Workspace rebuilt: {index}" + (f"\n{kept}" if kept else "")
         if sub == "build":
             project, _ = resolve_project()
             await asyncio.to_thread(core.readable, project, "inspect publication")

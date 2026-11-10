@@ -153,6 +153,15 @@ aelix는 세션을 만들 때마다(시작, `/new`, `/resume`, `/fork`, `/reload
 (`aelix.events`, 채널 `aelix-analytics:instance`)에서 응답하고, 뒤의 사본은 아무것도 등록하지 않고 stderr에 알립니다.
 이 확인이 없는 이전 버전의 사본은 응답하지 않으므로 감지되지 않습니다(G).
 분석 라이브러리는 전부 프로젝트 uv 환경의 자식 프로세스에서 돕니다.
+도구와 명령의 응답은 kit이 기록에서 다시 만드는 페이지를 Workspace라 부르고, 저장한 문서인 Report(C16)와 구별합니다(kit 0.32.1, #166):
+`analytics_run`의 끝 줄 `journal: e7 · workspace: <run 페이지>`와 Workspace 빌드가 실패했을 때의 `Workspace build failed: …`,
+`analytics_init`의 `workspace: <index.html>`, `analytics_status`·`/analytics`·kit `status` 글의 머리 줄 `workspace: <index.html>`과 읽지 못하는
+기록의 줄 `unsupported: … are in no list here and not in the Workspace — …`, `/analytics render`의 `Workspace rebuilt: <index.html>`,
+`/analytics init`·`demo`의 `created <root> (active). Workspace: <index.html> — …`, `/analytics` 도움말의 `rebuild the Workspace`, 실패한 run의
+차트 경고 `… stay out of the Workspace gallery`입니다. #166 전에는 모두 report였습니다(`report:`·`report build failed:`·`not in the report`·
+`report rebuilt:`·`Report:`·`rebuild the report`·`report gallery`). 같은 0.32.1 번호라도 #166 전의 코드는 옛 표기를 내므로 commit이나 run의
+`env.kit_sha256`으로 구별합니다. 차트 경고는 run 기록의 `warnings`에도 남아, 그 전의 run 기록은 옛 글 그대로입니다. 저장 형식과 결과 JSON의
+키(`workspace`·`workspace_error`, D)는 그대로이고, 저장소 도구 `tools/usage_report.py`는 run 응답의 옛 줄과 새 줄을 모두 읽습니다.
 
 ### A1. 모델에 가는 텍스트의 생략과 다시 읽을 위치
 

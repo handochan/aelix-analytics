@@ -957,7 +957,67 @@ def test_the_run_reply_and_render_say_what_the_build_left(lab, monkeypatch):
         return True, {"ok": True, "workspace": {"path": "workspace/index.html", "pages": 3, "build": "b", "unmanaged": left}}
     monkeypatch.setattr(module, "run_kit", kit)
     reply = asyncio.run(module.analytics_command("render"))
-    assert reply.startswith("report rebuilt: ") and line in reply and "analytics reports save" in reply
+    assert reply.startswith("Workspace rebuilt: ") and line in reply and "analytics reports save" in reply
+
+
+# How the replies called the Workspace before #166: `report:`/`Report:`, `report build failed:`,
+# `report rebuilt:`, the help's "rebuild the report", the status text's "not in the report" and a run
+# warning's "report gallery".
+OLD_WORKSPACE_WORDING = re.compile(r"\breport:|\breport build\b|\breport rebuilt\b|\bthe report\b"
+                                   r"|\breport gallery\b", re.IGNORECASE)
+
+
+def test_the_replies_call_the_workspace_the_workspace(lab, tmp_path, monkeypatch):
+    """#166: the tool and command replies call the pages the kit rebuilds from the records the
+    Workspace, not "the report" (a Report is a document saved as one): analytics_run's page line and
+    its failed build, analytics_init's page, analytics_status's and /analytics's text (its head line
+    and the line of records it cannot read), /analytics render's, init's and demo's answers and the
+    /analytics help."""
+    module, root = lab
+    project = module.core.Project(root)
+    # A record of a newer version, which this kit counts and lists nowhere: the status text's
+    # `unsupported:` line.
+    with open(root / "journal.jsonl", "ab") as journal:
+        journal.write(json.dumps({"schema": "analytics.event/9", "seq": 99, "id": "e99", "kind": "note",
+                                  "text": "x", "refs": []}).encode() + b"\n")
+    status = text_of(call(tools_of(module)["analytics_status"], {}))
+    by_hand = asyncio.run(module.analytics_command("status"))
+    for text in (status, by_hand):
+        assert f"workspace: {project.workspace_dir / 'index.html'}" in text.split("\n"), text
+        assert "this kit cannot read are in no list here and not in the Workspace" in text, text
+    value = {"run": {"id": "20260916-100727-01-build", "status": "ok", "duration_s": 1.0, "title": "t",
+                     "script": {"path": "scripts/01_build.py", "sha256": "a" * 64}},
+             "event": "e1", "page": "workspace/runs/x.html",
+             "workspace": {"path": "workspace/index.html", "pages": 3, "build": "b"}}
+    ran = module.render_run(project, value)
+    assert f"journal: e1 · workspace: {root / 'workspace/runs/x.html'}" in ran.split("\n")
+    failed = module.render_run(project, {**value, "workspace": None, "workspace_error": "no space left"})
+    assert "Workspace build failed: no space left" in failed.split("\n")
+
+    async def kit(project, argv, **options):
+        return True, {"ok": True, "workspace": {"path": "workspace/index.html", "pages": 3, "build": "b"}}
+
+    async def synced(project):
+        return True, "uv.lock"
+
+    monkeypatch.setattr(module, "run_kit", kit)
+    monkeypatch.setattr(module, "sync_environment", synced)
+    rebuilt = asyncio.run(module.analytics_command("render"))
+    assert rebuilt == f"Workspace rebuilt: {module.core.Project(root).workspace_dir / 'index.html'}"
+    assert "/analytics render | open      rebuild the Workspace | open it in the browser" in module.HELP
+    made = tmp_path / "made"
+    init = call(tools_of(module)["analytics_init"], {"path": str(made)})
+    assert not init.is_error, text_of(init)
+    assert f"workspace: {module.core.Project(made).workspace_dir / 'index.html'}" in text_of(init).split("\n")
+    created = {}
+    for sub in ("init", "demo"):
+        made = tmp_path / f"by-hand-{sub}"
+        created[sub] = asyncio.run(module.analytics_command(f"{sub} {made}"))
+        assert created[sub] == (f"created {made} (active). Workspace: "
+                                f"{module.core.Project(made).workspace_dir / 'index.html'} — /analytics open to "
+                                "view it."), created[sub]
+    for reply in (ran, failed, rebuilt, module.HELP, text_of(init), status, by_hand, *created.values()):
+        assert not OLD_WORKSPACE_WORDING.search(reply), reply
 
 
 def test_lab_import_takes_a_tilde_name_by_the_rule_lab_import_follows(lab, tmp_path, monkeypatch):
