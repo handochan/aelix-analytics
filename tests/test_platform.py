@@ -160,10 +160,15 @@ def test_absolute_record_path_does_not_ask_the_running_platform(recorded, absolu
 
 
 def test_a_project_directory_named_like_a_drive_is_linked_inside_the_project():
+    from urllib.parse import unquote  # noqa: PLC0415
+
     from aelix_analytics import workspace  # noqa: PLC0415
 
     site = object.__new__(workspace.Site)
-    assert site.file_link("c:/x.csv", 1) == "../../c:/x.csv"  # what main linked
+    link = site.file_link("c:/x.csv", 1)
+    # Relative, inside the project (what main linked as ../../c:/x.csv); since #168 the colon is
+    # percent-encoded too, so nothing reading the link can take `c:` for a scheme or a drive.
+    assert link == "../../c%3A/x.csv" and unquote(link) == "../../c:/x.csv"
 
 
 @pytest.mark.parametrize("recorded, ok", [

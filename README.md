@@ -326,7 +326,10 @@ analytics.save_report("q3-review", files="reports_out/q3", entry="index.html",
 report ID는 소문자 영숫자와 `-`만 씁니다(`q3_review`는 거절). 같은 Report의 다음 버전은 `previous_revision`(셸은 `--previous`)에
 지금 최신 버전의 `revision_id`를 줍니다. `analytics.reports("q3-review")["reports"]`(셸은 `analytics reports list`)에서 `head`가 참인 행의 값이며,
 한 번에 20개까지 읽으므로 이력이 길면 `next_offset`으로 이어 읽습니다. 저장한 버전은 고치지 않고 새 버전을 만듭니다.
-HTML은 Workspace 안에서 열어 보이지 않고 원본 다운로드로 제공합니다. 계약은 [C16](docs/CONTRACTS.md#c16-불변-report-저장등록버전-kit-0210-19-pr1)·[C19](docs/CONTRACTS.md#c19-workspace의-reports-탭과-페이지-kit-0250-19-pr3)입니다.
+HTML·SVG 보고서는 Workspace 페이지 안에 넣지 않고, Reports 탭의 그 행과 Report 페이지에서 보존한 원본을 **새 탭으로 엽니다**(첨부의 상대 경로가
+그대로 동작하고, 내려받기 링크도 있습니다). 보고서의 스크립트는 그 탭에서 돕니다. kit은 Workspace를 `file://`로 엽니다. 거기서도 브라우저는
+`file://` 페이지끼리 localStorage를 함께 써서, 보고서 스크립트가 Workspace의 보기 설정(화면 언어, live 새로 고침)을 읽고 바꿀 수 있습니다.
+Workspace를 로컬 HTTP 서버로 열면 그 스크립트가 Workspace와 같은 origin에서 돈다는 점에도 유의하세요. 계약은 [C16](docs/CONTRACTS.md#c16-불변-report-저장등록버전-kit-0210-19-pr1)·[C19](docs/CONTRACTS.md#c19-workspace의-reports-탭과-페이지-kit-0250-19-pr3)입니다.
 
 run을 시작한 명령(`analytics`, `bin/analytics`, aelix 도구)이 이 package를 run에 줍니다. kit 0.2.0 전의 이름 `import labkit as lab`은
 더는 import되지 않고, kit 0.3.0 전의 `analytics.note`·`analytics.chart`는 `analytics.record`·`analytics.visualize`가 되었습니다(인자 같음,

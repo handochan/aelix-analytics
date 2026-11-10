@@ -149,6 +149,9 @@ PR-1에서 import 전후와 반복 SDK 호출의 callable 보존을 확인한다
 Markdown은 원시 HTML 실행 없이 보기, HTML은 원본 보존과 별도로 script·원격 자원을 실행하지 않는 격리 보기 또는
 정적 미리보기/다운로드를 제공한다. 임의 HTML을 Workspace DOM에 삽입하지 않는다. PDF·Office·미지원 형식은
 다운로드와 metadata가 기본이다. 원본을 보기용으로 고쳐 쓰거나 지원하지 않는 오프라인 열람을 성공으로 표시하지 않는다.
+(2026-11-09 소유자 결정, [#168](https://github.com/handochan/aelix-analytics/issues/168): renderer는 그대로이고, Workspace는 HTML·SVG 원본을
+다운로드와 함께 새 탭으로도 연다. 격리 보기가 아닌 파일 열기이며 작성자의 스크립트는 그 탭에서 돈다. 현재 동작은
+[C19](../CONTRACTS.md#c19-workspace의-reports-탭과-페이지-kit-0250-19-pr3)이다.)
 #20의 형식 검사·제외 내용 검사·`report_not_shareable`을 우회하는 옵션을 이 renderer에 넣지 않는다.
 
 Reports 탭은 #99 병합 뒤 공통 버전 n/N·시각·이력·최신 안내·접힌 묶음을 사용한다.

@@ -13,7 +13,8 @@ scope), its evidence, its collection's members and its files; then the body.
   ReportRenderer makes it a document of its own, its Content-Security-Policy intact, from the
   version's preserved bytes only when they are the bytes its manifest names, beside a copy of those
   files for its links (the renderer takes no path outside its folder). The originals stay where the
-  records keep them (artifacts/reports/…), and the page links them there.
+  records keep them (artifacts/reports/…), and the page links them there; an HTML or SVG original
+  opens there in a tab of its own, as the file itself would (#168), and is never put in a page.
 - What people wrote (titles, summaries, purposes, member keys, reasons, scopes) is shown as written
   (lang=""); the kit's words are the catalog's.
 
@@ -45,8 +46,13 @@ FOLD_AFTER = 5
 # The problems that leave a version with no manifest to trust (ReadModel.report_histories): no body.
 MANIFEST_PROBLEMS = frozenset({"completion_mismatch", "manifest_unavailable", "unsupported_manifest"})
 # Originals a browser shows as data: any other (HTML, SVG, scripts, unknown) is linked to download,
-# never opened in place (C17: download only).
+# never opened in place (C17).
 INERT = frozenset({".md", ".markdown", ".txt", ".csv", ".tsv", ".json", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf"})
+# Documents a browser runs that open, as their original, in a tab of their own (#168; owner decision of
+# 2026-11-09): never in a Workspace page, the opener kept from them, a download beside. SVG is HTML's kin
+# here (the renderer's html_download_only names both): a document whose scripts run when it is opened.
+OPEN_IN_TAB = frozenset({".html", ".htm", ".svg"})
+NEW_TAB = ' target="_blank" rel="noopener noreferrer"'
 TEXT_ENTRY = (".md", ".markdown", ".txt")
 # The renderer's reasons for a version it has no body for (CONTRACTS: StaticReportRenderer): no document
 # is written, the page links the originals. Any other reason is said beside a document that is made.
@@ -124,6 +130,11 @@ class Reports:
             latest = versions[-1] if versions else None
             name = (f'<a href="{s.esc(self.link(rid, depth))}"{s.user_language}>{s.esc(self.title(rid))}</a>'
                     f' <small><code>{s.esc(rid)}</code></small>')
+            # An HTML or SVG Report opens from its row too (#168), unless its latest version is withdrawn:
+            # its page says so before it offers to open it.
+            opened = self.opened_entry(latest, depth) if latest and latest["state"] != "withdrawn" else None
+            if opened:
+                name += f' <small><a href="{s.esc(opened)}"{NEW_TAB}>{t("reports.open_tab")}</a></small>'
             if latest is None:
                 rows.append(f'<tr id="report-{s.esc(rid)}"><td>{name}</td><td>{t("reports.no_version")}</td><td></td>'
                             f'<td>{self.attempts_badge(history)}</td><td></td></tr>')
@@ -341,13 +352,34 @@ class Reports:
         files = version["manifest"].get("files")
         return [f for f in files if isinstance(f, dict) and f.get("path") != relations.REPORT_METADATA_FILE] if isinstance(files, list) else []
 
+    def opens_in_tab(self, version: dict, path: str) -> bool:
+        """Whether an original opens in a tab of its own (#168): HTML or SVG, of a version whose files
+        are the bytes its trusted manifest names — when a body document would be made from them. Any
+        other stays a download, as before."""
+        return (PurePosixPath(path).suffix.lower() in OPEN_IN_TAB and version["content"] == "resolved"
+                and version.get("problem") not in MANIFEST_PROBLEMS)
+
+    def opened_entry(self, version: dict, depth: int) -> str | None:
+        """The link that opens a version's entry in a tab of its own, when it is one that opens so: its
+        original where the records keep it (artifacts/reports/<id>/<revision>/content/), so the files
+        beside it are where its relative links look."""
+        entry = version["manifest"].get("entry")
+        if (not isinstance(entry, str) or not self.opens_in_tab(version, entry)
+                or entry not in {f.get("path") for f in self.user_files(version)}):
+            return None
+        return self.site.file_link(f'{version["directory"]}/content/{entry}', depth)
+
     def files_html(self, version: dict) -> str:
         """The body document, or why there is none, then each file: its original where the records
         keep it, its size and hash."""
         s = self.site
         view = self.views.get((version["report_id"], version["revision_id"])) or {"href": None, "reasons": ["not_rendered"]}
+        opened = self.opened_entry(version, 1)
         if view.get("href"):
             opener = f'<div class="workspace-actions"><a class="action" href="{s.esc(view["href"])}">{t("reports.view.open")}</a></div>'
+        elif opened:
+            opener = (f'<div class="workspace-actions"><a class="action" href="{s.esc(opened)}"{NEW_TAB}>'
+                      f'{t("reports.view.open_tab")}</a></div>')
         else:
             opener = ""
         reasons = "".join(f'<li>{s.words("reports.view.reason", r)}</li>' for r in dict.fromkeys(view.get("reasons") or []))
@@ -356,10 +388,16 @@ class Reports:
         rows = []
         for item in self.user_files(version):
             path = str(item.get("path"))
-            original = s.file_link(f'{version["directory"]}/content/{path}', 1)
+            original = s.esc(s.file_link(f'{version["directory"]}/content/{path}', 1))
             mark = f' <span class="badge tone-muted">{t("reports.file.entry")}</span>' if path == entry else ""
-            download = "" if PurePosixPath(path).suffix.lower() in INERT else " download"
-            rows.append(f'<tr><td><a href="{s.esc(original)}"{download}><code{s.user_language}>{s.esc(path)}</code></a>{mark}</td>'
+            name = f"<code{s.user_language}>{s.esc(path)}</code>"
+            if self.opens_in_tab(version, path):
+                link = (f'<a href="{original}"{NEW_TAB}>{name}</a>'
+                        f' <small><a href="{original}" download>{t("reports.file.download")}</a></small>')
+            else:
+                download = "" if PurePosixPath(path).suffix.lower() in INERT else " download"
+                link = f'<a href="{original}"{download}>{name}</a>'
+            rows.append(f'<tr><td>{link}{mark}</td>'
                         f'<td class="num">{s.fmt_bytes(item.get("bytes"))}</td><td class="sha">{s.short(item.get("sha256"), 12)}</td></tr>')
         head = "".join(f"<th>{t('reports.file.col.' + c)}</th>" for c in ("path", "size", "sha"))
         return (f'<section class="report-part"><h3>{t("reports.files")}</h3>{opener}{notes}'

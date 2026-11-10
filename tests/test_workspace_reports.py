@@ -24,7 +24,8 @@ import subprocess
 import sys
 from html import unescape
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote, urljoin, urlsplit
+from urllib.request import url2pathname
 
 import pytest
 from conftest import analytics_project, kit_env
@@ -222,9 +223,11 @@ def test_html_and_changed_files_get_no_body_document_and_say_why(reports):
     p, html, second = reports["p"], reports["html"], reports["second"]
     workspace.build(p)
     assert not (p.workspace_dir / "reports" / workspace_reports.view_folder("html-one", html["revision_id"])).exists()
-    words = text(page_of(p, "html-one"))
+    page = page_of(p, "html-one")
+    words = text(page)
     assert "HTML and SVG are not shown inside the Workspace: open or download the original." in words
-    assert "Open the report" not in words
+    # No body document: what opens is the original, in a tab of its own (#168), never the page's markup.
+    assert "preview/report.html" not in page and "Open the report in a new tab" in words and "alert(1)" not in page
     # A preserved file changed after it was saved: no body from bytes that are not the ones saved.
     target = p.root / "artifacts/reports/weekly" / second["revision_id"] / "content" / "요약.md"
     target.write_bytes(b"# tampered\n")
@@ -564,7 +567,8 @@ def test_the_comparison_counts_lines_and_puts_no_body_text_in_the_page(reports):
 
 
 def test_originals_a_browser_would_run_are_linked_to_download(reports):
-    """I7: an HTML original is never opened in place from the Workspace (C17: download only)."""
+    """I7: an HTML original is never opened in place from the Workspace; since #168 it also opens in a
+    tab of its own (test_an_html_report_opens_in_a_new_tab_from_its_page_and_its_row)."""
     p = reports["p"]
     workspace.build(p)
     assert re.search(r'<a href="[^"]*content/index\.html" download>', page_of(p, "html-one"))
@@ -579,3 +583,143 @@ def test_a_member_whose_version_is_withdrawn_says_so_now(reports):
     workspace.build(p)
     row = re.search(r'<tr id="m-[^"]+-1">(.*?)</tr>', page_of(p, "regions")).group(1)
     assert "Complete" in text(row) and "Exact version" in text(row) and "Withdrawn" in text(row)
+
+
+# --- #168: an HTML Report opens in a new tab (owner decision of 2026-11-09) ---------------------------
+
+NEW_TAB = 'target="_blank" rel="noopener noreferrer"'
+
+
+def links_to(page_file: Path, target: Path) -> list[tuple[str, str]]:
+    """The links of a Workspace page that a browser, on that page at its file:// address, takes to `target`:
+    (attributes, text). Resolved as a URL, so a `#` read as a fragment or a `%XX` read as an escape misses."""
+    html = page_file.read_text(encoding="utf-8")
+    base = page_file.resolve().as_uri()
+    found = []
+    for attributes, body in re.findall(r"<a ([^>]*)>(.*?)</a>", html):
+        href = re.search(r'href="([^"]+)"', attributes)
+        url = urlsplit(urljoin(base, unescape(href.group(1)))) if href else None
+        if url and url.scheme == "file" and Path(url2pathname(url.path)).resolve() == target.resolve():
+            found.append((attributes, body))
+    return found
+
+
+def test_an_html_report_opens_in_a_new_tab_from_its_page_and_its_row(reports):
+    """#168: an HTML Report opens as its preserved original in a tab of its own, from its page and from its
+    row in the Reports tab, with no opener and no referrer; the download link stays. Nothing of it is put
+    in a Workspace page and no copy of it is made."""
+    p, html = reports["p"], reports["html"]
+    workspace.build(p)
+    original = p.root / "artifacts/reports/html-one" / html["revision_id"] / "content" / "index.html"
+    page_file = p.workspace_dir / "reports" / workspace_reports.report_page("html-one")
+    links = links_to(page_file, original)
+    opens = [(a, body) for a, body in links if NEW_TAB in a]
+    downloads = [(a, body) for a, body in links if re.search(r"\bdownload\b", a)]
+    # The files' action and the file's own row open it; neither is a download.
+    assert len(opens) == 2 and not any("download" in a for a, _ in opens), links
+    assert text(opens[0][1]) == "Open the report in a new tab" and text(opens[1][1]) == "index.html"
+    assert len(downloads) == 1 and text(downloads[0][1]) == "Download" and "target=" not in downloads[0][0]
+    assert len(links) == 3
+    # The Reports tab: the HTML Report's row opens it too; a Markdown Report's row opens only its page.
+    index = p.workspace_dir / "index.html"
+    rows = dict(re.findall(r'<tr id="report-([^"]+)">(.*?)</tr>', section(index.read_text(encoding="utf-8"), "reports")))
+    row = [(a, body) for a, body in links_to(index, original) if NEW_TAB in a]
+    assert len(row) == 1 and "download" not in row[0][0] and text(row[0][1]) == "Open in a new tab"
+    assert NEW_TAB in rows["html-one"] and all(NEW_TAB not in rows[r] for r in ("weekly", "regions"))
+    # Opened as the file itself would be: the page holds none of its markup, and no copy is made.
+    assert "alert(1)" not in page_file.read_text(encoding="utf-8") and "alert(1)" not in index.read_text(encoding="utf-8")
+    assert not (p.workspace_dir / "reports" / workspace_reports.view_folder("html-one", html["revision_id"])).exists()
+    # A Markdown Report's body document keeps its Content-Security-Policy and opens in place.
+    weekly = p.workspace_dir / "reports" / workspace_reports.report_page("weekly")
+    assert NEW_TAB not in weekly.read_text(encoding="utf-8")
+    body = p.workspace_dir / "reports" / workspace_reports.view_folder("weekly", reports["second"]["revision_id"]) / "preview/report.html"
+    assert "Content-Security-Policy" in body.read_text(encoding="utf-8")
+
+
+def test_an_opened_reports_relative_links_reach_the_files_saved_with_it(reports, tmp_path):
+    """#168: the tab opens the original where the records keep it (artifacts/reports/<id>/<revision>/content/),
+    so the files saved with it — its CSS, images, another page — are where its relative links look."""
+    p = reports["p"]
+    folder = tmp_path / "첨부 있는 HTML"
+    (folder / "assets").mkdir(parents=True)
+    (folder / "pages").mkdir()
+    (folder / "보고서.html").write_text(
+        '<link rel="stylesheet" href="assets/style.css"><img src="assets/chart.png"><img src="%EA%B7%B8%EB%A6%BC.svg">'
+        '<a href="pages/detail.html">detail</a>', encoding="utf-8")
+    (folder / "assets" / "style.css").write_text("h1{color:red}", encoding="utf-8")
+    (folder / "assets" / "chart.png").write_bytes(bytes(range(16)))
+    (folder / "그림.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>', encoding="utf-8")
+    (folder / "pages" / "detail.html").write_text('<a href="../보고서.html">back</a>', encoding="utf-8")
+    version = save(p, "with-assets", folder, "보고서.html", "첨부가 있는 HTML")
+    workspace.build(p)
+    original = p.root / "artifacts/reports/with-assets" / version["revision_id"] / "content" / "보고서.html"
+    for page_file in (p.workspace_dir / "index.html", p.workspace_dir / "reports" / workspace_reports.report_page("with-assets")):
+        assert any(NEW_TAB in a for a, _ in links_to(page_file, original)), page_file.name
+    for opened in (original, original.parent / "pages" / "detail.html"):
+        refs = re.findall(r'(?:href|src)="([^"]+)"', opened.read_text(encoding="utf-8"))
+        assert refs and all((opened.parent / unquote(ref)).is_file() for ref in refs), (opened.name, refs)
+    # Every HTML or SVG the version saved opens so, with its download beside it.
+    page_file = p.workspace_dir / "reports" / workspace_reports.report_page("with-assets")
+    for name in ("pages/detail.html", "그림.svg"):
+        links = links_to(page_file, original.parent / name)
+        assert [NEW_TAB in a for a, _ in links] == [True, False] and "download" in links[1][0], (name, links)
+
+
+def test_an_svg_report_opens_so_too_and_one_whose_bytes_changed_only_downloads(reports, tmp_path):
+    """#168: an SVG Report opens as an HTML Report does (a document a browser runs, like HTML). A version
+    whose files are not the bytes saved opens nowhere: as with a body document, its originals only download."""
+    p, html = reports["p"], reports["html"]
+    folder = tmp_path / "svg"
+    folder.mkdir()
+    (folder / "chart.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"><text>1</text></svg>', encoding="utf-8")
+    save(p, "svg-one", folder, "chart.svg", "SVG 보고서")
+    (p.root / "artifacts/reports/html-one" / html["revision_id"] / "content" / "index.html").write_text("<h1>changed</h1>", encoding="utf-8")
+    workspace.build(p)
+    rows = dict(re.findall(r'<tr id="report-([^"]+)">(.*?)</tr>',
+                           section((p.workspace_dir / "index.html").read_text(encoding="utf-8"), "reports")))
+    assert NEW_TAB in rows["svg-one"] and NEW_TAB in page_of(p, "svg-one")
+    assert NEW_TAB not in rows["html-one"]
+    page = page_of(p, "html-one")
+    assert NEW_TAB not in page and re.search(r'<a href="[^"]*content/index\.html" download><code', page)
+    assert "Files changed since saved" in text(page)
+
+
+def test_a_file_name_with_a_hash_or_a_percent_is_linked_as_its_name(reports, tmp_path):
+    """#168 review: `#` and `%` are part of a saved file's name. `a#b.html` opens `a#b.html`, not `a`, and
+    `x%41.html` opens itself, not `xA.html`: the open links, the download links and the links of files
+    a browser shows in place alike (main's download links missed them too)."""
+    p = reports["p"]
+    folder = tmp_path / "odd"
+    folder.mkdir()
+    for name in ("a#b.html", "x%41.html", "표#1.csv", "xA.html", "a"):
+        (folder / name).write_text(f"<h1>{name}</h1>", encoding="utf-8")
+    version = save(p, "odd-names", folder, "a#b.html", "이름이 특이한 HTML")
+    workspace.build(p)
+    content = p.root / "artifacts/reports/odd-names" / version["revision_id"] / "content"
+    page_file = p.workspace_dir / "reports" / workspace_reports.report_page("odd-names")
+    shape = {"a#b.html": [True, True, False], "x%41.html": [True, False], "표#1.csv": [False]}
+    for name, opens in shape.items():
+        links = links_to(page_file, content / name)
+        assert [NEW_TAB in a for a, _ in links] == opens, (name, links)
+        assert all("download" in a for a, _ in links if NEW_TAB not in a and name.endswith(".html"))
+    # Each link reaches its own file: `xA.html` and `a` have their own row each, and no other.
+    assert len(links_to(page_file, content / "xA.html")) == 2 and len(links_to(page_file, content / "a")) == 1
+    row = links_to(p.workspace_dir / "index.html", content / "a#b.html")
+    assert [NEW_TAB in a for a, _ in row] == [True]
+
+
+def test_a_withdrawn_latest_version_opens_from_its_page_not_from_its_row(reports):
+    """#168 review (coordinator's choice): the Reports tab's row offers no new tab for a Report whose latest
+    version is withdrawn; its page says it is withdrawn and still opens it."""
+    p, html = reports["p"], reports["html"]
+    core.update_report(p, "html-one", html["revision_id"], expected="current", new="withdrawn", reason="틀림", origin=HUMAN)
+    workspace.build(p)
+    original = p.root / "artifacts/reports/html-one" / html["revision_id"] / "content" / "index.html"
+    index = p.workspace_dir / "index.html"
+    rows = dict(re.findall(r'<tr id="report-([^"]+)">(.*?)</tr>', section(index.read_text(encoding="utf-8"), "reports")))
+    assert "Withdrawn" in text(rows["html-one"]) and NEW_TAB not in rows["html-one"]
+    assert not any(NEW_TAB in a for a, _ in links_to(index, original))
+    page_file = p.workspace_dir / "reports" / workspace_reports.report_page("html-one")
+    page = page_file.read_text(encoding="utf-8")
+    assert page.index("The latest version of this Report is withdrawn.") < page.index("Open the report in a new tab")
+    assert [NEW_TAB in a for a, _ in links_to(page_file, original)] == [True, True, False]
