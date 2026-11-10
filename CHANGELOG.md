@@ -121,7 +121,7 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   run 기록의 순서대로 있습니다(JavaScript 없이 열림). 전에는 입력 경로를 모두 펼쳐 입력이 많은 카드가 경로 목록이 됐습니다. run 페이지의
   입력 표와 다른 상세 페이지의 목록은 #172 그대로입니다. Overview의 Current insights·Open questions는 긴 글(126열, 한국어 약 63자 또는 세 줄을
   넘는 글)의 앞부분과 `…`, `Show more`(`더 보기`)를 보이고, 네이티브 `<details>`라 스크립트 없이 펼쳐 글 전체를 봅니다. 종류·상태 배지·참조 배지·
-  관계 링크는 그대로 보이고, 패널당 6개와 다른 목록의 글은 그대로입니다. fixture S의 첫 HTML은 323,685 B에서 331,929 B(+2.5%)입니다.
+  관계 링크는 그대로 보이고, 패널당 6개와 다른 목록의 글은 그대로입니다. 첫 HTML은 fixture S +2.5%, M +2.1%이고, 바뀐 페이지는 index와 시각화 목록 페이지뿐입니다.
 - #171: telemetry(`.analytics/telemetry.jsonl`)의 bash `summary`는 관찰과 같은 규칙으로 가린 뒤 앞 300자를 남깁니다. 이미 쓴 줄은 그대로입니다.
   `analytics_status` 끝에 붙던 telemetry 수 안내(`python was run through bash N time(s)`)는 관찰의 줄로 바뀌었습니다.
 - #171: run의 출력 비교가 관찰과 같은 상태 비교(`tree_state`)를 씁니다. 크기·mtime이 같고 정체성만 바뀐 파일(`rsync -a`의 교체)도 출력으로 남기고
