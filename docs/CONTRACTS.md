@@ -12,8 +12,9 @@ Aelix Analytics가 현재 **약속하는 것과 약속하지 않는 것**의 전
 | `register_tool` × 6 | `analytics_status`, `analytics_query`, `analytics_import`, `analytics_run`, `analytics_record`, `analytics_init` — 모두 `execution_mode="sequential"`, 스키마는 `pattern` 없는 평범한 JSON Schema, `prompt_snippet`·지침은 줄마다 200자 이하 |
 | `register_command("analytics")` | 사람 명령(`/analytics`) |
 | `on("before_agent_start")` | `BeforeAgentStartResult(system_prompt=기존 + 맥락 블록)` — 그 요청에만 적용, 누적되지 않음 |
-| `on("tool_execution_start" / "tool_execution_end")` | 모든 도구 호출을 `.analytics/telemetry.jsonl`에 기록(이 kit이 쓰는 프로젝트에서만, B "표식 판정과 쓰기". kit 0.8.0 전에는 `.lab/telemetry.jsonl`) |
-| `on("tool_result")` | kit을 거치지 않고 Python을 돌린 bash 결과(C5의 `python_via_bash` 판정)에만, 활성 프로젝트가 있고 이 kit이 쓰는 프로젝트일 때 `ToolResultPatch(content=원래 블록 + 글 블록 하나)`: 그 실행은 기록되지 않았고, 분석 단계였으면 `analytics_run`(셸에서는 `analytics run scripts/x.py --title "…"`)으로 다시 실행하면 기록된다는 한 줄. 한 세션의 첫 번은 길게, 그 뒤는 짧게. 막지 않고, 원래 블록·`is_error`·`details`는 그대로. 나머지 결과에는 돌려주지 않음(kit 0.32.1, #170) |
+| `on("tool_execution_start" / "tool_execution_end")` | 모든 도구 호출을 `.analytics/telemetry.jsonl`에 기록(이 kit이 쓰는 프로젝트에서만, B "표식 판정과 쓰기". kit 0.8.0 전에는 `.lab/telemetry.jsonl`). bash 명령의 `summary`는 가린 뒤 자름(kit 0.32.1, C5·C22). `tool_execution_end`는 `tool_result`가 오지 않은 호출(다른 확장이 막음, 취소)에 `tool_call`이 남긴 관찰의 시작을 버림 |
+| `on("tool_call", error_mode="continue")` | 이 kit이 쓰는 활성 프로젝트에서 bash 호출마다(줄 전체가 kit 명령줄 하나인 것은 빼고) 관찰의 시작: journal의 끝, 명령이 가리킨 스크립트의 바이트, 프로젝트 파일의 상태를 2초 안에 별도 스레드에서 봄. 막지 않음(kit 0.32.1, #171, C22) |
+| `on("tool_result", error_mode="continue")` | bash 결과마다 관찰의 끝과 기록(3초 안, C22), 그리고 결과 끝의 글 블록 하나(`ToolResultPatch(content=원래 블록 + 글 블록 하나)`): kit을 거치지 않고 Python을 돌린 결과(C5의 `python_via_bash` 판정)에는 그 실행은 run으로 기록되지 않았고 분석 단계였으면 `analytics_run`(셸에서는 `analytics run scripts/x.py --title "…"`)으로 다시 실행하면 기록된다는 한 줄(한 세션의 첫 번은 길게, 그 뒤는 짧게)에 관찰된 활동의 id(`Observed as eN: …`)나 기록하지 못한 사유를 덧붙임. 그 밖의 명령에는 그 창에 바뀐 파일을 run이나 가져오기가 기록하지 않았을 때만 그 사실과 id(그 명령이 썼다고 말하지 않음). 그 세션의 변경 관찰을 끈 호출에는 그 사실을 한 번. 활성 프로젝트가 없거나 이 kit이 쓰지 않는 프로젝트에서는 아무것도 하지 않음. 막지 않고, 원래 블록·`is_error`·`details`는 그대로(kit 0.32.1, #170·#171) |
 | `on("agent_end")` | 분리된 프로세스로 `render --if-changed` 시작(이 kit이 쓰는 프로젝트에서만) |
 | `on("user_bash")` | 사람의 `!`·`!!` 명령 가운데 aelix가 그 줄을 돌릴 셸로 읽어 줄 전체가 kit 명령 하나인 것(아래 "aelix 안의 작성 주체")에만 `UserBashResult(operations=…)`: aelix의 로컬 셸(`aelix_coding_agent.tools.bash.create_local_bash_operations`, 환경을 주지 않으면 `aelix_coding_agent.util.shell_env.get_shell_env`)에 그 명령의 환경에만 `AELIX_ANALYTICS_ACTOR=human`을 더한 것. 나머지 명령에는 결과를 돌려주지 않음(kit 0.8.0) |
 | aelix 프로세스의 `os.environ` | `setup()`이 `AELIX_ANALYTICS_ACTOR=agent`를 넣고(있던 값을 덮음) `AELIX_ANALYTICS_SESSION`을 지우며, `before_agent_start`가 그 세션의 파일 경로로 바꿈(없으면 지움)(kit 0.8.0) |
@@ -28,7 +29,9 @@ manifest는 설치본이 aelix에 자기를 밝히는 데만 씁니다: `id = "a
 (`aelix -e`·symlink)는 manifest 없이 로드됩니다.
 확장은 aelix 프로세스 안에서 stdlib와 aelix API, 그리고 실행 루트(kit 디렉터리: package `aelix_analytics`를 담은 디렉터리, D)의
 `aelix_analytics/core.py`와 그 형제 `aelix_analytics/_platform.py`·`aelix_analytics/relations.py`(기록을 ADR-0006대로 읽는 읽기 모델, E)·
-`aelix_analytics/writer.py`(표식 판정과 쓰기 게이트, kit 0.7.0부터. kit 0.8.0부터 새 형식의 공통 writer도)(넷 다 stdlib 전용)만 import합니다.
+`aelix_analytics/writer.py`(표식 판정과 쓰기 게이트, kit 0.7.0부터. kit 0.8.0부터 새 형식의 공통 writer도), 그리고 `core`가 가져오는 그 밖의
+stdlib 전용 형제(자산·checkpoint·publication 관찰, kit 0.32.1부터 관찰된 활동의 `aelix_analytics/observed.py`와 run과 함께 쓰는 파일 상태의
+`aelix_analytics/tree_state.py`, C22)만 import합니다.
 설치본에서는 그 앞에 package `aelix_analytics`와 `aelix_analytics._install`(실행 루트의 위치)이 import됩니다. kit 0.2.0부터 이
 package가 kit 전체이지만, 그 `__init__`은 모듈 수준에서 stdlib만 import합니다: SDK 함수의 정의뿐이고 kit 모듈은 함수를 부를 때,
 `core`는 `__version__`을 물을 때 import됩니다. 그래서 aelix 프로세스의 `aelix_analytics.*`는 package와 `_install`·`extension`뿐입니다.
@@ -241,7 +244,8 @@ kit 0.11.0의 같은 기준에 묶인 cursor·다음 페이지·부분 조회는
 `analytics status --part records --query '반품률 야간 배송'`처럼 같은 기능을 씁니다. 부분 조회는 맥락을 자동 동기화하거나
 새 journal 기록을 남기지 않습니다. 검색 캐시의 부수 쓰기도 먼저 표식 gate를 통과합니다.
 
-- `records`: 읽을 수 있는 journal의 ID·전체 JSON 필드에 대해 NFC/casefold 리터럴 단어를 AND 검색합니다. `kind`·재생한
+- `records`: 읽을 수 있는 journal의 ID·전체 JSON 필드에 대해 NFC/casefold 리터럴 단어를 AND 검색합니다. `kind`(관찰된 활동은
+  `kind=observed_activity`, C22)·재생한
   `state`·포함하는 기록 시각 `since`/`until`(UTC offset이 있는 ISO timestamp)로 좁힙니다.
   기간 필터는 offset이 있는 읽을 수 있는 기록 시각만 비교하며, 그 범위는 `time_filter_scope`로 밝힙니다. 시각 미확인 기록은 ID·기간 없는 조회로 읽습니다. 어휘·현재 상태·근거 존재가 순위를 정하고, 동점에서는 가장
   오래된 것과 최신 것을 번갈아 보여 줍니다. 의미 검색은 없습니다. 요약(240자)의 생략은 `summary_omitted`·`text_chars`로
@@ -488,7 +492,7 @@ kit CLI, SDK, 확장, init·데모, run·가져오기·맥락 동기화가 남�
 | `schema` | `analytics.event/2` |
 | `seq`, `id` | 1부터 증가하는 번호와 `e<seq>`. 프로젝트 파일 잠금(`.analytics/lock`) 안에서 그때의 journal을 읽어 배정합니다: 파싱하거나 복구한 모든 줄(모르는 가족·버전·kind의 줄과 `lab.event/1` 줄 포함)의 가장 큰 seq 다음 값입니다(ADR-0006 6절). 끊긴 줄에 글자로 남은 seq는 세지 않습니다. 그 쓰기는 끝나지 않아 id를 돌려준 적이 없고, reader는 그 줄에서 id를 읽지 않습니다. 그래서 다음 기록이 그 번호를 받을 수 있지만 같은 id의 두 기록으로 읽히지는 않습니다. 읽히는 줄이 그 번호의 id를 이미 가지고 있으면(손으로 고친 줄: seq가 정수가 아니거나(`"3"`, `3.0`, `true`) id의 번호와 다름) 그 번호를 건너뛰고 다음 번호를 받습니다. kit 0.5.0의 #49 수정 전에는 읽히는 마지막 줄의 seq 다음 값이었습니다 |
 | `recorded_at` | 로컬 시간대 ISO 8601(밀리초). `lab.event/1`의 `ts` |
-| `kind` | kit 자신의 기록 `project` `import` `run` `context`와 사람·에이전트의 기록 `finding` `decision` `assumption` `question` `todo` `note` `workflow_feedback` `resolve`(`writer.RECORD_KINDS`). 기록하는 진입점에 준 `gap`은 쓰지 않고 `bad_kind`(`details.use: workflow_feedback`)입니다. kit 0.9.0은 `metric_definition`·`analysis_focus`·`metric_observation`도 구조화 details로 씁니다(C6). kit 0.10.0은 `asset_candidate`·`asset_check`·`asset_effect`를 받고 자산 응용 기능이 requested `asset_notification`·승격 `record_update`를 씁니다(C7). kit 0.12.0은 사람의 프로젝트 `asset_mode`·automatic `asset_notification`과 새 거절/보류 requirements snapshot을 응용 기능에서 씁니다(C8). kit 0.13.0은 사람의 session asset_mode와 Aelix context/status automatic asset_notification을 응용 기능에서 씁니다(C9). 게시 등 그 밖의 종류는 읽기만 합니다. 다만 kit 0.30.0은 게시 시도의 `publish_attempt`·`publish_receipt`를 `analytics publish`만 씁니다(D6). |
+| `kind` | kit 자신의 기록 `project` `import` `run` `context`와 사람·에이전트의 기록 `finding` `decision` `assumption` `question` `todo` `note` `workflow_feedback` `resolve`(`writer.RECORD_KINDS`). 기록하는 진입점에 준 `gap`은 쓰지 않고 `bad_kind`(`details.use: workflow_feedback`)입니다. kit 0.9.0은 `metric_definition`·`analysis_focus`·`metric_observation`도 구조화 details로 씁니다(C6). kit 0.10.0은 `asset_candidate`·`asset_check`·`asset_effect`를 받고 자산 응용 기능이 requested `asset_notification`·승격 `record_update`를 씁니다(C7). kit 0.12.0은 사람의 프로젝트 `asset_mode`·automatic `asset_notification`과 새 거절/보류 requirements snapshot을 응용 기능에서 씁니다(C8). kit 0.13.0은 사람의 session asset_mode와 Aelix context/status automatic asset_notification을 응용 기능에서 씁니다(C9). 게시 등 그 밖의 종류는 읽기만 합니다. 다만 kit 0.30.0은 게시 시도의 `publish_attempt`·`publish_receipt`를 `analytics publish`만 씁니다(D6). kit 0.32.1은 `observed_activity`를 확장의 bash 관찰만 씁니다(C22: `analytics record`·SDK·모델 도구에서는 `bad_kind`). |
 | `actor`, `actor_basis`, `means` | 작성 출처(`Origin`): 작성 주체(`agent` `human` `system` 등), 진입점이 그것을 알거나 선언받았는지(`declared`) 선언이 없어 `human`으로 본 것인지(`inferred`), 실행 수단(`cli` `sdk` `tool` `command` `hook`). 진입점마다의 값은 아래 "작성 출처"와 A |
 | `session` | aelix 세션 파일 경로(있을 때) |
 | `request_id` | 부른 쪽이 요청 id를 넘긴 쓰기에만 있습니다. 공개 진입점은 그 입력을 열지 않았으므로(#19) 지금은 쓰기의 응답에만 있습니다(D) |
@@ -559,7 +563,7 @@ kit 0.8.0부터 이 kit이 쓰는 run 기록은 `analytics.run/2`([기록 schema
 | `script` | `{path, sha256, snapshot}` — 실행한 바이트의 sha256과 스냅샷 경로 |
 | `modules[]` | 실행 중 import된 프로젝트 안 `.py`의 `{path, sha256, snapshot}` |
 | `inputs[]` | `{path, sha256, bytes, via[], external}` — `path`는 경로 정체성(E). sha256은 런타임 읽기면 **읽은 시점**, 정적 스캔·선언이면 run 시작 시점의 내용. `via`: `polars.*` `duckdb.*` `analytics.read` `analytics.scan` `analytics.sql` `scan` `declared`. `external`은 정체성이 프로젝트 밖(절대 경로)일 때만 참입니다: 밖을 가리키는 링크 아래의 파일과 밖을 가리키는 파일 링크는 거짓 |
-| `outputs[]` | `{path, change: created/modified/deleted, bytes, sha256, rows?, schema?, via: analytics.save/diff, outside_data?}` — `path`는 경로 정체성, `outside_data`는 그것이 `data/`로 시작하지 않을 때 |
+| `outputs[]` | `{path, change: created/modified/deleted, bytes, sha256, rows?, schema?, via: analytics.save/diff, outside_data?}` — `path`는 경로 정체성, `outside_data`는 그것이 `data/`로 시작하지 않을 때. 실행 전후 상태의 비교는 관찰된 활동과 같은 `tree_state.py`이며(C22), kit 0.32.1(#171)부터 크기·mtime이 같고 정체성(`st_ino`)만 바뀐 파일도 `modified`로 바이트를 다시 읽어 해시하고(해시 캐시는 크기·mtime만 보아 바뀌기 전 바이트를 줄 수 있음), 뒤 walk가 나열했지만 stat하지 못한 파일은 지운 것으로 적지 않고 뺍니다. 정체성이 호출마다 달라지는 파일 시스템(일부 FUSE·네트워크 마운트)에서는 바뀌지 않은 파일도 출력으로 보입니다(한계) |
 | `visualizations[]` | C3 |
 | `error` | `{type, message, line, summary}` — `line`은 스크립트 안의 마지막 traceback 줄 |
 | `finalize_errors` | 기록 단계(출력 수집·모듈 스냅샷·환경·journal·note·run 기록 등)에서 실패한 항목. run의 응답에 있고, 마지막 run 기록을 쓸 수 있으면 거기에도 있습니다 |
@@ -618,7 +622,11 @@ kit 0.8.0부터 이 kit이 쓰는 가져오기 기록은 `analytics.dataset/1`([
 보조 로그는 `.analytics/` 아래에 있습니다(kit 0.8.0 전과 `lab.json` 프로젝트는 `.lab/`. 화면은 두 곳을 함께 읽습니다).
 
 - `.analytics/telemetry.jsonl`: `{ts, tool, ms, error, summary, flags[], session}` — `summary`는 bash 명령 앞 300자,
-  write·edit·read 경로, `analytics_*` 주요 인자. `flags`: `python_via_bash`, `wrote_managed_path`.
+  write·edit·read 경로, `analytics_*` 주요 인자. `flags`: `python_via_bash`, `wrote_managed_path`. kit 0.32.1부터(#171, ADR-0015 OQ6) bash 명령은
+  관찰된 활동과 같은 가림 규칙(C22)을 명령 전체에 적용한 뒤 앞 300자를 남깁니다(값의 닫는 따옴표가 어디에 있든). 256 KiB를 넘는 명령은
+  요약 대신 `[not kept: N characters]`만 남깁니다. 그 전에 쓴 줄은
+  고쳐 쓰지 않습니다(append-only). 새 템플릿의 `.gitignore`는 이 파일을 빼지 않으므로 그 전의 가리지 않은 명령은 git에 남아 있을 수 있습니다.
+  bash 호출의 관찰을 건너뛰었거나 그 기록을 쓰지 못했으면 그 줄에 `observation_skipped`(사유: `busy` 등, C22)가 있습니다.
   `python_via_bash`는 Python(`python`·`uv run`·`pip`·`ipython`·`jupyter`)을 부르고 kit이 아닌 bash 명령입니다. kit 0.32.1부터(#170) 확장은 명령을
   POSIX 셸처럼 단순 명령으로 나눠(`;`·`&`·`|`·`(`·`)`·새 줄, 따옴표·이스케이프, 주석, here-document의 본문은 그것을 연 명령의 것, 리디렉션과
   그 대상은 낱말이 아님) kit 진입점을 부르는 단순 명령 — 프로그램 `analytics`(`bin/analytics` 등 경로 포함, 변수 대입·`env` 등과 `uv run`의 알려진
@@ -1287,6 +1295,100 @@ Workspace를 다시 빌드할 때 kit은 자기가 만든 것만 지웁니다. �
   막거나 실패시키지 않습니다. `--if-changed`가 건너뛴 빌드는 알리지 않습니다.
 - 한계: 기록에서 사라진 Report 버전의 폴더 가운데 표식을 쓰기 전에 멈춘 것은 남고 알림에 듭니다. `workspace/` 최상위와 `.html`이 아닌
   파일은 전에도 지우지 않았습니다. 남긴 파일은 Workspace에 보이지 않고, 기본 `.gitignore`가 `workspace/`를 제외하므로 git에도 남지 않습니다.
+
+### C22. 관찰된 활동 (kit 0.32.1, #171)
+
+[ADR-0015](decisions/0015-observed-activity-outside-the-kit.md)의 쓰기와 최소 읽기입니다. 관찰된 활동(`observed_activity`)은 활성 프로젝트에서
+모델이 aelix `bash` 도구로 실행했고 kit이 run으로 기록하지 않은 명령 하나를 확장이 그 호출의 앞뒤에서 본 기록입니다. 남기는 것은 가린 명령 글,
+관찰 창의 시각, 그 창에 바뀐 파일, 명령이 가리킨 스크립트의 바이트입니다. 입력·환경·출력은 남기지 않으며 run이 아닙니다(재실행·`rerun_of`·
+확정 연결의 대상이 아님). 쓰기는 확장(`tool_call`·`tool_result`, A)이 stdlib 전용 `observed.py`를 별도 스레드에서 부르고, 기록은 공통 writer의
+operation `observe`로만 씁니다.
+
+- **기록 조건**: 활성 프로젝트가 이 kit이 쓰는 프로젝트이고(`admit(side=True)`: 읽기 전용·옛 형식·전환 미완료·표식 충돌이면 상태를 보지도 쓰지도
+  않음), 도구가 `bash`이며 `tool_result`가 왔고, 다음 가운데 하나가 참일 때: `analysis_command` — C5의 판정으로 kit을 거치지 않은 Python이 있고 그
+  Python 단순 명령이 모두 패키지·환경 관리나 버전 조회(`pip`·`uv pip|sync|add|remove|lock|venv`·`python -m pip`·`--version`·`-V`)는 아니며,
+  aelix 작업 디렉터리가 프로젝트 안이거나 명령이 프로젝트 안의 파일을 가리킴. 나누어 읽지 못한 줄은 C5처럼 글 전체로 판정하고 관리 명령으로
+  빼지 않습니다. `changes` — 관찰 범위에서 바뀐 파일 가운데 같은 창의 run·가져오기로 설명된다고 확인되지 않은 것(`unexplained`·`unknown`)이 있음.
+  `observation_off` — 그 세션의 변경 관찰이 꺼졌고 아직 어느 관찰도 그것을 기록하지 않았음(끈 호출이 기록을 남기지 못했으면 그 세션의
+  다음 관찰이 기록합니다). 앞뒤 상태를 아예 보지 않는 것은 줄 전체가 kit 명령줄 하나(`analytics`·`bin/analytics`·
+  `python -m aelix_analytics`, `uv run`과 그 옵션 포함, `-c` 없음)일 때뿐입니다. 다른 확장이 막았거나 취소로 `tool_result`가 오지 않은 호출은 기록하지
+  않고 남은 앞 상태를 `tool_execution_end`·`agent_end`에서 버립니다. write·edit 도구와 사람의 `!` 명령은 관찰하지 않습니다.
+- **형식**: `analytics.event/2`의 `kind: observed_activity`, `actor: system`·`actor_basis: declared`·`means: hook`·`session`(그 aelix 세션), `refs: []`.
+  `text`는 `Observed outside the kit: bash "<가린 명령 앞 160자>" — N files changed while it ran`(바뀐 것을 보지 못했으면 `— changes not observed`,
+  300 bytes 이하). `details`는 [기록 schema](schemas/analytics-records.schema.json)의 `observed_activity_details`(`contract: observed_activity/1`)이고
+  모든 필드가 필수입니다: `activity_id`(`act-`와 소문자 ULID), `performer`(`{actor: agent, tool: bash, tool_call_id}`), 관찰 창의 `started_at`·
+  `ended_at`·`duration_ms`(명령 자체의 시작·끝이 아님), `cwd`(프로젝트 상대 경로, 루트는 `.`; 밖이면 `null`과 `cwd_outside: true`),
+  `command`(가린 글의 인라인 4 KiB, 가린 전문의 `bytes`·`sha256`, `inline_complete`·`truncated`·`changed_after_start`, `redaction`), `result`
+  (`is_error`·`exit_code`: aelix가 준 것만), `reasons`, `window`(`seq_before`·`seq_after`: 창 앞뒤 journal의 마지막 완료 줄 seq), `changes`, `scripts`,
+  `mentioned`, `session_observation`(`on`·`off`), `captures`(첨부마다 `{path, role, bytes, sha256}`).
+- **첨부**: 긴 명령 글(`command.txt`, 가린 전문 1 MiB까지), 인라인 12 KiB를 넘는 변경 목록(`changes.json`, 10,000개까지), 3 KiB·2 KiB를 넘는
+  스크립트·언급한 파일 목록(`files.json`), 스크립트 사본(`scripts/<정체성 경로>`)은 `.analytics/observed/<activity_id>/`를 배타적으로 만들어 먼저
+  쓰고, 그다음 journal 잠금 안에서 이벤트를 덧붙입니다. **이벤트가 커밋 지점**이며 이벤트 없는 폴더는 개수·읽기에 쓰지 않습니다. 이벤트가
+  없다고 확실할 때(커밋 시작 전, 줄을 쓰기 전의 거절)만 자기 폴더를 지웁니다. 줄을 쓰기 시작한 뒤의 오류(쓰기가 끊김, 잠금 해제 실패)는
+  폴더를 남기고 결과를 `unconfirmed`로 둡니다(이벤트가 있으면 그것이 가리킴). 직렬화한 `details`가 24 KiB를 넘으면 수와 첨부 digest만 둔 최소 details로 쓰고 목록은 첨부에 둡니다.
+  `.analytics/observed/`는 새 템플릿의 `.gitignore`에 없으므로 git이 추적하는 프로젝트 이력입니다.
+- **앞뒤 상태**: run의 출력 비교와 같은 이름 공간·규칙(`tree_state.py`: 관리 영역·`scripts/`·프로젝트 자신의 파일과 표식을 뺀 모든 파일, 링크 경계
+  포함)으로 `{정체성 경로: (크기, mtime_ns, st_ino)}`를 비교합니다(`st_ino`가 0이면 그 칸은 비교하지 않음). 창에서 생기거나 없어진 경계는
+  `links_changed`로 세고 그 아래 파일을 run과 같은 규칙으로 다룹니다. 앞에 있던 파일의 뒤 stat이 없음 말고 다른 오류로 실패하면 `unreadable`이며
+  `deleted`가 아닙니다(앞에도 stat하지 못한 파일은 변경이 아님). 정체성(`st_ino`)이 호출마다 달라지는 파일 시스템(일부 FUSE·네트워크 마운트)에서는
+  바뀌지 않은 파일도 매번 `modified`(`same_bytes_possible`)로 보이며, run의 출력에도 같은 한계가 있습니다(C2). 바뀐 파일은 캐시를 보지 않고 바이트를 읽어 해시하고 그 결과로 캐시 항목을 새로 씁니다. 해시 전후의 stat이 뒤 상태와 다르면 `unstable`
+  (`sha256: null`)입니다. 크기·mtime이 같고 정체성만 바뀐 파일은 시작 바이트를 이 창에서 읽었고(명령이 가리킨 파일) 같으면 변경이 아니고, 아니면
+  `same_bytes_possible: true`의 `modified`입니다. 변경마다 `explanation`은 창의 줄에 완료된 run의 `outputs`(경로·sha256)나 가져오기(경로·sha256과 그
+  `.meta.json`)와 같으면 `explained`(`by: {type: run|dataset_import, id}`), 창의 줄을 모두 읽었고 해시가 있으며 맞는 것이 없으면 `unexplained`,
+  해시가 없거나 창·run 기록을 읽지 못했으면 `unknown`(`reason`)입니다. 지운 파일도 같아서, run 기록을 읽지 못한 창의 삭제는
+  `unknown`(`run_record_unread`)입니다. 해시의 합 상한은 실제로 읽은 바이트로 셉니다(읽는 동안 커지는 파일도 상한에서 멈춤).
+  명령이 이름을 든 바뀐 파일(명령 글이나 셸이 읽은 낱말에 그 이름이 있음: heredoc·리디렉션의 대상, 이스케이프한 이름, 스크립트)은 1 MiB 이하면
+  그 바이트에 가림 규칙을 적용해, 걸리면 해시도 크기도 남기지 않습니다
+  (`hash: withheld`, `reason: secret_like`). 창은 이 도구 호출이 도는 동안 바뀐 것이지 이 명령이 썼다는 뜻이 아닙니다.
+- **스크립트와 언급한 파일**: 최종 명령(다른 확장이 바꾼 뒤)의 단순 명령 낱말(C5의 읽기, 확신하지 못하는 줄은 공백으로 나눔)을 aelix 작업 디렉터리와
+  그 앞의 글자 경로 `cd X`·`pushd X`·`Set-Location X`로 풉니다. 따라갈 수 없는 이동(변수·`cd -`) 뒤의 상대 이름은 `mentioned.unresolved`로만
+  셉니다. 접미사 `.py`·`.sql`·`.r`·`.jl`·`.sh`·`.ipynb`인 이름은 `scripts`에 `{name, path, bytes, sha256, hash, captured, stable, copy, copy_reason,
+  outside}`로 남습니다: `tool_call` 때 있으면 그 바이트(`captured: before`, 끝에 상태가 같으면 `stable: true`), 시작 때 없던 것은 끝의 바이트
+  (`captured: after`). 사본은 git이 무시하는 파일(프로젝트 디렉터리에서 `git check-ignore` 한 번: 프로젝트를 담은 저장소의 규칙도 셈. git이 없거나
+  답하지 못할 때만 새 템플릿이 무시하는 자리, `ignored`), 비밀일 수 있는
+  이름(`secret_name`, 해시도 없음), 가림 규칙이 걸리는 바이트(`secret_like`, 해시·크기도 없음), `.ipynb`(`notebook`, 해시만), 상한(8개·파일당 1 MiB·합
+  4 MiB, `over_budget`)에는 만들지 않습니다. 같은 바이트는 사본 하나를 가리킵니다. 프로젝트 밖의 스크립트는 마지막 이름·바이트 수·sha256만
+  (`outside: true`, 경로·사본 없음) 둡니다. 스크립트가 아닌 프로젝트 안 파일은 `mentioned`에 경로만 둡니다(읽었다는 주장이 아님).
+- **가림**(rules_version 1): 저장·해시 전에 명령 글을 가립니다(`[redacted]`, 수는 `redaction.count`). 이름에 token·secret·password(passwd·passphrase)·
+  credential·auth·api key·access key·private key·signature가 들거나(구분자 `_`·`-` 무시) `_KEY`로 끝나는 변수·옵션·사전 키·헤더의 값,
+  `-u user:password`의 비밀번호, URL의 비밀번호와 모든 질의 매개변수 값, `Authorization`·`Proxy-Authorization`·`Cookie` 헤더와 `Bearer`·`Basic` 뒤의 값,
+  PEM 개인 키, JWT 꼴, `AKIA`·`ASIA`, `ghp_` 등 GitHub, `glpat-`, `sk-`(`sk-ant-` 포함)·`sk_live_`·`rk_live_`, `xox?-`, `AIza`, `hf_`, `npm_`입니다.
+  값은 셸의 한 낱말 전체입니다: 따옴표·이스케이프 안의 공백과 `,` 같은 구분자까지(`API_TOKEN=a,b`, `-u 'user:a b'`) 가립니다. 헤더 규칙은 이름과
+  콜론만 맞추므로 앞의 다른 `name:`(`note:`, `https:`)이 뒤의 헤더를 가리지 않고, `api-key:`·`PRIVATE-TOKEN:`과 따옴표 안의 헤더 이름 키
+  (`{"Cookie": …}`)도 가립니다. 규칙마다 긴 글을 한 번만 읽습니다(긴 하이픈 줄에서도 명령 길이에 비례하는 시간).
+  가리기 전의 글·해시·길이는 남기지 않습니다. 비밀일 수 있는 이름의 파일(`.env`·`.env.*`, `*.pem`·`*.key`, `.netrc`·`.pgpass`, `id_rsa*`·`id_ed25519*`,
+  `credentials*`, 이름에 `secret`)은 변경·스크립트 목록에 경로·변경 종류·크기만 두고 해시하거나 복사하지 않습니다(`withheld`). 거부 목록이라 모든
+  비밀을 잡지 못합니다(위치 인자 `mysql -pVALUE`, 이름 없는 문자열, 인코딩한 값). rules_version 2 후보로 남긴 꼴: `os.environ["X_TOKEN"]="V"`,
+  `https://TOKEN@github.com`, ODBC `PWD=`, `AccountKey=`, `aws configure set … V`, `docker login -p`, `sshpass -p`, Slack webhook 경로.
+  출력(stdout·stderr)은 남기지 않습니다.
+- **상한과 대기**: aelix는 두 hook을 기다리므로 확장이 기다리는 쪽에서 강제합니다. 활성 프로젝트의 해석과 쓰기 판정도 그 작업 안에서 합니다.
+  앞 상태는 2초·항목 20,000개, 뒤 상태·해시·쓰기는 합해 3초(해시
+  합 256 MiB, journal 잠금은 남은 시간 동안 기다리지 않는 시도)입니다. 상태 보기는 디렉터리 항목을 정렬하기 전에 하나씩 세며 상한에서 멈추고 그 관찰은
+  `changes.state: not_observed`(`reason`)입니다. 작업은 데몬 스레드에서 하고 상한이 지나면 취소 표지를 세워 버립니다. 버린 작업이 남아 있는 동안 새
+  관찰은 상태를 보지 않고(`busy`), 그 동안의 기록도 쓰지 않습니다(한계). 대신 조용히 빠지지 않게, 그렇게 건너뛴 호출과 기록을 쓰지 못한 호출
+  (`timeout`·`unconfirmed`·`journal_busy` 등)은 그 호출의 telemetry 줄에 `observation_skipped`로 남고, `busy`로 건너뛴 수는 현황 줄
+  (`…; N bash calls skipped while an observation was still running`)에 셉니다. 그 동안 기록이 없어도 프로젝트는 마지막으로 쓰기를 판정한 프로젝트로 봅니다. 커밋(덧붙이기)이 시작되기 전에 버린 작업은 이벤트를 쓰지 않으며, 시작된 뒤
+  상한이 지나면 알림이 "could not confirm whether the observation was recorded"라고 말합니다. 항목 수 상한을 넘거나, 세션의 첫 상태 보기를 뺀 연속
+  3번의 시간 초과면 그 세션의 변경 관찰을 끄고 `observation_off`를 기록합니다. 상태 보기의 시간 초과는 작업이 제때 끝내면 작업이, 기다리는 쪽이
+  포기하면 기다리는 쪽이 한 번만 셉니다. 끈 뒤에는 분석 실행 조건으로만 기록합니다. `tool_result`
+  처리기가 취소되면 결과를 바꾸지 않고 취소를 올립니다. 처리기는 `error_mode="continue"`로 등록하고 관찰의 실패는 #170의 안내만 남깁니다.
+- **floor와 호환**: 이 kind의 첫 쓰기가 표식의 `min_writer_version`을 0.32.1로 올립니다(ADR-0015 결정 12: kit 번호를 올리지 않는 예외). 그 뒤 0.32.1
+  미만의 writer는 `writer_too_old`로 거절되고, 이 kind를 모르는 reader는 그 줄을 `unsupported`(`unknown_kind`)로 보존·계수하며 다음 seq는 그 줄
+  뒤입니다. 이 kind를 구현하기 전의 0.32.1 체크아웃은 같은 번호로 이 프로젝트에 쓸 수 있습니다(한계).
+- **읽기**(PR-1): reader는 `observed_activity`를 아는 kind로 읽고(`relations.observed_activity_problem`), `details`를 해석하지 못하는 줄은 기록으로는
+  보이지만(목록·인용) 관찰로 세지 않습니다. 상태 재생·철회·정정의 대상이 아닙니다. `analytics_status`(인자 없는 현황)와 kit의 `status`는 최근 기록
+  목록에서 관찰을 빼고 한 줄로 셉니다: `observed outside the kit: N (latest eK; M with changes no run recorded; changes not observed in S sessions) —
+  part=records kind=observed_activity`(0이면 줄 없음). 확장의 telemetry 수 안내(`python was run through bash …`)는 이 줄로 바뀌었습니다. A2의
+  `part=records kind=observed_activity`가 관찰을 같은 cursor 규칙으로 읽습니다. 맥락 블록은 현재 세션의 관찰이 있을 때만 그 수·최근 id·입력과
+  환경이 포착되지 않았다는 말과 `analytics_run` 안내, 그 세션의 변경 관찰을 껐으면 그 사실을 한 줄로 넣습니다. Workspace Timeline·기록 페이지·
+  Record coverage와 출처 추적(C18)의 관찰 후보는 아직 없습니다(#171 PR-2).
+- **공유본**: read·evidence 두 프로필 모두 관찰을 담지 않습니다(`PROJECT_KINDS` 밖). 정상 관찰 줄은 공유본의 내용 기준(`content_seq`)에서 빠지므로
+  관찰만 더한 뒤의 다시 build는 내용 해시가 같습니다([ADR-0014](decisions/0014-publication-record-contract.md) 결정 2의 닫힌 집합 개정). `details`를
+  해석하지 못하는 관찰 줄과 `unsupported`·복구한 줄은 빼지 않습니다.
+- **주장하지 않는 것**: 입력(무엇을 읽었는지), 환경, 재현성, 실행한 바이트(사본은 시작이나 끝의 바이트), 인과(창에 바뀐 파일은 그 명령이 썼다는
+  증거가 아님), 완전성(관찰 범위 밖, 상한을 넘은 부분, 꺼진 세션의 Python 아닌 명령, 도구 호출 뒤의 백그라운드 쓰기, 크기·mtime·정체성을 모두
+  보존한 바꿔 쓰기, `tool_result`가 오지 않은 호출, 버린 작업, 커밋 뒤 결과를 모르는 관찰), 출력·검사·검토. `result.is_error`는 aelix가 준 도구
+  결과일 뿐입니다.
 
 ## D. kit CLI
 

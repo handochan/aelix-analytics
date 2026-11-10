@@ -304,6 +304,13 @@ PUBLISH_STEP_STATES = frozenset({"done", "reused", "exists", "already", "not_new
 PUBLISH_POINTER_STATES = frozenset({"old", "new", "other", "missing", "unknown"})
 PUBLISH_BINDINGS = ("project_record", "channel_history", "none")
 PUBLICATION_ID = re.compile(r"pub-[0-9a-hjkmnp-tv-z]{26}\Z")
+# An observed activity (ADR-0015): a bash command the kit did not record as a run, as the extension saw
+# it around that tool call. Its first writer raises the marker's min_writer_version to this version
+# (decision 12, the owner's OQ5: 0.32.1 is not bumped).
+OBSERVED_KIND = "observed_activity"
+OBSERVED_CONTRACT = "observed_activity/1"
+OBSERVED_WRITER_SINCE = "0.32.1"
+ACTIVITY_ID = re.compile(r"act-[0-9a-hjkmnp-tv-z]{26}\Z")
 # A migration's plan, mapping and report (design 2.7 and 6.8), told apart by their `record`.
 MIGRATION_V1 = "analytics.migration/1"
 # Where import records are, each with the family it holds (design 2.3).
@@ -322,7 +329,7 @@ KINDS = {
                          "metric_definition", "metric_observation", "record_update", "checkpoint",
                          "reuse_proposal", "reuse_notification", "reuse_mode", "report_revision",
                          "publication", "publish_attempt", "publish_receipt", "asset_candidate", "asset_check",
-                         "asset_effect", "asset_notification", "asset_mode"}),
+                         "asset_effect", "asset_notification", "asset_mode", "observed_activity"}),
 }
 REF_TYPES = frozenset({"event", "run", "visualization_version", "data_observation", "dataset_import",
                        "code_snapshot", "context_version", "metric_definition", "analysis_focus",
@@ -1385,6 +1392,179 @@ def publication_event_problem(event, *, validate_reference=None) -> str | None:
         return "invalid publication completion references"
     return publication_details_problem(event.get("details"), refs=event["refs"], seq=event["seq"],
                                        validate_reference=validate_reference)
+
+
+# ADR-0015 decisions 2–4: what an observed_activity's details hold, each a closed set of values.
+OBSERVED_REASONS = ("analysis_command", "changes", "observation_off")
+OBSERVED_CHANGE_KINDS = ("created", "modified", "deleted", "unreadable")
+OBSERVED_HASHES = ("hashed", "unstable", "over_budget", "withheld", "unreadable", "deleted")
+OBSERVED_EXPLANATIONS = ("explained", "unexplained", "unknown")
+OBSERVED_ROLES = ("command", "changes", "files", "script")
+OBSERVED_COUNTS = ("total", "created", "modified", "deleted", "unreadable", "unexplained", "unknown",
+                   "links_changed")
+OBSERVED_FIELDS = ("contract", "activity_id", "performer", "started_at", "ended_at", "duration_ms", "cwd",
+                   "cwd_outside", "command", "result", "reasons", "window", "changes", "scripts",
+                   "mentioned", "session_observation", "captures")
+
+
+def _aware(text) -> bool:
+    stamp = _instant(text)
+    return stamp is not None and stamp.utcoffset() is not None
+
+
+def _count(value, *, null=False) -> bool:
+    return (null and value is None) or (type(value) is int and value >= 0)
+
+
+def _sha_or_none(value) -> bool:
+    return value is None or (isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None)
+
+
+def _has(value, keys) -> bool:
+    return isinstance(value, dict) and all(key in value for key in keys)
+
+
+def _str_null(value) -> bool:
+    return value is None or isinstance(value, str)
+
+
+def _bool_null(value) -> bool:
+    """A JSON boolean or null, as the schema says: 1 and 0 are numbers, not booleans."""
+    return value is None or type(value) is bool
+
+
+def _change_item_problem(item) -> str | None:
+    if not (_has(item, ("path", "change", "bytes", "sha256", "hash", "explanation", "same_bytes_possible"))
+            and isinstance(item["path"], str) and item["change"] in OBSERVED_CHANGE_KINDS
+            and item["hash"] in OBSERVED_HASHES and item["explanation"] in OBSERVED_EXPLANATIONS
+            and _sha_or_none(item["sha256"]) and _count(item["bytes"], null=True)
+            and isinstance(item["same_bytes_possible"], bool) and _str_null(item.get("reason"))):
+        return "invalid change item"
+    by = item.get("by")
+    if by is not None and not (_has(by, ("type", "id")) and by["type"] in ("run", "dataset_import")
+                               and isinstance(by["id"], str)):
+        return "invalid change item"
+    return None
+
+
+def _script_item_problem(item) -> str | None:
+    if not (_has(item, ("name", "path", "bytes", "sha256", "hash", "captured", "stable", "copy", "outside"))
+            and isinstance(item["name"], str) and _str_null(item["path"]) and _count(item["bytes"], null=True)
+            and _sha_or_none(item["sha256"]) and item["hash"] in ("hashed", "withheld", "over_budget", "unreadable")
+            and item["captured"] in ("before", "after", None) and _bool_null(item["stable"])
+            and _str_null(item["copy"]) and isinstance(item["outside"], bool) and _str_null(item.get("copy_reason"))):
+        return "invalid script item"
+    return None
+
+
+def observed_activity_problem(event) -> str | None:
+    """Why a journal row is not an observed activity this reader can use (ADR-0015 decision 7), or
+    None: an analytics.event/2 `observed_activity` with no references and details of the contract
+    `observed_activity/1` holding every field the record schema requires (`observed_activity_details`,
+    nested objects and list items too) with a value of its kind. A row with a problem is still a record
+    (listed, citable) but no observation: it is not counted, gives no provenance and is not left out of a
+    share's content basis."""
+    if (not isinstance(event, dict) or event.get("schema") != EVENT_V2 or event.get("kind") != OBSERVED_KIND
+            or type(event.get("seq")) is not int or event["seq"] < 1 or event.get("id") != f"e{event['seq']}"
+            or not isinstance(event.get("text"), str) or event.get("refs") != []):
+        return "not an observed_activity row"
+    d = event.get("details")
+    if not isinstance(d, dict) or d.get("contract") != OBSERVED_CONTRACT:
+        return "details are not observed_activity/1"
+    missing = [name for name in OBSERVED_FIELDS if name not in d]
+    if missing:
+        return "details lack " + ", ".join(missing)
+    if not (isinstance(d["activity_id"], str) and ACTIVITY_ID.fullmatch(d["activity_id"])):
+        return "invalid activity_id"
+    performer = d["performer"]
+    if not (_has(performer, ("actor", "tool", "tool_call_id")) and performer["actor"] == "agent"
+            and performer["tool"] == "bash" and _str_null(performer["tool_call_id"])):
+        return "invalid performer"
+    if not (_aware(d["started_at"]) and _aware(d["ended_at"]) and _count(d["duration_ms"], null=True)):
+        return "invalid window time"
+    if not (isinstance(d["cwd_outside"], bool) and _str_null(d["cwd"])):
+        return "invalid cwd"
+    command = d["command"]
+    if not (_has(command, ("text", "bytes", "sha256", "inline_complete", "truncated", "changed_after_start",
+                           "redaction"))
+            and isinstance(command["text"], str) and _count(command["bytes"])
+            and isinstance(command["sha256"], str) and _sha_or_none(command["sha256"])
+            and all(isinstance(command[k], bool) for k in ("inline_complete", "truncated", "changed_after_start"))
+            and _has(command["redaction"], ("rules_version", "count"))
+            and _count(command["redaction"]["rules_version"]) and _count(command["redaction"]["count"])):
+        return "invalid command"
+    result = d["result"]
+    if not (_has(result, ("is_error", "exit_code")) and _bool_null(result["is_error"])
+            and (result["exit_code"] is None or type(result["exit_code"]) is int)):
+        return "invalid result"
+    reasons = d["reasons"]
+    if not (isinstance(reasons, list) and reasons and all(r in OBSERVED_REASONS for r in reasons)
+            and len(set(reasons)) == len(reasons)):
+        return "invalid reasons"
+    window = d["window"]
+    if not (_has(window, ("seq_before", "seq_after")) and _count(window["seq_before"], null=True)
+            and _count(window["seq_after"], null=True)):
+        return "invalid window"
+    changes = d["changes"]
+    if not (_has(changes, ("state", "reason", *OBSERVED_COUNTS, "items", "items_complete"))
+            and changes["state"] in ("observed", "not_observed") and _str_null(changes["reason"])
+            and all(_count(changes[name], null=True) for name in OBSERVED_COUNTS)
+            and isinstance(changes["items"], list) and isinstance(changes["items_complete"], bool)):
+        return "invalid changes"
+    for item in changes["items"]:
+        problem = _change_item_problem(item)
+        if problem:
+            return problem
+    for name in ("scripts", "mentioned"):
+        part = d[name]
+        if not (_has(part, ("total", "items", "items_complete")) and _count(part["total"])
+                and isinstance(part["items"], list) and isinstance(part["items_complete"], bool)):
+            return f"invalid {name}"
+    if not ("unresolved" in d["mentioned"] and _count(d["mentioned"]["unresolved"])
+            and all(isinstance(p, str) for p in d["mentioned"]["items"])):
+        return "invalid mentioned"
+    for item in d["scripts"]["items"]:
+        problem = _script_item_problem(item)
+        if problem:
+            return problem
+    if d["session_observation"] not in ("on", "off"):
+        return "invalid session_observation"
+    captures = d["captures"]
+    if not (isinstance(captures, list) and all(
+            _has(c, ("path", "role", "bytes", "sha256")) and isinstance(c["path"], str) and c["role"] in OBSERVED_ROLES
+            and _count(c["bytes"]) and isinstance(c["sha256"], str) and _sha_or_none(c["sha256"])
+            for c in captures)):
+        return "invalid captures"
+    return None
+
+
+def observed_activities(journal) -> list:
+    """The observed activities of a journal this reader can use (observed_activity_problem), in seq
+    order: the rows of the kind it cannot read are records, not observations."""
+    return [event for event in journal.in_order()
+            if event.kind == OBSERVED_KIND and observed_activity_problem(event.value) is None]
+
+
+def observed_summary(journal, *, session=None) -> dict:
+    """The counts analytics_status and the context block give of the observed activities (ADR-0015
+    decision 7): how many (`count`), the latest's id (`latest`), how many have a change no run or
+    import recorded (`unexplained`), how many did not see the changes (`not_observed`, by reason),
+    and the sessions whose change observation was turned off (`sessions_off`). With `session`, only
+    that session's observations and whether its observation is off (`off`)."""
+    events = observed_activities(journal)
+    if session is not None:
+        events = [e for e in events if e.value.get("session") == session]
+    off = sorted({str(e.value.get("session")) for e in events
+                  if e.value["details"]["session_observation"] == "off"})
+    not_observed: dict[str, int] = {}
+    for e in events:
+        changes = e.value["details"]["changes"]
+        if changes["state"] == "not_observed":
+            reason = changes.get("reason") or "unknown"
+            not_observed[reason] = not_observed.get(reason, 0) + 1
+    return {"count": len(events), "latest": journal.source_of(events[-1]) if events else None,
+            "unexplained": sum(1 for e in events if e.value["details"]["changes"].get("unexplained")),
+            "not_observed": not_observed, "sessions_off": off, "off": bool(off) if session is not None else None}
 
 
 def publication_record(journal, publication_id, *, before=None, validate_reference=None):

@@ -2845,7 +2845,7 @@ class _Api:
     def register_command(self, name, **kwargs):
         self.registered.append(("command", name))
 
-    def on(self, event, handler):
+    def on(self, event, handler, **kwargs):  # aelix's own also takes cleanup= and error_mode=
         self.registered.append(("on", event))
 
     def tools(self) -> list:
@@ -2982,7 +2982,7 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
     assert set(runtime[len("RUNTIME:"):].split(",")) == {
         "_platform", "relations", "writer", "asset_app", "asset_contract", "asset_policy", "asset_suggestions", "checkpoints",
         "publishing", "publishing.basis", "publishing.checks", "publishing.inspections",
-        "publishing.model", "publishing.state"}, runtime
+        "publishing.model", "publishing.state", "observed", "tree_state"}, runtime
 
 
 def test_importing_the_package_imports_nothing_of_the_kit():
@@ -3014,11 +3014,11 @@ def test_importing_the_package_imports_nothing_of_the_kit():
                                      "aelix_analytics._platform", "aelix_analytics.asset_app",
                                      "aelix_analytics.asset_contract", "aelix_analytics.asset_policy",
                                      "aelix_analytics.asset_suggestions", "aelix_analytics.checkpoints", "aelix_analytics.cli",
-                                     "aelix_analytics.core", "aelix_analytics.publishing",
+                                     "aelix_analytics.core", "aelix_analytics.observed", "aelix_analytics.publishing",
                                      "aelix_analytics.publishing.basis", "aelix_analytics.publishing.checks",
                                      "aelix_analytics.publishing.inspections", "aelix_analytics.publishing.model",
                                      "aelix_analytics.publishing.state", "aelix_analytics.relations",
-                                     "aelix_analytics.writer"]
+                                     "aelix_analytics.tree_state", "aelix_analytics.writer"]
 
 
 @pytest.mark.parametrize("command, flagged", [
@@ -3212,7 +3212,7 @@ def test_the_extension_registers_only_the_new_names(monkeypatch):
         [("flag", "analytics-project"), ("command", "analytics"),
          *[("tool", f"analytics_{n}") for n in ("status", "query", "import", "run", "record", "init")],
          *[("on", e) for e in ("before_agent_start", "tool_execution_start", "tool_execution_end",
-                               "tool_result", "agent_end", "user_bash")]])
+                               "tool_call", "tool_result", "agent_end", "user_bash")]])
 
 
 def test_the_analytics_command_records_and_has_no_old_subcommands(monkeypatch, tmp_path):

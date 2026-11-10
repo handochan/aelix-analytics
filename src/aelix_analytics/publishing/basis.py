@@ -7,7 +7,8 @@ from datetime import datetime
 from .. import relations
 from .model import ContentBasis, SnapshotBasis
 
-# The closed set of publication-family kinds (ADR-0014 decision 2); #21 adds its start record.
+# The closed set of publication-family kinds (ADR-0014 decision 2); #21 adds its start record, and
+# ADR-0015 decision 10 the observed activity (_normal_observation).
 PUBLICATION_KINDS = frozenset({"publication", "publish_attempt", "publish_receipt"})
 PUBLICATION_ID = relations.PUBLICATION_ID
 
@@ -71,9 +72,22 @@ def _normal_delivery(event, journal, validate_reference):
     return True
 
 
+def _normal_observation(event, journal):
+    """ADR-0015 decision 10 (OQ8, the amendment of ADR-0014 decision 2): a normal observed_activity row
+    — a known schema and kind, not recovered, its id on one line, its details of the contract this
+    reader understands — is internal work, never content. One whose details it cannot read is kept."""
+    if event.schema != relations.EVENT_V2 or event.kind != relations.OBSERVED_KIND or event.line in journal.recovered:
+        return False
+    v = event.value
+    return (len(journal.lines_of.get(v.get("id"), ())) == 1 and bool(_time(v.get("recorded_at")))
+            and isinstance(v.get("actor"), str) and bool(v["actor"])
+            and relations.observed_activity_problem(v) is None)
+
+
 def content_basis(journal, *, validate_reference):
     """Conservative ADR14 basis; never renumber, reinterpret as_of_seq, or invent a timestamp."""
-    excluded = {e.line for e in journal.events if _normal_delivery(e, journal, validate_reference)}
+    excluded = {e.line for e in journal.events
+                if _normal_delivery(e, journal, validate_reference) or _normal_observation(e, journal)}
     candidates = [
         (line, seq)
         for line, seq in journal.seq_of.items()

@@ -1594,16 +1594,13 @@ def status_invariants(host: Host, text: str, project) -> list[dict]:
 
 def status_cut(host: Host, text: str, project) -> dict:
     """Whether an analytics_status reply carries the whole overview, judged against the overview itself:
-    the reply's body (without its first line and the note the extension appends) against the
+    the reply's body (without its first line) against the
     kit's status_text of the same status with no length limit. When it does not: how many whole
     lines it kept, whether the next line it shows is part of a line (a cut inside a line), and
     what it shows instead of the rest."""
     core = host.core
     full = core.status_text(core.status(project), max_chars=10 ** 9)
     body = text.split("\n", 1)[1] if "\n" in text else ""
-    note = host.module.bypass_note(project)
-    if note and body.endswith(note):
-        body = body[:-len(note)]
     if body == full:
         return {"cut": False}
     got, want = body.split("\n"), full.split("\n")
@@ -2172,12 +2169,11 @@ def omission_figures(ctx: Ctx, spec: Spec, texts: dict, built) -> None:
     # The kit's own block with no budget and no item limit, as the hook would append it.
     full_block = "\n\n" + core.context_block(built.project, max_context_chars=10 ** 9,
                                               max_items=10 ** 9)
-    # analytics_status serialized as its reply is (the reply's first line, the overview, the note the
-    # extension appends), with no item limit and no length limit.
+    # analytics_status serialized as its reply is (the reply's first line and the overview), with no item
+    # limit and no length limit.
     every = core.status(built.project, limit=10 ** 6)
     header = texts["S4"].split("\n", 1)[0]
-    full_status = (header + "\n" + core.status_text(every, max_chars=10 ** 9)
-                   + ctx.host.module.bypass_note(built.project))
+    full_status = header + "\n" + core.status_text(every, max_chars=10 ** 9)
     ctx.all_injected.append({"fixture": spec.id, "S1_everything": size_of(full_block),
                              "S4_everything": size_of(full_status),
                              "S1_measured": size_of(block), "S4_measured": size_of(texts["S4"]),

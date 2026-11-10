@@ -113,10 +113,10 @@ def test_hook_origin_is_held_when_another_context_changes_state_during_await(hos
     entered, release = threading.Event(), threading.Event()
     original = module.core.context_block
 
-    def held_read(p):
+    def held_read(p, **kwargs):
         entered.set()
         assert release.wait(timeout=10), "controlled context read was not released"
-        return original(p)
+        return original(p, **kwargs)
 
     monkeypatch.setattr(module.core, "context_block", held_read)
 

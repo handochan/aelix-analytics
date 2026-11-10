@@ -131,6 +131,143 @@
       "additionalProperties": false
     },
     "attempt_id": {"type": "string", "pattern": "^att-[0-9a-hjkmnp-tv-z]{26}$"},
+    "activity_id": {"type": "string", "pattern": "^act-[0-9a-hjkmnp-tv-z]{26}$"},
+    "observed_activity_details": {
+      "description": "A bash command the kit did not record as a run, as the extension saw it around that tool call (ADR-0015 decision 2). Not a run: its inputs, environment and output are not kept.",
+      "type": "object",
+      "required": ["contract", "activity_id", "performer", "started_at", "ended_at", "duration_ms", "cwd", "cwd_outside", "command",
+                   "result", "reasons", "window", "changes", "scripts", "mentioned", "session_observation", "captures"],
+      "properties": {
+        "contract": {"const": "observed_activity/1"},
+        "activity_id": {"$ref": "#/$defs/activity_id"},
+        "performer": {
+          "type": "object",
+          "required": ["actor", "tool", "tool_call_id"],
+          "properties": {"actor": {"const": "agent"}, "tool": {"const": "bash"}, "tool_call_id": {"type": ["string", "null"]}}
+        },
+        "started_at": {"$ref": "#/$defs/timestamp"},
+        "ended_at": {"$ref": "#/$defs/timestamp"},
+        "duration_ms": {"type": ["integer", "null"], "minimum": 0},
+        "cwd": {"type": ["string", "null"]},
+        "cwd_outside": {"type": "boolean"},
+        "command": {
+          "type": "object",
+          "required": ["text", "bytes", "sha256", "inline_complete", "truncated", "changed_after_start", "redaction"],
+          "properties": {
+            "text": {"type": "string"},
+            "bytes": {"type": "integer", "minimum": 0},
+            "sha256": {"$ref": "#/$defs/sha256"},
+            "inline_complete": {"type": "boolean"},
+            "truncated": {"type": "boolean"},
+            "changed_after_start": {"type": "boolean"},
+            "redaction": {
+              "type": "object",
+              "required": ["rules_version", "count"],
+              "properties": {"rules_version": {"type": "integer", "minimum": 0}, "count": {"type": "integer", "minimum": 0}}
+            }
+          }
+        },
+        "result": {
+          "type": "object",
+          "required": ["is_error", "exit_code"],
+          "properties": {"is_error": {"type": ["boolean", "null"]}, "exit_code": {"type": ["integer", "null"]}}
+        },
+        "reasons": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["analysis_command", "changes", "observation_off"]}},
+        "window": {
+          "type": "object",
+          "required": ["seq_before", "seq_after"],
+          "properties": {"seq_before": {"type": ["integer", "null"], "minimum": 0}, "seq_after": {"type": ["integer", "null"], "minimum": 0}}
+        },
+        "changes": {
+          "type": "object",
+          "required": ["state", "reason", "total", "created", "modified", "deleted", "unreadable", "unexplained", "unknown", "links_changed",
+                       "items", "items_complete"],
+          "properties": {
+            "state": {"enum": ["observed", "not_observed"]},
+            "reason": {"type": ["string", "null"]},
+            "total": {"type": ["integer", "null"], "minimum": 0},
+            "created": {"type": ["integer", "null"], "minimum": 0},
+            "modified": {"type": ["integer", "null"], "minimum": 0},
+            "deleted": {"type": ["integer", "null"], "minimum": 0},
+            "unreadable": {"type": ["integer", "null"], "minimum": 0},
+            "unexplained": {"type": ["integer", "null"], "minimum": 0},
+            "unknown": {"type": ["integer", "null"], "minimum": 0},
+            "links_changed": {"type": ["integer", "null"], "minimum": 0},
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["path", "change", "bytes", "sha256", "hash", "explanation", "same_bytes_possible"],
+                "properties": {
+                  "path": {"type": "string"},
+                  "change": {"enum": ["created", "modified", "deleted", "unreadable"]},
+                  "bytes": {"type": ["integer", "null"], "minimum": 0},
+                  "sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+                  "hash": {"enum": ["hashed", "unstable", "over_budget", "withheld", "unreadable", "deleted"]},
+                  "explanation": {"enum": ["explained", "unexplained", "unknown"]},
+                  "by": {"anyOf": [{"type": "null"}, {"type": "object", "required": ["type", "id"],
+                                                      "properties": {"type": {"enum": ["run", "dataset_import"]}, "id": {"type": "string"}}}]},
+                  "reason": {"type": ["string", "null"]},
+                  "same_bytes_possible": {"type": "boolean"}
+                }
+              }
+            },
+            "items_complete": {"type": "boolean"}
+          }
+        },
+        "scripts": {
+          "type": "object",
+          "required": ["total", "items", "items_complete"],
+          "properties": {
+            "total": {"type": "integer", "minimum": 0},
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "path", "bytes", "sha256", "hash", "captured", "stable", "copy", "outside"],
+                "properties": {
+                  "name": {"type": "string"},
+                  "path": {"type": ["string", "null"]},
+                  "bytes": {"type": ["integer", "null"], "minimum": 0},
+                  "sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+                  "hash": {"enum": ["hashed", "withheld", "over_budget", "unreadable"]},
+                  "captured": {"enum": ["before", "after", null]},
+                  "stable": {"type": ["boolean", "null"]},
+                  "copy": {"type": ["string", "null"]},
+                  "copy_reason": {"type": ["string", "null"]},
+                  "outside": {"type": "boolean"}
+                }
+              }
+            },
+            "items_complete": {"type": "boolean"}
+          }
+        },
+        "mentioned": {
+          "type": "object",
+          "required": ["total", "unresolved", "items", "items_complete"],
+          "properties": {
+            "total": {"type": "integer", "minimum": 0},
+            "unresolved": {"type": "integer", "minimum": 0},
+            "items": {"type": "array", "items": {"type": "string"}},
+            "items_complete": {"type": "boolean"}
+          }
+        },
+        "session_observation": {"enum": ["on", "off"]},
+        "captures": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "role", "bytes", "sha256"],
+            "properties": {
+              "path": {"type": "string"},
+              "role": {"enum": ["command", "changes", "files", "script"]},
+              "bytes": {"type": "integer", "minimum": 0},
+              "sha256": {"$ref": "#/$defs/sha256"}
+            }
+          }
+        }
+      }
+    },
     "publish_target": {
       "type": "object",
       "required": ["name", "path", "resolved"],
@@ -1455,7 +1592,7 @@
                           "note", "resolve", "workflow_feedback", "analysis_focus", "metric_definition",
                           "metric_observation", "record_update", "checkpoint", "reuse_proposal", "reuse_notification",
                           "reuse_mode", "report_revision", "publication", "publish_attempt", "publish_receipt", "asset_candidate", "asset_check",
-                          "asset_effect", "asset_mode", "asset_notification"]},
+                          "asset_effect", "asset_mode", "asset_notification", "observed_activity"]},
         "actor": {"type": "string", "minLength": 1},
         "actor_basis": {"$ref": "#/$defs/actor_basis"},
         "means": {"$ref": "#/$defs/means"},
@@ -1466,6 +1603,7 @@
         "details": {"type": "object"}
       },
       "allOf": [
+        {"if": {"properties": {"kind": {"const": "observed_activity"}}}, "then": {"required": ["details"], "properties": {"refs": {"maxItems": 0}, "details": {"$ref": "#/$defs/observed_activity_details"}}}},
         {"if": {"properties": {"kind": {"const": "asset_candidate"}}}, "then": {"required": ["details"], "properties": {"details": {"$ref": "#/$defs/asset_candidate_details"}}}},
         {"if": {"properties": {"kind": {"const": "asset_check"}}}, "then": {"required": ["details"], "properties": {"details": {"$ref": "#/$defs/asset_check_details"}}}},
         {"if": {"properties": {"kind": {"const": "asset_effect"}}}, "then": {"required": ["details"], "properties": {"details": {"$ref": "#/$defs/asset_effect_details"}}}},

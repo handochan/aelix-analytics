@@ -1054,6 +1054,16 @@ class Locked:
                 raise ValueError("publication identity is already recorded")
             requires = max((requires or relations.PUBLICATION_WRITER_SINCE,
                             relations.PUBLICATION_WRITER_SINCE), key=relations.version_key)
+        if kind == relations.OBSERVED_KIND:
+            # ADR-0015 decision 2: written only by the observation around a bash call (observed.py),
+            # never by `analytics record`, the SDK or a model's tool (RECORD_KINDS has no such kind).
+            if self.operation != "observe":
+                raise ValueError("an observed activity is written by the observation of a bash call")
+            problem = relations.observed_activity_problem(event)
+            if problem:
+                raise ValueError("not an observed activity: " + problem)
+            requires = max((requires or relations.OBSERVED_WRITER_SINCE, relations.OBSERVED_WRITER_SINCE),
+                           key=relations.version_key)
         if kind in relations.PUBLISH_KINDS:
             if self.operation != "publish":
                 raise ValueError("a publish attempt and its receipt are written by the publish application")
@@ -1147,12 +1157,18 @@ class Writer:
         raise refusal(state, op, writer_version=self.writer_version, writable=self.WRITES)
 
     @contextlib.contextmanager
-    def locked(self, op: str = "write"):
+    def locked(self, op: str = "write", *, within: float | None = None):
         """The journal lock (`.analytics/lock`), taken after the directory is admitted (the lock file
         is the write's first side effect) and with the marker judged again once it is held (design
-        4.3, S8): yields a Locked, or raises the refusal with nothing written."""
+        4.3, S8): yields a Locked, or raises the refusal with nothing written. With `within` the lock
+        is tried without waiting for at most that many seconds (FileLocks.exclusive_within: an
+        observation's bounded wait, ADR-0015 decision 6), and still busy then raises
+        _platform.LockBusy with nothing written."""
         self.admit(op)
-        with self.platform.locks.exclusive(self.root / LAYOUT.state_dir / LAYOUT.journal_lock):
+        path = self.root / LAYOUT.state_dir / LAYOUT.journal_lock
+        lock = (self.platform.locks.exclusive(path) if within is None
+                else self.platform.locks.exclusive_within(path, max(0.0, within)))
+        with lock:
             state = self.admit(op)
             yield Locked(self, state, _journal_bytes(self.journal), operation=op)
 

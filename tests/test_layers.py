@@ -100,13 +100,19 @@ LAYERS: dict[str, Layer] = {
                      "who may write a project's records and how: the marker judgment and the gate, "
                      "Origin, the error class, the record helpers and the new format's common "
                      "Writer (#13)"),
-    "core": _layer(2, ("ports", "read_model", "writer", "asset_application", "report_application", "publication_observation"), (),
+    "core": _layer(2, ("ports", "read_model", "writer", "asset_application", "report_application", "publication_observation",
+                       "observation"), (),
                    "the project model: domain and shared application, not split yet"),
+    # Issue #171 (ADR-0015): the file state shared by a run's outputs and an observed activity, and the
+    # observation itself, with an injected project and Writer; core imports it so the aelix process has it.
+    "observation": _layer(2, ("ports", "read_model", "writer", "observation"), (),
+                          "the project's file state before and after a command, and the observed activity of a bash "
+                          "call, with an injected project and Writer and no core or host import"),
     "asset_application": _layer(2, ("ports", "read_model", "writer", "asset_application"), (),
                                 "the model-free asset lifecycle, with an injected Writer and no core or host import"),
     "report_application": _layer(2, ("ports", "read_model", "writer"), (),
                                  "immutable Report storage with an injected Writer; no core, renderer or host import"),
-    "runtime": _layer(3, ("core", "ports", "read_model", "runtime", "writer"), ("analysis",),
+    "runtime": _layer(3, ("core", "observation", "ports", "read_model", "runtime", "writer"), ("analysis",),
                       "execution, capture and data adapters, in the project's environment"),
     "workspace": _layer(3, ("core", "messages", "ports", "read_model", "writer"), ("analysis", "rendering"),
                         "the Workspace renderer, in the project's environment"),
@@ -163,6 +169,8 @@ MODULES: dict[str, str] = {
     "src/aelix_analytics/_install.py": "distribution",
     "src/aelix_analytics/writer.py": "writer",
     "src/aelix_analytics/core.py": "core",
+    "src/aelix_analytics/tree_state.py": "observation",
+    "src/aelix_analytics/observed.py": "observation",
     "src/aelix_analytics/report_app.py": "report_application",
     "src/aelix_analytics/report_renderer.py": "report_view_contract",
     "src/aelix_analytics/report_renderers.py": "report_views",
@@ -1004,8 +1012,8 @@ VIOLATIONS = {
          "dynamic-load", "in _load_platform"]),
     # An exception holds in the functions it names, not anywhere between its two files.
     "the runner imports the workspace outside the function its exception names": (
-        RUNNER, _replace("from . import _platform, capture, core, relations\n",
-                         "from . import _platform, capture, core, relations, workspace\n"),
+        RUNNER, _replace("from . import _platform, capture, core, relations, tree_state\n",
+                         "from . import _platform, capture, core, relations, tree_state, workspace\n"),
         ["runtime → workspace", "layer-direction", "at module level",
          "ALLOWLIST allows this edge only in _finalize"]),
 }
