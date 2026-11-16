@@ -84,9 +84,11 @@ def test_real_loader_registers_the_basic_contract_surface():
     assert set(ext.commands) == {"analytics"}
     assert set(ext.flags) == {"analytics-project"}
     assert set(ext.handlers) == {"before_agent_start", "tool_execution_start", "tool_execution_end",
-                                 "tool_call", "tool_result", "agent_end", "user_bash"}
-    # The observation of a bash call never breaks a turn (ADR-0015 decision 6).
-    for event in ("tool_call", "tool_result"):
+                                 "tool_call", "tool_result", "agent_end", "user_bash",
+                                 # the stable prompt (experiment, branch exp/session-substrate)
+                                 "context", "session_compact"}
+    # The observation of a bash call never breaks a turn (ADR-0015 decision 6), nor does the brief.
+    for event in ("tool_call", "tool_result", "context", "session_compact"):
         (handler,) = ext.handlers[event]
         assert ext.handler_error_modes[(event, id(handler))] == "continue"
 
@@ -3628,3 +3630,135 @@ def test_loaded_publication_reader_works_after_namespace_cleanup(tmp_path, monke
     answer = call(tools_of(module)["analytics_status"], {})
     assert not answer.is_error, text_of(answer)
     assert not any(name.startswith("aelix_analytics_runtime_") for name in sys.modules)
+
+
+# --- the stable prompt (experiment: branch exp/session-substrate, not adopted) ---
+
+def _prompt(module, ctx, base="BASE"):
+    return asyncio.run(module.on_before_agent_start(
+        BeforeAgentStartHookEvent(prompt="hi", system_prompt=base), ctx))
+
+
+def _sent(module, ctx, messages=()):
+    from aelix_agent_core.harness.hooks import ContextHookEvent
+
+    return asyncio.run(module.on_context(ContextHookEvent(messages=list(messages)), ctx))
+
+
+def test_the_stable_prompt_gives_one_system_prompt_for_a_session_and_the_brief_first(lab, monkeypatch):
+    """The system prompt of the first prompt is the system prompt of every prompt, whatever is
+    recorded between them; the state is the first message of what the model is sent."""
+    from aelix_ai.messages import TextContent, UserMessage
+
+    module, root = lab
+    monkeypatch.setenv("AELIX_ANALYTICS_PROMPT", "stable")
+    ctx = SimpleNamespace(cwd=str(root.parent))
+    first = _prompt(module, ctx)
+    assert first.system_prompt.startswith("BASE\n\n# Active analytics project\nroot: proj (title: 확장 테스트)")
+    assert first.messages is None and "as_of_seq" not in first.system_prompt
+    assert str(root) not in first.system_prompt
+    project = module.core.Project(root)
+    module.core.record(project, "finding", "3월에 달라졌다", origin=module.core.Origin("agent", "tool"))
+    second = _prompt(module, ctx)
+    assert second.system_prompt == first.system_prompt and second.messages is None
+    user = UserMessage(content=[TextContent(text="hi")])
+    sent = _sent(module, ctx, [user]).messages
+    assert isinstance(sent[0], module.BriefMessage) and sent[1] is user and len(sent) == 2
+    brief = sent[0].content[0].text
+    assert brief.startswith("# Analytics project brief\n") and "3월에 달라졌다" not in brief
+    # Sent again with what the first handler returned: one brief, the same object.
+    again = _sent(module, ctx, sent).messages
+    assert again[0] is sent[0] and again[1] is user and len(again) == 2
+    # The prompt of main in the same checkout: everything in the system prompt, no message of ours.
+    monkeypatch.setenv("AELIX_ANALYTICS_PROMPT", "classic")
+    classic = _prompt(module, ctx)
+    assert "3월에 달라졌다" in classic.system_prompt and classic.messages is None
+    assert _sent(module, ctx, [user]) is None
+
+
+def test_the_stable_prompt_tells_what_someone_else_recorded_once(lab, monkeypatch):
+    module, root = lab
+    monkeypatch.setenv("AELIX_ANALYTICS_PROMPT", "stable")
+    ctx = SimpleNamespace(cwd=str(root.parent))
+    first = _prompt(module, ctx)
+    project = module.core.Project(root)
+    module.core.record(project, "decision", "사람이 정한 것", origin=module.core.Origin("human", "cli", "inferred"))
+    told = _prompt(module, ctx)
+    assert told.system_prompt == first.system_prompt
+    (message,) = told.messages
+    text = message.content[0].text
+    assert text.startswith("# Analytics project update\n") and "decision (human): 사람이 정한 것" in text
+    assert _prompt(module, ctx).messages is None
+
+
+def test_the_stable_prompt_tells_a_context_edit_the_agent_did_not_make(lab, monkeypatch):
+    module, root = lab
+    monkeypatch.setenv("AELIX_ANALYTICS_PROMPT", "stable")
+    ctx = SimpleNamespace(cwd=str(root.parent))
+    _prompt(module, ctx)
+    context = root / "CONTEXT.md"
+    # The agent's own edit tool: the new version is in its conversation already.
+    module.on_tool_start(ToolExecutionStartHookEvent(tool_call_id="e1", tool_name="edit",
+                                                     args={"path": str(context)}), ctx)
+    context.write_text(context.read_text(encoding="utf-8") + "\n## By the agent\nx\n", encoding="utf-8")
+    module.on_tool_end(ToolExecutionEndHookEvent(tool_call_id="e1", tool_name="edit"), ctx)
+    assert _prompt(module, ctx).messages is None
+    # A person's editor: no tool call of this session made it.
+    context.write_text(context.read_text(encoding="utf-8") + "\n## By a person\ny\n", encoding="utf-8")
+    (message,) = _prompt(module, ctx).messages
+    assert "context: CONTEXT.md has a new version — read proj/CONTEXT.md again" in message.content[0].text
+
+
+def test_the_stable_prompt_reads_the_brief_again_after_a_compaction(lab, monkeypatch):
+    """A compaction takes what this session recorded out of the conversation, so the brief, which
+    left it out, is read again: at the next request to the model, a prompt or not."""
+    module, root = lab
+    monkeypatch.setenv("AELIX_ANALYTICS_PROMPT", "stable")
+    ctx = SimpleNamespace(cwd=str(root.parent))
+    first = _prompt(module, ctx)
+    before = _sent(module, ctx).messages[0]
+    project = module.core.Project(root)
+    module.core.record(project, "finding", "3월에 달라졌다", origin=module.core.Origin("agent", "tool"))
+    assert _sent(module, ctx).messages[0] is before
+    module.on_session_compact(SimpleNamespace(), ctx)
+    after = _sent(module, ctx).messages[0]
+    assert after is not before and "3월에 달라졌다" in after.content[0].text
+    assert _sent(module, ctx).messages[0] is after
+    # The system prompt stays the session's, and the record just read is not told as an update.
+    later = _prompt(module, ctx)
+    assert later.system_prompt == first.system_prompt and later.messages is None
+
+
+def test_the_stable_prompt_starts_over_for_another_project(lab, tmp_path, monkeypatch):
+    module, root = lab
+    monkeypatch.setenv("AELIX_ANALYTICS_PROMPT", "stable")
+    ctx = SimpleNamespace(cwd=str(tmp_path))
+    first = _prompt(module, ctx)
+    other = tmp_path / "other"
+    module.core.init_project(other, title="다른 프로젝트", template_dir=module.KIT / "aelix_analytics" / "template",
+                             origin=module.core.Origin("test", "sdk"))
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(other))
+    second = _prompt(module, ctx)
+    assert "root: other (title: 다른 프로젝트)" in second.system_prompt != first.system_prompt
+    assert "# 다른 프로젝트" in _sent(module, ctx).messages[0].content[0].text
+    assert second.messages is None
+
+
+def test_the_stable_prompt_is_the_default_and_classic_is_asked_for(monkeypatch):
+    module = fresh_module()
+    monkeypatch.delenv("AELIX_ANALYTICS_PROMPT")
+    assert module.prompt_mode() == "stable"
+    for value, mode in (("classic", "classic"), (" Classic ", "classic"), ("stable", "stable"), ("other", "stable"), ("", "stable")):
+        monkeypatch.setenv("AELIX_ANALYTICS_PROMPT", value)
+        assert module.prompt_mode() == mode
+
+
+def test_the_brief_is_not_sent_once_no_project_is_active(lab, tmp_path, monkeypatch):
+    module, root = lab
+    monkeypatch.setenv("AELIX_ANALYTICS_PROMPT", "stable")
+    ctx = SimpleNamespace(cwd=str(root.parent))
+    assert _prompt(module, ctx) is not None and _sent(module, ctx) is not None
+    monkeypatch.delenv("AELIX_ANALYTICS_PROJECT")
+    monkeypatch.chdir(tmp_path / "trust" if (tmp_path / "trust").is_dir() else tmp_path)
+    monkeypatch.setattr(module, "resolve_project", lambda: (_ for _ in ()).throw(module.core.AnalyticsError("no_project", "none")))
+    assert _prompt(module, ctx) is None and _sent(module, ctx) is None

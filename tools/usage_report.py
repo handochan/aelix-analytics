@@ -350,7 +350,8 @@ def token_sum(values: list[dict]) -> dict:
 # shell would make the extension refuse to load (core.RENAMED_ENV), so it is unset while measuring.
 ISOLATED_KEYS = ("AELIX_ANALYTICS_TRUST_FILE", "AELIX_ANALYTICS_UV", "AELIX_ANALYTICS_PROJECT",
                  "AELIX_ANALYTICS_RUNTIME_PATH", "AELIX_ANALYTICS_ACTOR", "AELIX_ANALYTICS_SESSION",
-                 "AELIX_ANALYTICS_STYLE", "AELIX_ANALYTICS_PROJECT_FROM_AELIX", "AELIX_LAB_TRUST_FILE", "AELIX_LAB_UV", "AELIX_LAB_PROJECT",
+                 "AELIX_ANALYTICS_STYLE", "AELIX_ANALYTICS_PROJECT_FROM_AELIX", "AELIX_ANALYTICS_PROMPT",
+                 "AELIX_LAB_TRUST_FILE", "AELIX_LAB_UV", "AELIX_LAB_PROJECT",
                  "AELIX_LAB_KIT", "LAB_PROJECT", "LAB_ACTOR", "LAB_SESSION", "LAB_STYLE")
 
 
@@ -365,6 +366,9 @@ def isolated_environment(scratch: Path):
             os.environ.pop(key, None)
         os.environ["AELIX_ANALYTICS_TRUST_FILE"] = str(scratch / "trust" / "lab-projects.json")
         os.environ["AELIX_ANALYTICS_UV"] = str(scratch / "no-uv" / "uv")
+        # Experiment (branch exp/session-substrate): this report measures the prompt of main, the
+        # context block in the system prompt (S1). The stable prompt is not measured here yet.
+        os.environ["AELIX_ANALYTICS_PROMPT"] = "classic"
         yield
     finally:
         os.chdir(cwd)

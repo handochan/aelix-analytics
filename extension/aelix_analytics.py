@@ -51,9 +51,14 @@ import time
 import unicodedata
 from pathlib import Path
 
-from aelix_agent_core.harness.hooks import BeforeAgentStartResult, ToolResultPatch, UserBashResult
+from aelix_agent_core.harness.hooks import (
+    BeforeAgentStartResult,
+    ContextResult,
+    ToolResultPatch,
+    UserBashResult,
+)
 from aelix_agent_core.types import AgentTool
-from aelix_ai.messages import ImageContent, TextContent
+from aelix_ai.messages import ImageContent, TextContent, UserMessage
 from aelix_ai.tools import ToolExecutionContext, ToolResult
 
 
@@ -212,7 +217,11 @@ KIT_IMPORT = re.compile(
 STATE = {"api": None, "project": None, "session": None, "starts": {}, "render_tasks": {},
          "told_unrecorded": set(), "looked": False, "found": None, "passed": [],
          "observations": {}, "sessions": core.observed.Sessions(), "observer": None, "skipped": {},
-         "writable_root": None}
+         "writable_root": None,
+         # The stable prompt (experiment, branch exp/session-substrate): what one session was given at
+         # its first prompt, and whether the agent's own write or edit tool touched CONTEXT.md since
+         # the last prompt.
+         "prompt": None, "context_touched": False}
 
 NO_PROJECT = ("No analytics project is active (checked /analytics use, --analytics-project, "
               "AELIX_ANALYTICS_PROJECT, analytics.json or lab.json in the working directory and "
@@ -1969,9 +1978,13 @@ async def on_before_agent_start(event, ctx):
     try:
         project, _ = resolve_project()
     except Exception:  # noqa: BLE001 - no active project must never block a prompt
+        STATE["prompt"] = None  # no brief of a project that is no longer the active one
         return None
     with contextlib.suppress(Exception):
         await asyncio.to_thread(lambda: core.sync_context(project, origin=hook_origin))
+    if prompt_mode() == "stable":
+        return await stable_prompt(event, ctx, project, session, hook_origin)
+    STATE["prompt"] = None
     try:
         block = await asyncio.to_thread(lambda: core.context_block(project, session=session))
     except Exception:  # noqa: BLE001 - a broken journal must not stop the prompt
@@ -1982,6 +1995,102 @@ async def on_before_agent_start(event, ctx):
                 project, origin=hook_origin, surface="aelix_context"))
             block += core.asset_context_notice(result.get("published"))
     return BeforeAgentStartResult(system_prompt=f"{event.system_prompt}\n\n{block}")
+
+
+# --- the stable prompt (experiment: branch exp/session-substrate, not adopted) ---
+#
+# The classic prompt above appends core.context_block to the system prompt at every prompt. Its text
+# changes with every record, aelix chains the system prompt through every extension's handler, and a
+# model provider caches a request by its prefix: one record then costs the cache of the rest of the
+# system prompt (the other extensions' parts too) and of the whole conversation. The stable prompt
+# keeps the same content where it can stay still, as aelix-memory does with its recall:
+#   - the system prompt gets core.context_static, the bytes of the session's first prompt for all of them;
+#   - the project's state at the session's start is one message kept first in what the model is sent
+#     (the `context` hook), never part of the session's own messages, read again after a compaction;
+#   - a later prompt gets a message only when someone else recorded something (core.context_delta),
+#     an asset suggestion was published, or more bash calls were observed outside the kit.
+# AELIX_ANALYTICS_PROMPT=classic gives the prompt of main for a comparison in the same checkout.
+
+PROMPT_MODES = ("stable", "classic")
+
+
+def prompt_mode() -> str:
+    value = (os.environ.get("AELIX_ANALYTICS_PROMPT") or "").strip().lower()
+    return value if value in PROMPT_MODES else PROMPT_MODES[0]
+
+
+class BriefMessage(UserMessage):
+    """The session's project brief: sent to the model first, never appended to the session."""
+
+
+def _brief_message(text: str) -> BriefMessage:
+    return BriefMessage(content=[TextContent(text=text)])
+
+
+async def stable_prompt(event, ctx, project, session, hook_origin):
+    base = _cwd(ctx)
+    key = (session, str(project.root))
+    kept = STATE.get("prompt")
+    notes = []
+    own_edit, STATE["context_touched"] = bool(STATE.get("context_touched")), False
+    try:
+        if kept is None or kept["key"] != key:
+            static = await asyncio.to_thread(lambda: core.context_static(project, base=base))
+            brief = await asyncio.to_thread(lambda: core.context_brief(project, session=session, base=base))
+            kept = STATE["prompt"] = {"key": key, "base": base, "static": static, "stale": False,
+                                      "brief": _brief_message(brief["text"]),
+                                      "seen_seq": brief["as_of_seq"], "observed": brief["observed"]}
+        elif kept["stale"]:
+            await _read_the_brief_again(kept, project, session)
+        else:
+            delta = await asyncio.to_thread(lambda: core.context_delta(
+                project, kept["seen_seq"], session=session, base=base, own_context_edit=own_edit))
+            kept["seen_seq"] = delta["as_of_seq"]
+            if delta["text"]:
+                notes.append(delta["text"])
+            if delta["observed"] > kept["observed"] and delta["observed_line"]:
+                notes.append(delta["observed_line"])
+            kept["observed"] = delta["observed"]
+    except Exception:  # noqa: BLE001 - a broken journal must not stop the prompt
+        return None
+    if session is not None:
+        with contextlib.suppress(Exception):
+            result = await asyncio.to_thread(lambda: core.publish_asset_suggestion(
+                project, origin=hook_origin, surface="aelix_context"))
+            if notice := core.asset_context_notice(result.get("published")).strip():
+                notes.append(notice)
+    messages = [UserMessage(content=[TextContent(text="\n\n".join(notes))])] if notes else None
+    return BeforeAgentStartResult(system_prompt=f"{event.system_prompt}\n\n{kept['static']}",
+                                  messages=messages)
+
+
+async def _read_the_brief_again(kept, project, session) -> None:
+    brief = await asyncio.to_thread(lambda: core.context_brief(project, session=session, base=kept["base"]))
+    kept.update(brief=_brief_message(brief["text"]), seen_seq=brief["as_of_seq"],
+                observed=brief["observed"], stale=False)
+
+
+async def on_context(event, ctx):
+    """Before every request to the model: the session's brief first. Left as it is with the classic
+    prompt, before a session's first prompt, and without an active project."""
+    kept = STATE.get("prompt")
+    if prompt_mode() != "stable" or not kept:
+        return None
+    if kept["stale"]:
+        # After a compaction the conversation no longer holds what this session recorded: the brief
+        # is read again (the cache of what follows it is gone with the compaction anyway).
+        with contextlib.suppress(Exception):
+            project, _ = resolve_project()
+            if (kept["key"][0], str(project.root)) == kept["key"]:
+                await _read_the_brief_again(kept, project, kept["key"][0])
+    rest = [m for m in event.messages if not isinstance(m, BriefMessage)]
+    return ContextResult(messages=[kept["brief"], *rest])
+
+
+def on_session_compact(event, ctx):
+    kept = STATE.get("prompt")
+    if kept:
+        kept["stale"] = True
 
 
 def on_tool_start(event, ctx):
@@ -2213,6 +2322,11 @@ def on_tool_end(event, ctx):
         summary, flags = summarize_call(event.tool_name, args, project)
     except Exception:  # noqa: BLE001
         summary, flags = "", []
+    # The stable prompt tells a new CONTEXT.md version unless the agent's own tool made it.
+    with contextlib.suppress(Exception):
+        if event.tool_name in ("write", "edit") and args.get("path") \
+                and project.below(str(args["path"])) == (project.context.name, ""):
+            STATE["context_touched"] = True
     # A side write: skipped where this kit does not write (Issue #13, design 4.10).
     if core.admit(project, "log the tool call", side=True) is None:
         return None
@@ -3583,7 +3697,8 @@ def setup(aelix):
     STATE.update({"api": aelix, "project": None, "session": None, "starts": {},
                   "render_tasks": {}, "told_unrecorded": set(), "looked": False, "found": None,
                   "passed": [], "observations": {}, "sessions": core.observed.Sessions(),
-                  "observer": STATE.get("observer"), "skipped": {}, "writable_root": None})
+                  "observer": STATE.get("observer"), "skipped": {}, "writable_root": None,
+                  "prompt": None, "context_touched": False})
     put_the_author_in_the_environment()
     aelix.register_flag("analytics-project", type="str",
                         description="Analytics project directory (holds analytics.json, or an "
@@ -3594,6 +3709,9 @@ def setup(aelix):
                            description="Analytics panel (status, Workspace, Reports, records, sharing, "
                                        "assets, settings); /analytics help lists the text commands")
     aelix.on("before_agent_start", on_before_agent_start)
+    # The stable prompt's brief (experiment): never a reason for a request to fail.
+    aelix.on("context", on_context, error_mode="continue")
+    aelix.on("session_compact", on_session_compact, error_mode="continue")
     aelix.on("tool_execution_start", on_tool_start)
     aelix.on("tool_execution_end", on_tool_end)
     # The observation of a bash call (ADR-0015) waits a bounded time in both, and a failure in it must

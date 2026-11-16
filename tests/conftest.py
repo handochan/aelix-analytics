@@ -193,6 +193,14 @@ def isolated_trust_file(tmp_path, monkeypatch):
     monkeypatch.setenv("AELIX_ANALYTICS_TRUST_FILE", str(tmp_path / "trust" / "analytics-projects.json"))
 
 
+@pytest.fixture(autouse=True)
+def the_prompt_of_main(monkeypatch):
+    """Experiment (branch exp/session-substrate): the extension's prompt is the stable one unless
+    AELIX_ANALYTICS_PROMPT says `classic`. The tests written for main's prompt (the context block in
+    the system prompt) keep asking for that one; a test of the stable prompt sets the variable itself."""
+    monkeypatch.setenv("AELIX_ANALYTICS_PROMPT", "classic")
+
+
 @pytest.fixture
 def project(tmp_path):
     """A new project (analytics.json, the format this kit writes) with data/imported/sales.parquet

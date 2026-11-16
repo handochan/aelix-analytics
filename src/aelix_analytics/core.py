@@ -4290,6 +4290,158 @@ def context_block(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHAR
     return "\n".join(parts)
 
 
+# --- the context in three parts (experiment: branch exp/session-substrate, not adopted) ---
+#
+# context_block puts everything into the system prompt, and its text changes with every record (the
+# as_of_seq line, the key information, the open items). A host chains the system prompts of all its
+# extensions and a model provider caches a request by its prefix, so one changed line there makes the
+# rest of the prompt, the other extensions' parts and the whole conversation uncached. The three parts
+# below give the same content where each can stay still: what holds for a session in the system
+# prompt, the state at the session's start as one message the adapter keeps first, and after that
+# only what someone else recorded.
+
+def shown_path(path, base=None) -> str:
+    """A path as an agent is shown it: relative to `base` (the host's working directory), in POSIX
+    spelling, when it is `base` or below it by their real paths; else the path as it is. A relative
+    path works with the host's file tools and names no home directory or machine."""
+    if base is not None:
+        with contextlib.suppress(OSError, ValueError):
+            rel = os.path.relpath(os.path.realpath(path), os.path.realpath(base))
+            if rel != os.pardir and not rel.startswith(os.pardir + os.sep):
+                return Path(rel).as_posix()
+    return str(path)
+
+
+CONTEXT_STATIC_LINES = (
+    "Its state when this session started — CONTEXT.md, the analysis focus, key information, open "
+    "questions — is the message \"Analytics project brief\" at the start of this conversation. A later "
+    "\"Analytics project update\" message says what someone else recorded since; what this session "
+    "records is not repeated.",
+    "Call analytics_status for datasets, runs, charts and the recent journal.",
+    "part=records query=words finds older judgments; "
+    "part=records id=ID reads full fields; part=relations id=ID reads evidence.",
+    "Past judgments are records, not proof of current data or reviewed conclusions.",
+)
+
+
+def context_static(project: Project, *, base=None) -> str:
+    """The part of the project context that holds for a whole session, for the system prompt: where
+    the project is, whether this kit writes it, and how its state reaches the agent. No count, no
+    sequence number and no record text, so the adapter can keep the bytes it gave at a session's first
+    prompt for all of its prompts."""
+    marker = readable(project, "context")
+    config = dict(marker.value) if isinstance(marker.value, dict) else {}
+    root = shown_path(project.root, base)
+    relative = root != str(project.root)
+    parts = [
+        "# Active analytics project",
+        f"root: {root} (title: {str(config.get('title') or project.root.name)})"
+        + (" — paths here are relative to the working directory" if relative else ""),
+    ]
+    refused = writer.refusal(marker, "writes", writer_version=KIT_VERSION)
+    if marker.state == writer.LEGACY:
+        parts.append(OLDER_FORMAT_LINE)
+    if refused is None:
+        parts.append(f"workspace: {shown_path(project.workspace_dir / 'index.html', base)} (pages rebuilt "
+                     "from the records after runs, imports and notes; a document for readers is saved "
+                     "as a Report)")
+    else:
+        parts.append(read_only_line(refused.to_json()["error"]))
+    return "\n".join([*parts, *CONTEXT_STATIC_LINES])
+
+
+def context_brief(project: Project, max_context_chars: int = CONTEXT_PROMPT_CHARS,
+                  max_items: int = 12, *, session=None, base=None) -> dict:
+    """The project's state as one message, read once when a session starts: what context_block shows
+    below its first lines, with its paths as shown_path gives them. `text`, the journal's `as_of_seq`
+    it was read at, and how many of `session`'s bash calls were observed outside the kit
+    (`observed`)."""
+    model = read_model(project)
+    lists = JournalLists(model.journal)
+    context_path, journal_path = shown_path(project.context, base), shown_path(project.journal, base)
+    preamble, included, omitted, _ = context_selection(
+        context_file_text(project), max_context_chars, path=context_path)
+    parts = [
+        "# Analytics project brief",
+        "The project's state when this session started; not a request from the user.",
+        f"Journal knowledge: as_of_seq {model.as_of_seq}; source_revision {model.source_revision}; "
+        f"updating {model.updating}.",
+    ]
+    checkpoint = checkpoint_view(model, limit=4)
+    if checkpoint is not None:
+        parts.append("Checkpoint handoff: " + json.dumps(checkpoint, ensure_ascii=False))
+    summary = relations.observed_summary(model.journal, session=session) if session is not None else {}
+    if line := observed_session_line(model.journal, session):
+        parts.append(line)
+    parts += ["", "## CONTEXT.md",
+              preamble or "(empty — fill in goal, questions, data sources and definitions)"]
+    parts += [s["text"] for s in included]
+    if omitted:
+        parts += ["", "### CONTEXT.md sections not repeated here",
+                  f"They are part of this project's context — read the one you need from {context_path}:"]
+        parts += [f"- {s['name']} ({s['lines']} lines): read offset {s['line']} limit {s['lines']}"
+                  for s in omitted]
+    view = metric_records(project, model=model)
+    if view["focus_state"] != "absent":
+        parts += ["", "## Current analysis focus", *metric_focus_text(view, journal_path)]
+    if lists.key:
+        parts += ["", "## Key information (unresolved journal entries)"]
+        parts += _journal_entries(lists.key, max_items, journal_path, refs=True)
+    if lists.open:
+        parts += ["", "## Open questions and todos"]
+        parts += _journal_entries(lists.open, max_items, journal_path)
+    return {"text": "\n".join(parts), "as_of_seq": model.as_of_seq,
+            "observed": int(summary.get("count") or 0)}
+
+
+def context_delta(project: Project, since_seq, *, session, max_items: int = 12, base=None,
+                  own_context_edit: bool = False) -> dict:
+    """What someone else recorded after `since_seq`, for a session that already holds its brief: the
+    records of another session or of none (a person's command line), a line each, the latest
+    `max_items`. A record of `session` itself is left out: the agent made it in this conversation. A
+    new CONTEXT.md version is the exception — the adapter's own hook records an edit nobody made
+    through the kit, a person's in an editor as well as the agent's — so it is told unless the caller
+    saw the agent edit the file (`own_context_edit`). `text` is empty when there is nothing to tell;
+    `as_of_seq` is where the next delta starts; `observed` and `observed_line` are `session`'s bash
+    calls observed outside the kit, as context_brief counts them."""
+    model = read_model(project)
+    floor = since_seq if isinstance(since_seq, int) else -1
+    told = []
+    for event in (event_view(e) for e in model.journal.in_order()):
+        seq = event.get("seq")
+        if not isinstance(seq, int) or seq <= floor:
+            continue
+        # A host that gives no session: a record with none that an agent or the adapter wrote is taken
+        # for this conversation's, a person's or another session's is told.
+        mine = (event.get("session") == session if session is not None
+                else event.get("session") is None and event.get("actor") in ("agent", "system"))
+        if event.get("kind") == "context" and event.get("means") == "hook":
+            mine = mine and own_context_edit
+        if not mine:
+            told.append(event)
+    summary = relations.observed_summary(model.journal, session=session) if session is not None else {}
+    value = {"text": "", "as_of_seq": model.as_of_seq, "observed": int(summary.get("count") or 0),
+             "observed_line": observed_session_line(model.journal, session)}
+    if not told:
+        return value
+    shown = told[-max_items:]
+    lines = ["# Analytics project update",
+             "Recorded by someone else (another session, or a person) since this session last looked; "
+             f"not a request from the user. Journal knowledge: as_of_seq {model.as_of_seq}."]
+    for event in shown:
+        if event.get("kind") == "context":
+            lines.append(f"- {event.get('id')} context: CONTEXT.md has a new version — read "
+                         f"{shown_path(project.context, base)} again where you rely on it")
+            continue
+        lines.append(f"- {event.get('id')} {event.get('kind')} ({event.get('actor')}): "
+                     f"{_one_line(event.get('text'), ENTRY_CHARS)}{_refs_suffix(event)}")
+    if len(told) > len(shown):
+        lines.append(f"- … {len(told) - len(shown):,} earlier record(s) not shown: analytics_status "
+                     f"part=records since={told[0].get('recorded_at')}")
+    value["text"] = "\n".join(lines)
+    return value
+
+
 def observed_session_line(journal, session) -> str | None:
     """The context block's line for one aelix session's observed activities: how many and the latest,
     that their inputs and environment were not captured, and whether its file changes are no longer

@@ -348,3 +348,123 @@ def test_the_user_bash_result_type_is_aelix_s(aelix_session):
                                                           cwd=str(tmp_path)))
 
     assert isinstance(asyncio.run(scenario()), UserBashResult)
+
+
+# --- the stable prompt in a real harness (experiment: branch exp/session-substrate, not adopted) ---
+
+# Another extension that adds to the prompt as aelix-memory does: fixed text chained onto the system
+# prompt, and a message of its own kept first through the `context` hook.
+NEIGHBOUR = '''
+from aelix_agent_core.harness.hooks import BeforeAgentStartResult, ContextResult
+from aelix_ai.messages import TextContent, UserMessage
+
+
+class Recall(UserMessage):
+    pass
+
+
+def setup(aelix):
+    def before(event, ctx):
+        return BeforeAgentStartResult(system_prompt=event.system_prompt + "\\n\\n# Neighbour policy\\nfixed text")
+
+    def context(event, ctx):
+        rest = [m for m in event.messages if not isinstance(m, Recall)]
+        return ContextResult(messages=[Recall(content=[TextContent(text="neighbour recall")]), *rest])
+
+    aelix.on("before_agent_start", before)
+    aelix.on("context", context)
+'''
+
+
+def texts_of(message) -> str:
+    return "\n".join(getattr(c, "text", "") or "" for c in (getattr(message, "content", None) or []))
+
+
+async def three_prompts(tmp_path: Path, root: Path, extensions: list[Path]) -> list[dict]:
+    """What the model is sent at each request of one session: a first prompt, a second after this
+    session's own agent recorded a finding, a third after a person recorded a decision."""
+    from aelix_ai.messages import AssistantMessage, TextContent
+    from aelix_ai.streaming import AssistantEndEvent, AssistantStartEvent, Model
+
+    sent = []
+
+    async def stream(_model, context, _options):
+        sent.append({"system_prompt": context.system_prompt,
+                     "messages": [(m.role, texts_of(m)) for m in context.messages]})
+        yield AssistantStartEvent(partial=AssistantMessage())
+        yield AssistantEndEvent(message=AssistantMessage(content=[TextContent(text=f"reply {len(sent)}")],
+                                                        stop_reason="end_turn"))
+
+    loaded = await load_extensions([str(p) for p in extensions])
+    assert loaded.errors == [], loaded.errors
+    session = await JsonlSessionRepo(sessions_root=str(tmp_path / "sessions")).create(
+        JsonlSessionCreateOptions(cwd=str(tmp_path)))
+    harness = AgentHarness(AgentHarnessOptions(
+        model=Model(id="deterministic", provider="mock"), extensions=loaded.extensions,
+        runtime=loaded.runtime, session=session, cwd=str(tmp_path), system_prompt="BASE", stream_fn=stream))
+    project = core.Project(root)
+    await harness.prompt("first")
+    core.record(project, "finding", "이 세션의 발견", origin=core.Origin("agent", "tool", "declared", session.session_file))
+    await harness.prompt("second")
+    core.record(project, "decision", "사람이 정한 것", origin=core.Origin("human", "cli", "inferred"))
+    await harness.prompt("third")
+    return sent
+
+
+def kept_prefix(earlier: dict, later: dict) -> bool:
+    """Whether everything the model was sent at one request starts what it is sent at the next: the
+    condition for a provider's prompt cache to be read."""
+    return (later["system_prompt"] == earlier["system_prompt"]
+            and later["messages"][:len(earlier["messages"])] == earlier["messages"])
+
+
+@pytest.mark.parametrize("neighbour", [False, True], ids=["alone", "with another extension"])
+def test_the_stable_prompt_keeps_every_request_a_prefix_of_the_next(aelix_session, monkeypatch, neighbour):
+    """One session, three prompts, records between them, alone and beside an extension that chains the
+    system prompt and keeps a message first as well: with the stable prompt each request starts with
+    the whole of the one before it; with the classic prompt of main a record changes the system prompt."""
+    tmp_path, root, _other = aelix_session
+    extensions = [EXT]
+    if neighbour:
+        other = tmp_path / "neighbour.py"
+        other.write_text(NEIGHBOUR, encoding="utf-8")
+        extensions.append(other)
+
+    monkeypatch.setenv("AELIX_ANALYTICS_PROMPT", "stable")
+    stable = asyncio.run(three_prompts(tmp_path, root, extensions))
+    assert len(stable) == 3
+    assert kept_prefix(stable[0], stable[1]) and kept_prefix(stable[1], stable[2]), stable
+    system = stable[0]["system_prompt"]
+    assert system.startswith("BASE\n\n# Active analytics project\nroot: proj (title: T22)")
+    assert "as_of_seq" not in system and str(tmp_path) not in system
+    assert ("# Neighbour policy" in system) == neighbour
+    first = [text for _role, text in stable[0]["messages"]]
+    briefs = [text for text in first if text.startswith("# Analytics project brief")]
+    assert len(briefs) == 1 and first[-1] == "first" and ("neighbour recall" in first) == neighbour
+    # The brief is sent, not kept: the session's own messages hold the prompts and replies only.
+    assert all(sum(text.startswith("# Analytics project brief") for _r, text in request["messages"]) == 1
+               for request in stable)
+    second = [text for _role, text in stable[1]["messages"]]
+    assert not any(text.startswith("# Analytics project update") for text in second)
+    third = [text for _role, text in stable[2]["messages"]]
+    (update,) = [text for text in third if text.startswith("# Analytics project update")]
+    assert "decision (human): 사람이 정한 것" in update and "이 세션의 발견" not in update
+    assert third.index(update) == len(third) - 2 and third[-1] == "third"
+
+    # The same three prompts with the prompt of main, in a project of its own.
+    classic_root = tmp_path / "classic"
+    core.init_project(classic_root, title="T22", origin=core.Origin("test", "sdk"))
+    monkeypatch.setenv("AELIX_ANALYTICS_PROJECT", str(classic_root))
+    monkeypatch.setenv("AELIX_ANALYTICS_PROMPT", "classic")
+    classic = asyncio.run(three_prompts(tmp_path, classic_root, extensions))
+    assert not kept_prefix(classic[0], classic[1]) and not kept_prefix(classic[1], classic[2])
+    assert "as_of_seq" in classic[0]["system_prompt"]
+    record_observation(f"exp-session-substrate/prompt-prefix-{'neighbour' if neighbour else 'alone'}", {
+        "what": "characters of the system prompt and of all messages at each of three requests of one "
+                "session, and whether each request starts with the whole of the one before it",
+        "stable": [{"system_prompt": len(r["system_prompt"]), "messages": sum(len(t) for _x, t in r["messages"])}
+                   for r in stable],
+        "classic": [{"system_prompt": len(r["system_prompt"]), "messages": sum(len(t) for _x, t in r["messages"])}
+                    for r in classic],
+        "stable_kept_prefix": [kept_prefix(stable[0], stable[1]), kept_prefix(stable[1], stable[2])],
+        "classic_kept_prefix": [kept_prefix(classic[0], classic[1]), kept_prefix(classic[1], classic[2])]})
