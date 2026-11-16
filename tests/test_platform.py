@@ -2712,12 +2712,14 @@ def _aelix_stubs() -> dict:
     return {
         "aelix_agent_core": core_pkg,
         "aelix_agent_core.harness": core_pkg.harness,
+        # ContextResult and UserMessage: the stable prompt's (experiment, branch exp/session-substrate).
         "aelix_agent_core.harness.hooks": module("aelix_agent_core.harness.hooks",
-                                                 BeforeAgentStartResult=Any, ToolResultPatch=Any,
-                                                 UserBashResult=Any),
+                                                 BeforeAgentStartResult=Any, ContextResult=Any,
+                                                 ToolResultPatch=Any, UserBashResult=Any),
         "aelix_agent_core.types": module("aelix_agent_core.types", AgentTool=Any),
         "aelix_ai": ai_pkg,
-        "aelix_ai.messages": module("aelix_ai.messages", ImageContent=Any, TextContent=Any),
+        "aelix_ai.messages": module("aelix_ai.messages", ImageContent=Any, TextContent=Any,
+                                    UserMessage=Any),
         "aelix_ai.tools": module("aelix_ai.tools", ToolExecutionContext=Any, ToolResult=Any),
     }
 
@@ -2946,10 +2948,12 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
         "    def __init__(self, *a, **k): self.__dict__.update(k)\n"
         "for name, attrs in (('aelix_agent_core', {}), ('aelix_agent_core.harness', {}),\n"
         "                    ('aelix_agent_core.harness.hooks', {'BeforeAgentStartResult': Any,\n"
+        "                                                        'ContextResult': Any,\n"
         "                                                        'ToolResultPatch': Any,\n"
         "                                                        'UserBashResult': Any}),\n"
         "                    ('aelix_agent_core.types', {'AgentTool': Any}),\n"
-        "                    ('aelix_ai', {}), ('aelix_ai.messages', {'ImageContent': Any, 'TextContent': Any}),\n"
+        "                    ('aelix_ai', {}), ('aelix_ai.messages', {'ImageContent': Any, 'TextContent': Any,\n"
+        "                                                             'UserMessage': Any}),\n"
         "                    ('aelix_ai.tools', {'ToolExecutionContext': Any, 'ToolResult': Any})):\n"
         "    m = stub(name)\n"
         "    [setattr(m, k, v) for k, v in attrs.items()]\n"
@@ -3216,7 +3220,9 @@ def test_the_extension_registers_only_the_new_names(monkeypatch):
         [("flag", "analytics-project"), ("command", "analytics"),
          *[("tool", f"analytics_{n}") for n in ("status", "query", "import", "run", "record", "init")],
          *[("on", e) for e in ("before_agent_start", "tool_execution_start", "tool_execution_end",
-                               "tool_call", "tool_result", "agent_end", "user_bash")]])
+                               "tool_call", "tool_result", "agent_end", "user_bash",
+                               # the stable prompt (experiment, branch exp/session-substrate)
+                               "context", "session_compact")]])
 
 
 def test_the_analytics_command_records_and_has_no_old_subcommands(monkeypatch, tmp_path):
