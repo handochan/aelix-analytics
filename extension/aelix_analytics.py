@@ -230,7 +230,9 @@ STATE = {"api": None, "project": None, "session": None, "starts": {}, "render_ta
          "pruned": False,
          # Reconciliation (experiment #196): the look at the files that runs now, and what the looks
          # since the last prompt found.
-         "look": None, "looks": []}
+         "look": None, "looks": [],
+         # What a tool said of its own call on the event bus, by the call's id, until its line is written.
+         "said": {}}
 
 NO_PROJECT = ("No analytics project is active (checked /analytics use, --analytics-project, "
               "AELIX_ANALYTICS_PROJECT, analytics.json or lab.json in the working directory and "
@@ -2235,7 +2237,9 @@ def ledger_call(project, event, start, args, session, cwd) -> None:
     the kit's, aelix's, another extension's, an MCP server's — with the hash of the result as
     on_tool_result saw it (none for a call that got no tool_result: blocked before it ran, cancelled).
     Hashes and sizes only. On aelix's event loop: no walk, no read of the project's files."""
-    result, raw, details_raw = STATE["results"].pop(event.tool_call_id, None) or (None, None, None)
+    result, raw, details_raw, said = STATE["results"].pop(event.tool_call_id, None) or (None, None, None, None)
+    # What the tool said of its call: on the event bus (the later word), else in its details.
+    said = STATE["said"].pop(event.tool_call_id, None) or said
     if result is not None and raw is not None:
         # Held for a while in the project's cache, which git ignores (core.calls.hold): what a
         # record's claim check reads. One bounded write on aelix's event loop.
@@ -2250,6 +2254,7 @@ def ledger_call(project, event, start, args, session, cwd) -> None:
         error=bool(event.is_error), args=args, result=result,
         # A bash call that is one kit command line: its output repeats the kit's records.
         kit_command=event.tool_name == "bash" and kit_command_line_only(str(args.get("command") or "")),
+        provenance=core.calls.provenance_of(project, said, cwd),
         overlaps=STATE["running"].pop(event.tool_call_id, ()),
         file=core.calls.file_of(project, event.tool_name, args, cwd),
         observed=STATE["recorded"].pop(event.tool_call_id, None))
@@ -2474,6 +2479,7 @@ def on_tool_end(event, ctx):
         STATE["running"].pop(event.tool_call_id, None)
         STATE["recorded"].pop(event.tool_call_id, None)
         STATE["results"].pop(event.tool_call_id, None)
+        STATE["said"].pop(event.tool_call_id, None)
 
 
 def _on_tool_end(event, ctx, start):
@@ -2812,7 +2818,8 @@ async def on_tool_result(event, ctx):
             held = hold_mode() == "on"
             STATE["results"][event.tool_call_id] = (
                 kept, raw if held else None,
-                core.calls.canonical(details) if held and "sha256" in (kept.get("details") or {}) else None)
+                core.calls.canonical(details) if held and "sha256" in (kept.get("details") or {}) else None,
+                core.calls.said_in(details))
     return patch
 
 
@@ -2888,6 +2895,7 @@ def on_agent_end(event, ctx):
     STATE["running"].clear()  # no call runs past the loop's end
     STATE["recorded"].clear()
     STATE["results"].clear()
+    STATE["said"].clear()
     # What the turn left in the project's files, looked at while the person reads the answer.
     with contextlib.suppress(Exception):
         look_at_the_files(resolve_project()[0], STATE["session"])
@@ -3866,6 +3874,15 @@ def _where_this_copy_is() -> str:
     return f"{Path(__file__).resolve()} ({KIT_ROUTE})"
 
 
+def _a_tool_said(payload) -> None:
+    """On the event bus (core.calls.PROVENANCE_CHANNEL): what another extension's tool says of a call
+    of its own, by the call's id — kept until that call's ledger line is written (experiment #196)."""
+    with contextlib.suppress(Exception):
+        call = payload.get("tool_call_id") if isinstance(payload, dict) else None
+        if isinstance(call, str) and call and len(STATE["said"]) < 256:
+            STATE["said"][call] = payload
+
+
 def _answer_as_the_active_copy(probe) -> None:
     if isinstance(probe, dict) and probe.get("active") is None:
         probe["active"] = _where_this_copy_is()
@@ -3898,7 +3915,7 @@ def setup(aelix):
                   "passed": [], "observations": {}, "sessions": core.observed.Sessions(),
                   "observer": STATE.get("observer"), "skipped": {}, "writable_root": None,
                   "prompt": None, "context_touched": False, "running": {}, "recorded": {},
-                  "results": {}, "pruned": False, "look": None, "looks": []})
+                  "results": {}, "pruned": False, "look": None, "looks": [], "said": {}})
     put_the_author_in_the_environment()
     aelix.register_flag("analytics-project", type="str",
                         description="Analytics project directory (holds analytics.json, or an "
@@ -3921,4 +3938,5 @@ def setup(aelix):
     aelix.on("agent_end", on_agent_end)
     aelix.on("user_bash", on_user_bash)
     if events is not None:
+        events.on(core.calls.PROVENANCE_CHANNEL, _a_tool_said)
         events.on(INSTANCE_CHANNEL, _answer_as_the_active_copy)

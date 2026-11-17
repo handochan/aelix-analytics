@@ -4206,3 +4206,73 @@ def test_the_real_host_tells_at_the_next_prompt_what_another_extension_s_tool_wr
     export = [c for c in ledger(module, root) if c["tool"] == "warehouse__export"][0]
     assert look["changes"][0]["from"] == {"how": "window", "candidates": [
         {"call": export["call"], "tool": "warehouse__export", "source": "other"}]}
+
+
+# --- what a tool says of its own call (experiment: Issue #196 — not adopted) ---
+
+def test_a_tool_s_word_of_its_call_is_on_the_ledger_line_from_its_details_or_the_event_bus(lab):
+    """A tool says where its result is from and what it wrote in its result's details
+    (analytics_provenance) or on the event bus by the call's id; the bus is the later word."""
+    module, root = lab
+    ctx = SimpleNamespace(cwd=str(root))
+    said = {"source": "warehouse:sales", "rows": 1, "wrote": ["data/raw.csv"]}
+    tool_start(module, ctx, "x1", "warehouse__export", {})
+    tool_seen(module, ctx, "x1", "warehouse__export", {}, "exported", {"analytics_provenance": said})
+    tool_end(module, ctx, "x1", "warehouse__export")
+    tool_start(module, ctx, "x2", "warehouse__export", {})
+    module._a_tool_said({"tool_call_id": "x2", "source": "warehouse:returns", "wrote": [str(root / "data" / "r.csv")]})
+    module._a_tool_said({"no": "call id"})
+    module._a_tool_said("not a mapping")
+    tool_seen(module, ctx, "x2", "warehouse__export", {}, "exported", {"analytics_provenance": said})
+    tool_end(module, ctx, "x2", "warehouse__export")
+    tool_start(module, ctx, "x3", "fetch", {})
+    tool_seen(module, ctx, "x3", "fetch", {}, "body", {"rows": 3})
+    tool_end(module, ctx, "x3", "fetch")
+    first, second, third = ledger(module, root)
+    assert first["provenance"] == {"source": "warehouse:sales", "rows": 1, "wrote": ["data/raw.csv"]}
+    assert second["provenance"] == {"source": "warehouse:returns", "wrote": ["data/r.csv"]}
+    assert "provenance" not in third and module.STATE["said"] == {}
+
+
+PROVENANCE_ADAPTER = """
+from aelix_agent_core.types import AgentTool
+from aelix_ai.messages import TextContent
+from aelix_ai.tools import ToolResult
+
+
+def setup(aelix):
+    async def export(args, ctx):
+        with open(args["to"], "w", encoding="utf-8") as fh:
+            fh.write("region,total\\nKR,41\\n")
+        if args.get("say") == "bus":
+            aelix.events.emit("aelix-analytics:provenance",
+                              {"tool_call_id": ctx.tool_call_id, "source": "warehouse:sales", "wrote": [args["to"]]})
+            return ToolResult(content=[TextContent(text="exported 1 row")])
+        return ToolResult(content=[TextContent(text="exported 1 row")],
+                          details={"analytics_provenance": {"source": "warehouse:sales", "wrote": [args["to"]]}})
+
+    aelix.register_tool(AgentTool(
+        name="warehouse__export", description="Export a table to a file.", execute=export,
+        parameters={"type": "object", "properties": {"to": {"type": "string"}, "say": {"type": "string"}}}))
+"""
+
+
+@pytest.mark.parametrize("say", ["details", "bus"])
+def test_the_real_host_names_the_tool_that_said_it_wrote_the_file(host_project, tmp_path, monkeypatch, say):
+    """Through aelix 0.1.0b2 itself: an adapter's tool writes a file into data/ and says so — in its
+    details, or on aelix's event bus, which every extension of a runtime shares. At the next prompt the
+    model is told the file is in no record, with the tool that wrote it."""
+    monkeypatch.setenv("AELIX_ANALYTICS_PROMPT", "stable")
+    module, root = host_project
+    adapter = tmp_path / "adapter.py"
+    adapter.write_text(PROVENANCE_ADAPTER, encoding="utf-8")
+    _results, _extensions, contexts = host_turns(
+        tmp_path, root, [adapter, EXT],
+        [[("warehouse__export", {"to": str(root / "data" / "raw.csv"), "say": say})]],
+        prompts=("go", "and now?"), contexts=True)
+    (export,) = [c for c in ledger(module, root) if c["tool"] == "warehouse__export"]
+    assert export["provenance"] == {"source": "warehouse:sales", "wrote": ["data/raw.csv"]}
+    (look,) = changes_logged(module, root)
+    assert look["changes"][0]["from"] == {"call": export["call"], "tool": "warehouse__export", "how": "named"}
+    last = "\n".join(c.text for m in contexts[-1] for c in getattr(m, "content", []) if hasattr(c, "text"))
+    assert "data/raw.csv (created, by warehouse__export)" in last

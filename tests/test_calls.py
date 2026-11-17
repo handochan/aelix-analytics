@@ -160,3 +160,22 @@ def test_the_command_line_reads_the_ledger(project):
     before = calls.path_of(project).read_bytes()
     kit_cli(project.root, "calls")
     assert calls.path_of(project).read_bytes() == before
+
+
+def test_what_a_tool_says_of_its_call_is_kept_redacted_cut_and_below_the_project(project, tmp_path):
+    root = project.root
+    said = {"source": " warehouse:sales ", "query": "select * from t -- https://reader:pw-7c1f@db.example/x",
+            "as_of": "2026-11-17T00:00:00Z", "rows": 1204, "ignored": {"a": 1},
+            "wrote": [str(root / "data" / "raw.csv"), "proj/data/b.csv", str(tmp_path / "elsewhere.csv"), 7],
+            "read": "proj/data/in.csv"}
+    kept = calls.provenance_of(project, said, tmp_path)
+    assert kept == {"source": "warehouse:sales", "query": "select * from t -- https://reader:[redacted]@db.example/x",
+                    "as_of": "2026-11-17T00:00:00Z", "rows": 1204,
+                    "wrote": ["data/b.csv", "data/raw.csv"], "read": ["data/in.csv"], "outside": 1}
+    assert len(calls.provenance_of(project, {"query": "x" * 1000})["query"]) == calls.PROVENANCE_CHARS
+    for nothing in (None, "text", {}, {"rows": -1}, {"rows": True}, {"source": "  "}, {"wrote": []}):
+        assert calls.provenance_of(project, nothing) is None
+    assert calls.said_in({calls.PROVENANCE_KEY: {"rows": 1}}) == {"rows": 1}
+    assert calls.said_in({calls.PROVENANCE_KEY: "no"}) is None and calls.said_in(None) is None
+    assert calls.said_in(SimpleNamespace(analytics_provenance={"rows": 2})) == {"rows": 2}
+    assert line(1, provenance=kept)["provenance"] == kept and "provenance" not in line(2, provenance=None)

@@ -28,7 +28,7 @@ import secrets
 import time
 from pathlib import Path
 
-from . import _platform
+from . import _platform, observed
 from .writer import append_jsonl
 
 SCHEMA = "analytics.call/0"
@@ -177,7 +177,7 @@ def file_of(project, tool: str, args, base=None) -> dict | None:
 
 
 def entry(*, call, session, tool: str, started, ended: str, ms, error: bool, args, result=None,
-          overlaps=(), file=None, observed=None, kit_command: bool = False) -> dict:
+          overlaps=(), file=None, observed=None, kit_command: bool = False, provenance=None) -> dict:
     """A ledger line. `result` is digest_result's first value, or None for a call no result was seen
     of (one another extension blocked before it ran, a cancel)."""
     line = {"schema": SCHEMA, "call": call, "session": session, "tool": tool, "source": source_of(tool),
@@ -194,6 +194,8 @@ def entry(*, call, session, tool: str, started, ended: str, ms, error: bool, arg
         line["observed"] = observed
     if kit_command:  # a bash call that is one kit command line: its output repeats the kit's records
         line["kit_command"] = True
+    if provenance:  # what the tool said of its own call (provenance_of)
+        line["provenance"] = provenance
     return line
 
 
@@ -417,3 +419,72 @@ def prune(project, *, now: float | None = None) -> dict:
             removed += 1
             total -= size
     return {"looked": len(found), "removed": removed, "bytes": total, "partial": partial}
+
+
+# --- what a tool says of its own call ---
+#
+# A tool the kit knows nothing of needs to do nothing: its call has a line, its result is held, a
+# record's numbers are looked for in it, and a file that changes while it runs is told with its
+# window. A tool that says where its result is from and which files it wrote makes that exact. It
+# says it in one of two ways, with the same fields:
+#   - in its result's `details`, under PROVENANCE_KEY (an MCP server: in its structuredContent);
+#   - on the host's event bus, on PROVENANCE_CHANNEL, with the call's `tool_call_id` — for a tool
+#     whose details are another contract's.
+# Fields, all optional: `source` (what was asked: a system, a table, a URL), `query` (the question
+# as text), `as_of` (the time the answer is of), `rows` (a count), `wrote` and `read` (paths of files).
+
+PROVENANCE_KEY = "analytics_provenance"
+PROVENANCE_CHANNEL = "aelix-analytics:provenance"
+PROVENANCE_TEXTS = ("source", "query", "as_of")
+PROVENANCE_CHARS = 300
+PROVENANCE_PATHS = 32
+
+
+def said_in(details):
+    """What a result's details say of the call under PROVENANCE_KEY (a mapping), else None."""
+    said = details.get(PROVENANCE_KEY) if isinstance(details, dict) else getattr(details, PROVENANCE_KEY, None)
+    return said if isinstance(said, dict) else None
+
+
+def provenance_of(project, said, base=None) -> dict | None:
+    """What the ledger keeps of what a tool said of its call: the text fields with the kit's
+    redaction rules applied (observed.redact) and cut to PROVENANCE_CHARS, `rows` when it is a count,
+    and of `wrote` and `read` the files below the project as records hold them (a relative path is
+    the host's, below `base`) — a path outside the project is counted, not kept. None when it says
+    nothing of these."""
+    if not isinstance(said, dict):
+        return None
+    out = {}
+    for name in PROVENANCE_TEXTS:
+        value = said.get(name)
+        if isinstance(value, str) and value.strip():
+            out[name] = observed.redact(value.strip())[0][:PROVENANCE_CHARS]
+    rows = said.get("rows")
+    if type(rows) is int and rows >= 0:
+        out["rows"] = rows
+    outside = 0
+    for name in ("wrote", "read"):
+        paths = said.get(name)
+        if isinstance(paths, str):
+            paths = [paths]
+        if not isinstance(paths, (list, tuple)):
+            continue
+        kept = []
+        for path in paths[:PROVENANCE_PATHS]:
+            if not isinstance(path, str) or not path:
+                continue
+            below = None
+            with contextlib.suppress(OSError, ValueError):
+                path = os.path.expanduser(path)
+                if base is not None and not os.path.isabs(path):
+                    path = os.path.join(os.fspath(base), path)
+                below = project.below(path)
+            if below:
+                kept.append("/".join(part for part in below if part))
+            else:
+                outside += 1
+        if kept:
+            out[name] = sorted(set(kept))
+    if outside:
+        out["outside"] = outside
+    return out or None

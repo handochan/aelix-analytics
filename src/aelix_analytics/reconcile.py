@@ -41,6 +41,8 @@ SLACK_SECONDS = 2.0               # a file system's clock and a call's are not t
 READ_LIMIT = 20
 # The host's tools that write no file: never what a change may be from.
 READ_ONLY = frozenset({"read", "grep", "find", "ls"})
+# The host's tools the agent writes files with itself.
+OWN_WRITES = frozenset({"write", "edit"})
 
 
 def _snapshot_path(project):
@@ -133,7 +135,8 @@ def _from(change: dict, ledger: list[dict], since: float | None) -> dict | None:
             continue
         lately.append((line, started, ended))
     for line, _started, _ended in lately:
-        if (line.get("file") or {}).get("wrote") == path:
+        # The file a write or edit call named, or one a tool said it wrote (calls.provenance_of).
+        if (line.get("file") or {}).get("wrote") == path or path in ((line.get("provenance") or {}).get("wrote") or ()):
             return {"call": line.get("call"), "tool": line.get("tool"), "how": "named"}
     modified = change.get("modified")
     if modified is None:
@@ -214,8 +217,9 @@ def look(project, *, session=None, at: str, deadline: float | None = None) -> di
 
 def said(line: dict, limit: int = 5) -> str:
     """A reconciliation's line as the model is told it at a prompt; nothing when every change it
-    lists is a file a write or edit call named — the agent's own writes, which it knows of."""
-    items = [item for item in line["changes"] if (item.get("from") or {}).get("how") != "named"]
+    lists is a file the host's write or edit tool named — the agent's own writes, which it knows of."""
+    items = [item for item in line["changes"]
+             if not ((item.get("from") or {}).get("how") == "named" and item["from"].get("tool") in OWN_WRITES)]
     if not items:
         return ""
     parts = []
@@ -223,6 +227,8 @@ def said(line: dict, limit: int = 5) -> str:
         origin = item.get("from")
         if origin is None:
             where = "outside any tool call seen"
+        elif origin["how"] == "named":
+            where = f"by {origin['tool']}"
         else:
             where = "while " + ", ".join(sorted({c["tool"] for c in origin["candidates"]})) + " ran"
         parts.append(f"{item['path']} ({item['change']}, {where})")

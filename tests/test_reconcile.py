@@ -143,3 +143,17 @@ def test_the_command_line_looks_and_reads(project):
     assert code == 0 and "looked" not in out and len(out["looks"]) == 1
     assert (project.state_dir / reconcile.FILE).read_bytes() == before
     assert json.loads(before.decode().splitlines()[0])["changes"][0]["path"] == "data/raw/new.csv"
+
+
+def test_a_file_a_tool_said_it_wrote_is_that_call_s(project):
+    """A tool that says which files it wrote (calls.provenance_of) is named for them, where its window
+    alone would make it one candidate among the calls that ran then; the model is told, as the file
+    still is in no record."""
+    root = project.root
+    assert look(project) is None
+    called(project, "x1", "warehouse__export", provenance={"source": "warehouse:sales", "wrote": ["data/raw/export.csv"]})
+    called(project, "q1", "warehouse__query")
+    write(root / "data" / "raw" / "export.csv", "KR,41\n")
+    line = look(project)
+    assert line["changes"][0]["from"] == {"call": "x1", "tool": "warehouse__export", "how": "named"}
+    assert "data/raw/export.csv (created, by warehouse__export)" in reconcile.said(line)
