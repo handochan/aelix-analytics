@@ -2158,10 +2158,13 @@ def prune_held_once(project) -> None:
         return
     STATE["pruned"] = True
 
+    root = project.root
+
     def work():
         with contextlib.suppress(Exception):
-            if core.admit(project, "prune held results", side=True) is not None:
-                core.calls.prune(project)
+            own = core.Project(root)  # this thread's: a Project keeps what it judged, for one thread
+            if core.admit(own, "prune held results", side=True) is not None:
+                core.calls.prune(own)
 
     threading.Thread(target=work, name="aelix-analytics-prune", daemon=True).start()
 
@@ -2199,11 +2202,14 @@ def look_at_the_files(project, session):
         if not future.done():
             future.set_result(line)
 
+    root = project.root
+
     def run():
         line = None
         with contextlib.suppress(Exception):
-            if core.admit(project, "look at the files", side=True) is not None:
-                line = core.reconcile.look(project, session=session, at=core.iso())
+            own = core.Project(root)  # this thread's: the walk keeps its table in the Project
+            if core.admit(own, "look at the files", side=True) is not None:
+                line = core.reconcile.look(own, session=session, at=core.iso())
         with contextlib.suppress(RuntimeError):  # the loop closed meanwhile
             loop.call_soon_threadsafe(settle, line)
 
