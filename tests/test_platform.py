@@ -2991,7 +2991,7 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
         "publishing.model", "publishing.state", "observed", "tree_state", "report_app",
         # the call ledger and the claim check (experiment #196, branch exp/session-substrate):
         # standard library only
-        "calls", "claims"}, runtime
+        "calls", "claims", "reconcile"}, runtime
 
 
 def test_importing_the_package_imports_nothing_of_the_kit():
@@ -3030,7 +3030,9 @@ def test_importing_the_package_imports_nothing_of_the_kit():
                                      "aelix_analytics.core", "aelix_analytics.observed", "aelix_analytics.publishing",
                                      "aelix_analytics.publishing.basis", "aelix_analytics.publishing.checks",
                                      "aelix_analytics.publishing.inspections", "aelix_analytics.publishing.model",
-                                     "aelix_analytics.publishing.state", "aelix_analytics.relations",
+                                     "aelix_analytics.publishing.state",
+                                     "aelix_analytics.reconcile",  # experiment #196
+                                     "aelix_analytics.relations",
                                      # core binds the stdlib Report storage at load since #162
                                      "aelix_analytics.report_app", "aelix_analytics.tree_state",
                                      "aelix_analytics.writer"]

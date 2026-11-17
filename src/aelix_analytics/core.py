@@ -37,6 +37,7 @@ from . import _platform, asset_app, asset_suggestions, checkpoints, relations, r
 from . import calls as calls
 from . import claims as claims
 from . import observed as observed
+from . import reconcile as reconcile
 from ._platform import newlines_as_lf as newlines_as_lf
 from ._platform import open_text as open_text
 from ._platform import write_text as write_text

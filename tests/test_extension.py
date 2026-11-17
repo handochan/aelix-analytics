@@ -3936,10 +3936,12 @@ def setup(aelix):
 '''
 
 
-def host_turns(tmp_path, root, extensions, turns):
+def host_turns(tmp_path, root, extensions, turns, *, prompts=("go",), contexts=False):
     """aelix 0.1.0b2's loader loads `extensions` in that order, and its harness runs the agent loop
     with aelix's bash and write tools and a scripted model: `turns` is, for each assistant message, the
-    tool calls it makes as (tool, input). Gives the tool results the model read and the extensions."""
+    tool calls it makes as (tool, input); after them the model only answers, to each of `prompts`.
+    Gives the tool results the model read and the extensions — with `contexts`, also the messages of
+    every request the model was sent."""
     from aelix_agent_core.harness.core import AgentHarness, AgentHarnessOptions
     from aelix_ai.messages import AssistantMessage, TextContent, ToolCallContent, ToolResultMessage
     from aelix_ai.streaming import AssistantDoneEvent
@@ -3965,8 +3967,11 @@ def host_turns(tmp_path, root, extensions, turns):
         harness = AgentHarness(AgentHarnessOptions(
             extensions=loaded.extensions, runtime=loaded.runtime, cwd=str(root),
             tools=[create_bash_tool(str(root)), create_write_tool(str(root))], stream_fn=model))
-        await harness.prompt("go")
-        return [m for m in seen[-1] if isinstance(m, ToolResultMessage)], loaded.extensions
+        for prompt in prompts:
+            await harness.prompt(prompt)
+            await asyncio.sleep(0.3)  # the look the agent's stop began ends
+        results = [m for m in seen[-1] if isinstance(m, ToolResultMessage)]
+        return (results, loaded.extensions, seen) if contexts else (results, loaded.extensions)
 
     return asyncio.run(scenario())
 
@@ -4109,3 +4114,95 @@ def test_the_real_host_checks_a_record_against_another_extension_s_result(host_p
     assert (root / ".analytics" / "kept" / ".gitignore").is_file()
     # The record's own call is in the ledger too, and its result is not a source of a later record.
     assert [c["tool"] for c in ledger(module, root)] == ["warehouse__query", "analytics_record"]
+
+
+# --- reconciliation (experiment: Issue #196 — not adopted) ---
+
+def prompted(module, ctx, text="hi"):
+    return asyncio.run(module.on_before_agent_start(
+        BeforeAgentStartHookEvent(prompt=text, system_prompt="BASE"), ctx))
+
+
+def changes_logged(module, root):
+    return module.core.reconcile.read(module.core.Project(root))["looks"]
+
+
+def test_a_prompt_tells_what_changed_in_the_files_since_the_last_one(lab, monkeypatch):
+    """With the stable prompt: the first prompt of a session looks at the project's files and tells
+    nothing; a file that appears in data/ with no run, import or observation is told at the next prompt,
+    once, in the message beside the system prompt, which keeps its bytes."""
+    monkeypatch.setenv("AELIX_ANALYTICS_PROMPT", "stable")
+    module, root = lab
+    ctx = SimpleNamespace(cwd=str(root))
+    (root / "data" / "raw").mkdir(parents=True, exist_ok=True)
+    first = prompted(module, ctx)
+    assert first.messages is None and changes_logged(module, root) == []
+    (root / "data" / "raw" / "new.csv").write_text("KR,41\n", encoding="utf-8")
+    second = prompted(module, ctx)
+    (message,) = second.messages
+    assert message.content[0].text == (
+        "aelix-analytics: files changed since the last look that no run, import or observation recorded: "
+        "data/raw/new.csv (created, outside any tool call seen). Record data with analytics_import or "
+        "analytics_run.")
+    third = prompted(module, ctx)
+    assert third.messages is None and first.system_prompt == second.system_prompt == third.system_prompt
+    assert [look["total"] for look in changes_logged(module, root)] == [1]
+    # Off: nothing is looked at.
+    monkeypatch.setenv("AELIX_ANALYTICS_RECONCILE", "off")
+    (root / "data" / "raw" / "more.csv").write_text("JP,7\n", encoding="utf-8")
+    assert prompted(module, ctx).messages is None and len(changes_logged(module, root)) == 1
+
+
+def test_the_agent_s_stop_looks_and_its_own_write_is_logged_and_not_told(lab, monkeypatch):
+    """When the agent stops, the files are looked at in a thread nothing waits for. A file the host's
+    write tool named is logged with that call and not told to the model, which wrote it; with the
+    classic prompt nothing is told and the log still has the change."""
+    monkeypatch.setenv("AELIX_ANALYTICS_PROMPT", "stable")
+    module, root = lab
+    ctx = SimpleNamespace(cwd=str(root))
+    (root / "data" / "raw").mkdir(parents=True, exist_ok=True)
+    assert prompted(module, ctx).messages is None
+    path = root / "data" / "raw" / "mine.csv"
+    tool_start(module, ctx, "w1", "write", {"path": str(path), "content": "a\n1\n"})
+    path.write_text("a\n1\n", encoding="utf-8")
+    tool_end(module, ctx, "w1", "write")
+
+    async def stop():
+        module.on_agent_end(SimpleNamespace(), ctx)
+        await module.STATE["look"]
+
+    asyncio.run(stop())
+    (look,) = changes_logged(module, root)
+    assert look["changes"] == [{"path": "data/raw/mine.csv", "change": "created", "bytes": 4,
+                                "sha256": hashlib.sha256(b"a\n1\n").hexdigest(),
+                                "from": {"call": "w1", "tool": "write", "how": "named"}}]
+    assert prompted(module, ctx).messages is None and module.STATE["looks"] == []
+    monkeypatch.setenv("AELIX_ANALYTICS_PROMPT", "classic")
+    (root / "data" / "raw" / "theirs.csv").write_text("b\n2\n", encoding="utf-8")
+    classic = prompted(module, ctx)
+    assert "theirs.csv" not in classic.system_prompt and classic.messages is None
+    assert len(changes_logged(module, root)) == 2 and module.STATE["looks"] == []
+
+
+def test_the_real_host_tells_at_the_next_prompt_what_another_extension_s_tool_wrote(host_project, tmp_path,
+                                                                                    monkeypatch):
+    """Through aelix 0.1.0b2 itself, two prompts: in the first the model calls an adapter's tool that
+    writes a file into the project's data/; no run, import or observation records it. The look at the
+    agent's stop finds it, and the model's context at the second prompt holds one message that names
+    the file and the tool that ran when it changed."""
+    monkeypatch.setenv("AELIX_ANALYTICS_PROMPT", "stable")
+    module, root = host_project
+    adapter = tmp_path / "adapter.py"
+    adapter.write_text(ADAPTER, encoding="utf-8")
+    _results, _extensions, contexts = host_turns(
+        tmp_path, root, [adapter, EXT], [[("warehouse__export", {"to": str(root / "data" / "raw.csv")})]],
+        prompts=("go", "and now?"), contexts=True)
+    last = "\n".join(c.text for m in contexts[-1] for c in getattr(m, "content", []) if hasattr(c, "text"))
+    assert ("files changed since the last look that no run, import or observation recorded: "
+            "data/raw.csv (created, while warehouse__export ran)") in last
+    first = "\n".join(c.text for m in contexts[0] for c in getattr(m, "content", []) if hasattr(c, "text"))
+    assert "files changed since" not in first
+    (look,) = changes_logged(module, root)
+    export = [c for c in ledger(module, root) if c["tool"] == "warehouse__export"][0]
+    assert look["changes"][0]["from"] == {"how": "window", "candidates": [
+        {"call": export["call"], "tool": "warehouse__export", "source": "other"}]}

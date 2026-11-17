@@ -218,6 +218,9 @@ def _command(argv) -> int:
     p.add_argument("--source", choices=core.calls.SOURCES)
     p.add_argument("--since", help="calls that ended at or after this time (ISO)")
     p.add_argument("--limit", type=int, default=core.calls.READ_LIMIT)
+    p = sub.add_parser("changes", help="experiment (#196): file changes no run, import or observation recorded")
+    p.add_argument("--look", action="store_true", help="look at the files now, then read")
+    p.add_argument("--limit", type=int, default=core.reconcile.READ_LIMIT)
     p = sub.add_parser("claims", help="experiment (#196): where the numbers of records were seen in tool results")
     p.add_argument("--event", help="one record's (its event id)")
     p.add_argument("--limit", type=int, default=core.claims.READ_LIMIT)
@@ -443,6 +446,15 @@ def _command(argv) -> int:
                 print(core.calls.text_of(found))
                 return 0
             _emit({"ok": True, **found})
+        elif args.command == "changes":
+            looked = None
+            if args.look and core.admit(project, "look at the files", side=True) is not None:
+                looked = core.reconcile.look(project, session=origin.session, at=core.iso())
+            found = core.reconcile.read(project, limit=args.limit)
+            if args.text:
+                print(core.reconcile.text_of(found))
+                return 0
+            _emit({"ok": True, **found, **({"looked": looked} if args.look else {})})
         elif args.command == "claims":
             found = core.claims.read(project, event=args.event, limit=args.limit)
             if args.text:

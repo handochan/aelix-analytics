@@ -227,7 +227,10 @@ STATE = {"api": None, "project": None, "session": None, "starts": {}, "render_ta
          # tool_result saw it.
          "running": {}, "recorded": {}, "results": {},
          # Whether this session pruned the held results (once).
-         "pruned": False}
+         "pruned": False,
+         # Reconciliation (experiment #196): the look at the files that runs now, and what the looks
+         # since the last prompt found.
+         "look": None, "looks": []}
 
 NO_PROJECT = ("No analytics project is active (checked /analytics use, --analytics-project, "
               "AELIX_ANALYTICS_PROJECT, analytics.json or lab.json in the working directory and "
@@ -1998,9 +2001,12 @@ async def on_before_agent_start(event, ctx):
     with contextlib.suppress(Exception):
         await asyncio.to_thread(lambda: core.sync_context(project, origin=hook_origin))
     prune_held_once(project)
+    with contextlib.suppress(Exception):
+        await looked_at_the_files(project, session)
     if prompt_mode() == "stable":
         return await stable_prompt(event, ctx, project, session, hook_origin)
     STATE["prompt"] = None
+    changes_seen()  # the classic prompt tells none: they stay in the project's log
     try:
         block = await asyncio.to_thread(lambda: core.context_block(project, session=session))
     except Exception:  # noqa: BLE001 - a broken journal must not stop the prompt
@@ -2075,6 +2081,8 @@ async def stable_prompt(event, ctx, project, session, hook_origin):
                 project, origin=hook_origin, surface="aelix_context"))
             if notice := core.asset_context_notice(result.get("published")).strip():
                 notes.append(notice)
+    with contextlib.suppress(Exception):
+        notes.extend(changes_seen())
     messages = [UserMessage(content=[TextContent(text="\n\n".join(notes))])] if notes else None
     return BeforeAgentStartResult(system_prompt=f"{event.system_prompt}\n\n{kept['static']}",
                                   messages=messages)
@@ -2154,6 +2162,72 @@ def prune_held_once(project) -> None:
                 core.calls.prune(project)
 
     threading.Thread(target=work, name="aelix-analytics-prune", daemon=True).start()
+
+
+def reconcile_mode() -> str:
+    """Whether the project's files are looked at when a prompt starts and when the agent stops
+    (experiment #196): AELIX_ANALYTICS_RECONCILE, `on` unless it says `off`."""
+    return "off" if (os.environ.get("AELIX_ANALYTICS_RECONCILE") or "").strip().lower() == "off" else "on"
+
+
+# How long a prompt waits for a look at the files: past it the look goes on in its thread and what
+# it finds is told at the prompt after.
+LOOK_WAIT = 1.0
+
+
+def look_at_the_files(project, session):
+    """Start a look at the project's files (core.reconcile.look: what changed since the last look
+    that no record says) in a daemon thread of its own, unless one is running: a future of this loop
+    that ends with the look, or None. The line it finds is kept for the next prompt. Nothing waits
+    for the thread at the process's exit, and a look never raises into a turn."""
+    if reconcile_mode() != "on":
+        return None
+    loop = asyncio.get_running_loop()
+    running = STATE.get("look")
+    if running is not None and not running.done() and running.get_loop() is loop:
+        return running
+    future = loop.create_future()
+    looks = STATE["looks"]  # this session's: a look that ends after a new session began tells nobody
+
+    def settle(line):
+        if STATE.get("look") is future:
+            STATE["look"] = None
+        if line is not None:
+            looks.append(line)
+        if not future.done():
+            future.set_result(line)
+
+    def run():
+        line = None
+        with contextlib.suppress(Exception):
+            if core.admit(project, "look at the files", side=True) is not None:
+                line = core.reconcile.look(project, session=session, at=core.iso())
+        with contextlib.suppress(RuntimeError):  # the loop closed meanwhile
+            loop.call_soon_threadsafe(settle, line)
+
+    STATE["look"] = future
+    threading.Thread(target=run, name="aelix-analytics-look", daemon=True).start()
+    return future
+
+
+async def looked_at_the_files(project, session) -> None:
+    """Before a prompt: the look the agent's stop began (if it still runs) and one more now, each
+    waited for LOOK_WAIT at most."""
+    for _ in range(2):
+        before = STATE.get("look")
+        future = look_at_the_files(project, session)  # the one that runs, else a new one
+        if future is None:
+            return
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(asyncio.shield(future), LOOK_WAIT)
+        if future is not before:
+            return
+
+
+def changes_seen() -> list[str]:
+    """What the looks since the last prompt found, as the model is told it; they are told once."""
+    looks, STATE["looks"][:] = list(STATE["looks"]), []
+    return [said for said in (core.reconcile.said(line) for line in looks) if said]
 
 
 def ledger_call(project, event, start, args, session, cwd) -> None:
@@ -2814,6 +2888,9 @@ def on_agent_end(event, ctx):
     STATE["running"].clear()  # no call runs past the loop's end
     STATE["recorded"].clear()
     STATE["results"].clear()
+    # What the turn left in the project's files, looked at while the person reads the answer.
+    with contextlib.suppress(Exception):
+        look_at_the_files(resolve_project()[0], STATE["session"])
     with contextlib.suppress(Exception):
         project = resolve_project()[0]
         session = current_session(ctx)
@@ -3821,7 +3898,7 @@ def setup(aelix):
                   "passed": [], "observations": {}, "sessions": core.observed.Sessions(),
                   "observer": STATE.get("observer"), "skipped": {}, "writable_root": None,
                   "prompt": None, "context_touched": False, "running": {}, "recorded": {},
-                  "results": {}, "pruned": False})
+                  "results": {}, "pruned": False, "look": None, "looks": []})
     put_the_author_in_the_environment()
     aelix.register_flag("analytics-project", type="str",
                         description="Analytics project directory (holds analytics.json, or an "
