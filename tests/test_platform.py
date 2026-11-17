@@ -2989,8 +2989,9 @@ def test_loading_the_kit_pulls_no_analysis_library_into_the_host_process(monkeyp
         "_platform", "relations", "writer", "asset_app", "asset_contract", "asset_policy", "asset_suggestions", "checkpoints",
         "publishing", "publishing.basis", "publishing.checks", "publishing.inspections",
         "publishing.model", "publishing.state", "observed", "tree_state", "report_app",
-        # the call ledger (experiment #196, branch exp/session-substrate): standard library only
-        "calls"}, runtime
+        # the call ledger and the claim check (experiment #196, branch exp/session-substrate):
+        # standard library only
+        "calls", "claims"}, runtime
 
 
 def test_importing_the_package_imports_nothing_of_the_kit():
@@ -3022,9 +3023,10 @@ def test_importing_the_package_imports_nothing_of_the_kit():
                                      "aelix_analytics._platform", "aelix_analytics.asset_app",
                                      "aelix_analytics.asset_contract", "aelix_analytics.asset_policy",
                                      "aelix_analytics.asset_suggestions",
-                                     # the call ledger (experiment #196): standard library only
+                                     # the call ledger and the claim check (experiment #196):
+                                     # standard library only
                                      "aelix_analytics.calls",
-                                     "aelix_analytics.checkpoints", "aelix_analytics.cli",
+                                     "aelix_analytics.checkpoints", "aelix_analytics.claims", "aelix_analytics.cli",
                                      "aelix_analytics.core", "aelix_analytics.observed", "aelix_analytics.publishing",
                                      "aelix_analytics.publishing.basis", "aelix_analytics.publishing.checks",
                                      "aelix_analytics.publishing.inspections", "aelix_analytics.publishing.model",

@@ -4,6 +4,11 @@ extension's, an MCP server's — as the host's hooks saw it: which tool, when it
 sizes of its arguments and of the result the model got, which calls ran while it ran, and for the
 host's file tools the project file it named. No argument text and no result bytes.
 
+The bytes of a result are held apart, for a while (hold): in the project's cache, which git ignores,
+by their hash, up to a size and an age. A result a record's claim was found in is kept (keep) in a
+directory that ignores itself until its owner says otherwise. Neither is a record, and a
+publication holds neither.
+
 An auxiliary log beside telemetry (`<state dir>/calls.jsonl`): no journal seq, and no reader of records
 reads it. It is what a later step compares the project's files and a record's claims against, so it
 says what was seen and never what a call did: a call's window holds what ran in it, not what it caused.
@@ -19,6 +24,8 @@ import dataclasses
 import hashlib
 import json
 import os
+import secrets
+import time
 from pathlib import Path
 
 from .writer import append_jsonl
@@ -42,6 +49,17 @@ OVERLAPS = 16
 # A read looks at the ledger's end: this many bytes of it.
 TAIL_BYTES = 4 << 20
 READ_LIMIT = 200
+
+# Held results: below the project's cache directory, one file a result, named by its hash.
+HELD = "held"
+HELD_RESULT_BYTES = 4 << 20
+HELD_TOTAL_BYTES = 256 << 20
+HELD_SECONDS = 14 * 24 * 3600
+HELD_ENTRIES = 20_000
+# Kept results: below the state directory, never pruned.
+KEPT = "kept"
+IGNORE_ALL = "# Results of tool calls: they may hold private data. Remove this file only for\n" \
+             "# results you are allowed to commit.\n*\n"
 
 
 def source_of(tool: str) -> str:
@@ -158,7 +176,7 @@ def file_of(project, tool: str, args, base=None) -> dict | None:
 
 
 def entry(*, call, session, tool: str, started, ended: str, ms, error: bool, args, result=None,
-          overlaps=(), file=None, observed=None) -> dict:
+          overlaps=(), file=None, observed=None, kit_command: bool = False) -> dict:
     """A ledger line. `result` is digest_result's first value, or None for a call no result was seen
     of (one another extension blocked before it ran, a cancel)."""
     line = {"schema": SCHEMA, "call": call, "session": session, "tool": tool, "source": source_of(tool),
@@ -173,6 +191,8 @@ def entry(*, call, session, tool: str, started, ended: str, ms, error: bool, arg
         line["file"] = file
     if observed:
         line["observed"] = observed
+    if kit_command:  # a bash call that is one kit command line: its output repeats the kit's records
+        line["kit_command"] = True
     return line
 
 
@@ -272,3 +292,127 @@ def text_of(found: dict) -> str:
                f"written {counts['files_written']}; observed {counts['observed']}"
                + ("; earlier calls not shown" if found["more"] else ""))
     return "\n".join(out)
+
+
+# --- the bytes of results: held for a while, kept when a record's claim was found in them ---
+
+def _place(base: Path, digest: str) -> Path:
+    return base / digest[:2] / f"{digest}.json"
+
+
+def held_path(project, digest: str) -> Path:
+    return _place(project.cache / HELD, digest)
+
+
+def kept_path(project, digest: str) -> Path:
+    return _place(project.state_dir / KEPT, digest)
+
+
+def _ignored(directory: Path) -> None:
+    """Make `directory` one git ignores by itself: a project made before this place existed has no
+    line for it in its own .gitignore."""
+    directory.mkdir(parents=True, exist_ok=True)
+    ignore = directory / ".gitignore"
+    if not ignore.exists():
+        ignore.write_text(IGNORE_ALL, encoding="utf-8", newline="\n")
+
+
+def _put(path: Path, raw: bytes) -> None:
+    """`raw` at `path`, whole or not at all: written beside it and moved over."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    partial = path.with_name(f".{path.name}.{secrets.token_hex(4)}.part")
+    try:
+        partial.write_bytes(raw)
+        os.replace(partial, path)
+    finally:
+        with contextlib.suppress(OSError):
+            partial.unlink()
+
+
+def hold(project, digest: str, raw: bytes) -> str:
+    """Hold a result's canonical bytes (digest_result's second value) under their hash: `held`,
+    `too_large` (past HELD_RESULT_BYTES, nothing written) or `failed`. The same bytes held before are
+    not written again."""
+    if len(raw) > HELD_RESULT_BYTES:
+        return "too_large"
+    try:
+        path = held_path(project, digest)
+        if not path.exists():
+            _ignored(project.cache / HELD)
+            _put(path, raw)
+    except OSError:
+        return "failed"
+    return "held"
+
+
+def held(project, digest: str) -> bytes | None:
+    """A result's bytes by their hash, from the kept ones or the held ones; None when neither has
+    them. Bytes that are not that hash's (a file changed where it lay) are not given."""
+    for path in (kept_path(project, digest), held_path(project, digest)):
+        try:
+            raw = path.read_bytes()
+        except OSError:
+            continue
+        if sha256(raw) == digest:
+            return raw
+    return None
+
+
+def held_size(project, digest: str) -> int | None:
+    for path in (kept_path(project, digest), held_path(project, digest)):
+        with contextlib.suppress(OSError):
+            return path.stat().st_size
+    return None
+
+
+def keep(project, digest: str) -> bool:
+    """Keep a held result past the held ones' pruning: copied to the kept directory, which ignores
+    itself. True when it is kept (now or before)."""
+    try:
+        path = kept_path(project, digest)
+        if path.exists():
+            return True
+        raw = held(project, digest)
+        if raw is None:
+            return False
+        _ignored(project.state_dir / KEPT)
+        _put(path, raw)
+    except OSError:
+        return False
+    return True
+
+
+def prune(project, *, now: float | None = None) -> dict:
+    """Remove the held results older than HELD_SECONDS, then the oldest until what is left is at
+    most HELD_TOTAL_BYTES: {"looked", "removed", "bytes", "partial"}. It looks at HELD_ENTRIES files
+    at most (`partial` past that). The kept results are not touched."""
+    now = time.time() if now is None else now
+    base = project.cache / HELD
+    found, partial = [], False
+    with contextlib.suppress(OSError):
+        for directory in sorted(base.iterdir()):
+            if not directory.is_dir():
+                continue
+            with os.scandir(directory) as entries:
+                for item in entries:
+                    if not item.name.endswith(".json"):
+                        continue
+                    if len(found) >= HELD_ENTRIES:
+                        partial = True
+                        break
+                    with contextlib.suppress(OSError):
+                        stat = item.stat()
+                        found.append((stat.st_mtime, stat.st_size, item.path))
+            if partial:
+                break
+    found.sort()
+    total = sum(size for _, size, _ in found)
+    removed = 0
+    for modified, size, path in found:
+        if now - modified <= HELD_SECONDS and total <= HELD_TOTAL_BYTES:
+            break
+        with contextlib.suppress(OSError):
+            os.unlink(path)
+            removed += 1
+            total -= size
+    return {"looked": len(found), "removed": removed, "bytes": total, "partial": partial}

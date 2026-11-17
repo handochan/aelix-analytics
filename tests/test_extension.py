@@ -3773,6 +3773,14 @@ def ledger(module, root):
     return module.core.calls.read(module.core.Project(root))["calls"]
 
 
+def unheld(result):
+    """A ledger line's result without the marks of holding: what calls.digest_result gives."""
+    out = {key: value for key, value in result.items() if key != "held"}
+    if "details" in out:
+        out["details"] = {key: value for key, value in out["details"].items() if key != "held"}
+    return out
+
+
 def tool_start(module, ctx, call_id, tool, args):
     module.on_tool_start(ToolExecutionStartHookEvent(tool_call_id=call_id, tool_name=tool, args=args), ctx)
 
@@ -3812,7 +3820,7 @@ def test_every_tool_s_call_gets_a_ledger_line_of_hashes_and_no_text(lab):
         ("k1", "analytics_record", "kit", True)]
     first, write, record = lines
     expected = module.core.calls.digest_result([{"type": "text", "text": f"n\n{LEDGER_MARKER}\n"}], {"rows": 1})[0]
-    assert first["result"] == expected and first["result"]["details"]["bytes"] == len('{"rows":1}')
+    assert unheld(first["result"]) == expected and first["result"]["details"]["bytes"] == len('{"rows":1}')
     assert first["args"]["keys"] == ["sql"] and first["args"] == module.core.calls.digest_args(query)
     assert first["session"] == "session-a" and first["started"] <= first["ended"] and first["ms"] >= 0
     assert write["file"] == {"wrote": "scripts/a.py"} and "file" not in first
@@ -3853,7 +3861,7 @@ def test_a_bash_result_s_hash_holds_the_line_this_extension_added(lab):
     tool_end(module, ctx, "b1", "bash")
     (line,) = ledger(module, root)
     assert len(patch.content) == 2 and line["result"]["blocks"] == 2
-    assert line["result"] == module.core.calls.digest_result(patch.content, event.details)[0]
+    assert unheld(line["result"]) == module.core.calls.digest_result(patch.content, event.details)[0]
     assert line["result"]["sha256"] != module.core.calls.digest_result(event.content, event.details)[0]["sha256"]
     observed = [r["id"] for r in journal_rows(root) if r["kind"] == "observed_activity"]
     assert line.get("observed") == (observed[-1] if observed else None)
@@ -4000,7 +4008,7 @@ def test_the_real_host_ledgers_another_extension_s_tool_beside_bash_and_write(ho
     read = next(m for m in results if m.tool_call_id == query["call"])
     assert [c.text for c in read.content] == ["region,total\nKR,41\n", "added before", "added after"]
     calls = module.core.calls
-    assert query["result"] == calls.digest_result(read.content[:2], {"rows": 1, "source": "warehouse"})[0]
+    assert unheld(query["result"]) == calls.digest_result(read.content[:2], {"rows": 1, "source": "warehouse"})[0]
     assert query["result"]["blocks"] == 2 and query["ms"] >= 300
     assert query["args"] == calls.digest_args({"sql": sql})
     observed = [r for r in journal_rows(root) if r["kind"] == "observed_activity"]
@@ -4012,3 +4020,92 @@ def test_the_real_host_ledgers_another_extension_s_tool_beside_bash_and_write(ho
     assert "KR,41" not in text and LEDGER_MARKER not in text and "print(1)" not in text
     ours = loaded_module(extensions[2])
     assert ours.STATE["running"] == {} and ours.STATE["results"] == {} and ours.STATE["recorded"] == {}
+
+
+# --- held results and the claim check (experiment: Issue #196 — not adopted) ---
+
+def test_results_are_held_and_a_record_made_through_the_tool_is_checked_against_them(lab):
+    """A result of any tool is held in the project's cache when its call ends, its details too; a
+    finding recorded through analytics_record is then told where its numbers were seen — here in
+    another extension's result and its details — and which were not. The record is written as it
+    was; the results a value was seen in are kept."""
+    module, root = lab
+    ctx = SimpleNamespace(cwd=str(root))
+    module.STATE["session"] = "session-a"
+    query = {"sql": "select region, total"}
+    tool_start(module, ctx, "q1", "warehouse__query", query)
+    tool_seen(module, ctx, "q1", "warehouse__query", query, "region,total\nKR,41\n", {"rows": 1204})
+    tool_end(module, ctx, "q1", "warehouse__query")
+    (line,) = ledger(module, root)
+    assert line["result"]["held"] == "held" and line["result"]["details"]["held"] == "held"
+    project, calls = module.core.Project(root), module.core.calls
+    assert calls.held(project, line["result"]["sha256"]) == calls.digest_result(
+        [{"type": "text", "text": "region,total\nKR,41\n"}])[1]
+    assert calls.held(project, line["result"]["details"]["sha256"]) == b'{"rows":1204}'
+    assert module.STATE["results"] == {}
+
+    record = tools_of(module)["analytics_record"]
+    result = call(record, {"kind": "finding", "text": "KR은 41이고 전체 1,204, JP는 777"})
+    assert not result.is_error
+    assert text_of(result).endswith("; values seen in this session's tool results: 2 of 3 (not seen: 777)")
+    claim = result.details["claim"]
+    assert claim["event"] == result.details["event"]["id"] and claim["grade"] == "some_seen"
+    assert [[(s["call"], s["how"], s.get("in"), s["kept"]) for s in v["seen"]] for v in claim["values"]] == [
+        [("q1", "exact", None, True)], [("q1", "exact", "details", True)], []]
+    stored = [r for r in journal_rows(root) if r["id"] == claim["event"]][0]
+    assert stored["text"] == "KR은 41이고 전체 1,204, JP는 777" and "claim" not in json.dumps(stored)
+    assert calls.kept_path(project, line["result"]["sha256"]).is_file()
+    assert module.core.claims.read(project)["grades"] == {"all_seen": 0, "some_seen": 1, "none_seen": 0}
+    # A record that states no number, and a question, are answered as on main.
+    plain = call(record, {"kind": "finding", "text": "수치 없는 발견"})
+    asked = call(record, {"kind": "question", "text": "41이 맞나?"})
+    assert "values seen" not in text_of(plain) and "values seen" not in text_of(asked)
+    assert "claim" not in plain.details and len(module.core.claims.read(project)["claims"]) == 1
+
+
+@pytest.mark.parametrize("switch", ["AELIX_ANALYTICS_HOLD", "AELIX_ANALYTICS_CLAIMS"])
+def test_holding_and_the_claim_check_are_each_turned_off(lab, monkeypatch, switch):
+    module, root = lab
+    ctx = SimpleNamespace(cwd=str(root))
+    monkeypatch.setenv(switch, "off")
+    tool_start(module, ctx, "q1", "fetch", {})
+    tool_seen(module, ctx, "q1", "fetch", {}, "KR,41", {"rows": 1})
+    tool_end(module, ctx, "q1", "fetch")
+    (line,) = ledger(module, root)
+    result = call(tools_of(module)["analytics_record"], {"kind": "finding", "text": "KR은 41"})
+    assert not result.is_error
+    if switch == "AELIX_ANALYTICS_HOLD":
+        # The ledger has the hashes and no bytes are held: the look is then not a whole one, and says so.
+        assert "held" not in line["result"] and "held" not in line["result"]["details"]
+        assert not (root / ".analytics" / "cache" / "held").exists()
+        assert text_of(result).endswith("values seen in this session's tool results: 0 of 1 (not seen: 41); "
+                                        "not every result was looked at")
+    else:
+        assert line["result"]["held"] == "held"
+        assert "values seen" not in text_of(result) and "claim" not in result.details
+        assert not (root / ".analytics" / "claims.jsonl").exists()
+
+
+def test_the_real_host_checks_a_record_against_another_extension_s_result(host_project, tmp_path):
+    """Through aelix 0.1.0b2 itself: the model calls an adapter's tool, then records a finding with
+    analytics_record; the answer it reads says which of the finding's numbers were seen in the
+    session's tool results. The held results are in the project's cache, which ignores itself."""
+    module, root = host_project
+    adapter = tmp_path / "adapter.py"
+    adapter.write_text(ADAPTER, encoding="utf-8")
+    results, extensions = host_turns(
+        tmp_path, root, [adapter, EXT],
+        [[("warehouse__query", {"sql": "select region, total from sales"})],
+         [("analytics_record", {"kind": "finding", "text": "KR 합계는 41이고 US는 58"})]])
+    said = results[-1].content[0].text
+    assert said.startswith("analytics_record: ok — ") and not results[-1].is_error
+    assert said.endswith("; values seen in this session's tool results: 1 of 2 (not seen: 58)")
+    project = module.core.Project(root)
+    (claim,) = module.core.claims.read(project)["claims"]
+    query = [c for c in ledger(module, root) if c["tool"] == "warehouse__query"][0]
+    assert claim["values"][0]["seen"][0]["call"] == query["call"] and claim["grade"] == "some_seen"
+    assert claim["session"] == query["session"]
+    assert (root / ".analytics" / "cache" / "held" / ".gitignore").is_file()
+    assert (root / ".analytics" / "kept" / ".gitignore").is_file()
+    # The record's own call is in the ledger too, and its result is not a source of a later record.
+    assert [c["tool"] for c in ledger(module, root)] == ["warehouse__query", "analytics_record"]

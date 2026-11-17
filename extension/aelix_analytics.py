@@ -225,7 +225,9 @@ STATE = {"api": None, "project": None, "session": None, "starts": {}, "render_ta
          # The call ledger (experiment #196): the calls running now, each with the calls that ran
          # while it did; the observation a bash call's tool_result wrote; the result's hash as
          # tool_result saw it.
-         "running": {}, "recorded": {}, "results": {}}
+         "running": {}, "recorded": {}, "results": {},
+         # Whether this session pruned the held results (once).
+         "pruned": False}
 
 NO_PROJECT = ("No analytics project is active (checked /analytics use, --analytics-project, "
               "AELIX_ANALYTICS_PROJECT, analytics.json or lab.json in the working directory and "
@@ -1140,7 +1142,16 @@ async def tool_record(args, ctx):
         lambda: core.record(project, kind, text, refs=refs, resolves=resolves,
                             details=details, origin=authored))
     schedule_workspace_render(project, "tool")
-    return f"analytics_record: ok — {recorded_line(written, kind)}", written.to_json()
+    said, value = recorded_line(written, kind), written.to_json()
+    if claims_mode() == "on" and calls_mode() == "on":
+        # Experiment #196: where the numbers this record states were seen among the session's tool
+        # results — told, never a reason to refuse or fail the record.
+        with contextlib.suppress(Exception):
+            claim = await asyncio.to_thread(
+                lambda: core.claims.link(project, written.event, session=STATE["session"], at=core.iso()))
+            if claim is not None:
+                said, value = f"{said}; {core.claims.said(claim)}", {**value, "claim": claim}
+    return f"analytics_record: ok — {said}", value
 
 
 def recorded_line(written, kind: str) -> str:
@@ -1986,6 +1997,7 @@ async def on_before_agent_start(event, ctx):
         return None
     with contextlib.suppress(Exception):
         await asyncio.to_thread(lambda: core.sync_context(project, origin=hook_origin))
+    prune_held_once(project)
     if prompt_mode() == "stable":
         return await stable_prompt(event, ctx, project, session, hook_origin)
     STATE["prompt"] = None
@@ -2116,17 +2128,54 @@ def calls_mode() -> str:
     return "off" if (os.environ.get("AELIX_ANALYTICS_CALLS") or "").strip().lower() == "off" else "on"
 
 
+def hold_mode() -> str:
+    """Whether the results of tool calls are held for a while in the project's cache (experiment
+    #196): AELIX_ANALYTICS_HOLD, `on` unless it says `off` — then the ledger has their hashes only and
+    a record's numbers cannot be looked for."""
+    return "off" if (os.environ.get("AELIX_ANALYTICS_HOLD") or "").strip().lower() == "off" else "on"
+
+
+def claims_mode() -> str:
+    """Whether a record's numbers are looked for in the session's held results (experiment #196):
+    AELIX_ANALYTICS_CLAIMS, `on` unless it says `off`."""
+    return "off" if (os.environ.get("AELIX_ANALYTICS_CLAIMS") or "").strip().lower() == "off" else "on"
+
+
+def prune_held_once(project) -> None:
+    """Once a session, in a thread of its own that nothing waits for: the held results past their age
+    or their total size are removed (core.calls.prune)."""
+    if STATE.get("pruned") or calls_mode() != "on":
+        return
+    STATE["pruned"] = True
+
+    def work():
+        with contextlib.suppress(Exception):
+            if core.admit(project, "prune held results", side=True) is not None:
+                core.calls.prune(project)
+
+    threading.Thread(target=work, name="aelix-analytics-prune", daemon=True).start()
+
+
 def ledger_call(project, event, start, args, session, cwd) -> None:
     """One line of the call ledger for a call that ended (core.calls, experiment #196): any tool —
     the kit's, aelix's, another extension's, an MCP server's — with the hash of the result as
     on_tool_result saw it (none for a call that got no tool_result: blocked before it ran, cancelled).
     Hashes and sizes only. On aelix's event loop: no walk, no read of the project's files."""
+    result, raw, details_raw = STATE["results"].pop(event.tool_call_id, None) or (None, None, None)
+    if result is not None and raw is not None:
+        # Held for a while in the project's cache, which git ignores (core.calls.hold): what a
+        # record's claim check reads. One bounded write on aelix's event loop.
+        result = {**result, "held": core.calls.hold(project, result["sha256"], raw)}
+        if details_raw is not None:
+            result["details"] = {**result["details"],
+                                 "held": core.calls.hold(project, result["details"]["sha256"], details_raw)}
     line = core.calls.entry(
         call=event.tool_call_id, session=session, tool=event.tool_name,
         started=start[3] if start else None, ended=core.iso(),
         ms=round((time.monotonic() - start[0]) * 1000) if start else None,
-        error=bool(event.is_error), args=args,
-        result=STATE["results"].pop(event.tool_call_id, None),
+        error=bool(event.is_error), args=args, result=result,
+        # A bash call that is one kit command line: its output repeats the kit's records.
+        kit_command=event.tool_name == "bash" and kit_command_line_only(str(args.get("command") or "")),
         overlaps=STATE["running"].pop(event.tool_call_id, ()),
         file=core.calls.file_of(project, event.tool_name, args, cwd),
         observed=STATE["recorded"].pop(event.tool_call_id, None))
@@ -2683,8 +2732,13 @@ async def on_tool_result(event, ctx):
     if calls_mode() == "on":
         with contextlib.suppress(Exception):
             content = patch.content if patch is not None and patch.content is not None else event.content
-            STATE["results"][event.tool_call_id] = core.calls.digest_result(
-                content, getattr(event, "details", None))[0]
+            details = getattr(event, "details", None)
+            kept, raw = core.calls.digest_result(content, details)
+            # The bytes wait in memory for on_tool_end, which knows the project and holds them.
+            held = hold_mode() == "on"
+            STATE["results"][event.tool_call_id] = (
+                kept, raw if held else None,
+                core.calls.canonical(details) if held and "sha256" in (kept.get("details") or {}) else None)
     return patch
 
 
@@ -3767,7 +3821,7 @@ def setup(aelix):
                   "passed": [], "observations": {}, "sessions": core.observed.Sessions(),
                   "observer": STATE.get("observer"), "skipped": {}, "writable_root": None,
                   "prompt": None, "context_touched": False, "running": {}, "recorded": {},
-                  "results": {}})
+                  "results": {}, "pruned": False})
     put_the_author_in_the_environment()
     aelix.register_flag("analytics-project", type="str",
                         description="Analytics project directory (holds analytics.json, or an "

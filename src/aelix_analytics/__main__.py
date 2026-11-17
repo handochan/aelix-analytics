@@ -218,6 +218,9 @@ def _command(argv) -> int:
     p.add_argument("--source", choices=core.calls.SOURCES)
     p.add_argument("--since", help="calls that ended at or after this time (ISO)")
     p.add_argument("--limit", type=int, default=core.calls.READ_LIMIT)
+    p = sub.add_parser("claims", help="experiment (#196): where the numbers of records were seen in tool results")
+    p.add_argument("--event", help="one record's (its event id)")
+    p.add_argument("--limit", type=int, default=core.claims.READ_LIMIT)
 
     report = sub.add_parser("reports", help="preserve and read immutable Report revisions")
     commands = report.add_subparsers(dest="report_action", required=True)
@@ -440,6 +443,12 @@ def _command(argv) -> int:
                 print(core.calls.text_of(found))
                 return 0
             _emit({"ok": True, **found})
+        elif args.command == "claims":
+            found = core.claims.read(project, event=args.event, limit=args.limit)
+            if args.text:
+                print(core.claims.text_of(found))
+                return 0
+            _emit({"ok": True, **found})
         elif args.command == "context":
             block = core.context_block(project)
             if args.text:
@@ -491,7 +500,13 @@ def _command(argv) -> int:
             written = core.record(project, args.kind, args.text, refs=refs,
                                   resolves=args.resolves, details=args.details_json, origin=origin)
             built = _safe_render(workspace, project)
-            _emit({"ok": True, **written.to_json(), "workspace": built})
+            claim = None
+            if origin.session and os.environ.get("AELIX_ANALYTICS_CLAIMS", "").strip().lower() != "off":
+                try:  # experiment #196: the claim check never fails a record
+                    claim = core.claims.link(project, written.event, session=origin.session, at=core.iso())
+                except Exception:  # noqa: BLE001
+                    claim = None
+            _emit({"ok": True, **written.to_json(), "workspace": built, **({"claim": claim} if claim else {})})
             _tell_unmanaged(built)
         elif args.command == "assets":
             action = args.asset_action
