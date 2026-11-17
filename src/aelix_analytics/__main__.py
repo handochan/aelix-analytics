@@ -212,6 +212,12 @@ def _command(argv) -> int:
     p.add_argument("--as-of-seq", type=int)
     p.add_argument("--limit", type=int)
     sub.add_parser("context", help="the context block injected into agent prompts")
+    p = sub.add_parser("calls", help="experiment (#196): the tool calls the extension saw in this project")
+    p.add_argument("--session")
+    p.add_argument("--tool")
+    p.add_argument("--source", choices=core.calls.SOURCES)
+    p.add_argument("--since", help="calls that ended at or after this time (ISO)")
+    p.add_argument("--limit", type=int, default=core.calls.READ_LIMIT)
 
     report = sub.add_parser("reports", help="preserve and read immutable Report revisions")
     commands = report.add_subparsers(dest="report_action", required=True)
@@ -427,6 +433,13 @@ def _command(argv) -> int:
                 print(text)
                 return 0
             _emit({"ok": True, "status": st, "text": text})
+        elif args.command == "calls":
+            found = core.calls.read(project, session=args.session, tool=args.tool, source=args.source,
+                                    since=args.since, limit=args.limit)
+            if args.text:
+                print(core.calls.text_of(found))
+                return 0
+            _emit({"ok": True, **found})
         elif args.command == "context":
             block = core.context_block(project)
             if args.text:

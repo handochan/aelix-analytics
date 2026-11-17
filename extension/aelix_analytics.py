@@ -221,7 +221,11 @@ STATE = {"api": None, "project": None, "session": None, "starts": {}, "render_ta
          # The stable prompt (experiment, branch exp/session-substrate): what one session was given at
          # its first prompt, and whether the agent's own write or edit tool touched CONTEXT.md since
          # the last prompt.
-         "prompt": None, "context_touched": False}
+         "prompt": None, "context_touched": False,
+         # The call ledger (experiment #196): the calls running now, each with the calls that ran
+         # while it did; the observation a bash call's tool_result wrote; the result's hash as
+         # tool_result saw it.
+         "running": {}, "recorded": {}, "results": {}}
 
 NO_PROJECT = ("No analytics project is active (checked /analytics use, --analytics-project, "
               "AELIX_ANALYTICS_PROJECT, analytics.json or lab.json in the working directory and "
@@ -2094,7 +2098,39 @@ def on_session_compact(event, ctx):
 
 
 def on_tool_start(event, ctx):
-    STATE["starts"][event.tool_call_id] = (time.monotonic(), event.tool_name, dict(event.args or {}))
+    # The calls that run while this one does (the call ledger, experiment #196): each is told of the
+    # other, so a call started later is on the line of one that ends first.
+    running = STATE["running"]
+    for others in running.values():
+        others.add(event.tool_call_id)
+    running[event.tool_call_id] = set(running)
+    STATE["starts"][event.tool_call_id] = (time.monotonic(), event.tool_name, dict(event.args or {}), core.iso())
+
+
+CALLS_MODES = ("on", "off")
+
+
+def calls_mode() -> str:
+    """Whether every tool call gets a line in the call ledger (experiment #196): AELIX_ANALYTICS_CALLS,
+    `on` unless it says `off`."""
+    return "off" if (os.environ.get("AELIX_ANALYTICS_CALLS") or "").strip().lower() == "off" else "on"
+
+
+def ledger_call(project, event, start, args, session, cwd) -> None:
+    """One line of the call ledger for a call that ended (core.calls, experiment #196): any tool —
+    the kit's, aelix's, another extension's, an MCP server's — with the hash of the result as
+    on_tool_result saw it (none for a call that got no tool_result: blocked before it ran, cancelled).
+    Hashes and sizes only. On aelix's event loop: no walk, no read of the project's files."""
+    line = core.calls.entry(
+        call=event.tool_call_id, session=session, tool=event.tool_name,
+        started=start[3] if start else None, ended=core.iso(),
+        ms=round((time.monotonic() - start[0]) * 1000) if start else None,
+        error=bool(event.is_error), args=args,
+        result=STATE["results"].pop(event.tool_call_id, None),
+        overlaps=STATE["running"].pop(event.tool_call_id, ()),
+        file=core.calls.file_of(project, event.tool_name, args, cwd),
+        observed=STATE["recorded"].pop(event.tool_call_id, None))
+    core.calls.append(project, line)
 
 
 # The longest bash command whose simple commands are read one by one (python_outside_the_kit); a
@@ -2309,6 +2345,15 @@ def summarize_call(tool: str, args: dict, project) -> tuple[str, list]:
 
 def on_tool_end(event, ctx):
     start = STATE["starts"].pop(event.tool_call_id, None)
+    try:
+        return _on_tool_end(event, ctx, start)
+    finally:  # what the ledger kept for a call it wrote no line for
+        STATE["running"].pop(event.tool_call_id, None)
+        STATE["recorded"].pop(event.tool_call_id, None)
+        STATE["results"].pop(event.tool_call_id, None)
+
+
+def _on_tool_end(event, ctx, start):
     # What tool_call kept for a call no tool_result came for (another extension blocked it, a cancel):
     # dropped with the script bytes it held (ADR-0015 decision 6).
     STATE["observations"].pop(event.tool_call_id, None)
@@ -2337,6 +2382,9 @@ def on_tool_end(event, ctx):
             "summary": summary, "flags": flags, "session": STATE["session"],
             # A bash call whose observation was skipped or not written (ADR-0015: counted, never silent).
             **({"observation_skipped": skipped} if skipped else {})})
+    if calls_mode() == "on":
+        with contextlib.suppress(Exception):  # the ledger never breaks a turn
+            ledger_call(project, event, start, args, STATE["session"], _cwd(ctx))
     return None
 
 
@@ -2626,6 +2674,21 @@ SKIPPED = frozenset({"busy", "timeout", "unconfirmed", "failed", "journal_busy",
 
 
 async def on_tool_result(event, ctx):
+    """After any tool call: the bash observation and its line (_on_bash_result), then — for every tool,
+    the kit's, aelix's, another extension's, an MCP server's — the hash of the result as it is here,
+    kept for the call's ledger line (experiment #196; on_tool_end writes it). The result is the one
+    the handlers before this one left, with the line this one adds; a handler after it is not seen.
+    The hash is of bytes already in memory and never fails the call."""
+    patch = await _on_bash_result(event, ctx)
+    if calls_mode() == "on":
+        with contextlib.suppress(Exception):
+            content = patch.content if patch is not None and patch.content is not None else event.content
+            STATE["results"][event.tool_call_id] = core.calls.digest_result(
+                content, getattr(event, "details", None))[0]
+    return patch
+
+
+async def _on_bash_result(event, ctx):
     """After a bash call in a project this kit writes: the observation's end and record (ADR-0015),
     within 3 s — the project's resolution and admission included — and one text block after the result
     (_notice): a Python run outside the kit (python_outside_the_kit, telemetry's python_via_bash) is told
@@ -2677,6 +2740,8 @@ async def on_tool_result(event, ctx):
                 raise
             except Exception:  # noqa: BLE001 - the observation failed; the #170 line still goes out
                 note = "failed"
+        if outcome is not None and outcome.event is not None and call_id is not None:
+            STATE["recorded"][call_id] = outcome.event.get("id")  # for the call's ledger line
         skipped = note or (outcome.reason if outcome is not None and outcome.event is None else None)
         if skipped in SKIPPED or (prior is not None and prior.not_observed == "busy" and (
                 outcome is None or outcome.event is None)):
@@ -2692,6 +2757,9 @@ async def on_tool_result(event, ctx):
 def on_agent_end(event, ctx):
     STATE["observations"].clear()  # starts no tool_result will end (decision 6)
     STATE["skipped"].clear()
+    STATE["running"].clear()  # no call runs past the loop's end
+    STATE["recorded"].clear()
+    STATE["results"].clear()
     with contextlib.suppress(Exception):
         project = resolve_project()[0]
         session = current_session(ctx)
@@ -3698,7 +3766,8 @@ def setup(aelix):
                   "render_tasks": {}, "told_unrecorded": set(), "looked": False, "found": None,
                   "passed": [], "observations": {}, "sessions": core.observed.Sessions(),
                   "observer": STATE.get("observer"), "skipped": {}, "writable_root": None,
-                  "prompt": None, "context_touched": False})
+                  "prompt": None, "context_touched": False, "running": {}, "recorded": {},
+                  "results": {}})
     put_the_author_in_the_environment()
     aelix.register_flag("analytics-project", type="str",
                         description="Analytics project directory (holds analytics.json, or an "

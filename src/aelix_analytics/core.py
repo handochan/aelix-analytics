@@ -34,6 +34,7 @@ from pathlib import Path, PureWindowsPath
 # package name that is gone once the load is over, so a sibling imported later is not found
 # (/analytics reports, #162).
 from . import _platform, asset_app, asset_suggestions, checkpoints, relations, report_app, writer
+from . import calls as calls
 from . import observed as observed
 from ._platform import newlines_as_lf as newlines_as_lf
 from ._platform import open_text as open_text

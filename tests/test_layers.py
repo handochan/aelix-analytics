@@ -171,6 +171,8 @@ MODULES: dict[str, str] = {
     "src/aelix_analytics/core.py": "core",
     "src/aelix_analytics/tree_state.py": "observation",
     "src/aelix_analytics/observed.py": "observation",
+    # The call ledger (experiment #196, branch exp/session-substrate): not adopted.
+    "src/aelix_analytics/calls.py": "observation",
     "src/aelix_analytics/report_app.py": "report_application",
     "src/aelix_analytics/report_renderer.py": "report_view_contract",
     "src/aelix_analytics/report_renderers.py": "report_views",

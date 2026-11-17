@@ -3762,3 +3762,253 @@ def test_the_brief_is_not_sent_once_no_project_is_active(lab, tmp_path, monkeypa
     monkeypatch.chdir(tmp_path / "trust" if (tmp_path / "trust").is_dir() else tmp_path)
     monkeypatch.setattr(module, "resolve_project", lambda: (_ for _ in ()).throw(module.core.AnalyticsError("no_project", "none")))
     assert _prompt(module, ctx) is None and _sent(module, ctx) is None
+
+
+# --- the call ledger (experiment: Issue #196, branch exp/session-substrate — not adopted) ---
+
+LEDGER_MARKER = "row-value-7c1f"
+
+
+def ledger(module, root):
+    return module.core.calls.read(module.core.Project(root))["calls"]
+
+
+def tool_start(module, ctx, call_id, tool, args):
+    module.on_tool_start(ToolExecutionStartHookEvent(tool_call_id=call_id, tool_name=tool, args=args), ctx)
+
+
+def tool_seen(module, ctx, call_id, tool, args, text, details=None):
+    from aelix_agent_core.harness.hooks import ToolResultHookEvent
+    from aelix_ai.messages import TextContent
+
+    return tool_result(module, ToolResultHookEvent(tool_call_id=call_id, tool_name=tool, args=args,
+                                                   content=[TextContent(text=text)], details=details), ctx)
+
+
+def tool_end(module, ctx, call_id, tool, *, is_error=False):
+    module.on_tool_end(ToolExecutionEndHookEvent(tool_call_id=call_id, tool_name=tool, is_error=is_error), ctx)
+
+
+def test_every_tool_s_call_gets_a_ledger_line_of_hashes_and_no_text(lab):
+    """The call ledger: a tool this extension knows nothing of (another extension's, an MCP server's),
+    the host's write tool and the kit's own tool each get one line — whose tool, when, the hash and
+    size of the arguments and of the result as tool_result saw it — and none of their text. A relative
+    path of the host's write tool is read below aelix's working directory."""
+    module, root = lab
+    ctx = SimpleNamespace(cwd=str(root.parent))
+    module.STATE["session"] = "session-a"
+    query = {"sql": f"select '{LEDGER_MARKER}'"}
+    tool_start(module, ctx, "q1", "warehouse__query", query)
+    assert tool_seen(module, ctx, "q1", "warehouse__query", query, f"n\n{LEDGER_MARKER}\n", {"rows": 1}) is None
+    tool_end(module, ctx, "q1", "warehouse__query")
+    tool_start(module, ctx, "w1", "write", {"path": "proj/scripts/a.py", "content": LEDGER_MARKER})
+    tool_seen(module, ctx, "w1", "write", {"path": "proj/scripts/a.py"}, "wrote 14 bytes")
+    tool_end(module, ctx, "w1", "write")
+    tool_start(module, ctx, "k1", "analytics_record", {"kind": "note", "text": LEDGER_MARKER})
+    tool_end(module, ctx, "k1", "analytics_record", is_error=True)  # no tool_result came: no result seen
+    lines = ledger(module, root)
+    assert [(c["call"], c["tool"], c["source"], c["error"]) for c in lines] == [
+        ("q1", "warehouse__query", "other", False), ("w1", "write", "host", False),
+        ("k1", "analytics_record", "kit", True)]
+    first, write, record = lines
+    expected = module.core.calls.digest_result([{"type": "text", "text": f"n\n{LEDGER_MARKER}\n"}], {"rows": 1})[0]
+    assert first["result"] == expected and first["result"]["details"]["bytes"] == len('{"rows":1}')
+    assert first["args"]["keys"] == ["sql"] and first["args"] == module.core.calls.digest_args(query)
+    assert first["session"] == "session-a" and first["started"] <= first["ended"] and first["ms"] >= 0
+    assert write["file"] == {"wrote": "scripts/a.py"} and "file" not in first
+    assert record["result"] is None and record["args"]["keys"] == ["kind", "text"]
+    assert LEDGER_MARKER not in (root / ".analytics" / "calls.jsonl").read_text(encoding="utf-8")
+    assert b"\r" not in (root / ".analytics" / "calls.jsonl").read_bytes()
+    # Telemetry keeps its line for each call, and nothing is left in the process for an ended call.
+    telemetry = module.core.read_jsonl(root / ".analytics" / "telemetry.jsonl")
+    assert [t["tool"] for t in telemetry] == ["warehouse__query", "write", "analytics_record"]
+    assert module.STATE["running"] == {} and module.STATE["results"] == {} and module.STATE["starts"] == {}
+
+
+def test_calls_that_run_together_name_each_other(lab):
+    """aelix runs the tool calls of one assistant message together by default: each line names the
+    calls that ran while it did, so what changed in that time is not said to be one call's."""
+    module, root = lab
+    ctx = SimpleNamespace(cwd=str(root))
+    tool_start(module, ctx, "a", "warehouse__query", {})
+    tool_start(module, ctx, "b", "bash", {"command": "ls"})
+    tool_end(module, ctx, "a", "warehouse__query")
+    tool_start(module, ctx, "c", "fetch", {})
+    tool_end(module, ctx, "b", "bash")
+    tool_end(module, ctx, "c", "fetch")
+    tool_start(module, ctx, "d", "fetch", {})
+    tool_end(module, ctx, "d", "fetch")
+    assert {c["call"]: c.get("overlaps") for c in ledger(module, root)} == {
+        "a": ["b"], "b": ["a", "c"], "c": ["b"], "d": None}
+
+
+def test_a_bash_result_s_hash_holds_the_line_this_extension_added(lab):
+    """The result a line hashes is the one this extension's tool_result handler leaves: for a Python
+    run outside the kit, the output and the line telling the model it was not recorded (#170)."""
+    module, root = lab
+    ctx = SimpleNamespace(cwd=str(root))
+    event = bash_result("uv run python scripts/x.py")
+    tool_start(module, ctx, "b1", "bash", dict(event.args))
+    patch = tool_result(module, event, ctx)
+    tool_end(module, ctx, "b1", "bash")
+    (line,) = ledger(module, root)
+    assert len(patch.content) == 2 and line["result"]["blocks"] == 2
+    assert line["result"] == module.core.calls.digest_result(patch.content, event.details)[0]
+    assert line["result"]["sha256"] != module.core.calls.digest_result(event.content, event.details)[0]["sha256"]
+    observed = [r["id"] for r in journal_rows(root) if r["kind"] == "observed_activity"]
+    assert line.get("observed") == (observed[-1] if observed else None)
+
+
+def test_the_ledger_is_off_when_told_and_absent_without_a_project(lab, tmp_path, monkeypatch):
+    module, root = lab
+    ctx = SimpleNamespace(cwd=str(root))
+    monkeypatch.setenv("AELIX_ANALYTICS_CALLS", "off")
+    tool_start(module, ctx, "q1", "fetch", {"url": "x"})
+    tool_seen(module, ctx, "q1", "fetch", {"url": "x"}, "body")
+    tool_end(module, ctx, "q1", "fetch")
+    assert not (root / ".analytics" / "calls.jsonl").exists()
+    assert [t["tool"] for t in module.core.read_jsonl(root / ".analytics" / "telemetry.jsonl")] == ["fetch"]
+    assert module.STATE["results"] == {} and module.STATE["running"] == {}
+    # On again, with no project active: nothing is written anywhere and nothing is kept.
+    monkeypatch.setenv("AELIX_ANALYTICS_CALLS", "on")
+    monkeypatch.delenv("AELIX_ANALYTICS_PROJECT")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    module.STATE["project"] = None
+    tool_start(module, ctx, "q2", "fetch", {"url": "x"})
+    tool_seen(module, ctx, "q2", "fetch", {"url": "x"}, "body")
+    tool_end(module, ctx, "q2", "fetch")
+    assert not (root / ".analytics" / "calls.jsonl").exists() and list(elsewhere.iterdir()) == []
+    assert module.STATE["results"] == {} and module.STATE["running"] == {}
+
+
+ADAPTER = '''
+import asyncio
+
+from aelix_agent_core.types import AgentTool
+from aelix_ai.messages import TextContent
+from aelix_ai.tools import ToolResult
+
+
+async def query(args, ctx):
+    await asyncio.sleep(0.3)
+    return ToolResult(content=[TextContent(text="region,total\\nKR,41\\n")],
+                      details={"rows": 1, "source": "warehouse"})
+
+
+async def export(args, ctx):
+    await asyncio.sleep(0.1)
+    with open(args["to"], "w", encoding="utf-8") as fh:
+        fh.write("region,total\\nKR,41\\n")
+    return ToolResult(content=[TextContent(text="exported 1 row")])
+
+
+def setup(aelix):
+    aelix.register_tool(AgentTool(
+        name="warehouse__query", description="Query the warehouse.", execute=query,
+        parameters={"type": "object", "properties": {"sql": {"type": "string"}}}))
+    aelix.register_tool(AgentTool(
+        name="warehouse__export", description="Export a table to a file.", execute=export,
+        parameters={"type": "object", "properties": {"to": {"type": "string"}}}))
+'''
+
+RESULT_PATCHER = '''
+from aelix_agent_core.harness.hooks import ToolResultPatch
+from aelix_ai.messages import TextContent
+
+
+def setup(aelix):
+    def after(event, ctx):
+        if event.tool_name != "warehouse__query":
+            return None
+        return ToolResultPatch(content=[*event.content, TextContent(text="%s")])
+
+    aelix.on("tool_result", after)
+'''
+
+
+def host_turns(tmp_path, root, extensions, turns):
+    """aelix 0.1.0b2's loader loads `extensions` in that order, and its harness runs the agent loop
+    with aelix's bash and write tools and a scripted model: `turns` is, for each assistant message, the
+    tool calls it makes as (tool, input). Gives the tool results the model read and the extensions."""
+    from aelix_agent_core.harness.core import AgentHarness, AgentHarnessOptions
+    from aelix_ai.messages import AssistantMessage, TextContent, ToolCallContent, ToolResultMessage
+    from aelix_ai.streaming import AssistantDoneEvent
+    from aelix_coding_agent.extensions.loader import load_extensions
+    from aelix_coding_agent.tools.bash import create_bash_tool
+    from aelix_coding_agent.tools.write import create_write_tool
+
+    seen = []
+
+    async def model(_model, context, _options):
+        seen.append(list(context.messages))
+        n = len(seen)
+        if n <= len(turns):
+            made = [ToolCallContent(tool_call_id=f"t{n}-{i}", tool_name=tool, input=args)
+                    for i, (tool, args) in enumerate(turns[n - 1])]
+            yield AssistantDoneEvent(reason="toolUse", message=AssistantMessage(content=made, stop_reason="tool_use"))
+        else:
+            yield AssistantDoneEvent(message=AssistantMessage(content=[TextContent(text="done")], stop_reason="stop"))
+
+    async def scenario():
+        loaded = await load_extensions(list(map(str, extensions)))
+        assert loaded.errors == []
+        harness = AgentHarness(AgentHarnessOptions(
+            extensions=loaded.extensions, runtime=loaded.runtime, cwd=str(root),
+            tools=[create_bash_tool(str(root)), create_write_tool(str(root))], stream_fn=model))
+        await harness.prompt("go")
+        return [m for m in seen[-1] if isinstance(m, ToolResultMessage)], loaded.extensions
+
+    return asyncio.run(scenario())
+
+
+def test_the_real_host_ledgers_another_extension_s_tool_beside_bash_and_write(host_project, tmp_path):
+    """The ledger through aelix 0.1.0b2 itself, in a session shared with other extensions: an adapter
+    that registers two tools of its own, one extension that adds to a tool's results before this one's
+    handler runs and one after. One assistant message calls the adapter's two tools, which aelix runs
+    together; the next runs bash and the last writes a file (aelix runs a message that holds bash, write
+    or edit one call at a time). Every call has its line; the two that ran together name each other; the
+    adapter's result is hashed as it was at this extension's handler (with what the extension before it
+    added, without what the one after it added, which the model did read); the bash line names the
+    observation recorded for it; the write line names the file. The journal gets what it got on main:
+    the bash observation alone — the file the adapter wrote into data/ is in no record yet."""
+    module, root = host_project
+    (root / "scripts" / "a.py").write_text("open('data/derived/x.csv', 'w').write('1')\nprint('wrote')\n",
+                                           encoding="utf-8")
+    files = {}
+    for name, source in (("adapter", ADAPTER), ("before", RESULT_PATCHER % "added before"),
+                         ("after", RESULT_PATCHER % "added after")):
+        files[name] = tmp_path / f"{name}.py"
+        files[name].write_text(source, encoding="utf-8")
+    sql = f"select region, total from sales where note = '{LEDGER_MARKER}'"
+    results, extensions = host_turns(
+        tmp_path, root, [files["adapter"], files["before"], EXT, files["after"]],
+        [[("warehouse__query", {"sql": sql}), ("warehouse__export", {"to": str(root / "data" / "raw.csv")})],
+         [("bash", {"command": "python scripts/a.py"})],
+         [("write", {"path": "scripts/b.py", "content": "print(1)\n"})]])
+    by_tool = {c["tool"]: c for c in ledger(module, root)}
+    assert list(by_tool) == ["warehouse__export", "warehouse__query", "bash", "write"]  # as each ended
+    assert len(ledger(module, root)) == 4
+    query, export = by_tool["warehouse__query"], by_tool["warehouse__export"]
+    bash, write = by_tool["bash"], by_tool["write"]
+    assert [c["source"] for c in (query, export, bash, write)] == ["other", "other", "host", "host"]
+    assert query["overlaps"] == [export["call"]] and export["overlaps"] == [query["call"]]
+    assert "overlaps" not in bash and "overlaps" not in write
+    assert (root / "data" / "raw.csv").is_file() and "file" not in export
+    # What the model read of the adapter's result: its block and both extensions' additions.
+    read = next(m for m in results if m.tool_call_id == query["call"])
+    assert [c.text for c in read.content] == ["region,total\nKR,41\n", "added before", "added after"]
+    calls = module.core.calls
+    assert query["result"] == calls.digest_result(read.content[:2], {"rows": 1, "source": "warehouse"})[0]
+    assert query["result"]["blocks"] == 2 and query["ms"] >= 300
+    assert query["args"] == calls.digest_args({"sql": sql})
+    observed = [r for r in journal_rows(root) if r["kind"] == "observed_activity"]
+    assert [r["id"] for r in observed] == [bash["observed"]] and bash["result"]["blocks"] == 2
+    assert observed[0]["details"]["performer"]["tool_call_id"] == bash["call"]
+    assert write["file"] == {"wrote": "scripts/b.py"} and (root / "scripts" / "b.py").is_file()
+    assert write["result"]["sha256"] and not write["error"]
+    text = (root / ".analytics" / "calls.jsonl").read_text(encoding="utf-8")
+    assert "KR,41" not in text and LEDGER_MARKER not in text and "print(1)" not in text
+    ours = loaded_module(extensions[2])
+    assert ours.STATE["running"] == {} and ours.STATE["results"] == {} and ours.STATE["recorded"] == {}
