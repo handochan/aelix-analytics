@@ -223,3 +223,19 @@ def test_a_result_read_before_is_not_read_again_in_the_same_process(project):
     finally:
         claims.PARSED_NUMBERS = saved
     assert list(claims._PARSED) == ["b" * 64]
+
+
+def test_a_result_with_a_credential_or_a_large_one_is_seen_and_not_kept(project, monkeypatch):
+    """A kept result stays until its owner removes it: one the redaction rules find a credential in,
+    and one past the size a kept result may have, are looked at where they are held and not kept."""
+    risky = saw(project, 1, "warehouse__query", "source https://reader:pw-7c1f@db.example/sales\nKR,41\n")
+    line = claims.link(project, event(3, "finding", "KR은 41"), session=SESSION)
+    assert line["grade"] == "all_seen" and line["values"][0]["seen"][0]["kept"] is False
+    assert not calls.kept_path(project, risky["result"]["sha256"]).exists()
+    assert calls.held(project, risky["result"]["sha256"]) is not None
+    monkeypatch.setattr(claims, "KEPT_RESULT_BYTES", 16)
+    big = saw(project, 2, "warehouse__query", "region,total\nJP,777\n" + "x" * 64)
+    line = claims.link(project, event(4, "finding", "JP는 777"), session=SESSION)
+    assert line["values"][0]["seen"][0]["call"] == "c2" and line["values"][0]["seen"][0]["kept"] is False
+    assert not calls.kept_path(project, big["result"]["sha256"]).exists()
+    assert claims.keepable(b"x" * 17) is False and claims.keepable(b"KR,41") is True

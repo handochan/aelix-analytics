@@ -21,7 +21,7 @@ import json
 import re
 import time
 
-from . import calls
+from . import calls, observed
 from .writer import append_jsonl
 
 SCHEMA = "analytics.claim/0"
@@ -39,13 +39,14 @@ BYTES_LOOKED = 32 << 20
 NUMBERS = 50_000        # the numbers of one result read
 SEEN_PER_VALUE = 3
 KEPT_BYTES = 8 << 20    # of results kept for one record
+KEPT_RESULT_BYTES = 1 << 20  # a larger result stays among the held ones only
 SECONDS = 1.5
 READ_LIMIT = 50
 SAME = 1e-9             # two numbers are the same when they differ by less than this share of them
 
 # A number as text states it: digits with grouping commas and a decimal part, a percent sign after
 # it. Not one inside an ASCII name or a version (e3, Q4, v0.32.1, sales_2024); one that follows a
-# letter of another script is a number (총41건).
+# letter of another script is a number (a Korean word written against it, say).
 NUMBER = re.compile(r"(?<![A-Za-z0-9_.])\d[\d,]*(?:\.\d+)?%?")
 GROUPED = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?%?")
 # What reads as a number and is not a quantity: a date or time, a run ID, a count of calendar units.
@@ -53,7 +54,8 @@ NOT_VALUES = re.compile(
     r"\d{8}-\d{6}-[a-z0-9-]+"                                  # a run ID
     r"|\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?"  # a date, a time after it
     r"|\d{1,2}:\d{2}(?::\d{2})?"                               # a time
-    r"|\d+(?=\s?(?:년|월|분기|주차))"                          # 2026년, 3월, 2분기
+    # a count of calendar units in Korean: a year, a month, a quarter, a week of the year
+    r"|\d+(?=\s?(?:\ub144|\uc6d4|\ubd84\uae30|\uc8fc\ucc28))"
     r"|(?<![\d.,])(?:19|20)\d{2}(?![\d.%])")                  # a year
 
 
@@ -230,10 +232,19 @@ def check(project, text: str, *, session=None, deadline: float | None = None) ->
             "grade": grade, "looked": looked}
 
 
+def keepable(raw: bytes) -> bool:
+    """Whether a held result may be kept past the held ones' pruning: at most KEPT_RESULT_BYTES, and
+    the kit's redaction rules (observed.redact, a deny list) find no credential in it. A kept result
+    stays until its owner removes it and may be committed if the owner lets git see the directory;
+    a held one is gone in two weeks."""
+    return len(raw) <= KEPT_RESULT_BYTES and observed.redact(raw.decode("utf-8", "replace"))[1] == 0
+
+
 def link(project, event: dict, *, session=None, at=None, deadline: float | None = None) -> dict | None:
     """The claim check for a record just written, as a line of the claims log; the results its values
-    were seen in are kept, the first of each value first, up to KEPT_BYTES. None for a kind that
-    states nothing (KINDS) and for a text without numbers. `event` is the record's journal line."""
+    were seen in are kept (those `keepable`), the first of each value first, up to KEPT_BYTES. None
+    for a kind that states nothing (KINDS) and for a text without numbers. `event` is the record's
+    journal line."""
     if event.get("kind") not in KINDS:
         return None
     found = check(project, str(event.get("text") or ""), session=session, deadline=deadline)
@@ -247,12 +258,12 @@ def link(project, event: dict, *, session=None, at=None, deadline: float | None 
             digest = value["seen"][rank]["sha256"]
             if digest in kept:
                 continue
-            size = calls.held_size(project, digest)
-            if size is None or kept_bytes + size > KEPT_BYTES:
+            raw = calls.held(project, digest)
+            if raw is None or not keepable(raw) or kept_bytes + len(raw) > KEPT_BYTES:
                 kept[digest] = False
                 continue
             kept[digest] = calls.keep(project, digest)
-            kept_bytes += size if kept[digest] else 0
+            kept_bytes += len(raw) if kept[digest] else 0
     for value in found["values"]:
         for where in value["seen"]:
             where["kept"] = bool(kept.get(where["sha256"]))

@@ -28,6 +28,7 @@ import secrets
 import time
 from pathlib import Path
 
+from . import _platform
 from .writer import append_jsonl
 
 SCHEMA = "analytics.call/0"
@@ -314,7 +315,7 @@ def _ignored(directory: Path) -> None:
     directory.mkdir(parents=True, exist_ok=True)
     ignore = directory / ".gitignore"
     if not ignore.exists():
-        ignore.write_text(IGNORE_ALL, encoding="utf-8", newline="\n")
+        _platform.write_text(ignore, IGNORE_ALL)
 
 
 def _put(path: Path, raw: bytes) -> None:
