@@ -29,7 +29,7 @@ from importlib import resources
 from pathlib import Path
 from urllib.parse import quote
 
-from . import _platform, core, i18n, relations
+from . import _platform, brand, core, i18n, relations
 from .i18n import attr, t
 
 ASSETS = resources.files(__package__) / "assets"
@@ -1215,6 +1215,7 @@ class Site:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{esc(title)} · {esc(self.project_title)}</title>
+{brand.ICON_LINK}
 <link rel="stylesheet" href="{root}assets/workspace.css{v}">
 <link rel="stylesheet" href="{root}assets/code.css{v}">
 <script src="{root}assets/i18n.js{v}"></script>
@@ -1225,7 +1226,7 @@ class Site:
   <div class="build" id="page-menu">{t("chrome.rendered")} {fmt_time(self.built_at)} · <label class="live"><input type="checkbox" id="live" checked> {t("chrome.auto_reload")}</label></div>
 </header>
 <main><p class="state-notice" role="status" hidden></p>{body}</main>
-<footer>Aelix Analytics {core.KIT_VERSION} · {t("chrome.generated")} · <span class="read-basis">{t("chrome.read_at")} {self.read_footer()}</span></footer>
+<footer>{brand.mark()}Aelix Analytics {core.KIT_VERSION} · {t("chrome.generated")} · <span class="read-basis">{t("chrome.read_at")} {self.read_footer()}</span></footer>
 <script src="{root}assets/workspace-state.js{v}"></script>
 <script src="{root}assets/workspace.js{v}"></script>
 </body>

@@ -219,7 +219,8 @@ def test_a_correction_history_joins_records_in_order_without_numbers(tmp_path):
     assert model.correction_history(alone) == []
     workspace.build(p)
     page = plain((p.workspace_dir / "relations" / workspace.Site(p).relations.filename(second)).read_text(encoding="utf-8"))
-    history = page.split('id="corrections"', 1)[1]
+    # The section only: the rest of the page holds the footer's mark, whose base64 may spell `v1` (#204).
+    history = page.split('id="corrections"', 1)[1].split("</section>", 1)[0]
     assert history.index(f">{first}</a>") < history.index(f">{second}</a>") < history.index(f">{third}</a>")
     assert "(this record)" in history and "v1" not in history
 

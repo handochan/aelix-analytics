@@ -1512,6 +1512,21 @@ operation `observe`로만 씁니다.
   보존한 바꿔 쓰기, `tool_result`가 오지 않은 호출, 버린 작업, 커밋 뒤 결과를 모르는 관찰), 출력·검사·검토. `result.is_error`는 aelix가 준 도구
   결과일 뿐입니다.
 
+### C23. Aelix 마크 (kit 0.32.1, #204)
+
+kit이 만드는 페이지에 Aelix 마크가 있습니다(2026-11-20 소유자 결정). 마크는 aelix 브랜드의 마크([aelix-ai `docs/assets/brand/`](https://github.com/handochan/aelix-ai/tree/main/docs/assets/brand))이고,
+브랜드가 그 SVG에서 만든 48×48 PNG를 바이트 그대로 씁니다(`src/aelix_analytics/brand.py`). 색·비율을 바꾸지 않습니다.
+- **탭 아이콘**: Workspace의 모든 페이지, 공유본의 모든 kit 페이지([D5](#d5-독자-환경과-브라우저-kit-0280-20-pr5)), channel 페이지([D7](#d7-channel-페이지되돌리기저장한-대상-kit-0310-21-pr-3))의
+  머리에 같은 `<link rel="icon" type="image/png" sizes="48x48" href="data:image/png;base64,…">`가 있습니다. 파일을 더하지 않으므로 폴더·ZIP·동기화한
+  사본에서도 보이고, 공유본 페이지의 `img-src 'self' data:`는 그대로입니다. 공유본의 아이콘을 `data:`로 두는 까닭(WebKit이 사이트 루트의
+  `/favicon.ico`를 요청하지 않게 함, D5)도 그대로입니다.
+- **바닥글**: Workspace 페이지의 바닥글 "Aelix Analytics <버전>"과 공유본 페이지의 바닥글 앞에 16px 마크가 있습니다(장식 이미지, `alt=""`).
+  공유본 바닥글은 "Aelix Analytics · This copy is a fixed snapshot. Its source may have changed."이고, 앞의 "Aelix Analytics ·"는 이 번호에서 더한 글입니다.
+  channel 페이지에는 바닥글이 없습니다.
+- 넣지 않는 곳: Report 본문 문서(`img-src 'none'`, C17), 사용자가 저장한 HTML Report와 Visualization, aelix의 터미널 화면.
+- PNG인 까닭: 마크의 SVG는 그라데이션을 조각(`url(#aelix-strand)`)으로 가리키는데, 공유본의 패키지 검사는 `data:` 문서 안의 조각을 그 문서가 든
+  페이지의 id에서 찾아 그 페이지를 거절합니다. 이 검사 동작은 바꾸지 않았습니다.
+
 ## D. kit CLI
 
 `uv run --project P python -m aelix_analytics --project P <command> …`. `PYTHONPATH`는 정확히 실행 루트 하나입니다: 체크아웃의
@@ -2641,7 +2656,7 @@ D2의 미리보기와 D3의 build가 같은 경로를 씁니다.
 [검증 기록](verification/2026-10-27-issue-20-reader.md)에 있습니다.
 
 - **페이지**: kit 페이지마다 CSP meta(`default-src 'self'`, `connect-src 'none'`, `object-src`·`base-uri`·`form-action 'none'`, script는 `'self'`와 머리
-  inline script의 해시, style은 `'self' 'unsafe-inline'`, img는 `'self' data:`)와 `data:` 아이콘이 있습니다(2026-10-27 소유자 결정). 사용자 HTML·
+  inline script의 해시, style은 `'self' 'unsafe-inline'`, img는 `'self' data:`)와 `data:` 아이콘이 있습니다(2026-10-27 소유자 결정. kit 0.32.1부터 그 아이콘은 Aelix 마크, [C23](#c23-aelix-마크-kit-0321-204)). 사용자 HTML·
   renderer 문서를 여는 iframe은 `sandbox="allow-same-origin"`이고 `allow-scripts`는 없습니다(같은 결정). 검사기는 sandbox의 다른 값을 거절합니다.
   머리 inline script는 `publication.js`가 실행되지 않았으면 "could not load" 안내를 보입니다. 불러오지 못한 그림·payload·자원은
   "Missing from this copy: <패키지 경로>"로 바뀝니다. 그림 페이지는 만든 run으로, run 페이지는 코드 스냅샷과 입력·출력으로 잇습니다(사본 안의 것만).

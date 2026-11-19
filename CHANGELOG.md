@@ -81,6 +81,9 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 - #162: `analytics_run`의 guideline 한 줄이 그 밖의 kit 동작은 bash의 `analytics COMMAND`(체크아웃에서는 `bin/analytics`)로 하고, 게시·신뢰·
   자산 제안 모드와 등록·전환은 사용자에게(/analytics) 맡기라고 알립니다(2026-11-09 소유자 결정). 도구 글은 6,421자에서 6,610자로 189자
   늘었습니다.
+- #204: kit이 만드는 페이지에 Aelix 마크가 있습니다. Workspace·공유본·channel 페이지의 브라우저 탭 아이콘이고, Workspace와 공유본 페이지의
+  바닥글 제품 이름 앞에 작은 마크가 있습니다(공유본 바닥글에는 "Aelix Analytics ·"를 더함). 마크는 aelix 브랜드의 48px PNG를 페이지 안의
+  `data:` URI로 넣으므로 파일이 늘지 않고 공유본의 보안 정책도 그대로입니다. 전에는 Workspace에 아이콘이 없었고 공유본은 빈 아이콘이었습니다.
 
 ### Changed
 

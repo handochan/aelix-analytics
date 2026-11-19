@@ -70,6 +70,8 @@ input[type="checkbox"] { width: 1.125rem; height: 1.125rem; margin: 0; accent-co
 .crumbs span { color: var(--muted); margin: 0 0.375rem; font-weight: 400; }
 /* The crumbs are links on one line: each is a 44px target without making the line taller. */
 .crumbs a { padding-block: 0.875rem; }
+/* The Aelix mark (#204): decorative, on the line of the words beside it, never recoloured. */
+.mark { display: inline-block; vertical-align: -0.2em; margin-right: 0.5rem; flex: none; }
 .build { display: flex; align-items: center; gap: 0.375rem; color: var(--muted); font-size: 0.78rem; white-space: nowrap; }
 .build label { display: inline-flex; align-items: center; gap: 0.375rem; min-height: 2.75rem; cursor: pointer; }
 .build .language select { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--border);

@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-from aelix_analytics import core, relations
+from aelix_analytics import brand, core, relations
 from aelix_analytics.publishing import build, publish, target
 from aelix_analytics.publishing.model import PublicationError
 
@@ -82,6 +82,8 @@ def test_the_channel_page_checks_the_newest_version_s_own_files_before_it_moves(
     digest = base64.b64encode(hashlib.sha256(script.encode()).digest()).decode()
     policy = html.unescape(re.search(r'http-equiv="Content-Security-Policy" content="([^"]*)"', text).group(1))
     assert f"script-src 'sha256-{digest}'" in policy and "connect-src" not in policy and "default-src 'none'" in policy
+    # The tab icon is the Aelix mark (#204), inline, which the page's img-src 'self' data: already allows.
+    assert text.split("</head>", 1)[0].count(brand.ICON_LINK) == 1 and "img-src 'self' data:" in policy
     check = arrival(text)
     assert check["entry"] == f"../../publications/{pid}/index.html" and check["seconds"] == publish.ARRIVAL_SECONDS
     assert {"kind": "stylesheet", "href": f"../../publications/{pid}/assets/publication.css"} in check["check"]

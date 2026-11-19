@@ -1302,6 +1302,7 @@ core/status는 이 낮은 경계만 소비하고 build/renderer에 의존하지 
     img-src 'self' data:; frame-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'`. plotly가 inline style을
     쓰므로 `style-src`에 `'unsafe-inline'`이 있다. 세 엔진 × `file://`·HTTP 하위 경로에서 12쪽 모두 그림·plotly·CSS가 정상이고 CSP 위반이 없었다.
 - 페이지 머리에 `<link rel="icon" href="data:,">`를 둔다. WebKit은 아이콘이 없으면 사이트 루트의 `/favicon.ico`를 요청해 HTTP 하위 경로 밖으로 나갔다.
+  kit 0.32.1부터(#204) 그 자리의 아이콘은 Aelix 마크의 `data:` PNG다. 루트에 요청하지 않는다는 목적은 같다([현재 계약](../CONTRACTS.md) C23).
 - 7.6의 머리 inline script는 `publication.js`가 실행되지 않았으면 "could not load" 안내를 보인다. "Missing from this copy"는 `<html data-root>`로 푼 패키지 경로를 적는다.
 - 5.2의 부속 간선(Visualization 버전 → run, run → 코드·입력/출력)을 공유 모델의 `attachments`로 옮겨 페이지가 링크한다(발견 → 그림 → run → 코드의 이동, 12.6).
 - **CI**: 브라우저 E2E는 별도 job이 아니라 필수 검사인 `platform · ubuntu-24.04` 레그의 단계로 둔다. 저장소의 모든 CI job은 필수 검사라는 규칙(#22,
