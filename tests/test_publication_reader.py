@@ -123,13 +123,18 @@ def test_the_zip_extracts_with_the_platform_tools_and_verifies(tmp_path):
             f"Expand-Archive -LiteralPath '{zip_file}' -DestinationPath '{out}'"]
     for name, command in tools.items():
         out = tmp_path / f"풀기 {name}"
+        said = None
         if command is None:
             with zipfile.ZipFile(zip_path) as archive:
                 archive.extractall(out)
         else:
-            subprocess.run(command(zip_path, out), check=True, capture_output=True)
+            # A PowerShell cmdlet's error does not change the exit code: what it said is the evidence.
+            done = subprocess.run(command(zip_path, out), check=True, capture_output=True)
+            said = (done.stdout.decode(errors="replace")[-3000:], done.stderr.decode(errors="replace")[-3000:])
         root = out / result["publication_id"]
-        assert package_files(root) == expected, name
+        found = package_files(root)
+        assert set(found) == set(expected), (name, said, sorted(f.relative_to(out).as_posix() for f in out.rglob("*"))[:40])
+        assert found == expected, name
         assert checks.verify_package(root)["package_sha256"] == result["package_sha256"], name
     assert any("주간 보고.md" in path for path in expected)
 
