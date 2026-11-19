@@ -162,9 +162,9 @@ digest 표와 대조하며 읽은 바이트에 7단계와 같은 검사 함수�
 | `publishing/build.py`·`package.py`·`archive.py`·`extract.py` | `publishing`, 2 | `core`, `ports`, `read_model`, `share_model`, `publication_policy`, `share_render`, `publishing` | stdlib, 분석(Parquet 메타데이터), 표시 | 스냅샷 조립, loader, writer, manifest, 결박, ZIP, 형식별 추출기 |
 | `__main__.py`(기존) | `kit_entry`, 3 | 지금 목록 + `publishing`, `publication_policy` | | `build` 하위 명령, 프로필 ID로 구현 조립, #19의 `ReportRenderer` 주입 |
 
-- 투영과 공통 검사는 수준 1에 둔다. stdlib과 `read_model`, 그리고 import가 없는 자료형 계층 `share_model`만 가져온다. 그래서 같은 수준의
+- 투영과 공통 검사는 수준 1에 둔다. stdlib과 `read_model`, 그리고 import가 없는 자료형 계층 `share_model`만 가져온다(#204부터 Aelix 마크의 leaf `brand`도). 그래서 같은 수준의
   형제끼리 import가 없고([아키텍처 §11](../ARCHITECTURE.md#계층과-의존-방향-검사)의 `layer-direction`), 계약 시험이 분석 라이브러리 없이 돈다.
-- `share_render`는 `share_model`만 가져온다. renderer가 `core`·`read_model`·`ports`를 가져오는 변경은 `layer-direction`으로 실패한다.
+- `share_render`는 `share_model`만 가져온다(#204부터 Aelix 마크의 leaf `brand`도). renderer가 `core`·`read_model`·`ports`를 가져오는 변경은 `layer-direction`으로 실패한다.
 - `publishing`은 `workspace`(`report.py`)와 같은 수준의 형제라 서로 import하지 않는다. `esc` 같은 작은 서식 함수는 renderer에 따로 둔다.
   #18이 Workspace를 "순수 자료 → HTML" 보기 함수로 나누면 그 함수를 더 낮은 계층에 두고 함께 쓰는 길을 #18과 맞춘다(R7).
 - Parquet의 열 값·통계·key-value 메타데이터는 stdlib로 풀 수 없다(압축 페이지). 그 추출은 `publishing/extract.py`가 프로젝트 환경의 `pyarrow`로

@@ -90,7 +90,7 @@ LAYERS: dict[str, Layer] = {
     # Issue #204: the Aelix mark, the one thing the shared-copy renderer shares with the Workspace.
     "brand": _layer(0, (), (), "the Aelix mark the kit's pages carry, as fixed bytes"),
     "share_model": _layer(0, (), (), "immutable publication values; no record objects or I/O"),
-    "publication_policy": _layer(1, ("read_model", "share_model", "publication_policy"), (),
+    "publication_policy": _layer(1, ("brand", "read_model", "share_model", "publication_policy"), (),
                                  "pure publication profiles, independent scope closure and field rules"),
     "publication_observation": _layer(1, ("ports", "read_model", "share_model", "publication_policy"), (),
                                      "read-only publication record/folder reconciliation; no writer or renderer"),
