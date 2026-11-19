@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -117,19 +118,33 @@ def test_the_zip_extracts_with_the_platform_tools_and_verifies(tmp_path):
         tools["unzip"] = lambda zip_file, out: ["unzip", "-q", str(zip_file), "-d", str(out)]
     if sys.platform == "darwin" and shutil.which("ditto"):
         tools["ditto"] = lambda zip_file, out: ["ditto", "-x", "-k", str(zip_file), str(out)]
+    env = None
     if sys.platform == "win32":
+        # Windows PowerShell 5.1 with its own Archive module, the tool a Windows reader has (D5). Started
+        # by Python under a PowerShell 7 CI step, it took PowerShell 7's modules from the inherited
+        # PSModulePath (about_PSModulePath); PowerShell 7.6.10 (runner image 20261116) ships Archive
+        # 1.2.7, whose ExtractToDirectory overload .NET Framework lacks (#206). Any error, the
+        # MethodException that ended 0 included, now ends non-zero.
+        env = {k: v for k, v in os.environ.items() if k.upper() != "PSMODULEPATH"}
         tools["Expand-Archive"] = lambda zip_file, out: [
             "powershell", "-NoProfile", "-NonInteractive", "-Command",
-            f"Expand-Archive -LiteralPath '{zip_file}' -DestinationPath '{out}'"]
+            "$ErrorActionPreference = 'Stop'; "
+            "Import-Module (Join-Path $PSHOME 'Modules\\Microsoft.PowerShell.Archive'); "
+            f"Microsoft.PowerShell.Archive\\Expand-Archive -LiteralPath '{zip_file}' -DestinationPath '{out}'"]
     for name, command in tools.items():
         out = tmp_path / f"풀기 {name}"
+        said = None
         if command is None:
             with zipfile.ZipFile(zip_path) as archive:
                 archive.extractall(out)
         else:
-            subprocess.run(command(zip_path, out), check=True, capture_output=True)
+            done = subprocess.run(command(zip_path, out), capture_output=True, env=env)
+            said = (done.stdout.decode(errors="replace")[-3000:], done.stderr.decode(errors="replace")[-3000:])
+            assert done.returncode == 0, (name, done.returncode, said)
         root = out / result["publication_id"]
-        assert package_files(root) == expected, name
+        found = package_files(root)
+        assert set(found) == set(expected), (name, said, sorted(f.relative_to(out).as_posix() for f in out.rglob("*"))[:40])
+        assert found == expected, name
         assert checks.verify_package(root)["package_sha256"] == result["package_sha256"], name
     assert any("주간 보고.md" in path for path in expected)
 
