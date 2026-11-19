@@ -120,10 +120,11 @@ def test_the_zip_extracts_with_the_platform_tools_and_verifies(tmp_path):
         tools["ditto"] = lambda zip_file, out: ["ditto", "-x", "-k", str(zip_file), str(out)]
     env = None
     if sys.platform == "win32":
-        # Windows PowerShell 5.1 with its own Archive module, the tool a Windows reader has (D5). Since
-        # runner image 20261111 it loaded an Archive module under Program Files that calls an overload
-        # .NET Framework lacks (#206; likely PowerShell 7's, through the PSModulePath a PowerShell 7 CI
-        # step passes on). A cmdlet's error ends non-zero.
+        # Windows PowerShell 5.1 with its own Archive module, the tool a Windows reader has (D5). Started
+        # by Python under a PowerShell 7 CI step, it took PowerShell 7's modules from the inherited
+        # PSModulePath (about_PSModulePath); PowerShell 7.6.10 (runner image 20261116) ships Archive
+        # 1.2.7, whose ExtractToDirectory overload .NET Framework lacks (#206). Any error, the
+        # MethodException that ended 0 included, now ends non-zero.
         env = {k: v for k, v in os.environ.items() if k.upper() != "PSMODULEPATH"}
         tools["Expand-Archive"] = lambda zip_file, out: [
             "powershell", "-NoProfile", "-NonInteractive", "-Command",
