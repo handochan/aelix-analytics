@@ -24,7 +24,7 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 ### Added
 
 - #170: aelix에서 모델이 bash로 kit을 거치지 않고 Python을 돌리면(`python scripts/x.py`, `uv run python …` 등 telemetry의
-  `python_via_bash`), 확장이 그 bash 결과 끝에 한 줄을 붙입니다: 이 실행은 기록되지 않았고, 분석 단계였으면 `analytics_run`이나 셸의
+  `python_via_bash`), 확장이 그 bash 결과 끝에 한 줄을 붙입니다: 이 실행은 run으로 기록되지 않았고, 분석 단계였으면 `analytics_run`이나 셸의
   `analytics run scripts/x.py --title "…"`로 다시 실행하면 기록된다는 안내입니다. 한 세션의 첫 번은 길게, 그 뒤는 짧게 붙고, 막지 않으며
   결과의 원래 내용과 오류 여부는 그대로입니다. 활성 프로젝트가 없거나 이 kit이 쓰지 않는 프로젝트, kit 명령에는 붙지 않습니다. 판정은
   `python_via_bash`와 같고 명령의 글자를 읽으므로, `echo python`처럼 낱말 `python`만 든 명령에도 붙고 경로로 부른 Python
@@ -53,8 +53,8 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 - #169: 사용자 설정 `analytics-settings.json`(`analytics.settings/1`, 신뢰 목록 옆, 기록 schema의 `settings_1`). `unknown_projects`는
   처음 보는 프로젝트를 `ask`(기본)·`always`(묻지 않고 활성화, 물을 수 없는 실행에서도. 신뢰 목록에는 더하지 않음)·`never`로 다루고,
   `not_asked_in`은 "이 폴더에선 묻지 않음"으로 고른 작업 디렉터리입니다. schema에 맞지 않거나, POSIX에서 이 사용자의 것이 아니거나 다른
-  계정이 쓸 수 있는 파일은 쓰지 않고(기본값) 고쳐 쓰지도 않습니다. 설정 화면(#162)이 쓸 함수 `core.set_unknown_projects`·
-  `core.stop_asking_in`이 있고, 그 전에는 파일을 직접 고칩니다. `/analytics where`가 설정 파일과 값을 보입니다.
+  계정이 쓸 수 있는 파일은 쓰지 않고(기본값) 고쳐 쓰지도 않습니다. 값은 `/analytics settings`와
+  패널의 Settings(#162)로 바꿉니다(함수 `core.set_unknown_projects`·`core.stop_asking_in`). `/analytics where`가 설정 파일과 값을 보입니다.
 - #171: aelix에서 모델이 bash로 kit을 거치지 않고 한 일이 **관찰된 활동**(`observed_activity`, ADR-0015)으로 journal에 남습니다. 확장이 bash 호출의
   앞(2초 안)과 뒤(3초 안)에서 프로젝트 파일의 상태를 비교해, kit 밖 Python을 돌렸거나 run·가져오기가 기록하지 않은 파일이 그 사이에 바뀌었으면
   가린 명령 글, 관찰 창의 시각, 바뀐 파일과 그 sha256, 명령이 가리킨 스크립트의 바이트를 기록합니다(긴 목록과 스크립트 사본은
@@ -168,9 +168,10 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 
 ### Changed
 
-- #24: README는 이 버전의 PyPI 페이지에 남으므로 게시한 뒤에도 맞는 문장으로 바꿨습니다. 설치는 PyPI의 이름 또는 체크아웃에서 만든 wheel이고,
-  Evaluation 탭을 인사이트로 바꾸는 것처럼 설계만 있는 것은 이 버전에 없다고 적습니다. kit 0.25.0부터 있는 Reports 탭을 설계 단계로 적던
-  문장도 고쳤습니다. PyPI 페이지의 링크가 여는 그 tag의 SECURITY·변경 이력·지원 범위·현재 계약도 게시한 뒤에도 맞는 문장입니다.
+- #24: README는 게시하는 버전의 PyPI 페이지에 남으므로 게시한 뒤에도 맞는 문장으로 바꿨습니다(이 번호는 게시하지 않았고, 이 준비는 0.32.1의
+  게시본에 들어 있습니다). 설치는 PyPI의 이름 또는 체크아웃에서 만든 wheel이고, Evaluation 탭을 인사이트로 바꾸는 것처럼 설계만 있는 것은
+  없다고 적습니다. kit 0.25.0부터 있는 Reports 탭을 설계 단계로 적던 문장도 고쳤습니다. PyPI 페이지의 링크가 여는 그 tag의 SECURITY·변경 이력·
+  지원 범위·현재 계약도 게시한 뒤에도 맞는 문장으로 둡니다.
 - #24: wheel의 설명(PyPI 페이지)에서 README의 상대 링크가 그 버전 tag의 GitHub 주소가 됩니다. 빌드가 바꾸며(hatch-fancy-pypi-readme 25.1.0),
   체크아웃의 README는 그대로이고, 코드 블록과 인라인 코드는 바뀌지 않습니다.
 
