@@ -1,11 +1,11 @@
 # Skill 제안의 선택·임계값·비용 정책
 
 작성: 2026-09-18 · 개정: 2026-10-05 · 상태: 설계 제안. 요청 시 기본값, 계수 단위와 베타 상시 모드의 범위는 [ADR-0008](decisions/0008-reuse-proposal-counting-and-deterministic-always-on.md)로 채택했다.
-아래 설정은 아직 구현에 없는 후보 계약이다.
+#17이 분석 자산으로 구현했다(kit 0.10.0–0.13.0, 설정 이름 `asset_suggestions`). 현재 동작은 [현재 계약](CONTRACTS.md) C7–C9를 따른다.
 2026-10-09 사용자 용어 요청에 따라 #17은 Analysis asset / Asset candidate / Asset suggestion으로 구현한다.
 [ADR-0010](decisions/0010-analysis-assets-and-suggestion-records.md)과 [구현 계약](design/ANALYSIS-ASSETS.md)은
 새 kind·참조·설정(`asset_suggestions`)의 이름을 구체화한다. 아래 `reuse_*` 예시는 채택 당시 이름이며 기존 기록의 읽기를 보존한다.
-기본 모드·점수·창·확정 근거·등록 조건의 의미는 유지한다. 현재 runtime에 assets 기능이 있다는 뜻은 아니다.
+기본 모드·점수·창·확정 근거·등록 조건의 의미는 유지한다. 아래 예시의 이름·값이 구현과 다르면 현재 계약을 따른다.
 [제품 비전](PRODUCT.md)의 분석가 중심 원칙과 [재사용 수명주기](DESIGN-CONTINUITY-AND-REUSE.md#4-재사용-제안에서-라이브러리skill까지)를 구체화한다.
 내부 구현은 [아키텍처](ARCHITECTURE.md)의 ProposalPolicy 경계로 분리한다. 정책을 바꿔도 사용자 모드·거절·빈도·기록의 의미는 유지해야 한다.
 
@@ -176,7 +176,7 @@ aelix UI 알림 같은 새 호스트 표면을 쓰면 [현재 계약](CONTRACTS.
 세션·checkpoint별 한도 키는 두지 않는다.
 기본 화면에는 두 모드의 선택과 자동 검토를 쉬는 설정만 노출하고, 점수·빈도의 세부값은 고급 설정으로 둔다.
 `measurement_targets`는 모델 기반 상세 검토 1건의 성능 보고·비교에만 사용하며 실행 허용 여부를 결정하지 않는다.
-이 설정은 형식 전환 뒤의 프로젝트 표식(`analytics.json`)에 둘 후보다. 현재 `lab.json`에 넣어도 동작하지 않으며, 도입 시 호환 reader와 설정 검사부터 구현한다.
+구현에서 이 설정은 프로젝트 표식 `analytics.json`의 `asset_suggestions`다([현재 계약 C8](CONTRACTS.md#c8-프로젝트-모드와-결정적-자동-제안-kit-0120-17-b3-b)). `lab.json` 프로젝트는 읽기만 하므로 거기에 넣어도 동작하지 않는다.
 
 ## 5. 검증할 행동
 

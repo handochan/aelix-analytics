@@ -7,7 +7,8 @@ same:
 
 - the pytest and pytest-timeout the isolated legs install (`--with pytest==…`) and the ones uv.lock
   holds, so updating the lock cannot leave those legs on other versions, and the guide's commands;
-- the aelix version: one in every leg, the same in the guide's and the README's commands;
+- the aelix version: one in every leg, the same in the guide's and the READMEs' commands (English and
+  Korean, Issue #209);
 - the aelix legs: every test module that skips itself without aelix (a module-level
   `pytest.importorskip("aelix_coding_agent")`) is in both legs, and the guide's command runs the same
   files. A module left out runs nowhere: the development environment has no aelix, so it skips there
@@ -29,7 +30,7 @@ from pathlib import Path
 PACK = Path(__file__).resolve().parents[1]
 WORKFLOW = (PACK / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
 GUIDE = (PACK / "CONTRIBUTING.md").read_text(encoding="utf-8")
-README = (PACK / "README.md").read_text(encoding="utf-8")
+READMES = [(PACK / rel).read_text(encoding="utf-8") for rel in ("README.md", "README.ko.md")]
 
 
 def locked(name: str) -> str:
@@ -104,7 +105,8 @@ def test_one_aelix_version_in_the_ci_the_guide_and_the_readme():
     pins = set(re.findall(r"aelix==([^\s`]+)", RUN))
     assert len(pins) == 1, pins
     assert set(re.findall(r"aelix==([^\s`]+)", "\n".join(commands(GUIDE)))) == pins
-    assert set(re.findall(r"aelix==([^\s`]+)", "\n".join(commands(README)))) == pins
+    for readme in READMES:
+        assert set(re.findall(r"aelix==([^\s`]+)", "\n".join(commands(readme)))) == pins
 
 
 def test_every_module_that_needs_aelix_runs_in_the_aelix_legs():
@@ -112,8 +114,8 @@ def test_every_module_that_needs_aelix_runs_in_the_aelix_legs():
     assert "tests/test_checkpoint_extension.py" in wanted, wanted
     legs = aelix_legs(workflow_commands())
     assert sorted(re.search(r"--python (\S+)", leg).group(1) for leg in legs) == ["3.11", "3.12"], legs
-    guide = aelix_legs(commands(GUIDE)) + aelix_legs(commands(README))
-    assert len(guide) == 2, guide  # the guide's command and the README's
+    guide = aelix_legs(commands(GUIDE)) + [leg for readme in READMES for leg in aelix_legs(commands(readme))]
+    assert len(guide) == 3, guide  # the guide's command and each README's
     for leg in legs + guide:
         files = listed_tests(leg)
         assert files == wanted, sorted(files ^ wanted)

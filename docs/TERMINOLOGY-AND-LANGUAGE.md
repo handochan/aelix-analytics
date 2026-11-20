@@ -39,8 +39,8 @@ Workspace는 프로젝트를 탐색하는 인터페이스이며 프로젝트 루
 | SDK의 시각화 기록 | `analytics.visualize(...)`(kit 0.3.0부터. 그 전은 `chart(...)`). 기록의 `via`는 kit 0.8.0부터 `analytics.visualize`(그 전 `lab.chart`, §3 `via` 행) | `analytics.visualize(...)`; 객체와 참조는 `visualization` |
 | 프로젝트 화면 생성·열기 | `analytics render`, `analytics open`(kit 0.3.0부터. 그 전은 `lab report`, `lab open`) | `analytics render`, `analytics open` |
 | 프로젝트 전환 명령 | `analytics migrate --to DIR [--dry-run]`(kit 0.8.0부터, #13), kit의 `python -m aelix_analytics [--project SRC] migrate --to DIR [--dry-run]`. 모델 도구와 `/analytics migrate`는 없음(사람이 터미널에서, [설계](design/RECORD-WRITER-AND-MIGRATION.md) 6.1절) | 유지 |
-| 공유 범위 미리보기 | `analytics build --preview`, `/analytics build --preview`(kit 0.23.0). read/evidence와 메모리 검사 요약만, 기록·폴더·환경 생성 없음 | 저장 build·Report/collection·ZIP·publish는 후속 |
-| 독립 공유 패키지·게시 — 후속 | 저장/결박·전달 명령 없음 | `analytics build`, `analytics publish` |
+| 공유 범위 미리보기 | `analytics build --preview`, `/analytics build --preview`(kit 0.23.0). read/evidence와 메모리 검사 요약만, 기록·폴더·환경 생성 없음 | 유지. 저장 build·Report/collection·ZIP은 kit 0.26.0–0.27.0, publish는 kit 0.30.0 |
+| 독립 공유 패키지·게시 | `analytics build`(kit 0.26.0, 저장·결박·ZIP), `analytics publish`(kit 0.30.0, 폴더 전달) | `analytics build`, `analytics publish` |
 | 오류·내부 상태 | `AnalyticsError`, `Project.state_dir`, `Project.workspace_dir`(kit 0.6.0부터. 그 전은 `LabError`, `Project.lab`, `Project.report`). kit 0.8.0부터 값은 표식이 고른 배치(`Project.layout`)의 것: `analytics.json` 프로젝트는 `.analytics`·`workspace/`, `lab.json` 프로젝트(읽기만)는 `.lab`·`report/`. 함께 더한 이름: 가져온 데이터 디렉터리 `Project.imported`(그 전 `Project.raw`, 값 `data/imported/`·옛 배치 `data/raw/`), 읽기만 하는 옛 상태 디렉터리 `Project.legacy_state_dir`(`.lab`), 쓰기를 받아들인 표식의 배치로 경로를 다시 정하는 `Project.lay_out`(`core.admit`이 부름), init이 만든 프로젝트의 응답용 요청 id `Project.request_id` | 유지 |
 | 표시 구현 | 모듈 `workspace.py`, 자원 `workspace.js`·`workspace.css`, 확장의 `schedule_workspace_render`(kit 0.6.0부터. 그 전은 `report.py`, `report.js/css`, `schedule_report`) | 유지. 렌더러는 함수로 두고 `WorkspaceRenderer` 클래스를 만들지 않는다([#13 설계](design/RECORD-WRITER-AND-MIGRATION.md#9-미뤄-받은-이름과-pr) 9절) |
 | Workspace 빌드 결과(kit CLI의 결과 JSON) | 키 `workspace`, run의 빌드 실패 `workspace_error`(kit 0.6.0부터. 그 전은 `report`·`report_error`). 값의 경로는 kit 0.8.0부터 `workspace/…`(그 전과 0.8.0의 `lab.json` 프로젝트는 `report/…`) | 유지 |
@@ -50,7 +50,7 @@ Workspace는 프로젝트를 탐색하는 인터페이스이며 프로젝트 루
 | Workspace 내부 식별자 | `window.__ANALYTICS_BUILD__`, 화면 언어의 전역 `AnalyticsI18n`과 저장 키 `analytics-language`(kit 0.16.0, #96), 브라우저 저장 키 `analytics-live`·`analytics-scroll:<경로>`, plotly 템플릿 `analytics`(`plotly_white+analytics`), capture의 표식 `__analytics_wrapped__`(kit 0.6.0부터. 그 전은 `__LAB_BUILD__`, `lab-live`·`lab-scroll:`, `lab`, `__lab_wrapped__`). 새 저장 키가 없으면 옛 키를 한 번 읽고 옛 키는 남긴다. `build.js`는 연 채로 둔 옛 페이지가 다시 읽도록 옛 전역도 같은 값으로 정한다. 저장하는 그림 JSON에는 템플릿 이름이 없다 | 유지 |
 
 위 CLI 작업은 Aelix의 `/analytics` 아래에서도 같은 의미를 사용한다. 지원하는 하위 명령은 실제 구현 기준으로 공개한다.
-`ReportRenderer`는 이전 아키텍처 제안의 명칭이었으며 현재 코드의 클래스가 아니다. 새 설계에서는 Workspace 표시와 Report 형식 처리를 구별한다.
+`ReportRenderer`는 Report 형식 처리의 내부 Protocol이다(kit 0.22.0, `report_renderer.py`). Workspace 표시와 Report 형식 처리를 구별한다.
 `record`는 종류가 있는 journal 기록 쓰기다. 임의 저장소 쓰기·SQL·실행·게시를 하나의 거대한 action 도구로 합치는 뜻이 아니다.
 SDK의 `read`, `scan`, `sql`, `save`, `datasets`, `project`, `path`, `run_id`는 역할이 맞으므로 유지한다.
 SDK `scan`은 지연 데이터 읽기이고 정적 코드 스캔은 `static_scan`으로 표현한다. 기존 SDK와 모델 도구의 인자는 같다고 추정하지 않고 각각 계약을 문서화한다.
@@ -66,7 +66,7 @@ SDK `scan`은 지연 데이터 읽기이고 정적 코드 스캔은 `static_scan
 | 관리 디렉터리 `.lab/` | `.analytics/` | context 버전·작업 상태·보조 로그·캐시. 폴더 전체가 버려도 되는 캐시는 아님 |
 | 화면 `report/` | `workspace/` | 재생성 가능한 Workspace HTML·자원 |
 | 개별 보고서 | `artifacts/reports/<report_id>/<revision_id>/` | 보존할 본문·첨부·manifest. Workspace와 다른 수명 |
-| 독립 공유 패키지(구현 전) | `.analytics/publications/<publication_id>/publication.json`, `analytics.publication/1` | [ADR-0014](decisions/0014-publication-record-contract.md)의 채택 계약. `publication_id`는 `pub-`와 소문자 ULID. 결박 이벤트와 패키지 해시가 정체성을 남기며 build 폴더는 보존 정본과 구별 |
+| 독립 공유 패키지(kit 0.26.0) | `.analytics/publications/<publication_id>/publication.json`, `analytics.publication/1` | [ADR-0014](decisions/0014-publication-record-contract.md)의 채택 계약. `publication_id`는 `pub-`와 소문자 ULID. 결박 이벤트와 패키지 해시가 정체성을 남기며 build 폴더는 보존 정본과 구별 |
 | 실행의 시각화 `runs/<id>/charts/` | `runs/<id>/visualizations/` | 새 실행의 저장 경로. 과거 manifest·경로·바이트는 legacy 대응으로 보존 |
 | 가져온 데이터 `data/raw/` | `data/imported/` | 가져오며 형식·타입을 변환했을 수 있는 데이터. 외부 원본 파일과 구별 |
 | 파생 데이터·실행 코드 | `data/derived/`, `scripts/`, `runs/` | 이름 유지. 파생 데이터라는 이유만으로 언제든 재생성 가능하다고 가정하지 않음 |
@@ -206,7 +206,7 @@ Report는 Visualization·설명·발견을 선택해 구성한 문서이며, Vis
 | 참조의 관계 | `relation`: `supports`·`contradicts`(작성자의 주장) / `cites`(중립 인용) / `uses` / `derived_from` / `generated_by` / `about` / `includes` / `resolves` / `supersedes` / `updates`. 관계 근거 `basis`와 다른 축 |
 | 기록 기준의 `through_seq`, 마지막 seq | 영속 기준은 `as_of_seq`(그 시점까지 포함한 journal seq)와 `context_version`(CONTEXT 버전 파일 이름). checkpoint 초안의 `through_seq`를 대체 |
 | 게시본의 `content_seq`, `content_recorded_at`(투영·미리보기 구현) | [ADR-0014](decisions/0014-publication-record-contract.md)의 채택한 내용 기준. `as_of_seq` 이하에서 정상 게시 계열만 제외한 마지막 seq와 기록 시각. 후보가 없으면 0·null. 전체 journal 기준·build 순서·Report 작성 기준과 구별 |
-| 게시본의 `package_sha256`, `content_sha256`(구현 전) | `publication.json` 최종 바이트의 해시 / 정체성 파일 셋을 뺀 파일 목록의 내용 해시. 패키지 정체성과 반복 build의 내용 비교를 구별. 결론 검토·분석 검사 인증은 아님 |
+| 게시본의 `package_sha256`, `content_sha256`(kit 0.26.0) | `publication.json` 최종 바이트의 해시 / 정체성 파일 셋을 뺀 파일 목록의 내용 해시. 패키지 정체성과 반복 build의 내용 비교를 구별. 결론 검토·분석 검사 인증은 아님 |
 | 조회 페이지의 이어 읽기 | cursor는 `source_revision`에 묶인 불투명 토큰. 기준이 바뀌면 `stale_cursor`, 읽는 동안 계속 바뀌면 `updating` |
 | 공유 미리보기 판정 | `profile_unknown`, `scope_unknown`, `scope_unsupported`, `analysis_state_invalid`, `exclusion_invalid`, `scope_invalid`; 읽기 `records_updating`·`records_unsupported`, CONTEXT `context_missing`·`context_changed`·`context_unverified`·`context_unsupported`, 사본 `source_changed`, 검사 `leak_found`·`inspection_failed`·`package_check_failed`, 표시 자원 `renderer_unavailable`. 미리보기의 `checks.inspection`은 inspected/pinned_scanned/not_inspectable 수이며 분석 검사·결론 검토가 아님 |
 | 공유할 수 없는 Report 버전(kit 0.27.0) | `report_not_shareable`과 `details.reason`: `not_saved`(저장 시도), `withdrawn`, `missing`·`content_changed`, `format`, `scripts`·`remote_resources`, `link`, `path`, `member_missing`, Report 판정의 problem 이름. Report는 버전 단위로만 공유하며 사람이 넘기는 옵션은 없음. 출력·manifest의 `scope.reports`는 고른 정확한 버전(`report_id@revision_id`). 보기 페이지의 글 `Report version`, `Version n of N`, `Withdrawn`, "A later version existed when this copy was built — not included"(build 때의 관측) |
@@ -344,7 +344,7 @@ HTML을 그리지 않아 주석이 글자로 보이고, 목표를 읽는 쪽은 
 
 [ADR-0013](decisions/0013-report-storage-and-collections.md)은 2026-10-18 채택했다.
 kit 0.21.0은 개별 버전 저장·조회·철회/복원·prepared 정리의 CLI/SDK를 구현한다.
-`ReportRenderer`·collection·선택 metadata는 후속 PR이다.
+`ReportRenderer`·collection·선택 metadata는 kit 0.22.0, Reports 탭은 kit 0.25.0이 구현했다.
 
 | 이름 | 범위와 기존 개념과의 차이 |
 |---|---|

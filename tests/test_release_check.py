@@ -31,7 +31,7 @@ def tool(*args: str, cwd: Path = PACK) -> tuple[int, dict]:
 def pack_copy(tmp_path: Path) -> Path:
     """The files `version` reads, copied so a test can make them disagree."""
     root = tmp_path / "pack"
-    for rel in ("pyproject.toml", "README.md", "CHANGELOG.md", "src/aelix_analytics/core.py",
+    for rel in ("pyproject.toml", "README.md", "README.ko.md", "CHANGELOG.md", "src/aelix_analytics/core.py",
                 "src/aelix_analytics/aelix-plugin.toml"):
         (root / rel).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(PACK / rel, root / rel)
@@ -59,7 +59,8 @@ LINK_FORMS = {"changelog_link": "[README](README.md#설치본wheel으로-쓰기)
               "changelog_reference": "[README][r]\n\n[r]: README.md"}
 
 
-@pytest.mark.parametrize("where", ["kit_version", "manifest", "readme", "changelog", "changelog_date", *LINK_FORMS])
+@pytest.mark.parametrize("where", ["kit_version", "manifest", "readme", "readme_ko", "readme_ko_none", "changelog",
+                                   "changelog_date", *LINK_FORMS])
 def test_any_place_that_names_another_version_fails(tmp_path, where):
     root = pack_copy(tmp_path)
     other = "9.9.9"
@@ -74,8 +75,14 @@ def test_any_place_that_names_another_version_fails(tmp_path, where):
         swap("src/aelix_analytics/core.py", f'KIT_VERSION = "{VERSION}"', f'KIT_VERSION = "{other}"')
     elif where == "manifest":
         swap("src/aelix_analytics/aelix-plugin.toml", f'version = "{VERSION}"', f'version = "{other}"')
-    elif where == "readme":
-        swap("README.md", f"aelix_analytics-{VERSION}-py3-none-any.whl", f"aelix_analytics-{other}-py3-none-any.whl")
+    elif where in ("readme", "readme_ko"):
+        swap("README.md" if where == "readme" else "README.ko.md",
+             f"aelix_analytics-{VERSION}-py3-none-any.whl", f"aelix_analytics-{other}-py3-none-any.whl")
+    elif where == "readme_ko_none":
+        # The Korean README without its build lines: the English one still names this version.
+        path = root / "README.ko.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            f"aelix_analytics-{VERSION}-py3-none-any.whl", "the-wheel.whl"), encoding="utf-8")
     elif where == "changelog":
         swap("CHANGELOG.md", f"## [{VERSION}]", f"## [{other}]")
     elif where in LINK_FORMS:

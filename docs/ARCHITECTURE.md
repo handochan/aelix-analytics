@@ -1,8 +1,8 @@
 # 지속적으로 확장하는 분석 플랫폼의 아키텍처
 
-작성: 2026-09-18 · 개정: 2026-10-06 · 상태: 구현을 위한 설계 제안. 제품의 장기 방향은 합의된 요구이며 아래 후보 인터페이스·모듈은 아직 구현되지 않았다. 이미 적용한 부분은 ADR-0001의 [적용 현황](decisions/0001-evolvable-platform-boundaries.md#적용-현황)에 있다. 예외: §11의 [계층과 의존 방향 검사](#계층과-의존-방향-검사)는 지금 코드에 적용한 표다(#43).
+작성: 2026-09-18 · 개정: 2026-10-06 · 상태: 구현을 위한 설계 제안. 제품의 장기 방향은 합의된 요구이며, 아래 후보 인터페이스·모듈 가운데 구현한 것은 그 자리에 적었다(예: §5의 `ProposalPolicy`·`PublicationProjection`). 이미 적용한 부분은 ADR-0001의 [적용 현황](decisions/0001-evolvable-platform-boundaries.md#적용-현황)에 있다. 예외: §11의 [계층과 의존 방향 검사](#계층과-의존-방향-검사)는 지금 코드에 적용한 표다(#43).
 상위 목적은 [PRODUCT.md](PRODUCT.md), 채택한 결정은 [ADR-0001](decisions/0001-evolvable-platform-boundaries.md)(채택은 구현 완료가 아니다), 현재 동작은 [CONTRACTS.md](CONTRACTS.md)를 따른다.
-공개·내부 명칭은 [용어집](TERMINOLOGY-AND-LANGUAGE.md)을 따른다. 아래 현재 소스 링크는 옛 이름이고, 후보 구조·인터페이스는 새 이름이다.
+공개·내부 명칭은 [용어집](TERMINOLOGY-AND-LANGUAGE.md)을 따른다.
 
 ## 1. 베타 이후에도 유지할 기반
 
@@ -98,7 +98,8 @@ core가 전역 registry나 환경 변수를 찾아 스스로 provider를 import�
 ## 5. Strategy를 적용할 변경 축
 
 Strategy는 공통 입력·출력과 의미를 유지하면서 정책·알고리즘을 교체하는 용도로 쓴다.
-아래 이름은 인터페이스 후보이며 현재 API가 아니다.
+아래 이름은 인터페이스 후보다. 그 가운데 `ProposalPolicy`(`asset_policy.py`, kit 0.10.0)와 `PublicationProjection`(`publishing/projection.py`, kit 0.21.0)은
+내부 Protocol로 구현했고, 공개 API는 아니다.
 
 | 경계 | 첫 구현의 후보 | 이후 교체·확장 | 모든 구현에 공통인 조건 |
 |---|---|---|---|
@@ -108,7 +109,7 @@ Strategy는 공통 입력·출력과 의미를 유지하면서 정책·알고리
 | `PublicationProjection` | read / evidence의 선택 범위 | 조직별 공유 프로필 | 선택한 범위를 실제 payload·파일에 반영, 제외와 원본 누락을 구별 |
 
 첫 교체 사례는 이미 요구가 있는 두 제안 모드 또는 두 공유 프로필에서 검증한다.
-`PublicationProjection`의 계약·계약 시험과 공유 build의 흐름은 [공유 build 설계](design/PUBLICATION-BUILD.md)(#20, Proposed, 현재 코드 아님)가 제안한다.
+`PublicationProjection`의 계약·계약 시험과 공유 build의 흐름은 [공유 build 설계](design/PUBLICATION-BUILD.md)(#20)에 있고, kit 0.21.0–0.28.0에 구현했다.
 수십 개의 미래 Strategy와 추상 base class를 먼저 만들지 않는다. 현재 구현 하나와 다른 테스트 구현으로 경계를 먼저 입증할 수도 있다.
 의미가 다른 기능을 Strategy 하나의 거대한 `mode`·`action` 분기로 묶지 않는다.
 
@@ -424,4 +425,4 @@ Issue #15의 `relations.QueryPolicy`는 stdlib 어휘 순위·페이지 정책�
 
 이 패턴들을 이 프로젝트의 변경 축에 적용하는 방식과 인터페이스 이름은 본 문서의 설계 제안이다.
 
-Issue #20 PR1–PR4는 순수 공유 모델·투영·공통 범위 닫힘·snapshot adapter, `analytics build`·preview·private saved build·publication writer·manifest 결박·독립 검사·ZIP, Report·묶음 범위(진입점이 ReportRenderer를 주입)를 구현합니다. 독자 수용은 PR5, publish/receipt는 #21의 후속 범위입니다. `publishing`의 수준은 현재 core2/Workspace3/진입점4에 맞춘3이며, 설계 문서의 옛 수준2 숫자를 그대로 따르지 않습니다.
+Issue #20 PR1–PR4는 순수 공유 모델·투영·공통 범위 닫힘·snapshot adapter, `analytics build`·preview·private saved build·publication writer·manifest 결박·독립 검사·ZIP, Report·묶음 범위(진입점이 ReportRenderer를 주입)를 구현합니다. PR5(kit 0.28.0)는 독자용 화면과 CI의 원본 없는 경로·브라우저 검증을, #21(kit 0.29.0–0.31.0)은 publish/receipt를 구현했습니다. 실제 다른 독자의 열람(Q14)은 실행하지 않았습니다. `publishing`의 수준은 현재 core2/Workspace3/진입점4에 맞춘3이며, 설계 문서의 옛 수준2 숫자를 그대로 따르지 않습니다.

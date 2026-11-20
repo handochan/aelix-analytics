@@ -3,8 +3,8 @@
 Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따릅니다.
 
 **0.32.0부터 PyPI(`aelix-analytics`)와 GitHub Release에 게시합니다.** 그 이전 번호는 게시하지 않았고, 그 wheel은 체크아웃에서
-빌드했습니다([README](README.md#설치본wheel으로-쓰기)). 아래의 버전은 kit 버전(`KIT_VERSION`; `pyproject.toml`·manifest와 같음)이며, 새 프로젝트의
-`lab.json`과 run의 `env.kit_version`에 남는 값입니다.
+빌드했습니다([사용 안내](docs/USER-GUIDE.md#설치본wheel으로-쓰기)). 아래의 버전은 kit 버전(`KIT_VERSION`; `pyproject.toml`·manifest와 같음)이며, 새 프로젝트의
+`analytics.json`(kit 0.8.0 전에는 `lab.json`)과 run의 `env.kit_version`에 남는 값입니다.
 
 한 버전의 절은 main이 그 번호를 달고 있던 동안 병합된 변경입니다: 번호를 붙인 PR과, 그 뒤 번호를 올리지 않고 병합된 PR.
 그래서 같은 번호를 적은 기록이라도 그 절의 어느 시점 코드가 썼는지는 run의 `env.kit_sha256`이나 commit으로 구별합니다.
@@ -130,6 +130,13 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   `analytics_status` 끝에 붙던 telemetry 수 안내(`python was run through bash N time(s)`)는 관찰의 줄로 바뀌었습니다.
 - #171: run의 출력 비교가 관찰과 같은 상태 비교(`tree_state`)를 씁니다. 크기·mtime이 같고 정체성만 바뀐 파일(`rsync -a`의 교체)도 출력으로 남기고
   그 바이트를 다시 읽어 해시하며, 실행 뒤 나열했지만 stat하지 못한 파일은 지운 것으로 적지 않습니다.
+- #209: README(PyPI 페이지의 설명)를 영어로 다시 썼습니다. 에이전트 시대의 분석 패러다임이라는 방향, 기능 소개(근거, 맥락, Workspace의 버전 이력과
+  평가, 보고서, 재사용 자산, 공유), 출처 추적 그래프와 분석 지도를 비롯한 데모 Workspace의 화면, aelix 로고, 빠른 시작, 설치,
+  사용법, 한계를 담고, 한국어는
+  [README.ko.md](https://github.com/handochan/aelix-analytics/blob/v0.32.1/README.ko.md)입니다. 전에 README에 있던 자세한 안내(확장 등록, Windows,
+  사람 명령, 작성 주체 규칙, 공유, 이전 kit에서 옮기기 등)는
+  [사용 안내](https://github.com/handochan/aelix-analytics/blob/v0.32.1/docs/USER-GUIDE.md)(한국어)로 옮겼습니다. PyPI 페이지에서 그림은 그 버전
+  tag의 파일을 엽니다. 설계 문서 가운데 이미 구현한 공유 build·폴더 게시·분석 자산·Report 저장을 구현 전으로 적던 상태 문구도 고쳤습니다.
 
 ### Fixed
 
@@ -173,7 +180,7 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   (전에는 캐시의 이전 Pillow로 만들었습니다). 저장소의 dev 환경도 같은 하한을 둡니다.
 - 이미 만든 프로젝트의 Pillow는 kit이 올리지 않습니다. 그 프로젝트에서 `uv lock --upgrade-package pillow`와 `uv sync`를 실행하고, `uv.lock`의
   Pillow가 13 이상인지 확인하세요. 프로젝트의 `pyproject.toml`이 그보다 낮게 묶었으면 올라가지 않습니다
-  ([README](https://github.com/handochan/aelix-analytics/blob/main/README.md#5분-시작)).
+  ([사용 안내](https://github.com/handochan/aelix-analytics/blob/main/docs/USER-GUIDE.md#필요한-것)).
 
 ## [0.31.0] - 2026-10-29
 
@@ -444,7 +451,7 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 
 번호를 붙인 PR은 [#13]의 셋째 구현 PR(③, 새 writer와 정책 전환)인 [#84]입니다. 기록 형식이 바뀌는 버전입니다:
 이 kit은 새 형식(`analytics.json`)의 프로젝트에만 쓰고, 그 전의 `lab.json` 프로젝트는 읽기만 하며 `analytics migrate`로 새 폴더에 옮깁니다.
-바뀐 저장 이름의 표는 [README](README.md#옛-이름에서-옮기기)에 있습니다.
+바뀐 저장 이름의 표는 [사용 안내](docs/USER-GUIDE.md#옛-이름에서-옮기기)에 있습니다.
 
 ### Added
 
@@ -640,7 +647,7 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   `record`·`visualize` ([#60]).
 - 환경 변수가 `AELIX_ANALYTICS_*`입니다(`LAB_PROJECT`·`AELIX_LAB_PROJECT` → `AELIX_ANALYTICS_PROJECT`, `AELIX_LAB_KIT` →
   `AELIX_ANALYTICS_RUNTIME_PATH` 등). 옛 이름을 설정해 두면 그것을 읽던 쪽이 새 이름을 알리는 오류로 멈춥니다. 기록의 형식과 저장
-  이름(`lab.json`, `.lab/`, `lab.*/1`)은 그대로입니다. 옮기는 방법은 [README](README.md#옛-이름에서-옮기기)에 있습니다 ([#60]).
+  이름(`lab.json`, `.lab/`, `lab.*/1`)은 그대로입니다. 옮기는 방법은 [사용 안내](docs/USER-GUIDE.md#옛-이름에서-옮기기)에 있습니다 ([#60]).
 - status와 Workspace가 기록을 한 읽기 모델로 읽어 같은 판정을 보입니다: 읽기 기준(`as_of_seq`·`source_revision`), 마지막 run 대신
   같은 바이트를 출력한 생산자 후보, 읽지 못한 기록과 손상된 줄의 위치, run의 기록 상태(`recording incomplete`) ([#61]).
 - status JSON: `datasets[].producer`는 지금 바이트를 출력한 성공 run이 하나일 때만 있습니다. 위치를 주는 필드(`unsupported`·

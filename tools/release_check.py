@@ -5,7 +5,8 @@
     python tools/release_check.py sums DIR --output FILE [--expect FILE]   SHA256SUMS of the files in DIR
     python tools/release_check.py pypi VERSION --sums FILE [--wait SECONDS]   PyPI holds those files
 
-`version` reads pyproject.toml, KIT_VERSION, the aelix manifest, README's wheel names and the changelog,
+`version` reads pyproject.toml, KIT_VERSION, the aelix manifest, the wheel names in both READMEs (English
+README.md and Korean README.ko.md) and the changelog,
 and reports whether they name one version (and, with --tag, that the tag is `v` and that version), and
 whether that version's changelog section, which becomes the release notes, links only full URLs. A
 release publishes the candidate the release rehearsal measured (CONTRIBUTING.md's release steps):
@@ -30,6 +31,7 @@ from pathlib import Path
 
 PACK = Path(__file__).resolve().parents[1]
 NAME = "aelix_analytics"
+READMES = ("README.md", "README.ko.md")  # the English README is the package's description; the Korean one mirrors it
 KIT_VERSION_RE = re.compile(r'^KIT_VERSION = "([^"]+)"$', re.M)
 SECTION_RE = re.compile(r"^## \[([^\]]+)\](?: - (\d{4}-\d{2}-\d{2}))?$", re.M)
 
@@ -40,10 +42,11 @@ def versions(pack: Path = PACK) -> dict:
     core = (pack / "src" / NAME / "core.py").read_text(encoding="utf-8")
     kit = KIT_VERSION_RE.search(core)
     manifest = tomllib.loads((pack / "src" / NAME / "aelix-plugin.toml").read_text(encoding="utf-8"))
-    readme = (pack / "README.md").read_text(encoding="utf-8")
+    by_file = {rel: sorted(set(re.findall(rf"{NAME}-([^-\s]+)-py3-none-any\.whl",
+                                          (pack / rel).read_text(encoding="utf-8")))) for rel in READMES}
     return {"pyproject": project["version"], "kit_version": kit[1] if kit else None,
             "manifest": manifest["plugin"]["version"],
-            "readme_wheels": sorted(set(re.findall(rf"{NAME}-([^-\s]+)-py3-none-any\.whl", readme)))}
+            "readme_wheels": sorted(set().union(*by_file.values())), "readme_wheels_by_file": by_file}
 
 
 def changelog_sections(pack: Path = PACK) -> list[dict]:
@@ -62,7 +65,9 @@ def check_version(tag: str | None, pack: Path = PACK) -> dict:
         if seen[where] != version:
             problems.append(f"{where} is {seen[where]!r}, pyproject.toml's is {version!r}")
     if seen["readme_wheels"] != [version]:
-        problems.append(f"README names the wheels of {seen['readme_wheels']}, not only {version}")
+        problems.append(f"the READMEs name the wheels of {seen['readme_wheels']}, not only {version}")
+    # Each README has the build-from-a-checkout lines: one that lost them would pass the union above.
+    problems += [f"{rel} names no wheel" for rel, wheels in seen["readme_wheels_by_file"].items() if not wheels]
     sections = {s["version"]: s for s in changelog_sections(pack)}
     if version not in sections:
         problems.append(f"CHANGELOG.md has no section [{version}]")

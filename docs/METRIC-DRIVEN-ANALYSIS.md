@@ -2,7 +2,8 @@
 
 작성: 2026-09-18 · 개정: 2026-10-09 · 상태: 제품 설계. M0·최소 M1의 기록·기본 조회는 kit 0.9.0에 구현되었으며
 정확한 입력과 범위는 [ADR-0011](decisions/0011-metric-focus-and-observation-contract.md)과 [현재 계약 C6](CONTRACTS.md#c6-지표-정의현재-초점명시적-관측-kit-090)을 따른다.
-아래 개념 예시·후속 화면·검색/checkpoint는 구현된 입력이나 기능으로 취급하지 않는다.
+아래 개념 예시·후속 화면과 지표 전용 검색은 구현된 입력이나 기능으로 취급하지 않는다. 일반 기록 검색(kit 0.11.0)과 checkpoint(kit 0.14.0)는
+[현재 계약](CONTRACTS.md) A2·C10에 있다.
 [제품 비전](PRODUCT.md)과 [맥락·근거 설계](DESIGN-CONTINUITY-AND-REUSE.md)를 보완한다.
 
 명칭은 [용어집](TERMINOLOGY-AND-LANGUAGE.md)을 따른다. Metric·Metric definition·Metric observation을 구별하고, 표현 객체는 Visualization, 통계 차트는 그 한 유형이다.
