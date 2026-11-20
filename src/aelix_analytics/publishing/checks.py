@@ -16,7 +16,7 @@ from dataclasses import fields, is_dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from .. import relations
+from .. import brand, relations
 from .basis import _time
 from .inspections import HTMLInspection, detect_format, inspect_bytes
 from .model import ItemKey, LeakPolicy, PublicationError, ScanText, Text, page_key, private_field
@@ -274,6 +274,12 @@ def check_strings(values, policy, *, path, source=None, strong_only=False, own_n
     warnings = []
     lines, strong, weak, inside = _matchers(policy)
     for part in values:
+        # The kit's own mark (#204) is fixed bytes that hold nothing of a project. As text its base64
+        # spells short words (`png`, `base64`, pieces between `+` and `/`) an excluded item may share,
+        # and slashes a path pattern may take. Only that exact value is passed over; its PNG is still
+        # inspected as a data URI.
+        if part.value == brand.MARK_URI:
+            continue
         text = normalized(part.value)
         found = strong.find(text)
         if not strong_only:

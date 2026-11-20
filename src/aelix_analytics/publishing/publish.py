@@ -28,7 +28,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from .. import _platform, core, relations, writer
+from .. import _platform, brand, core, relations, writer
 from . import checks, target
 from .model import LOCK_WAIT_SECONDS, PublicationError
 
@@ -287,7 +287,7 @@ def channel_page(latest: dict, arrival: list[dict]) -> bytes:
         '<meta name="viewport" content="width=device-width, initial-scale=1">',
         f'<meta http-equiv="Content-Security-Policy" content="{html.escape(PAGE_POLICY)}">',
         '<meta name="referrer" content="no-referrer">', '<meta name="robots" content="noindex">',
-        '<link rel="icon" href="data:,">',
+        brand.ICON_LINK,
         f'<meta name="analytics-latest" content="{html.escape(pid)}">',
         f'<noscript><meta http-equiv="refresh" content="0; url={href(pid)}"></noscript>',
         f'<title lang="">{html.escape(title)}</title>', "</head>", "<body>",

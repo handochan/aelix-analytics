@@ -87,14 +87,16 @@ LAYERS: dict[str, Layer] = {
     "distribution": _layer(0, (), (), "where the installed distribution keeps its runtime root"),
     # Issue #96: the Workspace's own words by message key, a leaf the renderer imports.
     "messages": _layer(0, (), (), "the Workspace's own words by message key and their catalogs"),
+    # Issue #204: the Aelix mark, the one thing the shared-copy renderer shares with the Workspace.
+    "brand": _layer(0, (), (), "the Aelix mark the kit's pages carry, as fixed bytes"),
     "share_model": _layer(0, (), (), "immutable publication values; no record objects or I/O"),
-    "publication_policy": _layer(1, ("read_model", "share_model", "publication_policy"), (),
+    "publication_policy": _layer(1, ("brand", "read_model", "share_model", "publication_policy"), (),
                                  "pure publication profiles, independent scope closure and field rules"),
     "publication_observation": _layer(1, ("ports", "read_model", "share_model", "publication_policy"), (),
                                      "read-only publication record/folder reconciliation; no writer or renderer"),
-    "share_render": _layer(1, ("share_model",), ("rendering",),
+    "share_render": _layer(1, ("brand", "share_model"), ("rendering",),
                             "pure shared-model pages; no records, project or filesystem"),
-    "publishing": _layer(3, ("core", "ports", "read_model", "writer", "share_model", "publication_policy", "publication_observation", "share_render", "publishing"), ("analysis",),
+    "publishing": _layer(3, ("brand", "core", "ports", "read_model", "writer", "share_model", "publication_policy", "publication_observation", "share_render", "publishing"), ("analysis",),
                           "eager snapshot and future publication I/O adapters, separate from Workspace"),
     "writer": _layer(1, ("ports", "read_model"), (),
                      "who may write a project's records and how: the marker judgment and the gate, "
@@ -114,7 +116,7 @@ LAYERS: dict[str, Layer] = {
                                  "immutable Report storage with an injected Writer; no core, renderer or host import"),
     "runtime": _layer(3, ("core", "observation", "ports", "read_model", "runtime", "writer"), ("analysis",),
                       "execution, capture and data adapters, in the project's environment"),
-    "workspace": _layer(3, ("core", "messages", "ports", "read_model", "writer"), ("analysis", "rendering"),
+    "workspace": _layer(3, ("brand", "core", "messages", "ports", "read_model", "writer"), ("analysis", "rendering"),
                         "the Workspace renderer, in the project's environment"),
     # Issue #13 PR 2 (design 3.2): the copy migration, beside the adapters. Standard library only, and
     # never loaded by the aelix process (core does not import it).
@@ -185,6 +187,7 @@ MODULES: dict[str, str] = {
     "src/aelix_analytics/workspace_provenance.py": "workspace",
     "src/aelix_analytics/workspace_reports.py": "workspace",
     "src/aelix_analytics/i18n.py": "messages",
+    "src/aelix_analytics/brand.py": "brand",
     "src/aelix_analytics/migration.py": "migration",
     "src/aelix_analytics/__init__.py": "sdk",
     "src/aelix_analytics/__main__.py": "kit_entry",

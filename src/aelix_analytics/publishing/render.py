@@ -9,6 +9,7 @@ import json
 import posixpath
 from urllib.parse import quote
 
+from .. import brand
 from .model import Object, PublicationError, PublicationIdentity, Text, page_key
 
 PAGE_SIZE = 200
@@ -248,7 +249,7 @@ def render(
         root = posixpath.relpath(".", posixpath.dirname(path) or ".")
         value = (
             f'<!doctype html>\n<html lang="en" data-root="{esc(root)}/"><head><meta charset="utf-8">'
-            f'<meta http-equiv="Content-Security-Policy" content="{esc(PAGE_POLICY)}"><link rel="icon" href="data:,">'
+            f'<meta http-equiv="Content-Security-Policy" content="{esc(PAGE_POLICY)}">{brand.ICON_LINK}'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<meta name="referrer" content="no-referrer"><meta name="robots" content="noindex"><title lang="{"" if user_title else "en"}">{esc(name)}</title>'
             f"<script>{RUNTIME_CHECK}</script>"
@@ -257,7 +258,7 @@ def render(
             f'<a class="skip" href="#main">Skip to content</a><p class="load-failure">This page could not load its files. '
             f"If you opened it from inside a ZIP archive, extract the whole archive first; otherwise this copy is incomplete.</p>"
             f"<header>{band(path)}<nav>{link(path, 'index.html', 'Overview')} {link(path, 'about.html', 'About this copy')}</nav></header>"
-            f'<main id="main">{body}</main><footer>This copy is a fixed snapshot. Its source may have changed.</footer></body></html>\n'
+            f'<main id="main">{body}</main><footer>{brand.mark()}Aelix Analytics · This copy is a fixed snapshot. Its source may have changed.</footer></body></html>\n'
         )
         pages[path] = value.encode("utf-8")
 
