@@ -37,7 +37,7 @@ Issue·pull request·commit은 누구나 읽습니다. 저장소에는 secret sc
 ([#24](https://github.com/handochan/aelix-analytics/issues/24)). 관리자는 한 사람입니다.
 
 - **보안 수정을 받는 버전**: 가장 최근 릴리스 하나입니다. 베타 동안에는 이전 버전에 반영(backport)하지 않습니다. 고친 버전으로
-  업그레이드하세요([README](README.md#설치본wheel으로-쓰기)). 체크아웃에서 쓰면 main의 최신 commit으로 옮기세요.
+  업그레이드하세요([사용 안내](docs/USER-GUIDE.md#설치본wheel으로-쓰기)). 체크아웃에서 쓰면 main의 최신 commit으로 옮기세요.
 - **응답**: 신고를 받은 지 7일 안에 처음 답하고, 14일 안에 판단 결과(취약점인지, 영향 범위, 고칠 계획)를 알립니다. 더 필요한
   정보가 있으면 그 안에 묻습니다.
 - **고치는 동안**: 신고 내용과 고치는 작업은 비공개 advisory 안에서 다룹니다. 수정을 게시하기 전에는 공개 Issue·pull request·
@@ -64,7 +64,7 @@ Issue·pull request·commit은 누구나 읽습니다. 저장소에는 secret sc
 
 문서에 적힌 동작은 그것만으로 취약점이 아닙니다. Aelix Analytics는 샌드박스가 아닙니다. `analytics_run`은 받은 코드를 사용자의
 권한으로 실행하고, aelix는 확장 도구를 실행하기 전에 묻지 않으며, Workspace는 데이터 미리보기와 로그를 가리지 않고 보입니다
-([README](README.md#한계), [현재 계약 G](docs/CONTRACTS.md#g-약속하지-않는-것)). 문서가 약속하는 경계를 넘는 방법은 범위 안입니다.
+([사용 안내의 한계](docs/USER-GUIDE.md#한계), [현재 계약 G](docs/CONTRACTS.md#g-약속하지-않는-것)). 문서가 약속하는 경계를 넘는 방법은 범위 안입니다.
 예를 들면 다음과 같습니다.
 
 - `analytics_query`로 보낸 쿼리가 읽기 전용이 아니거나 프로젝트의 `data/` 밖 파일에 닿는 것, aelix를 켠 폴더나 그 위·아래에서 찾은

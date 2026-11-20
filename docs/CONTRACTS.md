@@ -2392,7 +2392,7 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
     ([#39](https://github.com/handochan/aelix-analytics/issues/39), [베타까지의 플랫폼 보강](BETA-QUALITY-GATES.md#베타까지의-플랫폼-보강))에
     따라 B 단계 PR이 그 코드를 건드리거나 지원 구성의 시나리오에서 기록 손실이 새로 확인될 때만 다룹니다. 항목마다 무엇이
     일어나는지, 측정한 구성(추론이면 그 근거), 기록을 잃는지, 대신 할 일을 적습니다. 사용자 안내는
-    [README](../README.md#windows에서-쓸-때)에도 있습니다. 측정은 PR #35에서 했습니다(측정 커밋 `4eb0955`, kit 0.1.0; 앞선 실행은
+    [사용 안내](USER-GUIDE.md#windows에서-쓸-때)에도 있습니다. 측정은 PR #35에서 했습니다(측정 커밋 `4eb0955`, kit 0.1.0; 앞선 실행은
     항목에 적음). 그 뒤 이 항목을 고친 변경은 없습니다. 항목은 지금 이름으로 적습니다: 측정 때의 `/lab`·`/lab note`·`lab.save`·
     `LAB_PROJECT`는 지금의 `/analytics`·`/analytics record`·`analytics.save`·`AELIX_ANALYTICS_PROJECT`입니다. 콘솔 항목은 사람이
     누른 키가 아니라 의사 콘솔의 입력과 도우미 프로세스의 콘솔 이벤트로 측정했고, 경우마다 한 번 실행했습니다.
@@ -2435,7 +2435,7 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
     대신: 0이면 run이 쓰는 모든 경로(`data/derived/…`, `runs/<id>/charts/…`)가 260자 안에 들게 루트와 스크립트·데이터셋·차트
     이름을 짧게 둡니다. 관리자가 LongPathsEnabled를 1로 둘 수도 있습니다. 1에서는 1번의 루트 230자 run이 312자 경로의 출력과
     344·353자의 차트 파일을 기록했고(가장 깊은 파일은 365자의 코드 사본), 루트가 MAX_PATH를 넘으면 1번은 남습니다. 이미 이렇게
-    끝난 run의 파일은 기록되지 않은 파일이니, 경로를 줄여 다시 실행해 기록을 남깁니다. 고치지 않는 기록 손실이라 README에도
+    끝난 run의 파일은 기록되지 않은 파일이니, 경로를 줄여 다시 실행해 기록을 남깁니다. 고치지 않는 기록 손실이라 사용 안내에도
     적었고, 동결로 베타까지 그대로입니다.
   - (측정, #38-3) 콘솔의 Ctrl+Break(SIGBREAK)는 uv를 곧바로 `0xC000013A`로 끝내므로 설치본 `analytics`가 kit의 기록보다 먼저
     돌아옵니다: 셸에 돌아온 순간 그 run은 `running`이고, kit은 나중에 `cancelled`를 기록하며(자는 kit은 그 잠이 끝난 뒤),
@@ -2454,7 +2454,7 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
     차트·오류가 없습니다(코드에서 읽음). 강제 종료된 run처럼 되돌리거나 고치지 않습니다.
     대신: run이 도는 콘솔을 닫지 않습니다. 멈출 때는 Ctrl+C를 누르고 결과 줄을 기다립니다. 닫혔으면 스크립트를 다시 실행합니다.
     프로세스가 모두 끝났으므로 run 잠금도 풀린다고 봅니다(추론, 닫은 뒤의 run은 실행하지 않았습니다). 고치지 않는 기록 손실이라
-    README에도 적었고, 동결로 베타까지 그대로입니다.
+    사용 안내에도 적었고, 동결로 베타까지 그대로입니다.
   - (측정, 한 번, #38-5) 스크립트가 자식을 시작하는 바로 그때(`CreateProcess` 안) 콘솔의 Ctrl+C가 오면 run은 `cancelled`로
     기록되고 런처는 3으로 끝나지만, 그 Ctrl+C 뒤에 콘솔에 붙은 자식은 그것을 받지 못해 run이 끝난 뒤에도 남았습니다(자식 하나를
     시작한 스크립트 뒤에 python.exe 프로세스 둘이 남음).
@@ -2467,7 +2467,7 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
     `CommandLine`이 그 스크립트가 시작한 자식의 명령인 프로세스만 `Stop-Process -Id`로 끝냅니다. Python이 아닌 자식은
     `python.exe` 대신 그 프로그램의 이름으로 찾습니다. aelix나 다른 작업의 프로세스는 끝내지 않습니다. aelix와 설치본
     `analytics`도 Python으로 돌아 이름만으로는 가려지지 않습니다. 이 명령은 Windows에서 실행하지 않았습니다(개발 기기의 pwsh로
-    구문만 확인). 고치지 않는 기록 손실이라 README에도 적었고, 동결로 베타까지 그대로입니다.
+    구문만 확인). 고치지 않는 기록 손실이라 사용 안내에도 적었고, 동결로 베타까지 그대로입니다.
   - (추론, #38-6) 콘솔의 시간 창. 두 번째 Ctrl+C가 CRT·CPython이 처리기를 다시 설치하는 짧은 창에 오면 kit(기록은 `running`으로
     남아 `incomplete`)이나 런처가 끝날 수 있고, uv가 자기 처리기를 설치하기 전에 온 Ctrl+C는 Ctrl+Break처럼 uv를 끝내며,
     kit이 import하는 동안 온 Ctrl+C는 run 없이 traceback으로 끝납니다(POSIX에서 130을 관찰, Windows는 `0xC000013A`로 예상).

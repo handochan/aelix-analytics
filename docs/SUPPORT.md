@@ -129,7 +129,7 @@ CI-0.32.0에서 확인한 것(artifact가 지워지므로 여기에 요약한다
 
 - **Windows의 한계**([#38](https://github.com/handochan/aelix-analytics/issues/38)): 긴 경로(MAX_PATH를 넘는 프로젝트 루트,
   LongPathsEnabled=0에서 잃는 출력 기록), 콘솔의 Ctrl+Break와 창 닫기, 확장이 넘기지 않는 환경 변수 등. 베타까지 고치지 않는다
-  ([플랫폼 보강 동결](BETA-QUALITY-GATES.md#베타까지의-플랫폼-보강)). 사용자 안내는 [README](../README.md#windows에서-쓸-때)에 있다.
+  ([플랫폼 보강 동결](BETA-QUALITY-GATES.md#베타까지의-플랫폼-보강)). 사용자 안내는 [사용 안내](USER-GUIDE.md#windows에서-쓸-때)에 있다.
 - **경로 정체성**([#36](https://github.com/handochan/aelix-analytics/issues/36)): 프로젝트 안의 디렉터리 링크 아래에서 빠지는 출력,
   대소문자·유니코드 정규화가 다른 경로, 다른 OS가 기록한 절대 경로(G의 '프로젝트 안의 디렉터리 링크', '대소문자와 유니코드 정규화',
   '관계의 읽기'). 기록 손실·계보 단절 항목은 #13 전에 고치기로 했다(동결의 예외). 지금의 동작은 G의 서술이다.
@@ -138,7 +138,7 @@ CI-0.32.0에서 확인한 것(artifact가 지워지므로 여기에 요약한다
   정해져 있다(G의 '줄 끝').
 - **실행하지 않은 것**: 실제 문서 열기 프로그램, 설치본의 `analytics demo`, 사람이 누른 Windows 콘솔 키, Windows의 실제 aelix 세션
   ([현재 계약 F·G](CONTRACTS.md#f-실행-환경과-지원-플랫폼)).
-- **샌드박스가 아니다**: 스크립트는 사용자 권한으로 돌고 aelix는 확장 도구 실행 전에 묻지 않는다([README 한계](../README.md#한계)).
+- **샌드박스가 아니다**: 스크립트는 사용자 권한으로 돌고 aelix는 확장 도구 실행 전에 묻지 않는다([사용 안내의 한계](USER-GUIDE.md#한계)).
 
 ## 베타에서 지원을 정하는 방법
 
