@@ -2,52 +2,54 @@
 
 **Data analysis that keeps its evidence, so people and AI agents can check it, continue it and share it.**
 
-English · [한국어](README.ko.md)
+English · [한국어](README.ko.md) · [Quick start](#quick-start)
 
 An analysis done with an AI agent tends to end with the chat: the charts survive, but not which code drew
 them, which data they read, or why the analysis turned the way it did. Aelix Analytics keeps all of that in
 the project itself.
 
-- **Every chart leads back to its evidence:** the exact code that drew it, the input files it read (by
-  sha256), and the data plotted.
-- **Findings and decisions point at the run behind them.** So do assumptions and open questions.
-- **The goal, focus and next steps live in plain files.** The next session reads them first, whether it is
-  you, an agent, or an agent on another model.
+- **Every chart leads back to its evidence:** the run that made it, the code exactly as it ran, the inputs
+  the run detected (with their sha256), and the plotted data when it was attached.
+- **Findings, decisions and questions can cite their evidence:** the runs, charts or datasets behind them,
+  at the exact version.
+- **The goal, focus and next steps live in plain files.** A new aelix session starts from them, and any
+  person or other agent can read the same files to pick up the work.
 
 You keep writing ordinary Python with DuckDB, Polars, matplotlib or plotly. The kit records each run and
 builds a static HTML **Workspace** to browse, rebuild and share.
 
 ![The Workspace overview of the demo project: the goal, the current direction from CONTEXT.md, the analysis status and a map from imported data through runs and visualizations to insights](docs/images/workspace-overview.png)
 
-> **First public beta (kit 0.32.1).** This is not a sandbox. Scripts run with your permissions, and in
+> **Beta.** This is not a sandbox. Scripts run with your permissions, and in
 > [aelix](https://github.com/handochan/aelix-ai) the agent's `analytics_run` executes code without asking
 > first. Read [Limits](#limits) before you use it on real data.
 
 ## What you get
 
 **Charts you can trace.** Each chart belongs to a *run*: one execution of a script, recorded with a snapshot
-of the code as it ran, the sha256 of every input, the outputs, logs and environment. A chart card links to
-the line that drew it, to its inputs (still the same bytes, or changed since), and to the data attached to
-the chart.
+of the code as it ran, the inputs it detected and their sha256, the outputs, logs and environment. A chart
+card links to the code (to the line that recorded the chart, when the run knows it), to its inputs (still
+the same bytes, or changed since), and to the data attached to the chart, or says that none was recorded.
 
-![Three chart cards in the Workspace, each listing its code with the line that drew it, its input data and whether it changed, the attached plot data, and its run](docs/images/workspace-visualizations.png)
+![Three chart cards in the Workspace. Each lists its code with the line that recorded the chart, its input data and whether it changed, its attached plot data (the first card says none was recorded), and its run](docs/images/workspace-visualizations.png)
 
 ![A run page: the code snapshot with the line that recorded the chart highlighted, the input with its recorded sha256 and "Same" now, and the output it created](docs/images/run-code-and-inputs.png)
 
 **Context that outlives the conversation.** `CONTEXT.md` holds the goal, the analysis focus, definitions and
 next steps. `journal.jsonl` is the timeline of what happened: imports, runs, findings, decisions, assumptions,
-questions and to-dos. A later entry closes an earlier one, so you can see what was known when, and why the
-analysis changed. In aelix, the current context goes into every prompt, section by section within a
-budget, and a new session starts from it.
+questions and to-dos. A later entry can close an earlier question or to-do, so you can see what was known
+when, and why the analysis changed. In aelix, the agent gets the current context with every prompt, section
+by section within a budget. Outside aelix, people and other agents read the same files.
 
-![The Workspace timeline: runs, context updates, a decision, an assumption and a finding linked to the runs behind them, and a question resolved by a finding](docs/images/workspace-timeline.png)
+![The Workspace timeline: runs and context updates, a decision and a finding linked to the runs behind them, an assumption linked to the dataset, and a question resolved by a finding](docs/images/workspace-timeline.png)
 
 **People and agents work on the same project.** The `analytics` command, the Python SDK and the aelix tools
-write the same records, and each record says who made it (`human` or `agent`). You can analyse by hand
-without any model, hand over to an agent, and take it back.
+write the same records, and each record says who made it and how. You can analyze by hand without any
+model, hand over to an agent, and take it back.
 
-**Reruns you can compare.** A rerun executes a run's code snapshot again and compares the plotted data and
-the output bytes: `match`, `mismatch`, `failed` or `inconclusive`.
+**Reruns you can compare.** A rerun executes a run's code snapshot again and compares each chart (its
+attached data, or else the plotly figure or the PNG bytes) and the output bytes: `match`, `mismatch`,
+`failed` or `inconclusive`.
 
 **Reports and sharing.** Save a document you wrote (HTML, Markdown, …) as a versioned **Report**. Build a
 standalone copy of the project or of chosen Reports, check it for leaks and broken links, and publish it to
@@ -58,22 +60,34 @@ its own uv environment. Nothing needs a server.
 
 ## Quick start
 
-You need [uv](https://docs.astral.sh/uv/). Install the `analytics` command and make the demo project:
-synthetic sales data, three example runs, notes, and a rerun check. No model is involved.
+You need [uv](https://docs.astral.sh/uv/). Install **one** of these.
+
+The `analytics` command alone, to analyze without a model:
 
 ```sh
 uv tool install --python 3.12 aelix-analytics
+```
+
+Or [aelix](https://github.com/handochan/aelix-ai) with this extension, which installs the same `analytics`
+command too:
+
+```sh
+uv tool install --python 3.12 aelix==0.1.0b2 --with aelix-analytics --with-executables-from aelix-analytics
+```
+
+Both make an `analytics` command, so to move from the first to the second, run
+`uv tool uninstall aelix-analytics` first.
+
+Make the demo project: synthetic sales data, three example runs, notes, and a rerun check. No model is
+involved.
+
+```sh
 analytics demo ~/analyses/demo          # the first time takes about a minute to set up the uv environment
 cd ~/analyses/demo && analytics open    # the Workspace in your browser
 ```
 
-To continue the analysis with an agent, install [aelix](https://github.com/handochan/aelix-ai) with this
-extension and start it in the project folder:
-
-```sh
-uv tool install --python 3.12 aelix==0.1.0b2 --with aelix-analytics --with-executables-from aelix-analytics
-cd ~/analyses/demo && aelix
-```
+The Workspace shows its interface in English or Korean; the switch is at the top right. With aelix
+installed, continue the analysis with an agent in the project folder: `cd ~/analyses/demo && aelix`.
 
 In aelix, `/analytics` opens a panel: status, the Workspace, Reports, records, sharing and settings. Then
 ask for analysis as usual, for example *"Make the region growth chart record its plot data too."* The
@@ -90,6 +104,7 @@ are Linux, macOS and Windows; [Support](docs/SUPPORT.md) lists what was installe
 |---|---|
 | The `analytics` command | `uv tool install --python 3.12 aelix-analytics` |
 | aelix with the extension (and the same `analytics`) | `uv tool install --python 3.12 aelix==0.1.0b2 --with aelix-analytics --with-executables-from aelix-analytics` |
+| To switch from the first to the second | `uv tool uninstall aelix-analytics`, then the second line (both make `analytics`) |
 | To upgrade | `uv tool upgrade aelix-analytics`, or `uv tool upgrade aelix`; then restart aelix |
 | To uninstall | `uv tool uninstall aelix-analytics`, or `uv tool uninstall aelix` |
 
@@ -174,8 +189,8 @@ A document becomes a Report only when you save it. Write it outside `workspace/`
 - **No sandbox and no approval step.** Scripts run with your permissions. aelix does not ask before an
   extension's tool runs, and headless mode approves everything.
 - **Lineage is best effort.** Reads that bypass the hooks, such as pyarrow directly or a C extension
-  opening a computed path, can be missed. The run then warns `no input files were detected`; declare such
-  inputs. There is no row-level lineage.
+  opening a computed path, can be missed. A run warns `no input files were detected` only when it detected
+  none at all, so declare such inputs either way. There is no row-level lineage.
 - **Immutability is a convention.** Nothing stops you from editing `data/imported/` or `runs/`. Hash checks
   show the change. There are no hash chains or signatures.
 - **No transactions.** A killed run shows as `incomplete`. Sending the same request twice makes two runs.
@@ -205,8 +220,8 @@ The detailed documents are in Korean.
 | [Contributing](CONTRIBUTING.md) | How to propose a change and the checks CI runs |
 | [Project operations](docs/PROJECT-OPERATIONS.md) | Issues and the Project board, shared instructions for agents, handoffs |
 
-Proposals and design documents under `docs/` describe what is not built yet. The current contract is the
-reference for what exists.
+Proposals and design documents under `docs/` explain the design, including parts not built yet. The
+current contract is the reference for what exists.
 
 ## Development
 

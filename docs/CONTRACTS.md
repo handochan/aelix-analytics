@@ -2508,7 +2508,7 @@ kit 0.8.0([#13](https://github.com/handochan/aelix-analytics/issues/13)의 셋�
 - 설치본과 사본(ADR-0004).
   - 사본 하나만 설정하는 확인(A)은 두 사본이 모두 이 버전 이상일 때만 됩니다. 이 확인이 없는 이전 버전의 체크아웃을
     aelix의 extensions 디렉터리에 symlink한 채 설치본을 더하면 두 사본이 모두 설정되어, 도구 호출마다 telemetry가 두 번
-    기록되고 맥락 블록이 두 번 붙습니다. 설치본을 쓰면 symlink를 지웁니다(README).
+    기록되고 맥락 블록이 두 번 붙습니다. 설치본을 쓰면 symlink를 지웁니다([사용 안내](USER-GUIDE.md#설치본wheel으로-쓰기)).
   - aelix를 다시 설치하면 그 환경에 더한 이 wheel이 빠집니다: `uv tool install --force aelix`는 측정했고, 같은 명령을
     `--with` 없이 실행하는 `install.sh`는 추론입니다. 다시 설치해야 합니다.
   - wheel을 zip import로 쓰는 설치는 지원하지 않습니다. `kit_dir()`이 거절합니다: zip 안의 kit도 자식에서 실행되지만

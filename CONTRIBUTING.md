@@ -204,7 +204,8 @@ uv run --isolated --no-project --python 3.12 --with aelix==0.1.0b2 --with tokeni
 | `docs/BETA-QUALITY-GATES.md` | `tests/test_eval_fixtures.py` |
 | `docs/schemas/` | 기록·상태 schema: `tests/test_record_contract.py`·`tests/test_writer.py` 등과 `tests/test_doc_checks.py` |
 | `docs/templates/WORK-STATE.example.json` | `tests/test_doc_checks.py` |
-| `README.md` | wheel의 설명(`pyproject.toml`의 `dynamic = ["readme"]`과 `[tool.hatch.metadata.hooks.fancy-pypi-readme]`: 상대 링크를 그 버전 tag의 주소로 바꿈), `tests/test_packaging.py`, 개발 명령의 aelix 고정값: `tests/test_ci_workflow.py` |
+| `README.md` | wheel의 설명(`pyproject.toml`의 `dynamic = ["readme"]`과 `[tool.hatch.metadata.hooks.fancy-pypi-readme]`: 상대 링크를 그 버전 tag의 주소로, 그림을 그 tag의 raw 파일로 바꿈), `tests/test_packaging.py`, wheel 이름: `tools/release_check.py`, 명령의 aelix 고정값과 통합 명령: `tests/test_ci_workflow.py` |
+| `README.ko.md` | `README.md`와 같은 시험·도구(wheel 이름, aelix 고정값과 통합 명령). wheel의 설명은 아님 |
 | `CONTRIBUTING.md` | 명령과 고정값: `tests/test_ci_workflow.py` |
 | `CHANGELOG.md` | 그 번호 절의 날짜와 전체 주소 링크(릴리스 노트): `tools/release_check.py`(`tests/test_release_check.py`) |
 | `.github/project.json` | 연결 값: `tools/check_docs.py` |

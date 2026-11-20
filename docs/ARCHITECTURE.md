@@ -1,6 +1,6 @@
 # 지속적으로 확장하는 분석 플랫폼의 아키텍처
 
-작성: 2026-09-18 · 개정: 2026-10-06 · 상태: 구현을 위한 설계 제안. 제품의 장기 방향은 합의된 요구이며 아래 후보 인터페이스·모듈은 아직 구현되지 않았다. 이미 적용한 부분은 ADR-0001의 [적용 현황](decisions/0001-evolvable-platform-boundaries.md#적용-현황)에 있다. 예외: §11의 [계층과 의존 방향 검사](#계층과-의존-방향-검사)는 지금 코드에 적용한 표다(#43).
+작성: 2026-09-18 · 개정: 2026-10-06 · 상태: 구현을 위한 설계 제안. 제품의 장기 방향은 합의된 요구이며, 아래 후보 인터페이스·모듈 가운데 구현한 것은 그 자리에 적었다(예: §5의 `ProposalPolicy`·`PublicationProjection`). 이미 적용한 부분은 ADR-0001의 [적용 현황](decisions/0001-evolvable-platform-boundaries.md#적용-현황)에 있다. 예외: §11의 [계층과 의존 방향 검사](#계층과-의존-방향-검사)는 지금 코드에 적용한 표다(#43).
 상위 목적은 [PRODUCT.md](PRODUCT.md), 채택한 결정은 [ADR-0001](decisions/0001-evolvable-platform-boundaries.md)(채택은 구현 완료가 아니다), 현재 동작은 [CONTRACTS.md](CONTRACTS.md)를 따른다.
 공개·내부 명칭은 [용어집](TERMINOLOGY-AND-LANGUAGE.md)을 따른다.
 
@@ -425,4 +425,4 @@ Issue #15의 `relations.QueryPolicy`는 stdlib 어휘 순위·페이지 정책�
 
 이 패턴들을 이 프로젝트의 변경 축에 적용하는 방식과 인터페이스 이름은 본 문서의 설계 제안이다.
 
-Issue #20 PR1–PR4는 순수 공유 모델·투영·공통 범위 닫힘·snapshot adapter, `analytics build`·preview·private saved build·publication writer·manifest 결박·독립 검사·ZIP, Report·묶음 범위(진입점이 ReportRenderer를 주입)를 구현합니다. 독자 수용은 PR5(kit 0.28.0), publish/receipt는 #21(kit 0.29.0–0.31.0)이 구현했습니다. `publishing`의 수준은 현재 core2/Workspace3/진입점4에 맞춘3이며, 설계 문서의 옛 수준2 숫자를 그대로 따르지 않습니다.
+Issue #20 PR1–PR4는 순수 공유 모델·투영·공통 범위 닫힘·snapshot adapter, `analytics build`·preview·private saved build·publication writer·manifest 결박·독립 검사·ZIP, Report·묶음 범위(진입점이 ReportRenderer를 주입)를 구현합니다. PR5(kit 0.28.0)는 독자용 화면과 CI의 원본 없는 경로·브라우저 검증을, #21(kit 0.29.0–0.31.0)은 publish/receipt를 구현했습니다. 실제 다른 독자의 열람(Q14)은 실행하지 않았습니다. `publishing`의 수준은 현재 core2/Workspace3/진입점4에 맞춘3이며, 설계 문서의 옛 수준2 숫자를 그대로 따르지 않습니다.

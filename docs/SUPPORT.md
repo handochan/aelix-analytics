@@ -95,11 +95,11 @@ CI-0.32.0에서 확인한 것(artifact가 지워지므로 여기에 요약한다
 | 새 가상 환경에 wheel 설치(3.11·3.12): 런처, aelix 결합·로드, 확장의 도구, aelix 없는 `analytics` | `verified` | `verified`(설치된 kit만 자식에 주는지의 시험 하나는 건너뜀: stand-in uv가 스크립트) | `verified` | `test_the_installed_*`, `test_aelix_binds_and_loads_the_installed_extension` |
 | pip로 설치하고 제거(3.11) | `verified` | `verified` | `verified` | `test_pip_installs_and_uninstalls_the_wheel_without_leftovers` |
 | sdist 설치(3.12) | `verified` | `verified` | `verified` | `test_the_sdist_installs_the_same_package` |
-| 체크아웃의 symlink를 wheel 옆에 둠(README) | `verified` | `verified`(파일 링크, 관리자·Developer Mode) | `verified` | `test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy` |
+| 체크아웃의 symlink를 wheel 옆에 둠([사용 안내](USER-GUIDE.md#설치본wheel으로-쓰기)) | `verified` | `verified`(파일 링크, 관리자·Developer Mode) | `verified` | `test_a_checkout_symlink_beside_the_wheel_sets_up_one_copy` |
 | 체크아웃의 `bin/analytics` | `expected`: 인자·환경·작업 디렉터리·종료 코드의 계약만 stand-in uv로 확인했고, 실제 uv와 kit을 `bin/analytics`로 실행하지 않았다 | 지원하지 않음(POSIX 셸 스크립트, 설치본 `analytics`를 씀) | `expected`(같음) | `tests/test_launcher.py`의 동등성 시험(stand-in uv, CI-0.32.0), `tests/test_platform.py`의 `--help` |
 | 체크아웃의 확장 파일을 aelix에 줌(`aelix -e`) | `verified`(가짜 모델 서버의 비대화 실행, CI-0.32.0) | `verified`(같음) | `verified`(같음, 실제 모델로는 E4) | `test_the_dry_run_goes_through_aelix_and_is_scored`, 위 'aelix' |
 | `aelix extension install <wheel> --yes`(aelix의 uv tool 환경, pip 없음), 새 wheel을 다시 install, `aelix extension remove` | `verified` | `verified` | `verified` | `test_aelix_s_extension_commands_upgrade_a_wheel_and_remove_it` |
-| `aelix extension update`로 경로 설치를 갱신 | 지원하지 않음: aelix 0.1.0b2는 처음 설치한 경로의 wheel을 다시 설치한다(이전 버전으로 돌아감). 새 wheel은 install로(README) | 같음 | 같음 | 같은 시험이 그 동작을 확인한다 |
+| `aelix extension update`로 경로 설치를 갱신 | 지원하지 않음: aelix 0.1.0b2는 처음 설치한 경로의 wheel을 다시 설치한다(이전 버전으로 돌아감). 새 wheel은 install로([사용 안내](USER-GUIDE.md#설치본wheel으로-쓰기)) | 같음 | 같음 | 같은 시험이 그 동작을 확인한다 |
 | 이름으로 `aelix extension install aelix-analytics`·`update`·`remove`(PyPI 자리의 loopback 색인을 uv의 기본 색인으로) | `verified` | `verified` | `verified` | `test_aelix_installs_updates_and_removes_the_extension_by_name` |
 | 이름으로 `uv tool install aelix-analytics`·`uv tool upgrade aelix-analytics`·`uv tool uninstall aelix-analytics`(같은 색인) | `verified` | `verified` | `verified` | `test_the_command_installs_upgrades_and_uninstalls_from_an_index` |
 | 이름으로 `uv tool install aelix==0.1.0b2 --with aelix-analytics --with-executables-from aelix-analytics`·`uv tool upgrade aelix`·`uv tool uninstall aelix`(같은 색인을 먼저 묻는 색인으로) | `verified` | `verified` | `verified` | `test_aelix_takes_the_extension_and_its_command_from_an_index` |

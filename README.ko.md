@@ -2,46 +2,48 @@
 
 **근거가 남는 데이터 분석. 사람과 AI 에이전트가 같은 분석을 확인하고, 이어 가고, 공유합니다.**
 
-[English](README.md) · 한국어
+[English](README.md) · 한국어 · [5분 시작](#5분-시작)
 
 AI 에이전트와 한 분석은 대화가 끝나면 흩어지기 쉽습니다. 차트는 남아도 어떤 코드가 그렸는지, 어떤 데이터를 읽었는지,
 왜 분석의 방향이 바뀌었는지는 남지 않습니다. Aelix Analytics는 그것을 프로젝트 안에 남깁니다.
 
-- **모든 차트에서 근거로 갑니다.** 그 차트를 그린 코드(실행된 그대로), 읽은 입력 파일(sha256), 그린 데이터로 이어집니다.
-- **발견과 결정은 그 근거인 실행을 가리킵니다.** 가정과 열린 질문도 마찬가지입니다.
-- **목표·관심 지표·다음 할 일은 평범한 파일에 있습니다.** 다음 세션은 그것부터 읽습니다. 사람이든 에이전트든, 다른 모델의 에이전트든 같습니다.
+- **모든 차트에서 근거로 갑니다.** 그 차트를 만든 실행, 실행된 그대로의 코드, 실행이 감지한 입력(sha256), 첨부했다면 그린 데이터로
+  이어집니다.
+- **발견·결정·질문은 근거를 가리킬 수 있습니다.** 그 근거인 실행·차트·데이터셋을 정확한 버전으로 가리킵니다.
+- **목표·관심 지표·다음 할 일은 평범한 파일에 있습니다.** aelix의 새 세션은 그것에서 시작하고, 다른 사람이나 다른 에이전트도 같은
+  파일을 읽어 이어 갑니다.
 
 분석은 지금처럼 Python(DuckDB, Polars, matplotlib, plotly)으로 씁니다. kit은 실행마다 기록을 남기고, 둘러보고 다시 만들고 공유할
 수 있는 정적 HTML **Workspace**를 만듭니다.
 
 ![데모 프로젝트의 Workspace 개요: 목표, CONTEXT.md의 현재 방향, 분석 상태, 가져온 데이터에서 실행·시각화를 거쳐 인사이트로 이어지는 분석 지도](docs/images/workspace-overview-ko.png)
 
-> **첫 공식 베타(kit 0.32.1)입니다.** 샌드박스가 아닙니다. 스크립트는 사용자의 권한으로 돌고,
+> **베타입니다.** 샌드박스가 아닙니다. 스크립트는 사용자의 권한으로 돌고,
 > [aelix](https://github.com/handochan/aelix-ai)에서 에이전트의 `analytics_run`은 묻지 않고 코드를 실행합니다.
 > 실데이터에 쓰기 전에 [한계](#한계)를 읽으세요.
 
 ## 할 수 있는 것
 
-**차트를 거슬러 올라갑니다.** 차트는 모두 한 *실행(run)* 에 속합니다. run은 스크립트를 한 번 실행한 기록으로, 실행된 그대로의
-코드 스냅샷, 모든 입력의 sha256, 출력, 로그, 환경을 담습니다. 차트 카드에서 그 차트를 그린 줄, 입력(지금도 같은 바이트인지,
-그 뒤에 바뀌었는지), 차트에 첨부한 데이터로 갑니다.
+**차트를 거슬러 올라갑니다.** 차트는 모두 한 *실행*(run)에 속합니다. run은 스크립트를 한 번 실행한 기록으로, 실행된 그대로의
+코드 스냅샷, 감지한 입력과 그 sha256, 출력, 로그, 환경을 담습니다. 차트 카드에서 코드(실행이 알면 그 차트를 기록한 줄), 입력(지금도
+같은 바이트인지, 그 뒤에 바뀌었는지), 차트에 첨부한 데이터로 갑니다. 첨부한 데이터가 없으면 기록하지 않았다고 보입니다.
 
-![Workspace의 차트 카드 세 개. 카드마다 차트를 그린 코드의 줄, 입력 데이터와 변경 여부, 첨부한 플롯 데이터, 그 실행이 있습니다](docs/images/workspace-visualizations-ko.png)
+![Workspace의 차트 카드 세 개. 카드마다 차트를 기록한 코드의 줄, 입력 데이터와 변경 여부, 첨부한 플롯 데이터(첫 카드는 기록하지 않았다고 보임), 그 실행이 있습니다](docs/images/workspace-visualizations-ko.png)
 
 ![실행 페이지: 차트를 기록한 줄이 강조된 코드 스냅샷, 기록한 sha256과 지금의 상태가 "같음"인 입력, 그 실행이 만든 출력](docs/images/run-code-and-inputs-ko.png)
 
 **대화가 끝나도 맥락이 남습니다.** `CONTEXT.md`에는 목표, 관심 지표와 질문, 정의, 다음 할 일이 있습니다. `journal.jsonl`은
-가져오기·실행·발견·결정·가정·질문·할 일이 일어난 순서대로 쌓이는 기록입니다. 나중 기록이 앞선 질문이나 할 일을 닫으므로,
+가져오기·실행·발견·결정·가정·질문·할 일이 일어난 순서대로 쌓이는 기록입니다. 나중 기록이 앞선 질문이나 할 일을 닫을 수 있어,
 무엇을 언제 알았고 왜 판단이 바뀌었는지 따라갈 수 있습니다. aelix에서는 지금의 맥락이 정해진 분량 안에서 섹션 단위로 매
-프롬프트에 들어가고, 새 세션도 거기서 시작합니다.
+프롬프트에 들어갑니다. aelix 밖의 사람과 다른 에이전트는 같은 파일을 읽습니다.
 
-![Workspace의 타임라인: 실행, 맥락 갱신, 그 근거인 실행에 연결된 결정·가정·발견, 발견으로 해결된 질문](docs/images/workspace-timeline-ko.png)
+![Workspace의 타임라인: 실행과 맥락 갱신, 그 근거인 실행에 연결된 결정과 발견, 데이터셋에 연결된 가정, 발견으로 해결된 질문](docs/images/workspace-timeline-ko.png)
 
 **사람과 에이전트가 같은 프로젝트에서 일합니다.** `analytics` 명령, Python SDK, aelix 도구가 같은 기록을 쓰고, 기록마다 누가
-남겼는지(`human`·`agent`)가 적힙니다. 모델 없이 직접 분석하다가 에이전트에게 넘기고, 다시 이어받을 수 있습니다.
+어떻게 남겼는지가 적힙니다. 모델 없이 직접 분석하다가 에이전트에게 넘기고, 다시 이어받을 수 있습니다.
 
-**다시 실행해 비교합니다.** 재실행은 한 run의 코드 스냅샷을 다시 돌려 플롯 데이터와 출력 바이트를 비교하고
-`match`·`mismatch`·`failed`·`inconclusive`로 판정합니다.
+**다시 실행해 비교합니다.** 재실행은 한 run의 코드 스냅샷을 다시 돌려 차트(첨부한 데이터, 없으면 plotly 그림이나 PNG 바이트)와
+출력 바이트를 비교하고 `match`·`mismatch`·`failed`·`inconclusive`로 판정합니다.
 
 **보고서와 공유.** 직접 쓴 문서(HTML, Markdown 등)를 버전이 있는 **Report**로 저장합니다. 프로젝트나 고른 Report의 독립 사본을
 만들고, 누출과 깨진 링크를 검사하고, 팀이 열 수 있는 폴더에 게시합니다.
@@ -51,25 +53,35 @@ AI 에이전트와 한 분석은 대화가 끝나면 흩어지기 쉽습니다. 
 
 ## 5분 시작
 
-[uv](https://docs.astral.sh/uv/)가 필요합니다. `analytics` 명령을 설치하고 데모 프로젝트를 만듭니다. 합성 매출 데이터, 예제
-실행 세 개, 메모, 재실행 검증이 들어 있고 모델은 쓰지 않습니다.
+[uv](https://docs.astral.sh/uv/)가 필요합니다. 아래 둘 가운데 **하나**를 설치합니다.
+
+모델 없이 분석할 `analytics` 명령만:
 
 ```sh
 uv tool install --python 3.12 aelix-analytics
+```
+
+또는 이 확장을 넣은 [aelix](https://github.com/handochan/aelix-ai). 같은 `analytics` 명령도 함께 설치됩니다.
+
+```sh
+uv tool install --python 3.12 aelix==0.1.0b2 --with aelix-analytics --with-executables-from aelix-analytics
+```
+
+둘 다 `analytics` 명령을 만들므로, 첫째에서 둘째로 옮기려면 먼저 `uv tool uninstall aelix-analytics`를 실행합니다.
+
+데모 프로젝트를 만듭니다. 합성 매출 데이터, 예제 실행 세 개, 메모, 재실행 검증이 들어 있고 모델은 쓰지 않습니다.
+
+```sh
 analytics demo ~/analyses/demo          # 처음에는 uv 환경 준비로 1분 안팎 걸립니다
 cd ~/analyses/demo && analytics open    # 브라우저에서 Workspace 열기
 ```
 
-에이전트와 이어서 분석하려면 [aelix](https://github.com/handochan/aelix-ai)를 이 확장과 함께 설치하고 프로젝트 폴더에서 켭니다.
-
-```sh
-uv tool install --python 3.12 aelix==0.1.0b2 --with aelix-analytics --with-executables-from aelix-analytics
-cd ~/analyses/demo && aelix
-```
+Workspace의 화면 언어는 오른쪽 위에서 한국어로 바꿀 수 있습니다. aelix를 설치했다면 프로젝트 폴더에서 에이전트와 이어서
+분석합니다: `cd ~/analyses/demo && aelix`.
 
 aelix에서 `/analytics`는 패널을 엽니다: 현황, Workspace, Reports, 기록, 공유, 설정. 그다음은 평소처럼 분석을 요청합니다.
 예: *"지역별 성장률 차트에 플롯 데이터도 기록되게 고쳐줘."* 에이전트가 데이터를 가져오고, SQL로 살펴보고, 스크립트를 써서
-kit으로 실행하므로 실행마다 기록이 남습니다. Workspace의 화면 언어는 오른쪽 위에서 한국어로 바꿀 수 있습니다.
+kit으로 실행하므로 실행마다 기록이 남습니다.
 
 ## 설치
 
@@ -81,6 +93,7 @@ kit으로 실행하므로 실행마다 기록이 남습니다. Workspace의 화�
 |---|---|
 | `analytics` 명령 | `uv tool install --python 3.12 aelix-analytics` |
 | 확장을 넣은 aelix(같은 `analytics` 포함) | `uv tool install --python 3.12 aelix==0.1.0b2 --with aelix-analytics --with-executables-from aelix-analytics` |
+| 첫째에서 둘째로 옮기기 | `uv tool uninstall aelix-analytics` 뒤에 둘째 줄(둘 다 `analytics`를 만듦) |
 | 업그레이드 | `uv tool upgrade aelix-analytics` 또는 `uv tool upgrade aelix`. 그 뒤 aelix를 다시 시작 |
 | 제거 | `uv tool uninstall aelix-analytics` 또는 `uv tool uninstall aelix` |
 
@@ -115,7 +128,7 @@ my-analysis/
 
 사람이나 에이전트가 `scripts/`에 스크립트를 쓰고 kit으로 실행하면 run이 생깁니다. kit은 코드를 스냅샷으로 남기고, 입력을 세
 가지로 찾습니다: 라이브러리 훅, 코드 안의 경로 글자, 직접 선언한 입력. 출력은 실행 전후의 프로젝트 파일을 비교해 찾고,
-차트는 그 데이터와 함께 저장한 뒤 Workspace를 다시 만듭니다. 차트가 읽은 입력이 그 뒤에 바뀌면 그 차트는 *stale* 로
+차트는 그 데이터와 함께 저장한 뒤 Workspace를 다시 만듭니다. 차트가 읽은 입력이 그 뒤에 바뀌면 그 차트는 *stale*로
 표시됩니다.
 
 ## 쓰는 법
@@ -162,7 +175,8 @@ analytics.save_report("q3-review", files="reports_out/q3", entry="index.html",
 - **샌드박스도 승인 단계도 없습니다.** 스크립트는 사용자의 권한으로 돕니다. aelix는 확장 도구를 실행하기 전에 묻지 않고,
   헤드리스 모드는 모두 승인합니다.
 - **계보는 최선 노력입니다.** 훅을 거치지 않는 읽기(pyarrow로 직접 읽기, C 확장이 계산된 경로를 여는 것 등)는 놓칠 수 있습니다.
-  그때 run은 `no input files were detected`로 경고하니 입력을 선언하세요. 행 단위 계보는 없습니다.
+  run은 입력을 하나도 감지하지 못했을 때만 `no input files were detected`로 경고하므로, 그런 입력은 경고와 관계없이 선언하세요.
+  행 단위 계보는 없습니다.
 - **불변성은 약속입니다.** `data/imported/`나 `runs/`를 고치는 것을 막지 않고, 해시 비교로 드러날 뿐입니다. 해시 체인이나 서명은
   없습니다.
 - **트랜잭션이 없습니다.** 강제로 끝난 run은 `incomplete`로 보입니다. 같은 요청을 두 번 보내면 run이 두 개 생깁니다.
@@ -188,7 +202,7 @@ analytics.save_report("q3-review", files="reports_out/q3", entry="index.html",
 | [기여 가이드](CONTRIBUTING.md) | 변경을 제안하는 법과 CI가 돌리는 검사 |
 | [프로젝트 운영](docs/PROJECT-OPERATIONS.md) | Issue·Project 관리, 에이전트 공통 지침, 인수인계 |
 
-`docs/`의 제안·설계 문서는 아직 만들지 않은 것을 설명합니다. 지금 있는 것의 기준은 현재 계약입니다.
+`docs/`의 제안·설계 문서는 아직 만들지 않은 부분을 포함해 설계를 설명합니다. 지금 있는 것의 기준은 현재 계약입니다.
 
 ## 개발
 

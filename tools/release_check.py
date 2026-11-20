@@ -42,10 +42,11 @@ def versions(pack: Path = PACK) -> dict:
     core = (pack / "src" / NAME / "core.py").read_text(encoding="utf-8")
     kit = KIT_VERSION_RE.search(core)
     manifest = tomllib.loads((pack / "src" / NAME / "aelix-plugin.toml").read_text(encoding="utf-8"))
-    readmes = "\n".join((pack / rel).read_text(encoding="utf-8") for rel in READMES)
+    by_file = {rel: sorted(set(re.findall(rf"{NAME}-([^-\s]+)-py3-none-any\.whl",
+                                          (pack / rel).read_text(encoding="utf-8")))) for rel in READMES}
     return {"pyproject": project["version"], "kit_version": kit[1] if kit else None,
             "manifest": manifest["plugin"]["version"],
-            "readme_wheels": sorted(set(re.findall(rf"{NAME}-([^-\s]+)-py3-none-any\.whl", readmes)))}
+            "readme_wheels": sorted(set().union(*by_file.values())), "readme_wheels_by_file": by_file}
 
 
 def changelog_sections(pack: Path = PACK) -> list[dict]:
@@ -65,6 +66,8 @@ def check_version(tag: str | None, pack: Path = PACK) -> dict:
             problems.append(f"{where} is {seen[where]!r}, pyproject.toml's is {version!r}")
     if seen["readme_wheels"] != [version]:
         problems.append(f"the READMEs name the wheels of {seen['readme_wheels']}, not only {version}")
+    # Each README has the build-from-a-checkout lines: one that lost them would pass the union above.
+    problems += [f"{rel} names no wheel" for rel, wheels in seen["readme_wheels_by_file"].items() if not wheels]
     sections = {s["version"]: s for s in changelog_sections(pack)}
     if version not in sections:
         problems.append(f"CHANGELOG.md has no section [{version}]")
