@@ -130,8 +130,9 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   `analytics_status` 끝에 붙던 telemetry 수 안내(`python was run through bash N time(s)`)는 관찰의 줄로 바뀌었습니다.
 - #171: run의 출력 비교가 관찰과 같은 상태 비교(`tree_state`)를 씁니다. 크기·mtime이 같고 정체성만 바뀐 파일(`rsync -a`의 교체)도 출력으로 남기고
   그 바이트를 다시 읽어 해시하며, 실행 뒤 나열했지만 stat하지 못한 파일은 지운 것으로 적지 않습니다.
-- #209: README(PyPI 페이지의 설명)를 영어로 다시 썼습니다. 에이전트 시대의 분석 패러다임이라는 방향, 근거가 이어지는 모습(출처 추적 그래프와
-  분석 지도)을 비롯한 데모 Workspace의 화면, aelix 로고, 빠른 시작, 설치, 사용법, 한계를 담고, 한국어는
+- #209: README(PyPI 페이지의 설명)를 영어로 다시 썼습니다. 에이전트 시대의 분석 패러다임이라는 방향, 기능 소개(근거, 맥락, Workspace의 버전 이력과
+  평가, 보고서, 재사용 자산, 공유), 출처 추적 그래프와 분석 지도를 비롯한 데모 Workspace의 화면, aelix 로고, 빠른 시작, 설치,
+  사용법, 한계를 담고, 한국어는
   [README.ko.md](https://github.com/handochan/aelix-analytics/blob/v0.32.1/README.ko.md)입니다. 전에 README에 있던 자세한 안내(확장 등록, Windows,
   사람 명령, 작성 주체 규칙, 공유, 이전 kit에서 옮기기 등)는
   [사용 안내](https://github.com/handochan/aelix-analytics/blob/v0.32.1/docs/USER-GUIDE.md)(한국어)로 옮겼습니다. PyPI 페이지에서 그림은 그 버전
