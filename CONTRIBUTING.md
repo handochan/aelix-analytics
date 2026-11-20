@@ -354,7 +354,7 @@ uv run --locked python tools/check_docs.py --output .devstate/runs/<run-id>/evid
 
 ## 배포와 운영 결정
 
-배포 이름은 `aelix-analytics`입니다(2026-10-17 소유자 결정, [#24](https://github.com/handochan/aelix-analytics/issues/24)). 게시 위치는 PyPI와 GitHub Release이고, 절차는 아래 [릴리스 절차](#릴리스-절차)입니다(2026-10-30 소유자 결정, #24). 게시는 kit 0.32.0부터입니다.
+배포 이름은 `aelix-analytics`입니다(2026-10-17 소유자 결정, [#24](https://github.com/handochan/aelix-analytics/issues/24)). 게시 위치는 PyPI와 GitHub Release이고, 절차는 아래 [릴리스 절차](#릴리스-절차)입니다(2026-10-30 소유자 결정, #24). 게시는 kit 0.32.1부터입니다(0.32.0은 후보까지만 만들고 게시하지 않음, 2026-11-09 소유자 결정, #24).
 관리자는 GitHub 핸들 [@handochan](https://github.com/handochan)이며 이메일은 적지 않습니다(2026-10-07 결정, `pyproject.toml`의 `authors`·`maintainers`).
 보안 취약점은 GitHub의 비공개 취약점 신고로 받고 공개 Issue로 받지 않습니다([SECURITY.md](SECURITY.md), 2026-10-07 결정). 저장소는 공개이고, 그 신고와 secret scanning·push protection·Dependabot 보안 알림을 켰습니다(2026-10-21, #22). 보안 수정을 받는 버전, 응답 기한과 공지는 [SECURITY.md](SECURITY.md#지원하는-버전과-처리)에 있습니다(2026-10-30 결정, #24).
 라이선스는 Apache License 2.0입니다([LICENSE](LICENSE), 2026-09-30 결정).

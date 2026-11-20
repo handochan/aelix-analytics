@@ -6,8 +6,8 @@
 > and our assessment within 14 days. A fix ships in a new release with a GitHub security advisory
 > (a CVE when one applies, and credit if you want it). The rest of this policy is in Korean.
 
-Aelix Analytics는 kit 0.32.0부터 PyPI(`aelix-analytics`)와 GitHub Release에 게시합니다. 그 이전 번호는 게시하지 않았습니다
-([변경 이력](CHANGELOG.md)). 어떤 Python·운영체제·aelix·설치 경로에서 설치하고 실행했는지는
+Aelix Analytics는 kit 0.32.1부터 PyPI(`aelix-analytics`)와 GitHub Release에 게시합니다. 그 이전 번호는 게시하지 않았습니다
+(0.32.0은 출시 후보까지만 만들었습니다. [변경 이력](CHANGELOG.md)). 어떤 Python·운영체제·aelix·설치 경로에서 설치하고 실행했는지는
 [지원 범위](docs/SUPPORT.md)에 있습니다.
 
 ## 취약점 알리기

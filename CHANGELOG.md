@@ -2,7 +2,7 @@
 
 Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따릅니다.
 
-**0.32.0부터 PyPI(`aelix-analytics`)와 GitHub Release에 게시합니다.** 그 이전 번호는 게시하지 않았고, 그 wheel은 체크아웃에서
+**0.32.1부터 PyPI(`aelix-analytics`)와 GitHub Release에 게시합니다.** 그 이전 번호는 게시하지 않았고(0.32.0은 출시 후보까지만 만들었음), 그 wheel은 체크아웃에서
 빌드했습니다([사용 안내](docs/USER-GUIDE.md#설치본wheel으로-쓰기)). 아래의 버전은 kit 버전(`KIT_VERSION`; `pyproject.toml`·manifest와 같음)이며, 새 프로젝트의
 `analytics.json`(kit 0.8.0 전에는 `lab.json`)과 run의 `env.kit_version`에 남는 값입니다.
 
@@ -16,6 +16,10 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 ([기여 가이드](CONTRIBUTING.md#배포와-운영-결정)).
 
 ## [0.32.1] - 2026-11-08
+
+이 번호부터 PyPI(`aelix-analytics`)와 GitHub Release에 게시합니다. 첫 공식 베타입니다(#24). 0.32.0은 출시 후보까지만 만들고 게시하지 않았으므로,
+[0.32.0 절](https://github.com/handochan/aelix-analytics/blob/v0.32.1/CHANGELOG.md#0320---2026-10-30)의 변경도 이 게시본에 들어 있습니다.
+그보다 앞의 번호도 게시하지 않았고, 그 변경은 [변경 이력](https://github.com/handochan/aelix-analytics/blob/v0.32.1/CHANGELOG.md)의 이전 절에 있습니다.
 
 ### Added
 
@@ -159,8 +163,8 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
 
 ## [0.32.0] - 2026-10-30
 
-이 번호부터 PyPI(`aelix-analytics`)와 GitHub Release에 게시합니다. 공식 베타입니다(#24). 이전 번호는 게시하지 않았고, 그 변경은
-[변경 이력](https://github.com/handochan/aelix-analytics/blob/main/CHANGELOG.md)의 이전 절에 있습니다.
+첫 공식 베타의 출시 후보로 만들었지만 게시하지 않았습니다(2026-11-09 소유자 결정, #24). 첫 게시는 0.32.1이고, 이 절의 변경은 그 게시본에 들어 있습니다.
+그보다 앞의 번호도 게시하지 않았습니다.
 
 ### Changed
 
