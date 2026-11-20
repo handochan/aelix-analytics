@@ -1,6 +1,6 @@
 # 분석 도중의 자유 형식 보고서와 버전 관리
 
-작성: 2026-09-18 · 상태: 설계와 단계별 구현. 등록·버전 저장, 반복 묶음·형식별 보기, Workspace의 `Reports` 탭(kit 0.25.0, [계약 C19](CONTRACTS.md#c19-workspace의-reports-탭과-페이지-kit-0250-19-pr3))이 구현됐다. 공유 연결은 #20 PR4의 범위다.
+작성: 2026-09-18 · 상태: 설계와 단계별 구현. 등록·버전 저장, 반복 묶음·형식별 보기, Workspace의 `Reports` 탭(kit 0.25.0, [계약 C19](CONTRACTS.md#c19-workspace의-reports-탭과-페이지-kit-0250-19-pr3))이 구현됐다. 공유 연결(Report·묶음 범위의 공유본)은 kit 0.27.0이 구현했다([현재 계약 D4](CONTRACTS.md#d4-report묶음-범위의-공유본-kit-0270-20-pr4)).
 저장·반복 묶음·형식별 보기의 구체안과 PR 경계는 [ADR-0013](decisions/0013-report-storage-and-collections.md)(Accepted, #19)에 있다.
 kit 0.21.0은 PR1의 개별 저장·조회·철회/복원·prepared 정리만 구현한다([현재 계약](CONTRACTS.md#c16-불변-report-저장등록버전-kit-0210-19-pr1)). kit0.22.0은 선택 metadata·반복 묶음과 내부 형식별 보기 adapter를 더한다([현재 계약 C17](CONTRACTS.md#c17-report-선택-metadata반복-묶음형식별-보기-kit-0220-19-pr2)). Reports 화면 조립은 PR3이다.
 제품 방향은 [PRODUCT.md](PRODUCT.md), 공유는 [PUBLISH-AND-SHARING.md](PUBLISH-AND-SHARING.md), 현재 기능은 [CONTRACTS.md](CONTRACTS.md)를 따른다.
@@ -14,7 +14,7 @@ kit 0.21.0은 PR1의 개별 저장·조회·철회/복원·prepared 정리만 �
 
 | 개념 | 역할 | 수명 |
 |---|---|---|
-| Workspace — 현재 `report/`, 목표 `workspace/` | 기록 전체를 개요·시각화·데이터·이력 등으로 탐색 | 원본에서 재생성하는 분석 인터페이스 |
+| Workspace — `workspace/`(kit 0.8.0 전 `report/`) | 기록 전체를 개요·시각화·데이터·이력 등으로 탐색 | 원본에서 재생성하는 분석 인터페이스 |
 | 보고서 — 새 `Reports` 탭의 항목 | 선택한 내용을 특정 독자·목적으로 정리한 자유 형식 산출물 | 저장한 본문·첨부·참조를 버전별로 보존 |
 | 게시본 `publication` | 선택한 분석 내용이나 보고서 버전을 독립 패키지로 공유 | 빌드와 게시 이력을 가진 고정 스냅샷 |
 
@@ -125,7 +125,7 @@ run·차트·지표 정의·데이터 관측의 정확한 버전을 함께 연�
 
 ## 6. 정본과 구현 경계
 
-저장 위치는 [ADR-0006](decisions/0006-common-record-contract.md) 7절로 채택했다. 아직 생성되는 구조는 아니다:
+저장 위치는 [ADR-0006](decisions/0006-common-record-contract.md) 7절로 채택했고, kit 0.21.0부터 이 구조로 저장한다:
 
 ```text
 artifacts/reports/<report_id>/
@@ -188,4 +188,4 @@ B4-s의 독립 build·publish에서 선택한 보고서 버전을 공유한다. 
 | 다시 렌더·등록 재시도 | `workspace/` 재생성에도 원본 유지, LLM/분석 자동 재실행 0회, 불완전 저장 탐지·기존 버전 덮어쓰기 없음 |
 | 선택한 보고서 공유 | 원본 없는 환경의 파일·링크, 제외한 내용의 실제 부재, 보고서 버전과 게시 버전의 대응 |
 
-이는 [Q16 보고서 산출물](BETA-QUALITY-GATES.md)의 제안된 검증 범위이며 아직 통과한 결과가 아니다.
+이는 [Q16 보고서 산출물](BETA-QUALITY-GATES.md)의 검증 범위다. 후보 0.32.0에서 잰 결과는 [§7 결과표](BETA-QUALITY-GATES.md#7-기여출시-기록의-형식)에 있다.
