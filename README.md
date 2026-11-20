@@ -1,24 +1,37 @@
+<div align="center">
+
+![Aelix](docs/images/aelix-lockup.png)
+
 # Aelix Analytics
 
-**Data analysis that keeps its evidence, so people and AI agents can check it, continue it and share it.**
+**A new way of doing data analysis for the age of AI agents.**
+
+People and agents work in one analysis project, share the same picture of it, and carry it forward with
+every step tied to its evidence.
 
 English · [한국어](README.ko.md) · [Quick start](#quick-start)
 
-An analysis done with an AI agent tends to end with the chat: the charts survive, but not which code drew
-them, which data they read, or why the analysis turned the way it did. Aelix Analytics keeps all of that in
-the project itself.
+</div>
 
-- **Every chart leads back to its evidence:** the run that made it, the code exactly as it ran, the inputs
-  the run detected (with their sha256), and the plotted data when it was attached.
-- **Findings, decisions and questions can cite their evidence:** the runs, charts or datasets behind them,
-  at the exact version.
-- **The goal, focus and next steps live in plain files.** A new aelix session starts from them, and any
-  person or other agent can read the same files to pick up the work.
+Notebooks (`.ipynb`) and BI tools were made for a person analyzing at a screen. A notebook keeps code next
+to its output, but not which run made which chart, or why the analysis turned the way it did. A BI
+dashboard shows finished numbers, not how they were reached. When an AI agent does the work, the reasoning
+lives in a chat that ends with the session.
 
-You keep writing ordinary Python with DuckDB, Polars, matplotlib or plotly. The kit records each run and
-builds a static HTML **Workspace** to browse, rebuild and share.
+Aelix Analytics proposes a different paradigm: an analysis is a **project that keeps going**. Its goal,
+metrics and questions, its data, every run of code, every chart, and every finding and decision are kept as
+records that point to where they came from. People and agents read and write the same records, so both work
+from the same understanding of the analysis: what is known, on what evidence, and what to do next. A new
+session, another model or another person picks up from there instead of starting over.
 
-![The Workspace overview of the demo project: the goal, the current direction from CONTEXT.md, the analysis status and a map from imported data through runs and visualizations to insights](docs/images/workspace-overview.png)
+![The provenance of a finding in the Workspace: the finding cites the run that computed it; that run read a table which another run derived from the imported data; each run's chart sits beside it, and the panel lists what was checked: exact citations, succeeded runs, code snapshots and unchanged files](docs/images/provenance-graph.png)
+
+- **Evidence stays connected.** From a finding you follow the run behind it, the code exactly as it ran, the
+  data it read, and the run that wrote that data, back to the imported files, as in the graph above.
+- **One shared picture.** The goal, focus and next steps live in plain files. In aelix the agent gets them
+  with every prompt, and people see them at the top of the Workspace.
+- **Your own Python.** You keep writing ordinary Python with DuckDB, Polars, matplotlib or plotly. The kit
+  records each run and builds a static HTML **Workspace** to browse, rebuild and share.
 
 > **Beta.** This is not a sandbox. Scripts run with your permissions, and in
 > [aelix](https://github.com/handochan/aelix-ai) the agent's `analytics_run` executes code without asking
@@ -26,12 +39,29 @@ builds a static HTML **Workspace** to browse, rebuild and share.
 
 ## What you get
 
+The pictures are the demo project from the [Quick start](#quick-start) with one more script, which reads a
+table another script wrote and records a finding.
+
+**Evidence that stays connected.** The Analysis map shows how the work flows. Each box is a script and its
+runs, and an arrow is a file that a run of one script wrote and a run of another read, matched by path and
+bytes. From any finding, chart or file, the provenance view (above) follows the same links back to the
+imported data and says what it could check. Neither is row-level lineage.
+
+![The Analysis map of the demo project: three flows of scripts and their runs, each with its visualizations and insights; in the third flow, 03_region_growth.py writes region_growth, which 04_growth_contribution.py reads](docs/images/workspace-analysis-map.png)
+
+**One picture of the analysis, for people and agents.** The Overview starts from the goal and the current
+direction in `CONTEXT.md`, then the state of the evidence: how many insights have a confirmed link, how the
+runs went, whether inputs changed, rerun comparisons, open questions, and checks and reviews, each kept
+apart.
+
+![The Workspace overview of the demo project: the goal, the current direction from CONTEXT.md, the analysis status and a summary map from imported data through runs and visualizations to insights](docs/images/workspace-overview.png)
+
 **Charts you can trace.** Each chart belongs to a *run*: one execution of a script, recorded with a snapshot
 of the code as it ran, the inputs it detected and their sha256, the outputs, logs and environment. A chart
 card links to the code (to the line that recorded the chart, when the run knows it), to its inputs (still
 the same bytes, or changed since), and to the data attached to the chart, or says that none was recorded.
 
-![Three chart cards in the Workspace. Each lists its code with the line that recorded the chart, its input data and whether it changed, its attached plot data (the first card says none was recorded), and its run](docs/images/workspace-visualizations.png)
+![Three chart cards in the Workspace. Each lists its code with the line that recorded the chart, its input data and whether it changed, its attached plot data (the second card says none was recorded), and its run](docs/images/workspace-visualizations.png)
 
 ![A run page: the code snapshot with the line that recorded the chart highlighted, the input with its recorded sha256 and "Same" now, and the output it created](docs/images/run-code-and-inputs.png)
 
@@ -41,7 +71,7 @@ questions and to-dos. A later entry can close an earlier question or to-do, so y
 when, and why the analysis changed. In aelix, the agent gets the current context with every prompt, section
 by section within a budget. Outside aelix, people and other agents read the same files.
 
-![The Workspace timeline: runs and context updates, a decision and a finding linked to the runs behind them, an assumption linked to the dataset, and a question resolved by a finding](docs/images/workspace-timeline.png)
+![The Workspace timeline: runs and context updates, findings and a decision linked to the runs behind them, an open next step, an assumption linked to the dataset, and a finding that resolves an earlier question](docs/images/workspace-timeline.png)
 
 **People and agents work on the same project.** The `analytics` command, the Python SDK and the aelix tools
 write the same records, and each record says who made it and how. You can analyze by hand without any
