@@ -154,7 +154,7 @@ Aelix Analytics에서 사용자에게 보이는 변경을 적습니다. 형식�
   넣지 않음) #170의 안내대로 부른 `analytics run scripts/x.py …`가 그 프로젝트에 기록합니다. 전에는 작업 디렉터리에서 프로젝트를 찾지 못했습니다.
 - #162: `/analytics`의 명령이 세션의 첫 프롬프트 전에도 그 세션을 기록·Report·렌더에 남깁니다. 전에는 `status`·`assets` 말고는 첫
   프롬프트가 넣은 세션을 써서, 그 전의 `/analytics record` 등은 세션 없이 기록됐습니다.
-- #211: Workspace의 run 페이지에서 입력 설명이 SDK를 옛 이름 `lab.*`으로 불렀습니다. 이제 `analytics.*`로 부르고, 옛 kit(0.8.0 전)이
+- #211: Workspace의 run 페이지에서 입력 설명이 SDK를 옛 이름 `lab.*`으로 불렀습니다. 이제 `analytics.*`로 부르고, kit 0.8.0 전에
   기록한 run의 `via`는 `lab.*`으로 보인다고 덧붙입니다(영어·한국어). README의 run 그림도 새 문구로 다시 찍었습니다.
 
 ## [0.32.0] - 2026-10-30
