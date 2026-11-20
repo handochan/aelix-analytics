@@ -236,16 +236,21 @@ def test_the_wheel_metadata(dist):
 
 def test_the_index_page_links_this_version_s_documents(dist):
     """A package index shows the description, README, where a link relative to the checkout leads
-    nowhere (Issue #24). The build points each one at this version's tag on GitHub and changes nothing
-    else: putting the relative links back gives README."""
+    nowhere (Issue #24). The build points each one at this version's tag on GitHub, an image at its raw
+    bytes there (Issue #209), and changes nothing else: putting the relative links back gives README."""
     meta, _ = wheel_metadata(dist["wheel"])
     assert meta["Description-Content-Type"] == "text/markdown"
     description = meta.get_payload()
     assert release_check.link_targets(description) and release_check.relative_links(description) == []
-    tag = f"https://github.com/handochan/aelix-analytics/blob/v{pyproject()['project']['version']}/"
+    version = pyproject()["project"]["version"]
+    tag = f"https://github.com/handochan/aelix-analytics/blob/v{version}/"
+    raw = f"https://raw.githubusercontent.com/handochan/aelix-analytics/v{version}/"
     readme = (PACK / "README.md").read_text(encoding="utf-8")
-    assert tag not in readme
-    assert description.replace(f"{tag}README.md#", "#").replace(tag, "") == readme
+    assert tag not in readme and raw not in readme
+    images = re.findall(r"!\[[^\]]*\]\(([^)\s]+)", description)
+    assert images and all(image.startswith(f"{raw}docs/images/") for image in images), images
+    assert all((PACK / image.removeprefix(raw)).is_file() for image in images), images
+    assert description.replace(f"{tag}README.md#", "#").replace(tag, "").replace(raw, "") == readme
     # The substitutions do not know code, so the commands a reader copies from the page are checked
     # apart: PowerShell's `[Console]::OutputEncoding` once read as a reference definition.
     assert code_of(description) == code_of(readme)
@@ -259,13 +264,16 @@ def code_of(text: str) -> list[str]:
 
 def test_the_index_page_rewrite_takes_every_markdown_link_form():
     """pyproject's substitutions, as the plugin applies them (re.sub in order, then the version), on
-    the link forms README could gain; README has only plain inline links today. An HTML link stays
-    relative, and release_check finds it, so the test above would fail on one."""
+    the link forms README could gain; README has only plain inline links and images today. An HTML
+    link stays relative, and release_check finds it, so the test above would fail on one."""
     substitutions = pyproject()["tool"]["hatch"]["metadata"]["hooks"]["fancy-pypi-readme"]["substitutions"]
     text = textwrap.dedent("""\
         [a](docs/A.md) [b](#part) [c](docs/B.md#x "a title") [d](<docs/C.md>) [e](https://example.org/)
+        ![j](docs/J.png) ![k](<docs/K.png> "a title") ![l](https://example.org/L.png) ![m](<https://example.org/M.png>)
+        [n](<https://example.org/N>)
         [f]: docs/F.md
         [g]: #part
+        [o]: <https://example.org/O>
           [h]: <docs/H.md> "a title"
         <a href="docs/I.md">i</a>
         [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
@@ -273,9 +281,12 @@ def test_the_index_page_rewrite_takes_every_markdown_link_form():
     for substitution in substitutions:
         text = re.sub(substitution["pattern"], substitution["replacement"], text)
     tag = "https://github.com/handochan/aelix-analytics/blob/v$HFPR_VERSION/"
+    raw = "https://raw.githubusercontent.com/handochan/aelix-analytics/v$HFPR_VERSION/"
     assert release_check.link_targets(text) == [
         f"{tag}docs/A.md", f"{tag}README.md#part", f"{tag}docs/B.md#x", f"{tag}docs/C.md",
-        "https://example.org/", f"{tag}docs/F.md", f"{tag}README.md#part", f"{tag}docs/H.md", "docs/I.md"]
+        "https://example.org/", f"{raw}docs/J.png", f"{raw}docs/K.png", "https://example.org/L.png",
+        "https://example.org/M.png", "https://example.org/N",
+        f"{tag}docs/F.md", f"{tag}README.md#part", "https://example.org/O", f"{tag}docs/H.md", "docs/I.md"]
     assert release_check.relative_links(text) == ["docs/I.md"]
     assert text.endswith("\n[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()\n")
 
@@ -311,13 +322,14 @@ def test_the_manifest_agrees_with_the_distribution(dist):
     assert plugin["license"] == pyproject()["project"]["license"] == "Apache-2.0"
 
 
-def test_the_readme_names_the_wheel_this_version_builds():
+@pytest.mark.parametrize("readme", ["README.md", "README.ko.md"])
+def test_the_readme_names_the_wheel_this_version_builds(readme):
     """README's build comment and install lines name the wheel `uv build` makes from this checkout:
     the version is pyproject's. The 0.1.0 lines once outlived the bump to 0.2.0 (Issue #9 PR-1
-    review)."""
-    readme = (PACK / "README.md").read_text(encoding="utf-8")
-    versions = re.findall(r"aelix_analytics-([^-\s]+)-py3-none-any\.whl", readme)
-    assert versions, "README names no wheel"
+    review). The Korean README has the same lines (Issue #209)."""
+    text = (PACK / readme).read_text(encoding="utf-8")
+    versions = re.findall(r"aelix_analytics-([^-\s]+)-py3-none-any\.whl", text)
+    assert versions, f"{readme} names no wheel"
     assert set(versions) == {pyproject()["project"]["version"]}, versions
 
 
