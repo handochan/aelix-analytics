@@ -29,7 +29,7 @@ Aelix Analytics를 어떤 Python·운영체제·aelix·설치 경로에서 **실
 후보 0.32.1의 파일은 `docs/releases/0.32.1.sha256`에 있다: wheel `aelix_analytics-0.32.1-py3-none-any.whl`(`878741132f704146…`),
 sdist `aelix_analytics-0.32.1.tar.gz`(`2f6f14863467…`). 빌드가 재현되므로 `494d1ce`의 `src/`·`extension/`은 후보 wheel의 kit·확장과 같은
 바이트다([B6 결정적 기록](verification/2026-11-21-issue-24-b6-deterministic.md#후보와-측정의-연결)). 아래의 `verified` 칸은 모두 이 후보의 결과다
-(3.13·3.14의 `expected`는 그보다 앞선 R-8w의 결과). 0.32.0의 후보(`26c28d0`)로 채운 표는 git 이력에 있다. 0.32.0은 게시하지 않았다.
+(실제 PyPI의 칸은 게시한 그 파일로 PUB-0.32.1, 3.13·3.14의 `expected`는 그보다 앞선 R-8w의 결과). 0.32.0의 후보(`26c28d0`)로 채운 표는 git 이력에 있다. 0.32.0은 게시하지 않았다.
 
 | 이름 | 무엇 | 검사한 코드·파일 |
 |---|---|---|
@@ -106,7 +106,7 @@ CI-0.32.1에서 확인한 것(artifact가 지워지므로 여기에 요약한다
 | 이름으로 `uv tool install aelix==0.1.0b2 --with aelix-analytics --with-executables-from aelix-analytics`·`uv tool upgrade aelix`·`uv tool uninstall aelix`(같은 색인을 먼저 묻는 색인으로) | `verified` | `verified` | `verified` | `test_aelix_takes_the_extension_and_its_command_from_an_index` |
 | `--with-executables-from aelix-analytics`를 wheel 경로로 | `expected`: 위의 이름 설치와 같은 uv 경로이고 wheel 경로로는 실행하지 않았다 | `expected` | `expected` | |
 | 이전 버전 위의 업그레이드: kit 0.25.0 wheel(`660beb63…`, Q17에서 쓴 것. 그 commit을 다시 빌드하면 Linux·macOS에서는 같은 바이트, Windows에서는 zip 헤더만 다르고 멤버와 내용이 같다) → 후보. 같은 `uv tool install` 줄을 새 wheel로, 위의 색인과 aelix 경로. 이전 버전이 만든 프로젝트를 이어 씀 | `verified` | `verified` | `verified` | `test_a_newer_wheel_file_replaces_the_earlier_one`, 위의 네 시험 |
-| 실제 PyPI에서 이름으로 설치: `uv tool install --python 3.12 aelix-analytics`, aelix와 함께(`--with aelix-analytics --with-executables-from aelix-analytics`), `aelix extension install aelix-analytics==0.32.1`과 그 제거 | `not run`(같은 경로의 loopback 색인은 위 행들) | `not run`(같음) | `verified`(PUB-0.32.1) | PUB-0.32.1 |
+| 실제 PyPI에서 이름으로 설치: `uv tool install --python 3.12 aelix-analytics`, aelix와 함께(`--with aelix-analytics --with-executables-from aelix-analytics`), `aelix extension install aelix-analytics==0.32.1`과 그 제거 | `not run`(관련: loopback 색인에서 앞선 판을 올리는 위 행들) | `not run`(같음) | `verified`(PUB-0.32.1) | PUB-0.32.1 |
 
 ## 모델
 
@@ -137,7 +137,7 @@ CI-0.32.1에서 확인한 것(artifact가 지워지므로 여기에 요약한다
 - **줄 끝**([#42](https://github.com/handochan/aelix-analytics/issues/42), [ADR-0007](decisions/0007-line-endings.md)): kit 0.4.0 전에
   Windows에서 쓴 기록은 CRLF로 남고, 사용자 파일과 스크립트가 직접 쓴 바이트는 그대로이며, `line_endings_only`가 알아보는 범위가
   정해져 있다(G의 '줄 끝').
-- **실행하지 않은 것**: 실제 문서 열기 프로그램, 설치본의 `analytics demo`, 사람이 누른 Windows 콘솔 키, Windows의 실제 aelix 세션
+- **실행하지 않은 것**: 실제 문서 열기 프로그램, Linux·Windows에서 설치본의 `analytics demo`(macOS에서 PyPI의 설치본으로는 실행함, PUB-0.32.1), 사람이 누른 Windows 콘솔 키, Windows의 실제 aelix 세션
   ([현재 계약 F·G](CONTRACTS.md#f-실행-환경과-지원-플랫폼)).
 - **샌드박스가 아니다**: 스크립트는 사용자 권한으로 돌고 aelix는 확장 도구 실행 전에 묻지 않는다([사용 안내의 한계](USER-GUIDE.md#한계)).
 
@@ -148,7 +148,7 @@ CI-0.32.1에서 확인한 것(artifact가 지워지므로 여기에 요약한다
 - 0.32.0의 표는 그 후보의 증거로 채웠고(2026-11-04), 게시하지 않았다. 지금의 표는 0.32.1의 후보 증거로 다시 채웠고(2026-11-21), 0.32.1을 게시한 뒤 PyPI의 이름으로 설치한 결과(PUB-0.32.1)를 더했다(2026-11-22).
 - B6의 출시 리허설이 Q1–Q17 결과표를 채운다. 필수 게이트의 실패·미실행, 설치물 누락은 출시 보류 사유다
   ([§7](BETA-QUALITY-GATES.md#7-기여출시-기록의-형식)). 소유자가 뺀 것은 §7에 있다.
-- 베타는 지원 목표(세 플랫폼)를 공개하되, 지원표에는 출시 후보로 실행한 칸만 `verified`로 적고 나머지는 `expected`·`not run`
+- 베타는 지원 목표(세 플랫폼)를 공개하되, 지원표에는 출시 후보(게시 뒤에는 게시한 그 파일)로 실행한 칸만 `verified`로 적고 나머지는 `expected`·`not run`
   그대로 공개한다(ADR-0002 결정 1).
 - 베타 전에는 wheel을 외부에 게시하지 않는다(2026-10-03 소유자 결정, #24). 배포 이름은 `aelix-analytics`(2026-10-17 소유자 결정)이고, 게시는 PyPI와
   GitHub Release에 측정한 그 파일을 올린다([릴리스 절차](../CONTRIBUTING.md#릴리스-절차), 2026-10-30 소유자 결정).

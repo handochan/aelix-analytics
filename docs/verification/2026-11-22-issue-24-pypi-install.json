@@ -53,7 +53,14 @@
         "analytics demo <dir>": {
           "exit": 0,
           "runs": 4,
-          "rerun_verdict": "match"
+          "rerun_verdict": "match",
+          "workspace": "workspace/index.html built (the demo's last line)",
+          "runs_listed": [
+            "01-monthly-revenue",
+            "02-channel-mix",
+            "03-region-growth",
+            "01-monthly-revenue (rerun)"
+          ]
         },
         "uv tool uninstall aelix-analytics": {
           "exit": 0
@@ -71,7 +78,11 @@
         "uv tool uninstall aelix": {
           "exit": 0
         }
-      }
+      },
+      "executables": [
+        "aelix",
+        "analytics"
+      ]
     },
     {
       "command": "uv tool install --python 3.12 aelix==0.1.0b2; aelix extension install aelix-analytics==0.32.1 --yes",
@@ -96,7 +107,7 @@
     "result": "BOUND"
   },
   "not_run": [
-    "installing by name from PyPI on Linux and Windows (the same routes against a loopback index on three OS are REL-0.32.1)",
+    "installing by name from PyPI on Linux and Windows; related is REL-0.32.1: on three OS against a loopback index it installs an earlier version (kit 0.25.0) and upgrades to 0.32.1, not this record's fresh install",
     "uv tool upgrade from an earlier published version: there is none"
   ]
 }

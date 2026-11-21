@@ -10,7 +10,7 @@
 - release run [44930597708](https://github.com/handochan/aelix-analytics/actions/runs/44930597708)이 모두 성공했다.
   - `build`: 다시 빌드한 파일이 `docs/releases/0.32.1.sha256`과 같은지 대조했다.
   - `verify`: 세 OS에서 설치를 확인했다.
-  - `publish · PyPI`: 소유자가 `pypi` 환경을 승인한 뒤 올렸다(17:37:58Z). `tools/release_check.py pypi`가 PyPI의 두 파일이 그 sha256인지 확인했다.
+  - `publish · PyPI`: 소유자가 `pypi` 환경을 승인한 뒤 올렸다(17:37:57–17:38:00Z, 두 파일). `tools/release_check.py pypi`가 PyPI의 두 파일이 그 sha256인지 확인했다.
   - `publish · GitHub Release`: 같은 파일과 `SHA256SUMS`를 붙였다.
 - PyPI의 JSON API가 보이는 파일과 sha256은 후보 기록과 같다. wheel은 `878741132f704146…`, sdist는 `2f6f14863467…`다.
   GitHub Release의 두 파일도 같은 digest다.
@@ -31,5 +31,5 @@
 
 ## 실행하지 않은 것
 
-- Linux·Windows에서 PyPI의 이름으로 설치. 같은 경로를 PyPI 자리의 loopback 색인으로 세 OS에서 잰 것은 REL-0.32.1(release run의 `verify`)이다.
+- Linux·Windows에서 PyPI의 이름으로 설치. 관련된 것은 REL-0.32.1(release run의 `verify`)이다. 세 OS에서 PyPI 자리의 loopback 색인으로 앞선 판(kit 0.25.0)을 설치한 뒤 0.32.1로 올렸다. 새로 설치하는 이 기록의 경로와는 다르다.
 - `uv tool upgrade`로 앞선 게시본에서 올리기. 앞선 게시본이 없다.
