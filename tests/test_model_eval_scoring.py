@@ -493,3 +493,45 @@ def test_the_answers_name_their_seed_and_t12_is_always_reviewed():
     assert CONFIG.answers["T12"]["always_review"]
     assert json.loads((ROOT / "tools" / "model_eval_data" / "answers" / "T05.json").read_text(encoding="utf-8"))[
         "evidence_ids"][-1] == "runs/20260803-191107-case-overwritten/charts/overwritten.data.parquet"
+
+
+def check_passes(task: str, check_id: str, text: str) -> bool:
+    """One check of a task's answer on `text` alone."""
+    check = next(c for c in CONFIG.answers[task]["checks"] if c["id"] == check_id)
+    ev = me.Evidence(text=text, last_turn=text, calls=list(QUERIED), tools=me.GENERATIONS["analytics"]["tools"],
+                     state=EMPTY, existing_ids=set())
+    return me.run_check(check, ev, CONFIG.words)["passed"]
+
+
+# Right answers of the 0.32.1 candidate's campaign (#24, 2026-11-21) that the checks missed: "동일한" with a word
+# between it and 기간, "동일 기간 비교" as the next step, an English heading for the current value, and a limit said
+# as "not cited", "no run either" or "no separate run".
+RIGHT_CHECKS = [
+    ("T02", "same-period", "- **지역 간 비교는 동일한 기간으로 맞춰야 합니다.** e274는 9월 데이터가 부분 월이라는 이유로 e68을 철회했습니다."),
+    ("T02", "same-period", "- **지역 간 비교는 동일한 관측 기간끼리** 해야 합니다."),
+    ("T02", "same-period", "- **지역 간 비교는 동일한 데이터 확보 기간끼리** 해야 합니다."),
+    ("T02", "same-period", "지역 비교는 동일한 기간끼리 비교해야 합니다(e274)."),
+    ("T02", "same-period", "같은 기간끼리 비교합니다."),
+    ("T01", "next-step", "## 다음에 할 일\n1. 동일 기간 비교 기준 확정"),
+    ("T14", "current-value", "## Post-revision value: **9.8%**\n\n- **Journal entry:** `e287`"),
+    ("T14", "no-run", "e287: 9.8%. No separate run, script, or derived dataset is linked to e287."),
+    ("T14", "no-run", "다만 e287은 실행·차트·데이터를 단 하나도 인용하지 않습니다."),
+    ("T14", "no-run", "08-04 13:56 시점의 실행도 없으며 e287을 인용하는 실행도 없습니다."),
+    ("T14", "no-run", "9.8%는 선언만 있고 재현 가능한 아티팩트는 존재하지 않습니다."),
+]
+WRONG_CHECKS = [
+    ("T02", "same-period", "지역 비교는 같은 방식으로 전체 기간으로 비교합니다."),
+    ("T02", "same-period", "같은 기간으로 맞출 필요는 없고 연간 합계로 비교합니다."),
+    ("T14", "current-value", "## Pre-revision value: **9.8%**"),
+    ("T14", "no-run", "e287 cites run 20260804-135600-k01-region-summary, which computed 9.8%."),
+]
+
+
+@pytest.mark.parametrize("task, check_id, text", RIGHT_CHECKS, ids=[f"{r[0]}-{r[1]}-{i}" for i, r in enumerate(RIGHT_CHECKS)])
+def test_the_checks_read_what_the_candidate_s_right_answers_wrote(task, check_id, text):
+    assert check_passes(task, check_id, text)
+
+
+@pytest.mark.parametrize("task, check_id, text", WRONG_CHECKS, ids=[f"{r[0]}-{r[1]}-{i}" for i, r in enumerate(WRONG_CHECKS)])
+def test_the_widened_checks_still_fail_a_wrong_answer(task, check_id, text):
+    assert not check_passes(task, check_id, text)

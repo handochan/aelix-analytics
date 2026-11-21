@@ -53,7 +53,11 @@
         "정정된",
         "e287",
         "현행",
-        "최신"
+        "최신",
+        "post-revision",
+        "after the correction",
+        "corrected value",
+        "revised value"
       ],
       "against": [
         "이전",
@@ -67,7 +71,10 @@
         "정정 전",
         "e41",
         "기존",
-        "종전"
+        "종전",
+        "pre-revision",
+        "before the correction",
+        "original value"
       ],
       "what": "지금 값 9.8%를 지금 값으로"
     },
@@ -129,7 +136,14 @@
           "실행의 참조가 없",
           "데이터 참조가 없",
           "데이터의 참조가 없",
-          "계산 참조가 없"
+          "계산 참조가 없",
+          "인용하지 않",
+          "실행도 없",
+          "아티팩트 없",
+          "아티팩트는 존재하지 않",
+          "no separate run",
+          "no linked run",
+          "no independently linked run"
         ]
       ],
       "what": "지금 값(e287)의 계산에는 run이 기록되지 않았다는 한계"
