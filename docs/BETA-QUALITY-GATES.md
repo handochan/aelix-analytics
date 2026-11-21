@@ -398,7 +398,7 @@ PR에는 문제를 재현하는 입력, 변경 후 행동, 바뀐 계약, 비교
 
 | Gate | 결과(pass/fail/not run) | commit·artifact | 환경·모델 | 수행자 | 증거 경로 | 제한·후속 작업 |
 |---|---|---|---|---|---|---|
-| Q1 | pass | 후보 0.32.1 wheel `87874113…`(main `494d1ce`) | CI 세 OS(44738231086), release `verify` 세 OS(44753895153), aelix 0.1.0b2 | 에이전트 | [2026-11-21-issue-24-b6-deterministic](verification/2026-11-21-issue-24-b6-deterministic.md), [지원 범위](SUPPORT.md)(후보로 다시 채움, 2026-11-21) | PyPI에서 이름으로 설치는 게시 뒤(릴리스 절차 6단계) |
+| Q1 | pass | 후보 0.32.1 wheel `87874113…`(main `494d1ce`) | CI 세 OS(44738231086), release `verify` 세 OS(44753895153), aelix 0.1.0b2 | 에이전트 | [2026-11-21-issue-24-b6-deterministic](verification/2026-11-21-issue-24-b6-deterministic.md), [지원 범위](SUPPORT.md)(후보로 다시 채움, 2026-11-21) | 게시(2026-11-21, tag `v0.32.1`) 뒤 PyPI에서 이름으로 설치는 macOS에서 확인([2026-11-22-issue-24-pypi-install](verification/2026-11-22-issue-24-pypi-install.md)), Linux·Windows는 not run |
 | 모델 게이트([제품 효과 평가 설계](design/PRODUCT-EVALUATION.md) 8절) | gpt-6.1-sol pass, Qwen3.8 27B pass(규칙대로. O9·O11을 쓸 일이 없음) | kit 0.32.1(하네스 clean `84433ab`, `src/`·`extension/`이 후보 `494d1ce`와 같음), 채점 `d5240a7`(#214) | aelix 0.1.0b2, gpt-6.1-sol, Qwen3.8 27B(OpenRouter, 서빙 미고정), macOS 26.6.2 arm64 | 에이전트 실행·채점, 소유자가 정답·맥락 오류 확정 | [2026-11-21-issue-24-product-eval](verification/2026-11-21-issue-24-product-eval.md) | 지원 하단의 로컬 Qwen은 재지 않음(O10). fixture에 남은 하네스 python의 경로를 따라 Qwen run 13개(A 4, V 9)가 작업 루트 밖을 썼고, 그 가운데 V 1개는 하네스의 kit을 실행했다. 그 (과제, 반복)을 두 조건에서 빼도 두 모델 모두 pass. 하네스의 후속은 [#217](https://github.com/handochan/aelix-analytics/issues/217)(fixture의 경로)·[#216](https://github.com/handochan/aelix-analytics/issues/216)(비밀 검사의 표시). 개선 후보 #152–#155는 열림 |
 | Q2 | pass(두 모델. R1 A·V 1.00, 확정한 맥락 오류 A 0, R4 gpt A 1.00 · V 0.91, Qwen A 0.91 · V 0.68) | 같음 | 같음 | 같음 | 같음 | 3회 반복, fixture seed 0 하나 |
 | Q3 | 보고(R6: A의 토큰이 V의 1.2배를 넘은 과제 gpt 4개, Qwen 5개) | 같음 | 같음 | 같음 | 같음 | 결정적 회수·응답 bytes는 Q9 행의 기록 |
@@ -425,7 +425,7 @@ PR에는 문제를 재현하는 입력, 변경 후 행동, 바뀐 계약, 비교
 설치물 누락은 출시 보류 사유다. 알려진 복구·멱등성 한계는 지원 범위를 제한해 공개하되, 그것을 구현 완료로 표시하지 않는다.
 첫 베타를 앞두고 소유자가 다음을 출시 보류 사유에서 뺐다(2026-11-04, #24): 지원 하단의 로컬 Qwen, Q6·Q14의 미실행.
 그때 0.32.0의 모델 게이트에서 정한 상위 모델 R4의 천장(O9)과 하위 모델 R2의 수용(O11)은, 후보 0.32.1로 다시 잰 결과 쓸 일이 없었다
-(두 모델 모두 규칙대로 통과, 2026-11-21). 0.32.0은 게시하지 않았고, 0.32.1이 첫 게시본이 될 후보다.
+(두 모델 모두 규칙대로 통과, 2026-11-21). 0.32.0은 게시하지 않았고, 0.32.1이 첫 게시본이다(2026-11-21, PyPI와 GitHub Release, tag `v0.32.1`).
 위 결과표에서 Q6·Q14·Q17-a 사람의 사용성(미실행), Q17-b와 Q14의 #20·#21 몫(앞선 기록)을 뺀 행은 후보 0.32.1로 다시 잰 값이다. 0.32.0의 값은 그 측정 기록([B6](verification/2026-10-31-issue-24-b6-deterministic.md),
 [E4](verification/2026-11-04-issue-24-product-eval.md))과 git 이력에 있다. 결과표에는 측정한 그대로 적고 판정을 따로 적는다.
 Q5의 한 칸(Qwen T12 상시, 위 행)은 소유자가 편차로 수용했다(2026-11-21). 그래서 0.32.1에는 위 결과표 기준으로 남은 출시 보류 사유가 없다(2026-11-21). Q17-a의 사람 사용성은 이미 소유자 결정으로 갈음했다.
