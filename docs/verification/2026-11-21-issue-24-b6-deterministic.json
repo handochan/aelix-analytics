@@ -1,0 +1,3029 @@
+{
+  "record_kind": "aelix-analytics-b6-deterministic-verification",
+  "observed_at": "2026-11-21",
+  "issue": "https://github.com/handochan/aelix-analytics/issues/24",
+  "pull_request": null,
+  "run_id": "30a0676e-5748-4fee-9c3c-2bde6412a398",
+  "candidate": {
+    "version": "0.32.1",
+    "main": "494d1cefd620baae824030fd21c959fb7776be28",
+    "release_run": "https://github.com/handochan/aelix-analytics/actions/runs/44753895153",
+    "sums": "docs/releases/0.32.1.sha256 (#213, 84433ab)",
+    "files": {
+      "aelix_analytics-0.32.1-py3-none-any.whl": "878741132f704146ecae77a1ca6bb83d63fefe18a8ec99ce43b5a87dcdbb304e",
+      "aelix_analytics-0.32.1.tar.gz": "2f6f1486346743c54126f607e78f2ba97be00a8bdc71dfe7f44aa86d11cef5a4"
+    },
+    "downloaded_from_the_release_run": "the same sha256 (evidence/release-44753895153)"
+  },
+  "paths": {
+    "installed": {
+      "release_verify": {
+        "ubuntu-24.04": "61 passed",
+        "macos-26": "61 passed",
+        "windows-2025": "60 passed, 1 skipped (tests/test_packaging.py:448: the stand-in uv is a script; Windows starts only an .exe)"
+      },
+      "images": {
+        "ubuntu-24.04": "ubuntu24 20261116.376.1",
+        "windows-2025": "win25-vs2026 20261116.315.1",
+        "macos-26": "macos26 20261102.0473.1"
+      }
+    },
+    "repository_tests": {
+      "ci_run": "https://github.com/handochan/aelix-analytics/actions/runs/44738231086",
+      "commit": "494d1ce",
+      "also": "https://github.com/handochan/aelix-analytics/actions/runs/44762594792 (84433ab, success)",
+      "per_os": {
+        "ubuntu-24.04": {
+          "suite": {
+            "passed": 3471,
+            "skipped": 114,
+            "failed": 0
+          },
+          "aelix_py3.11": {
+            "passed": 1118,
+            "skipped": 0,
+            "failed": 0
+          },
+          "aelix_py3.12": {
+            "passed": 1118,
+            "skipped": 0,
+            "failed": 0
+          },
+          "launcher_py3.11": {
+            "passed": 220,
+            "skipped": 1,
+            "failed": 0
+          },
+          "smoke": {
+            "holds": 25,
+            "violated": 0,
+            "declared_limitation": 0,
+            "observed": 6,
+            "not_run": 0
+          },
+          "floor_stdlib_smoke": {
+            "holds": 15,
+            "violated": 0,
+            "declared_limitation": 0,
+            "observed": 3,
+            "not_run": 2
+          },
+          "image": {
+            "ImageOS": "ubuntu24",
+            "ImageVersion": "20261116.133.1",
+            "platform": "Linux-7.0.0-1014-aws-x86_64-with-glibc2.39",
+            "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]"
+          },
+          "interpreters": {
+            "3.11": {
+              "version": "3.11.15",
+              "implementation": "CPython",
+              "executable": "/home/runner/work/_temp/uv-python-dir/cpython-3.11-linux-x86_64-gnu/bin/python3.11"
+            },
+            "3.12": {
+              "version": "3.12.3",
+              "implementation": "CPython",
+              "executable": "/usr/bin/python3.12"
+            }
+          },
+          "browser": {
+            "passed": 13,
+            "skipped": 0,
+            "failed": 0
+          }
+        },
+        "windows-2025": {
+          "suite": {
+            "passed": 3267,
+            "skipped": 350,
+            "failed": 0
+          },
+          "aelix_py3.11": {
+            "passed": 1118,
+            "skipped": 1,
+            "failed": 0
+          },
+          "aelix_py3.12": {
+            "passed": 1118,
+            "skipped": 1,
+            "failed": 0
+          },
+          "launcher_py3.11": {
+            "passed": 103,
+            "skipped": 118,
+            "failed": 0
+          },
+          "smoke": {
+            "holds": 21,
+            "violated": 0,
+            "declared_limitation": 3,
+            "observed": 7,
+            "not_run": 0
+          },
+          "floor_stdlib_smoke": {
+            "holds": 14,
+            "violated": 0,
+            "declared_limitation": 1,
+            "observed": 3,
+            "not_run": 2
+          },
+          "image": {
+            "ImageOS": "win25-vs2026",
+            "ImageVersion": "20261116.315.1",
+            "platform": "Windows-2025Server-10.0.26100-SP0",
+            "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]"
+          },
+          "interpreters": {
+            "3.11": {
+              "version": "3.11.9",
+              "implementation": "CPython",
+              "executable": "C:\\hostedtoolcache\\windows\\Python\\3.11.9\\x64\\python.exe"
+            },
+            "3.12": {
+              "version": "3.12.10",
+              "implementation": "CPython",
+              "executable": "C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\python3.exe"
+            }
+          },
+          "console": {
+            "passed": 21,
+            "skipped": 0,
+            "failed": 0
+          },
+          "long_paths_off": {
+            "passed": 7,
+            "skipped": 0,
+            "failed": 0
+          }
+        },
+        "macos-26": {
+          "suite": {
+            "passed": 3472,
+            "skipped": 113,
+            "failed": 0
+          },
+          "aelix_py3.11": {
+            "passed": 1118,
+            "skipped": 0,
+            "failed": 0
+          },
+          "aelix_py3.12": {
+            "passed": 1118,
+            "skipped": 0,
+            "failed": 0
+          },
+          "launcher_py3.11": {
+            "passed": 220,
+            "skipped": 1,
+            "failed": 0
+          },
+          "smoke": {
+            "holds": 25,
+            "violated": 0,
+            "declared_limitation": 0,
+            "observed": 6,
+            "not_run": 0
+          },
+          "floor_stdlib_smoke": {
+            "holds": 15,
+            "violated": 0,
+            "declared_limitation": 0,
+            "observed": 3,
+            "not_run": 2
+          },
+          "image": {
+            "ImageOS": "macos26",
+            "ImageVersion": "20261112.0504.1",
+            "platform": "macOS-26.7.2-arm64-arm-64bit",
+            "python": "3.12.10 (v3.12.10:0cc81280367, Apr  8 2025, 08:46:59) [Clang 13.0.0 (clang-1300.0.29.30)]"
+          },
+          "interpreters": {
+            "3.11": {
+              "version": "3.11.9",
+              "implementation": "CPython",
+              "executable": "/usr/local/bin/python3.11"
+            },
+            "3.12": {
+              "version": "3.12.10",
+              "implementation": "CPython",
+              "executable": "/usr/local/bin/python3.12"
+            }
+          }
+        }
+      },
+      "usage_report": {
+        "required_facts": "58/58",
+        "invariants": "42/42",
+        "os": "all three"
+      },
+      "uv": "0.11.19"
+    },
+    "tools": "clean detached 84433ab (differs from 494d1ce only in docs/releases/0.32.1.sha256); fixtures made there (manifest kit_commit)",
+    "local_full_test": {
+      "commit": "84433ab",
+      "env": [
+        "AELIX_ANALYTICS_TEST_INSTALL=1",
+        "AELIX_ANALYTICS_TEST_DIST=<the candidate files>",
+        "AELIX_ANALYTICS_TEST_BROWSER=chromium"
+      ],
+      "summary": "3487 passed, 130 skipped in 1621.68s (0:27:01)",
+      "exit": "exit 0 1624s"
+    }
+  },
+  "machine": {
+    "os": "macOS 26.6.2 arm64",
+    "cpus": 18,
+    "memory_gib": 64,
+    "disk": "local SSD",
+    "python": "3.12.13",
+    "sqlite": "3.53.1",
+    "browser": "Chromium 156.0.8078.4 (Playwright 1.64.0)",
+    "load": "other work on the machine during the measurements (load average about 10-17: editor extensions, other Python processes)"
+  },
+  "fixtures": {
+    "fx-S-v2": {
+      "scale": "S",
+      "seed": 0,
+      "format": "v2",
+      "kit_commit": "84433ab65b589834b40272ea3f2d967283d62dc3",
+      "counts": {
+        "runs": 30,
+        "runs_executed": 3,
+        "runs_written": 27,
+        "events": 300,
+        "datasets": 5,
+        "derived_tables": 17,
+        "charts": 27,
+        "context_versions": 5
+      },
+      "digest": "sha256:a1ee7c3fede22fabd5f6f2ee7c01fd4b2ad4e842ccb82fb4695cb80724941ba8"
+    },
+    "fx-M-v2": {
+      "scale": "M",
+      "seed": 0,
+      "format": "v2",
+      "kit_commit": "84433ab65b589834b40272ea3f2d967283d62dc3",
+      "counts": {
+        "runs": 300,
+        "runs_executed": 3,
+        "runs_written": 297,
+        "events": 10000,
+        "datasets": 20,
+        "derived_tables": 35,
+        "charts": 429,
+        "context_versions": 13
+      },
+      "digest": "sha256:5b89246b7c8b90f087c3c289278270a3b6e0536c7512250dd4017a5fa982409a"
+    },
+    "fx-S-v1": {
+      "scale": "S",
+      "seed": 0,
+      "format": "v1",
+      "kit_commit": null,
+      "counts": {
+        "runs": 30,
+        "runs_executed": 3,
+        "runs_written": 27,
+        "events": 300,
+        "datasets": 5,
+        "derived_tables": 17,
+        "charts": 27,
+        "context_versions": 5
+      },
+      "digest": "sha256:7b5fb5eca9070c7081d194567b1b5ce2c27206041449054bdac6d6306d36e48c"
+    },
+    "fx-M-v1": {
+      "scale": "M",
+      "seed": 0,
+      "format": "v1",
+      "kit_commit": null,
+      "counts": {
+        "runs": 300,
+        "runs_executed": 3,
+        "runs_written": 297,
+        "events": 10000,
+        "datasets": 20,
+        "derived_tables": 35,
+        "charts": 429,
+        "context_versions": 13
+      },
+      "digest": "sha256:f7d60e9606c78ecb8f5f24de8f41eadcfd4265e59ffca2c599b14c6850d8d6cf"
+    }
+  },
+  "q4_checks": {
+    "S-v2": {
+      "ok": true,
+      "problems": 0
+    },
+    "S-v1": {
+      "ok": true,
+      "problems": 0
+    },
+    "M-v2": {
+      "ok": true,
+      "problems": 0
+    },
+    "M-v1": {
+      "ok": true,
+      "problems": 0
+    }
+  },
+  "q10_checks": {
+    "v2": {
+      "ok": true,
+      "problems": 0
+    },
+    "v1": {
+      "ok": true,
+      "problems": 0
+    }
+  },
+  "q9": {
+    "workspace": {
+      "S": {
+        "source": "q9/ws-S",
+        "kit": {
+          "version": "0.32.1",
+          "sha256": "a2e48026540f55a1edb6ca92d0aa34da9ed417ce4563b9362acb175b2c5a9eef"
+        },
+        "fixture": {
+          "scale": "S",
+          "format": "v2",
+          "digest": "sha256:a1ee7c3fede22fabd5f6f2ee7c01fd4b2ad4e842ccb82fb4695cb80724941ba8",
+          "kit_commit": "84433ab65b589834b40272ea3f2d967283d62dc3",
+          "counts": {
+            "runs": 30,
+            "runs_executed": 3,
+            "runs_written": 27,
+            "events": 300,
+            "datasets": 5,
+            "derived_tables": 17,
+            "charts": 27,
+            "context_versions": 5
+          }
+        },
+        "cold": {
+          "build_ms": {
+            "n": 3,
+            "p50": 735.48633325845,
+            "p95": 823.6430832184851,
+            "max": 823.6430832184851
+          },
+          "wall_ms": {
+            "n": 3,
+            "p50": 860.1776659488678,
+            "p95": 957.7638329938054,
+            "max": 957.7638329938054
+          },
+          "peak_rss_bytes": {
+            "max": 136495104
+          }
+        },
+        "warm": {
+          "build_ms": {
+            "n": 10,
+            "p50": 679.0595627389848,
+            "p95": 733.5503343492746,
+            "max": 733.5503343492746
+          },
+          "wall_ms": {
+            "n": 10,
+            "p50": 803.7118334323168,
+            "p95": 854.0272079408169,
+            "max": 854.0272079408169
+          },
+          "peak_rss_bytes": {
+            "max": 116375552
+          }
+        },
+        "unchanged": {
+          "build_ms": {
+            "n": 10,
+            "p50": 19.71708284690976,
+            "p95": 21.905332803726196,
+            "max": 21.905332803726196
+          },
+          "wall_ms": {
+            "n": 10,
+            "p50": 111.26012494787574,
+            "p95": 114.74970914423466,
+            "max": 114.74970914423466
+          },
+          "peak_rss_bytes": {
+            "max": 33751040
+          }
+        },
+        "pages": {
+          "files": 518,
+          "bytes": 15200347,
+          "pages": 511,
+          "index_bytes": 335531,
+          "largest_page": {
+            "path": "index.html",
+            "bytes": 335531
+          }
+        },
+        "browser": {
+          "name": "chromium",
+          "version": "156.0.8078.4",
+          "load_ms": [
+            59,
+            59.59999990463257,
+            60.19999980926514,
+            60.59999990463257,
+            66.19999980926514,
+            66.40000009536743,
+            66.59999990463257,
+            66.90000009536743,
+            77.30000019073486,
+            111.90000009536743
+          ]
+        },
+        "display_case": {
+          "record": "e278",
+          "pages_with_markup": {},
+          "pages_with_text": [
+            "index.html",
+            "lists/kind-note-0.html",
+            "lists/timeline-0.html",
+            "relations/d49567c2c621c6be2ebb6a1034b0487831b09c7919cc442254097bef367fa24c-0.html"
+          ],
+          "static": true,
+          "browser": true
+        },
+        "journal": {
+          "before": "a5d8f6a0f3942be80fcbb66cf6b16e61af88e53bdc5508f291e9d7e5548cd014",
+          "after": "a5d8f6a0f3942be80fcbb66cf6b16e61af88e53bdc5508f291e9d7e5548cd014",
+          "unchanged": true
+        },
+        "ok": true
+      },
+      "M": {
+        "source": "q9/ws-M",
+        "kit": {
+          "version": "0.32.1",
+          "sha256": "a2e48026540f55a1edb6ca92d0aa34da9ed417ce4563b9362acb175b2c5a9eef"
+        },
+        "fixture": {
+          "scale": "M",
+          "format": "v2",
+          "digest": "sha256:5b89246b7c8b90f087c3c289278270a3b6e0536c7512250dd4017a5fa982409a",
+          "kit_commit": "84433ab65b589834b40272ea3f2d967283d62dc3",
+          "counts": {
+            "runs": 300,
+            "runs_executed": 3,
+            "runs_written": 297,
+            "events": 10000,
+            "datasets": 20,
+            "derived_tables": 35,
+            "charts": 429,
+            "context_versions": 13
+          }
+        },
+        "cold": {
+          "build_ms": {
+            "n": 3,
+            "p50": 13345.7758333534,
+            "p95": 13844.695499632508,
+            "max": 13844.695499632508
+          },
+          "wall_ms": {
+            "n": 3,
+            "p50": 13806.75149988383,
+            "p95": 14319.156833924353,
+            "max": 14319.156833924353
+          },
+          "peak_rss_bytes": {
+            "max": 692797440
+          }
+        },
+        "warm": {
+          "build_ms": {
+            "n": 10,
+            "p50": 13051.314749987796,
+            "p95": 14340.145125053823,
+            "max": 14340.145125053823
+          },
+          "wall_ms": {
+            "n": 10,
+            "p50": 13471.184541471303,
+            "p95": 14795.224542263895,
+            "max": 14795.224542263895
+          },
+          "peak_rss_bytes": {
+            "max": 379797504
+          }
+        },
+        "unchanged": {
+          "build_ms": {
+            "n": 10,
+            "p50": 114.47212425991893,
+            "p95": 122.11733311414719,
+            "max": 122.11733311414719
+          },
+          "wall_ms": {
+            "n": 10,
+            "p50": 175.49977079033852,
+            "p95": 181.02729180827737,
+            "max": 181.02729180827737
+          },
+          "peak_rss_bytes": {
+            "max": 80412672
+          }
+        },
+        "pages": {
+          "files": 12273,
+          "bytes": 293295096,
+          "pages": 12266,
+          "index_bytes": 462616,
+          "largest_page": {
+            "path": "index.html",
+            "bytes": 462616
+          }
+        },
+        "browser": {
+          "name": "chromium",
+          "version": "156.0.8078.4",
+          "load_ms": [
+            50.40000009536743,
+            50.5,
+            50.5,
+            50.89999961853027,
+            51.40000009536743,
+            52.09999990463257,
+            52.200000286102295,
+            52.700000286102295,
+            53.19999980926514,
+            53.90000009536743
+          ]
+        },
+        "display_case": {
+          "record": "e8609",
+          "pages_with_markup": {},
+          "pages_with_text": [
+            "lists/kind-note-7.html",
+            "lists/timeline-27.html",
+            "relations/e8961037f23c6e2b33d614b12f11ddc889da35510b0b47bef8129849a0b8da38-0.html"
+          ],
+          "static": true,
+          "browser": true
+        },
+        "journal": {
+          "before": "a0d873027908cb4b25ba64ec02ca11551a02fab96bba02f365a52490b47ebfce",
+          "after": "a0d873027908cb4b25ba64ec02ca11551a02fab96bba02f365a52490b47ebfce",
+          "unchanged": true
+        },
+        "ok": true
+      },
+      "M_again_no_browser": {
+        "source": "q9/ws-M-again",
+        "kit": {
+          "version": "0.32.1",
+          "sha256": "a2e48026540f55a1edb6ca92d0aa34da9ed417ce4563b9362acb175b2c5a9eef"
+        },
+        "fixture": {
+          "scale": "M",
+          "format": "v2",
+          "digest": "sha256:5b89246b7c8b90f087c3c289278270a3b6e0536c7512250dd4017a5fa982409a",
+          "kit_commit": "84433ab65b589834b40272ea3f2d967283d62dc3",
+          "counts": {
+            "runs": 300,
+            "runs_executed": 3,
+            "runs_written": 297,
+            "events": 10000,
+            "datasets": 20,
+            "derived_tables": 35,
+            "charts": 429,
+            "context_versions": 13
+          }
+        },
+        "cold": {
+          "build_ms": {
+            "n": 1,
+            "p50": 10586.089457850903,
+            "p95": 10586.089457850903,
+            "max": 10586.089457850903
+          },
+          "wall_ms": {
+            "n": 1,
+            "p50": 10982.948041986674,
+            "p95": 10982.948041986674,
+            "max": 10982.948041986674
+          },
+          "peak_rss_bytes": {
+            "max": 628359168
+          }
+        },
+        "warm": {
+          "build_ms": {
+            "n": 3,
+            "p50": 11314.428499899805,
+            "p95": 12100.642792414874,
+            "max": 12100.642792414874
+          },
+          "wall_ms": {
+            "n": 3,
+            "p50": 11688.47429100424,
+            "p95": 12491.977833211422,
+            "max": 12491.977833211422
+          },
+          "peak_rss_bytes": {
+            "max": 381714432
+          }
+        },
+        "unchanged": {
+          "build_ms": {
+            "n": 3,
+            "p50": 106.992666143924,
+            "p95": 113.55316685512662,
+            "max": 113.55316685512662
+          },
+          "wall_ms": {
+            "n": 3,
+            "p50": 161.34450025856495,
+            "p95": 167.2835829667747,
+            "max": 167.2835829667747
+          },
+          "peak_rss_bytes": {
+            "max": 80281600
+          }
+        },
+        "pages": {
+          "files": 12273,
+          "bytes": 293295097,
+          "pages": 12266,
+          "index_bytes": 462617,
+          "largest_page": {
+            "path": "index.html",
+            "bytes": 462617
+          }
+        },
+        "browser": {
+          "status": "not_run",
+          "reason": "--browser none"
+        },
+        "display_case": {
+          "record": "e8609",
+          "pages_with_markup": {},
+          "pages_with_text": [
+            "lists/kind-note-7.html",
+            "lists/timeline-27.html",
+            "relations/e8961037f23c6e2b33d614b12f11ddc889da35510b0b47bef8129849a0b8da38-0.html"
+          ],
+          "static": true,
+          "browser": "not_run"
+        },
+        "journal": {
+          "before": "a0d873027908cb4b25ba64ec02ca11551a02fab96bba02f365a52490b47ebfce",
+          "after": "a0d873027908cb4b25ba64ec02ca11551a02fab96bba02f365a52490b47ebfce",
+          "unchanged": true
+        },
+        "ok": true
+      }
+    },
+    "retrieval": {
+      "S_v2": {
+        "source": "q9/rt-S-v2-out",
+        "kit": {
+          "version": "0.32.1",
+          "sha256": "a2e48026540f55a1edb6ca92d0aa34da9ed417ce4563b9362acb175b2c5a9eef"
+        },
+        "fixture": {
+          "scale": "S",
+          "digest": "sha256:a1ee7c3fede22fabd5f6f2ee7c01fd4b2ad4e842ccb82fb4695cb80724941ba8",
+          "generator": {
+            "path": "tools/eval_fixtures.py",
+            "version": 1
+          },
+          "source_kit_commit": "84433ab65b589834b40272ea3f2d967283d62dc3",
+          "format": "v2",
+          "migrated_copy": false
+        },
+        "tasks": {
+          "old_finding": {
+            "query": "야간 배송",
+            "first_page_recall": 1.0,
+            "complete_paged_recall": 1.0,
+            "pages": 1,
+            "cold": {
+              "p50_ms": 16.383917070925236,
+              "p95_ms": 16.383917070925236,
+              "max_response_bytes": 9533,
+              "index": {
+                "adapter": "sqlite",
+                "state": "missing",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "warm": {
+              "p50_ms": 9.993312414735556,
+              "p95_ms": 14.969124924391508,
+              "max_response_bytes": 9553,
+              "index": {
+                "adapter": "sqlite",
+                "state": "ready",
+                "fts": true,
+                "rebuilt": false,
+                "answered_from": "index_candidates_and_source"
+              }
+            },
+            "rebuild": {
+              "p50_ms": 17.952708061784506,
+              "p95_ms": 17.952708061784506,
+              "max_response_bytes": 9533,
+              "index": {
+                "adapter": "sqlite",
+                "state": "corrupt",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "source_direct": {
+              "p50_ms": 11.415062006562948,
+              "p95_ms": 14.198665972799063,
+              "max_response_bytes": 9496,
+              "index": {
+                "adapter": "source",
+                "state": "disabled",
+                "answered_from": "source"
+              }
+            }
+          },
+          "correction": {
+            "query": "세종 성장률",
+            "first_page_recall": 1.0,
+            "complete_paged_recall": 1.0,
+            "pages": 1,
+            "cold": {
+              "p50_ms": 17.580833286046982,
+              "p95_ms": 17.580833286046982,
+              "max_response_bytes": 2638,
+              "index": {
+                "adapter": "sqlite",
+                "state": "missing",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "warm": {
+              "p50_ms": 9.253021096810699,
+              "p95_ms": 9.485749993473291,
+              "max_response_bytes": 2658,
+              "index": {
+                "adapter": "sqlite",
+                "state": "ready",
+                "fts": true,
+                "rebuilt": false,
+                "answered_from": "index_candidates_and_source"
+              }
+            },
+            "rebuild": {
+              "p50_ms": 16.64887461811304,
+              "p95_ms": 16.64887461811304,
+              "max_response_bytes": 2638,
+              "index": {
+                "adapter": "sqlite",
+                "state": "corrupt",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "source_direct": {
+              "p50_ms": 11.62914582528174,
+              "p95_ms": 17.393375281244516,
+              "max_response_bytes": 2601,
+              "index": {
+                "adapter": "source",
+                "state": "disabled",
+                "answered_from": "source"
+              }
+            }
+          },
+          "withdrawal": {
+            "query": "연간 합계",
+            "first_page_recall": 1.0,
+            "complete_paged_recall": 1.0,
+            "pages": 1,
+            "cold": {
+              "p50_ms": 15.274166129529476,
+              "p95_ms": 15.274166129529476,
+              "max_response_bytes": 2317,
+              "index": {
+                "adapter": "sqlite",
+                "state": "missing",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "warm": {
+              "p50_ms": 8.871083613485098,
+              "p95_ms": 9.700082708150148,
+              "max_response_bytes": 2337,
+              "index": {
+                "adapter": "sqlite",
+                "state": "ready",
+                "fts": true,
+                "rebuilt": false,
+                "answered_from": "index_candidates_and_source"
+              }
+            },
+            "rebuild": {
+              "p50_ms": 18.887416925281286,
+              "p95_ms": 18.887416925281286,
+              "max_response_bytes": 2317,
+              "index": {
+                "adapter": "sqlite",
+                "state": "corrupt",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "source_direct": {
+              "p50_ms": 11.451853904873133,
+              "p95_ms": 17.30483304709196,
+              "max_response_bytes": 2280,
+              "index": {
+                "adapter": "source",
+                "state": "disabled",
+                "answered_from": "source"
+              }
+            }
+          },
+          "long_korean": {
+            "query": "센서",
+            "first_page_recall": 0.0,
+            "complete_paged_recall": 1.0,
+            "pages": 1,
+            "cold": {
+              "p50_ms": 21.074000280350447,
+              "p95_ms": 21.074000280350447,
+              "max_response_bytes": 8145,
+              "index": {
+                "adapter": "sqlite",
+                "state": "missing",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "warm": {
+              "p50_ms": 12.482583289965987,
+              "p95_ms": 18.138375133275986,
+              "max_response_bytes": 8165,
+              "index": {
+                "adapter": "sqlite",
+                "state": "ready",
+                "fts": true,
+                "rebuilt": false,
+                "answered_from": "index_candidates_and_source"
+              }
+            },
+            "rebuild": {
+              "p50_ms": 19.471000414341688,
+              "p95_ms": 19.471000414341688,
+              "max_response_bytes": 8145,
+              "index": {
+                "adapter": "sqlite",
+                "state": "corrupt",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "source_direct": {
+              "p50_ms": 13.46837542951107,
+              "p95_ms": 14.353042002767324,
+              "max_response_bytes": 8108,
+              "index": {
+                "adapter": "source",
+                "state": "disabled",
+                "answered_from": "source"
+              }
+            }
+          }
+        },
+        "original_journal": {
+          "before": "a5d8f6a0f3942be80fcbb66cf6b16e61af88e53bdc5508f291e9d7e5548cd014",
+          "after": "a5d8f6a0f3942be80fcbb66cf6b16e61af88e53bdc5508f291e9d7e5548cd014",
+          "unchanged": true
+        },
+        "recall_pass": true
+      },
+      "S_v1_migrated": {
+        "source": "q9/rt-S-v1-out",
+        "kit": {
+          "version": "0.32.1",
+          "sha256": "a2e48026540f55a1edb6ca92d0aa34da9ed417ce4563b9362acb175b2c5a9eef"
+        },
+        "fixture": {
+          "scale": "S",
+          "digest": "sha256:7b5fb5eca9070c7081d194567b1b5ce2c27206041449054bdac6d6306d36e48c",
+          "generator": {
+            "path": "tools/eval_fixtures.py",
+            "version": 1
+          },
+          "source_kit_commit": "ebd10b644e8cb8550ccf6446b134666db6bb9386",
+          "format": "v1",
+          "migrated_copy": true
+        },
+        "tasks": {
+          "old_finding": {
+            "query": "야간 배송",
+            "first_page_recall": 1.0,
+            "complete_paged_recall": 1.0,
+            "pages": 1,
+            "cold": {
+              "p50_ms": 19.274250138550997,
+              "p95_ms": 19.274250138550997,
+              "max_response_bytes": 10705,
+              "index": {
+                "adapter": "sqlite",
+                "state": "missing",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "warm": {
+              "p50_ms": 11.67056243866682,
+              "p95_ms": 18.566042184829712,
+              "max_response_bytes": 10725,
+              "index": {
+                "adapter": "sqlite",
+                "state": "ready",
+                "fts": true,
+                "rebuilt": false,
+                "answered_from": "index_candidates_and_source"
+              }
+            },
+            "rebuild": {
+              "p50_ms": 17.832125071436167,
+              "p95_ms": 17.832125071436167,
+              "max_response_bytes": 10705,
+              "index": {
+                "adapter": "sqlite",
+                "state": "corrupt",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "source_direct": {
+              "p50_ms": 12.782103847712278,
+              "p95_ms": 13.452332932502031,
+              "max_response_bytes": 10668,
+              "index": {
+                "adapter": "source",
+                "state": "disabled",
+                "answered_from": "source"
+              }
+            }
+          },
+          "correction": {
+            "query": "세종 성장률",
+            "first_page_recall": 1.0,
+            "complete_paged_recall": 1.0,
+            "pages": 1,
+            "cold": {
+              "p50_ms": 15.078332740813494,
+              "p95_ms": 15.078332740813494,
+              "max_response_bytes": 2629,
+              "index": {
+                "adapter": "sqlite",
+                "state": "missing",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "warm": {
+              "p50_ms": 9.817562298849225,
+              "p95_ms": 17.162583768367767,
+              "max_response_bytes": 2649,
+              "index": {
+                "adapter": "sqlite",
+                "state": "ready",
+                "fts": true,
+                "rebuilt": false,
+                "answered_from": "index_candidates_and_source"
+              }
+            },
+            "rebuild": {
+              "p50_ms": 15.864833258092403,
+              "p95_ms": 15.864833258092403,
+              "max_response_bytes": 2629,
+              "index": {
+                "adapter": "sqlite",
+                "state": "corrupt",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "source_direct": {
+              "p50_ms": 11.166104348376393,
+              "p95_ms": 12.94262520968914,
+              "max_response_bytes": 2592,
+              "index": {
+                "adapter": "source",
+                "state": "disabled",
+                "answered_from": "source"
+              }
+            }
+          },
+          "withdrawal": {
+            "query": "연간 합계",
+            "first_page_recall": 1.0,
+            "complete_paged_recall": 1.0,
+            "pages": 1,
+            "cold": {
+              "p50_ms": 15.750416088849306,
+              "p95_ms": 15.750416088849306,
+              "max_response_bytes": 2331,
+              "index": {
+                "adapter": "sqlite",
+                "state": "missing",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "warm": {
+              "p50_ms": 9.908145992085338,
+              "p95_ms": 10.684709064662457,
+              "max_response_bytes": 2351,
+              "index": {
+                "adapter": "sqlite",
+                "state": "ready",
+                "fts": true,
+                "rebuilt": false,
+                "answered_from": "index_candidates_and_source"
+              }
+            },
+            "rebuild": {
+              "p50_ms": 14.283999800682068,
+              "p95_ms": 14.283999800682068,
+              "max_response_bytes": 2331,
+              "index": {
+                "adapter": "sqlite",
+                "state": "corrupt",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "source_direct": {
+              "p50_ms": 10.187936946749687,
+              "p95_ms": 11.588667053729296,
+              "max_response_bytes": 2294,
+              "index": {
+                "adapter": "source",
+                "state": "disabled",
+                "answered_from": "source"
+              }
+            }
+          },
+          "long_korean": {
+            "query": "센서",
+            "first_page_recall": 0.0,
+            "complete_paged_recall": 1.0,
+            "pages": 1,
+            "cold": {
+              "p50_ms": 13.757792301476002,
+              "p95_ms": 13.757792301476002,
+              "max_response_bytes": 9128,
+              "index": {
+                "adapter": "sqlite",
+                "state": "missing",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "warm": {
+              "p50_ms": 9.645541664212942,
+              "p95_ms": 10.34787530079484,
+              "max_response_bytes": 9148,
+              "index": {
+                "adapter": "sqlite",
+                "state": "ready",
+                "fts": true,
+                "rebuilt": false,
+                "answered_from": "index_candidates_and_source"
+              }
+            },
+            "rebuild": {
+              "p50_ms": 14.601875096559525,
+              "p95_ms": 14.601875096559525,
+              "max_response_bytes": 9128,
+              "index": {
+                "adapter": "sqlite",
+                "state": "corrupt",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "source_direct": {
+              "p50_ms": 10.740833356976509,
+              "p95_ms": 15.317332930862904,
+              "max_response_bytes": 9091,
+              "index": {
+                "adapter": "source",
+                "state": "disabled",
+                "answered_from": "source"
+              }
+            }
+          }
+        },
+        "original_journal": {
+          "before": "434d2bf0a4c85ac17741c7c8c0b2ee2707041646f8974c7c168ee92e4259e04a",
+          "after": "434d2bf0a4c85ac17741c7c8c0b2ee2707041646f8974c7c168ee92e4259e04a",
+          "unchanged": true
+        },
+        "recall_pass": true
+      },
+      "M_v2": {
+        "source": "q9/rt-M-v2-out",
+        "kit": {
+          "version": "0.32.1",
+          "sha256": "a2e48026540f55a1edb6ca92d0aa34da9ed417ce4563b9362acb175b2c5a9eef"
+        },
+        "fixture": {
+          "scale": "M",
+          "digest": "sha256:5b89246b7c8b90f087c3c289278270a3b6e0536c7512250dd4017a5fa982409a",
+          "generator": {
+            "path": "tools/eval_fixtures.py",
+            "version": 1
+          },
+          "source_kit_commit": "84433ab65b589834b40272ea3f2d967283d62dc3",
+          "format": "v2",
+          "migrated_copy": false
+        },
+        "tasks": {
+          "old_finding": {
+            "query": "야간 배송",
+            "first_page_recall": 0.0,
+            "complete_paged_recall": 1.0,
+            "pages": 7,
+            "cold": {
+              "p50_ms": 539.3036673776805,
+              "p95_ms": 539.3036673776805,
+              "max_response_bytes": 8770,
+              "index": {
+                "adapter": "sqlite",
+                "state": "missing",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "warm": {
+              "p50_ms": 335.9691039659083,
+              "p95_ms": 364.5469998009503,
+              "max_response_bytes": 8790,
+              "index": {
+                "adapter": "sqlite",
+                "state": "ready",
+                "fts": true,
+                "rebuilt": false,
+                "answered_from": "index_candidates_and_source"
+              }
+            },
+            "rebuild": {
+              "p50_ms": 549.079124815762,
+              "p95_ms": 549.079124815762,
+              "max_response_bytes": 8770,
+              "index": {
+                "adapter": "sqlite",
+                "state": "corrupt",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "source_direct": {
+              "p50_ms": 425.05766660906374,
+              "p95_ms": 452.2434580139816,
+              "max_response_bytes": 8733,
+              "index": {
+                "adapter": "source",
+                "state": "disabled",
+                "answered_from": "source"
+              }
+            }
+          },
+          "correction": {
+            "query": "세종 성장률",
+            "first_page_recall": 1.0,
+            "complete_paged_recall": 1.0,
+            "pages": 1,
+            "cold": {
+              "p50_ms": 574.8973749577999,
+              "p95_ms": 574.8973749577999,
+              "max_response_bytes": 2649,
+              "index": {
+                "adapter": "sqlite",
+                "state": "missing",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "warm": {
+              "p50_ms": 339.2787703778595,
+              "p95_ms": 393.2329169474542,
+              "max_response_bytes": 2669,
+              "index": {
+                "adapter": "sqlite",
+                "state": "ready",
+                "fts": true,
+                "rebuilt": false,
+                "answered_from": "index_candidates_and_source"
+              }
+            },
+            "rebuild": {
+              "p50_ms": 599.5907918550074,
+              "p95_ms": 599.5907918550074,
+              "max_response_bytes": 2649,
+              "index": {
+                "adapter": "sqlite",
+                "state": "corrupt",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "source_direct": {
+              "p50_ms": 439.72456245683134,
+              "p95_ms": 475.11758375912905,
+              "max_response_bytes": 2612,
+              "index": {
+                "adapter": "source",
+                "state": "disabled",
+                "answered_from": "source"
+              }
+            }
+          },
+          "withdrawal": {
+            "query": "연간 합계",
+            "first_page_recall": 1.0,
+            "complete_paged_recall": 1.0,
+            "pages": 1,
+            "cold": {
+              "p50_ms": 575.483042281121,
+              "p95_ms": 575.483042281121,
+              "max_response_bytes": 2331,
+              "index": {
+                "adapter": "sqlite",
+                "state": "missing",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "warm": {
+              "p50_ms": 349.58510426804423,
+              "p95_ms": 367.4739580601454,
+              "max_response_bytes": 2351,
+              "index": {
+                "adapter": "sqlite",
+                "state": "ready",
+                "fts": true,
+                "rebuilt": false,
+                "answered_from": "index_candidates_and_source"
+              }
+            },
+            "rebuild": {
+              "p50_ms": 597.2113749012351,
+              "p95_ms": 597.2113749012351,
+              "max_response_bytes": 2331,
+              "index": {
+                "adapter": "sqlite",
+                "state": "corrupt",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "source_direct": {
+              "p50_ms": 437.0466461405158,
+              "p95_ms": 462.24249992519617,
+              "max_response_bytes": 2294,
+              "index": {
+                "adapter": "source",
+                "state": "disabled",
+                "answered_from": "source"
+              }
+            }
+          },
+          "long_korean": {
+            "query": "센서",
+            "first_page_recall": 0.0,
+            "complete_paged_recall": 1.0,
+            "pages": 13,
+            "cold": {
+              "p50_ms": 636.3418325781822,
+              "p95_ms": 636.3418325781822,
+              "max_response_bytes": 8189,
+              "index": {
+                "adapter": "sqlite",
+                "state": "missing",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "warm": {
+              "p50_ms": 417.04924986697733,
+              "p95_ms": 445.1660420745611,
+              "max_response_bytes": 8209,
+              "index": {
+                "adapter": "sqlite",
+                "state": "ready",
+                "fts": true,
+                "rebuilt": false,
+                "answered_from": "index_candidates_and_source"
+              }
+            },
+            "rebuild": {
+              "p50_ms": 585.029250010848,
+              "p95_ms": 585.029250010848,
+              "max_response_bytes": 8189,
+              "index": {
+                "adapter": "sqlite",
+                "state": "corrupt",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "source_direct": {
+              "p50_ms": 494.10410411655903,
+              "p95_ms": 505.71812503039837,
+              "max_response_bytes": 8152,
+              "index": {
+                "adapter": "source",
+                "state": "disabled",
+                "answered_from": "source"
+              }
+            }
+          }
+        },
+        "original_journal": {
+          "before": "a0d873027908cb4b25ba64ec02ca11551a02fab96bba02f365a52490b47ebfce",
+          "after": "a0d873027908cb4b25ba64ec02ca11551a02fab96bba02f365a52490b47ebfce",
+          "unchanged": true
+        },
+        "recall_pass": true
+      },
+      "M_v1_migrated": {
+        "source": "q9/rt-M-v1-out",
+        "kit": {
+          "version": "0.32.1",
+          "sha256": "a2e48026540f55a1edb6ca92d0aa34da9ed417ce4563b9362acb175b2c5a9eef"
+        },
+        "fixture": {
+          "scale": "M",
+          "digest": "sha256:f7d60e9606c78ecb8f5f24de8f41eadcfd4265e59ffca2c599b14c6850d8d6cf",
+          "generator": {
+            "path": "tools/eval_fixtures.py",
+            "version": 1
+          },
+          "source_kit_commit": "ebd10b644e8cb8550ccf6446b134666db6bb9386",
+          "format": "v1",
+          "migrated_copy": true
+        },
+        "tasks": {
+          "old_finding": {
+            "query": "야간 배송",
+            "first_page_recall": 0.0,
+            "complete_paged_recall": 1.0,
+            "pages": 7,
+            "cold": {
+              "p50_ms": 421.37008300051093,
+              "p95_ms": 421.37008300051093,
+              "max_response_bytes": 9753,
+              "index": {
+                "adapter": "sqlite",
+                "state": "missing",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "warm": {
+              "p50_ms": 265.94929164275527,
+              "p95_ms": 302.25137528032064,
+              "max_response_bytes": 9773,
+              "index": {
+                "adapter": "sqlite",
+                "state": "ready",
+                "fts": true,
+                "rebuilt": false,
+                "answered_from": "index_candidates_and_source"
+              }
+            },
+            "rebuild": {
+              "p50_ms": 418.02283423021436,
+              "p95_ms": 418.02283423021436,
+              "max_response_bytes": 9753,
+              "index": {
+                "adapter": "sqlite",
+                "state": "corrupt",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "source_direct": {
+              "p50_ms": 345.1064578257501,
+              "p95_ms": 363.5742496699095,
+              "max_response_bytes": 9716,
+              "index": {
+                "adapter": "source",
+                "state": "disabled",
+                "answered_from": "source"
+              }
+            }
+          },
+          "correction": {
+            "query": "세종 성장률",
+            "first_page_recall": 1.0,
+            "complete_paged_recall": 1.0,
+            "pages": 1,
+            "cold": {
+              "p50_ms": 375.001750420779,
+              "p95_ms": 375.001750420779,
+              "max_response_bytes": 2639,
+              "index": {
+                "adapter": "sqlite",
+                "state": "missing",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "warm": {
+              "p50_ms": 252.65170843340456,
+              "p95_ms": 279.3196248821914,
+              "max_response_bytes": 2659,
+              "index": {
+                "adapter": "sqlite",
+                "state": "ready",
+                "fts": true,
+                "rebuilt": false,
+                "answered_from": "index_candidates_and_source"
+              }
+            },
+            "rebuild": {
+              "p50_ms": 406.7454170435667,
+              "p95_ms": 406.7454170435667,
+              "max_response_bytes": 2639,
+              "index": {
+                "adapter": "sqlite",
+                "state": "corrupt",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "source_direct": {
+              "p50_ms": 323.83679202757776,
+              "p95_ms": 342.2658327035606,
+              "max_response_bytes": 2602,
+              "index": {
+                "adapter": "source",
+                "state": "disabled",
+                "answered_from": "source"
+              }
+            }
+          },
+          "withdrawal": {
+            "query": "연간 합계",
+            "first_page_recall": 1.0,
+            "complete_paged_recall": 1.0,
+            "pages": 1,
+            "cold": {
+              "p50_ms": 386.67837530374527,
+              "p95_ms": 386.67837530374527,
+              "max_response_bytes": 2345,
+              "index": {
+                "adapter": "sqlite",
+                "state": "missing",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "warm": {
+              "p50_ms": 273.05947965942323,
+              "p95_ms": 293.8075829297304,
+              "max_response_bytes": 2365,
+              "index": {
+                "adapter": "sqlite",
+                "state": "ready",
+                "fts": true,
+                "rebuilt": false,
+                "answered_from": "index_candidates_and_source"
+              }
+            },
+            "rebuild": {
+              "p50_ms": 423.80595905706286,
+              "p95_ms": 423.80595905706286,
+              "max_response_bytes": 2345,
+              "index": {
+                "adapter": "sqlite",
+                "state": "corrupt",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "source_direct": {
+              "p50_ms": 306.04535434395075,
+              "p95_ms": 333.837625104934,
+              "max_response_bytes": 2308,
+              "index": {
+                "adapter": "source",
+                "state": "disabled",
+                "answered_from": "source"
+              }
+            }
+          },
+          "long_korean": {
+            "query": "센서",
+            "first_page_recall": 0.0,
+            "complete_paged_recall": 1.0,
+            "pages": 13,
+            "cold": {
+              "p50_ms": 412.7596658654511,
+              "p95_ms": 412.7596658654511,
+              "max_response_bytes": 8619,
+              "index": {
+                "adapter": "sqlite",
+                "state": "missing",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "warm": {
+              "p50_ms": 293.32510381937027,
+              "p95_ms": 322.72454211488366,
+              "max_response_bytes": 8639,
+              "index": {
+                "adapter": "sqlite",
+                "state": "ready",
+                "fts": true,
+                "rebuilt": false,
+                "answered_from": "index_candidates_and_source"
+              }
+            },
+            "rebuild": {
+              "p50_ms": 439.62262477725744,
+              "p95_ms": 439.62262477725744,
+              "max_response_bytes": 8619,
+              "index": {
+                "adapter": "sqlite",
+                "state": "corrupt",
+                "fts": true,
+                "rebuilt": true,
+                "answered_from": "source"
+              }
+            },
+            "source_direct": {
+              "p50_ms": 353.5225624218583,
+              "p95_ms": 375.53133303299546,
+              "max_response_bytes": 8582,
+              "index": {
+                "adapter": "source",
+                "state": "disabled",
+                "answered_from": "source"
+              }
+            }
+          }
+        },
+        "original_journal": {
+          "before": "97c48f389067128317894ff5a750a2e4f5003d7aa961c4aa227773e150077246",
+          "after": "97c48f389067128317894ff5a750a2e4f5003d7aa961c4aa227773e150077246",
+          "unchanged": true
+        },
+        "recall_pass": true
+      }
+    },
+    "against_0_32_0_under_the_same_load": {
+      "what": "the same harness tools, the 0.32.0 kit (clean detached 26c28d0) and the 0.32.1 kit interleaved under the same load",
+      "workspace_M": {
+        "ab/m-ws-0321-1": {
+          "source": "q9/ab/m-ws-0321-1",
+          "kit": {
+            "version": "0.32.1",
+            "sha256": "a2e48026540f55a1edb6ca92d0aa34da9ed417ce4563b9362acb175b2c5a9eef"
+          },
+          "fixture": {
+            "scale": "M",
+            "format": "v2",
+            "digest": "sha256:5b89246b7c8b90f087c3c289278270a3b6e0536c7512250dd4017a5fa982409a",
+            "kit_commit": "84433ab65b589834b40272ea3f2d967283d62dc3",
+            "counts": {
+              "runs": 300,
+              "runs_executed": 3,
+              "runs_written": 297,
+              "events": 10000,
+              "datasets": 20,
+              "derived_tables": 35,
+              "charts": 429,
+              "context_versions": 13
+            }
+          },
+          "cold": {
+            "build_ms": {
+              "n": 1,
+              "p50": 12822.67383299768,
+              "p95": 12822.67383299768,
+              "max": 12822.67383299768
+            },
+            "wall_ms": {
+              "n": 1,
+              "p50": 13263.008540961891,
+              "p95": 13263.008540961891,
+              "max": 13263.008540961891
+            },
+            "peak_rss_bytes": {
+              "max": 673726464
+            }
+          },
+          "warm": {
+            "build_ms": {
+              "n": 3,
+              "p50": 13214.52445909381,
+              "p95": 13793.121708091348,
+              "max": 13793.121708091348
+            },
+            "wall_ms": {
+              "n": 3,
+              "p50": 13621.44258338958,
+              "p95": 14256.079708691686,
+              "max": 14256.079708691686
+            },
+            "peak_rss_bytes": {
+              "max": 380567552
+            }
+          },
+          "unchanged": {
+            "build_ms": {
+              "n": 3,
+              "p50": 162.35333308577538,
+              "p95": 167.7102497778833,
+              "max": 167.7102497778833
+            },
+            "wall_ms": {
+              "n": 3,
+              "p50": 255.9302500449121,
+              "p95": 262.9917920567095,
+              "max": 262.9917920567095
+            },
+            "peak_rss_bytes": {
+              "max": 80953344
+            }
+          },
+          "pages": {
+            "files": 12273,
+            "bytes": 293295099,
+            "pages": 12266,
+            "index_bytes": 462619,
+            "largest_page": {
+              "path": "index.html",
+              "bytes": 462619
+            }
+          },
+          "browser": {
+            "status": "not_run",
+            "reason": "--browser none"
+          },
+          "display_case": {
+            "record": "e8609",
+            "pages_with_markup": {},
+            "pages_with_text": [
+              "lists/kind-note-7.html",
+              "lists/timeline-27.html",
+              "relations/e8961037f23c6e2b33d614b12f11ddc889da35510b0b47bef8129849a0b8da38-0.html"
+            ],
+            "static": true,
+            "browser": "not_run"
+          },
+          "journal": {
+            "before": "a0d873027908cb4b25ba64ec02ca11551a02fab96bba02f365a52490b47ebfce",
+            "after": "a0d873027908cb4b25ba64ec02ca11551a02fab96bba02f365a52490b47ebfce",
+            "unchanged": true
+          },
+          "ok": true
+        },
+        "ab/m-ws-0320-1": {
+          "source": "q9/ab/m-ws-0320-1",
+          "kit": {
+            "version": "0.32.0",
+            "sha256": "4d2de06e4d2742385dfa00fa1f2126dbbee609269092064d3104cf8a559432dc"
+          },
+          "fixture": {
+            "scale": "M",
+            "format": "v2",
+            "digest": "sha256:ec674c5135e2bd72e4fbaee9e3f50e5c2733d9cde72143a594e88f62b22e1d8e",
+            "kit_commit": "26c28d09289718f0fc499c2975a33f1f59380a4c",
+            "counts": {
+              "runs": 300,
+              "runs_executed": 3,
+              "runs_written": 297,
+              "events": 10000,
+              "datasets": 20,
+              "derived_tables": 35,
+              "charts": 429,
+              "context_versions": 13
+            }
+          },
+          "cold": {
+            "build_ms": {
+              "n": 1,
+              "p50": 11436.184875201434,
+              "p95": 11436.184875201434,
+              "max": 11436.184875201434
+            },
+            "wall_ms": {
+              "n": 1,
+              "p50": 11781.339624896646,
+              "p95": 11781.339624896646,
+              "max": 11781.339624896646
+            },
+            "peak_rss_bytes": {
+              "max": 668385280
+            }
+          },
+          "warm": {
+            "build_ms": {
+              "n": 3,
+              "p50": 10720.462082885206,
+              "p95": 11858.574666082859,
+              "max": 11858.574666082859
+            },
+            "wall_ms": {
+              "n": 3,
+              "p50": 11094.77874962613,
+              "p95": 12223.35866605863,
+              "max": 12223.35866605863
+            },
+            "peak_rss_bytes": {
+              "max": 376504320
+            }
+          },
+          "unchanged": {
+            "build_ms": {
+              "n": 3,
+              "p50": 132.98924965783954,
+              "p95": 136.4482082426548,
+              "max": 136.4482082426548
+            },
+            "wall_ms": {
+              "n": 3,
+              "p50": 205.31079173088074,
+              "p95": 210.47708299010992,
+              "max": 210.47708299010992
+            },
+            "peak_rss_bytes": {
+              "max": 79790080
+            }
+          },
+          "pages": {
+            "files": 12273,
+            "bytes": 250344693,
+            "pages": 12266,
+            "index_bytes": 449819,
+            "largest_page": {
+              "path": "index.html",
+              "bytes": 449819
+            }
+          },
+          "browser": {
+            "status": "not_run",
+            "reason": "--browser none"
+          },
+          "display_case": {
+            "record": "e8609",
+            "pages_with_markup": {},
+            "pages_with_text": [
+              "lists/kind-note-7.html",
+              "lists/timeline-27.html",
+              "relations/e8961037f23c6e2b33d614b12f11ddc889da35510b0b47bef8129849a0b8da38-0.html"
+            ],
+            "static": true,
+            "browser": "not_run"
+          },
+          "journal": {
+            "before": "a0d873027908cb4b25ba64ec02ca11551a02fab96bba02f365a52490b47ebfce",
+            "after": "a0d873027908cb4b25ba64ec02ca11551a02fab96bba02f365a52490b47ebfce",
+            "unchanged": true
+          },
+          "ok": true
+        },
+        "ab/m-ws-0321-2": {
+          "source": "q9/ab/m-ws-0321-2",
+          "kit": {
+            "version": "0.32.1",
+            "sha256": "a2e48026540f55a1edb6ca92d0aa34da9ed417ce4563b9362acb175b2c5a9eef"
+          },
+          "fixture": {
+            "scale": "M",
+            "format": "v2",
+            "digest": "sha256:5b89246b7c8b90f087c3c289278270a3b6e0536c7512250dd4017a5fa982409a",
+            "kit_commit": "84433ab65b589834b40272ea3f2d967283d62dc3",
+            "counts": {
+              "runs": 300,
+              "runs_executed": 3,
+              "runs_written": 297,
+              "events": 10000,
+              "datasets": 20,
+              "derived_tables": 35,
+              "charts": 429,
+              "context_versions": 13
+            }
+          },
+          "cold": {
+            "build_ms": {
+              "n": 1,
+              "p50": 9415.829540695995,
+              "p95": 9415.829540695995,
+              "max": 9415.829540695995
+            },
+            "wall_ms": {
+              "n": 1,
+              "p50": 9832.880834117532,
+              "p95": 9832.880834117532,
+              "max": 9832.880834117532
+            },
+            "peak_rss_bytes": {
+              "max": 641925120
+            }
+          },
+          "warm": {
+            "build_ms": {
+              "n": 3,
+              "p50": 9891.318624839187,
+              "p95": 10766.913499683142,
+              "max": 10766.913499683142
+            },
+            "wall_ms": {
+              "n": 3,
+              "p50": 10226.436999626458,
+              "p95": 11148.693417198956,
+              "max": 11148.693417198956
+            },
+            "peak_rss_bytes": {
+              "max": 378421248
+            }
+          },
+          "unchanged": {
+            "build_ms": {
+              "n": 3,
+              "p50": 136.4623331464827,
+              "p95": 153.9720417931676,
+              "max": 153.9720417931676
+            },
+            "wall_ms": {
+              "n": 3,
+              "p50": 211.59820817410946,
+              "p95": 227.8150417841971,
+              "max": 227.8150417841971
+            },
+            "peak_rss_bytes": {
+              "max": 80478208
+            }
+          },
+          "pages": {
+            "files": 12273,
+            "bytes": 293295099,
+            "pages": 12266,
+            "index_bytes": 462619,
+            "largest_page": {
+              "path": "index.html",
+              "bytes": 462619
+            }
+          },
+          "browser": {
+            "status": "not_run",
+            "reason": "--browser none"
+          },
+          "display_case": {
+            "record": "e8609",
+            "pages_with_markup": {},
+            "pages_with_text": [
+              "lists/kind-note-7.html",
+              "lists/timeline-27.html",
+              "relations/e8961037f23c6e2b33d614b12f11ddc889da35510b0b47bef8129849a0b8da38-0.html"
+            ],
+            "static": true,
+            "browser": "not_run"
+          },
+          "journal": {
+            "before": "a0d873027908cb4b25ba64ec02ca11551a02fab96bba02f365a52490b47ebfce",
+            "after": "a0d873027908cb4b25ba64ec02ca11551a02fab96bba02f365a52490b47ebfce",
+            "unchanged": true
+          },
+          "ok": true
+        },
+        "ab/m-ws-0320-2": {
+          "source": "q9/ab/m-ws-0320-2",
+          "kit": {
+            "version": "0.32.0",
+            "sha256": "4d2de06e4d2742385dfa00fa1f2126dbbee609269092064d3104cf8a559432dc"
+          },
+          "fixture": {
+            "scale": "M",
+            "format": "v2",
+            "digest": "sha256:ec674c5135e2bd72e4fbaee9e3f50e5c2733d9cde72143a594e88f62b22e1d8e",
+            "kit_commit": "26c28d09289718f0fc499c2975a33f1f59380a4c",
+            "counts": {
+              "runs": 300,
+              "runs_executed": 3,
+              "runs_written": 297,
+              "events": 10000,
+              "datasets": 20,
+              "derived_tables": 35,
+              "charts": 429,
+              "context_versions": 13
+            }
+          },
+          "cold": {
+            "build_ms": {
+              "n": 1,
+              "p50": 12235.800083260983,
+              "p95": 12235.800083260983,
+              "max": 12235.800083260983
+            },
+            "wall_ms": {
+              "n": 1,
+              "p50": 12650.309958029538,
+              "p95": 12650.309958029538,
+              "max": 12650.309958029538
+            },
+            "peak_rss_bytes": {
+              "max": 692174848
+            }
+          },
+          "warm": {
+            "build_ms": {
+              "n": 3,
+              "p50": 9977.747249882668,
+              "p95": 12262.30699988082,
+              "max": 12262.30699988082
+            },
+            "wall_ms": {
+              "n": 3,
+              "p50": 10387.547499965876,
+              "p95": 12645.797375123948,
+              "max": 12645.797375123948
+            },
+            "peak_rss_bytes": {
+              "max": 376078336
+            }
+          },
+          "unchanged": {
+            "build_ms": {
+              "n": 3,
+              "p50": 132.70270824432373,
+              "p95": 142.93104130774736,
+              "max": 142.93104130774736
+            },
+            "wall_ms": {
+              "n": 3,
+              "p50": 202.14424980804324,
+              "p95": 212.15433301404119,
+              "max": 212.15433301404119
+            },
+            "peak_rss_bytes": {
+              "max": 79872000
+            }
+          },
+          "pages": {
+            "files": 12273,
+            "bytes": 250344693,
+            "pages": 12266,
+            "index_bytes": 449819,
+            "largest_page": {
+              "path": "index.html",
+              "bytes": 449819
+            }
+          },
+          "browser": {
+            "status": "not_run",
+            "reason": "--browser none"
+          },
+          "display_case": {
+            "record": "e8609",
+            "pages_with_markup": {},
+            "pages_with_text": [
+              "lists/kind-note-7.html",
+              "lists/timeline-27.html",
+              "relations/e8961037f23c6e2b33d614b12f11ddc889da35510b0b47bef8129849a0b8da38-0.html"
+            ],
+            "static": true,
+            "browser": "not_run"
+          },
+          "journal": {
+            "before": "a0d873027908cb4b25ba64ec02ca11551a02fab96bba02f365a52490b47ebfce",
+            "after": "a0d873027908cb4b25ba64ec02ca11551a02fab96bba02f365a52490b47ebfce",
+            "unchanged": true
+          },
+          "ok": true
+        }
+      },
+      "workspace_S": {
+        "ab/r2-0320-1": {
+          "source": "q9/ab/r2-0320-1",
+          "kit": {
+            "version": "0.32.0",
+            "sha256": "4d2de06e4d2742385dfa00fa1f2126dbbee609269092064d3104cf8a559432dc"
+          },
+          "fixture": {
+            "scale": "S",
+            "format": "v2",
+            "digest": "sha256:9536f15d8d3f30a0814ea33fa38e4de78a5d2de0fe9b05b568b57a848beae459",
+            "kit_commit": "26c28d09289718f0fc499c2975a33f1f59380a4c",
+            "counts": {
+              "runs": 30,
+              "runs_executed": 3,
+              "runs_written": 27,
+              "events": 300,
+              "datasets": 5,
+              "derived_tables": 17,
+              "charts": 27,
+              "context_versions": 5
+            }
+          },
+          "cold": {
+            "build_ms": {
+              "n": 1,
+              "p50": 535.2949588559568,
+              "p95": 535.2949588559568,
+              "max": 535.2949588559568
+            },
+            "wall_ms": {
+              "n": 1,
+              "p50": 630.8003747835755,
+              "p95": 630.8003747835755,
+              "max": 630.8003747835755
+            },
+            "peak_rss_bytes": {
+              "max": 133087232
+            }
+          },
+          "warm": {
+            "build_ms": {
+              "n": 5,
+              "p50": 479.15425011888146,
+              "p95": 495.1914162375033,
+              "max": 495.1914162375033
+            },
+            "wall_ms": {
+              "n": 5,
+              "p50": 567.454291973263,
+              "p95": 590.4709580354393,
+              "max": 590.4709580354393
+            },
+            "peak_rss_bytes": {
+              "max": 114425856
+            }
+          },
+          "unchanged": {
+            "build_ms": {
+              "n": 5,
+              "p50": 15.011999756097794,
+              "p95": 16.075334046036005,
+              "max": 16.075334046036005
+            },
+            "wall_ms": {
+              "n": 5,
+              "p50": 78.77795910462737,
+              "p95": 83.21520872414112,
+              "max": 83.21520872414112
+            },
+            "peak_rss_bytes": {
+              "max": 32931840
+            }
+          },
+          "pages": {
+            "files": 518,
+            "bytes": 13378598,
+            "pages": 511,
+            "index_bytes": 323794,
+            "largest_page": {
+              "path": "index.html",
+              "bytes": 323794
+            }
+          },
+          "browser": {
+            "status": "not_run",
+            "reason": "--browser none"
+          },
+          "display_case": {
+            "record": "e278",
+            "pages_with_markup": {},
+            "pages_with_text": [
+              "index.html",
+              "lists/kind-note-0.html",
+              "lists/timeline-0.html",
+              "relations/d49567c2c621c6be2ebb6a1034b0487831b09c7919cc442254097bef367fa24c-0.html"
+            ],
+            "static": true,
+            "browser": "not_run"
+          },
+          "journal": {
+            "before": "a5d8f6a0f3942be80fcbb66cf6b16e61af88e53bdc5508f291e9d7e5548cd014",
+            "after": "a5d8f6a0f3942be80fcbb66cf6b16e61af88e53bdc5508f291e9d7e5548cd014",
+            "unchanged": true
+          },
+          "ok": true
+        },
+        "ab/r2-0321-1": {
+          "source": "q9/ab/r2-0321-1",
+          "kit": {
+            "version": "0.32.1",
+            "sha256": "a2e48026540f55a1edb6ca92d0aa34da9ed417ce4563b9362acb175b2c5a9eef"
+          },
+          "fixture": {
+            "scale": "S",
+            "format": "v2",
+            "digest": "sha256:a1ee7c3fede22fabd5f6f2ee7c01fd4b2ad4e842ccb82fb4695cb80724941ba8",
+            "kit_commit": "84433ab65b589834b40272ea3f2d967283d62dc3",
+            "counts": {
+              "runs": 30,
+              "runs_executed": 3,
+              "runs_written": 27,
+              "events": 300,
+              "datasets": 5,
+              "derived_tables": 17,
+              "charts": 27,
+              "context_versions": 5
+            }
+          },
+          "cold": {
+            "build_ms": {
+              "n": 1,
+              "p50": 570.570332929492,
+              "p95": 570.570332929492,
+              "max": 570.570332929492
+            },
+            "wall_ms": {
+              "n": 1,
+              "p50": 668.6655408702791,
+              "p95": 668.6655408702791,
+              "max": 668.6655408702791
+            },
+            "peak_rss_bytes": {
+              "max": 133660672
+            }
+          },
+          "warm": {
+            "build_ms": {
+              "n": 5,
+              "p50": 479.34658266603947,
+              "p95": 510.9776658937335,
+              "max": 510.9776658937335
+            },
+            "wall_ms": {
+              "n": 5,
+              "p50": 565.7270001247525,
+              "p95": 606.0139578767121,
+              "max": 606.0139578767121
+            },
+            "peak_rss_bytes": {
+              "max": 114147328
+            }
+          },
+          "unchanged": {
+            "build_ms": {
+              "n": 5,
+              "p50": 18.24662508442998,
+              "p95": 19.84774973243475,
+              "max": 19.84774973243475
+            },
+            "wall_ms": {
+              "n": 5,
+              "p50": 90.24470811709762,
+              "p95": 96.82274982333183,
+              "max": 96.82274982333183
+            },
+            "peak_rss_bytes": {
+              "max": 33767424
+            }
+          },
+          "pages": {
+            "files": 518,
+            "bytes": 15200348,
+            "pages": 511,
+            "index_bytes": 335532,
+            "largest_page": {
+              "path": "index.html",
+              "bytes": 335532
+            }
+          },
+          "browser": {
+            "status": "not_run",
+            "reason": "--browser none"
+          },
+          "display_case": {
+            "record": "e278",
+            "pages_with_markup": {},
+            "pages_with_text": [
+              "index.html",
+              "lists/kind-note-0.html",
+              "lists/timeline-0.html",
+              "relations/d49567c2c621c6be2ebb6a1034b0487831b09c7919cc442254097bef367fa24c-0.html"
+            ],
+            "static": true,
+            "browser": "not_run"
+          },
+          "journal": {
+            "before": "a5d8f6a0f3942be80fcbb66cf6b16e61af88e53bdc5508f291e9d7e5548cd014",
+            "after": "a5d8f6a0f3942be80fcbb66cf6b16e61af88e53bdc5508f291e9d7e5548cd014",
+            "unchanged": true
+          },
+          "ok": true
+        },
+        "ab/r2-0320-2": {
+          "source": "q9/ab/r2-0320-2",
+          "kit": {
+            "version": "0.32.0",
+            "sha256": "4d2de06e4d2742385dfa00fa1f2126dbbee609269092064d3104cf8a559432dc"
+          },
+          "fixture": {
+            "scale": "S",
+            "format": "v2",
+            "digest": "sha256:9536f15d8d3f30a0814ea33fa38e4de78a5d2de0fe9b05b568b57a848beae459",
+            "kit_commit": "26c28d09289718f0fc499c2975a33f1f59380a4c",
+            "counts": {
+              "runs": 30,
+              "runs_executed": 3,
+              "runs_written": 27,
+              "events": 300,
+              "datasets": 5,
+              "derived_tables": 17,
+              "charts": 27,
+              "context_versions": 5
+            }
+          },
+          "cold": {
+            "build_ms": {
+              "n": 1,
+              "p50": 539.3013330176473,
+              "p95": 539.3013330176473,
+              "max": 539.3013330176473
+            },
+            "wall_ms": {
+              "n": 1,
+              "p50": 630.1627499051392,
+              "p95": 630.1627499051392,
+              "max": 630.1627499051392
+            },
+            "peak_rss_bytes": {
+              "max": 133103616
+            }
+          },
+          "warm": {
+            "build_ms": {
+              "n": 5,
+              "p50": 493.00937494263053,
+              "p95": 534.5357083715498,
+              "max": 534.5357083715498
+            },
+            "wall_ms": {
+              "n": 5,
+              "p50": 583.3241669461131,
+              "p95": 630.7617500424385,
+              "max": 630.7617500424385
+            },
+            "peak_rss_bytes": {
+              "max": 113016832
+            }
+          },
+          "unchanged": {
+            "build_ms": {
+              "n": 5,
+              "p50": 12.70954217761755,
+              "p95": 13.089707586914301,
+              "max": 13.089707586914301
+            },
+            "wall_ms": {
+              "n": 5,
+              "p50": 69.42724995315075,
+              "p95": 70.25829097256064,
+              "max": 70.25829097256064
+            },
+            "peak_rss_bytes": {
+              "max": 32686080
+            }
+          },
+          "pages": {
+            "files": 518,
+            "bytes": 13378598,
+            "pages": 511,
+            "index_bytes": 323794,
+            "largest_page": {
+              "path": "index.html",
+              "bytes": 323794
+            }
+          },
+          "browser": {
+            "status": "not_run",
+            "reason": "--browser none"
+          },
+          "display_case": {
+            "record": "e278",
+            "pages_with_markup": {},
+            "pages_with_text": [
+              "index.html",
+              "lists/kind-note-0.html",
+              "lists/timeline-0.html",
+              "relations/d49567c2c621c6be2ebb6a1034b0487831b09c7919cc442254097bef367fa24c-0.html"
+            ],
+            "static": true,
+            "browser": "not_run"
+          },
+          "journal": {
+            "before": "a5d8f6a0f3942be80fcbb66cf6b16e61af88e53bdc5508f291e9d7e5548cd014",
+            "after": "a5d8f6a0f3942be80fcbb66cf6b16e61af88e53bdc5508f291e9d7e5548cd014",
+            "unchanged": true
+          },
+          "ok": true
+        },
+        "ab/r2-0321-2": {
+          "source": "q9/ab/r2-0321-2",
+          "kit": {
+            "version": "0.32.1",
+            "sha256": "a2e48026540f55a1edb6ca92d0aa34da9ed417ce4563b9362acb175b2c5a9eef"
+          },
+          "fixture": {
+            "scale": "S",
+            "format": "v2",
+            "digest": "sha256:a1ee7c3fede22fabd5f6f2ee7c01fd4b2ad4e842ccb82fb4695cb80724941ba8",
+            "kit_commit": "84433ab65b589834b40272ea3f2d967283d62dc3",
+            "counts": {
+              "runs": 30,
+              "runs_executed": 3,
+              "runs_written": 27,
+              "events": 300,
+              "datasets": 5,
+              "derived_tables": 17,
+              "charts": 27,
+              "context_versions": 5
+            }
+          },
+          "cold": {
+            "build_ms": {
+              "n": 1,
+              "p50": 540.1119589805603,
+              "p95": 540.1119589805603,
+              "max": 540.1119589805603
+            },
+            "wall_ms": {
+              "n": 1,
+              "p50": 624.2209579795599,
+              "p95": 624.2209579795599,
+              "max": 624.2209579795599
+            },
+            "peak_rss_bytes": {
+              "max": 132710400
+            }
+          },
+          "warm": {
+            "build_ms": {
+              "n": 5,
+              "p50": 432.88387497887015,
+              "p95": 449.40529111772776,
+              "max": 449.40529111772776
+            },
+            "wall_ms": {
+              "n": 5,
+              "p50": 515.521583147347,
+              "p95": 527.8503750450909,
+              "max": 527.8503750450909
+            },
+            "peak_rss_bytes": {
+              "max": 113967104
+            }
+          },
+          "unchanged": {
+            "build_ms": {
+              "n": 5,
+              "p50": 13.265083078294992,
+              "p95": 13.640833087265491,
+              "max": 13.640833087265491
+            },
+            "wall_ms": {
+              "n": 5,
+              "p50": 72.01958307996392,
+              "p95": 78.86083284392953,
+              "max": 78.86083284392953
+            },
+            "peak_rss_bytes": {
+              "max": 33423360
+            }
+          },
+          "pages": {
+            "files": 518,
+            "bytes": 15200348,
+            "pages": 511,
+            "index_bytes": 335532,
+            "largest_page": {
+              "path": "index.html",
+              "bytes": 335532
+            }
+          },
+          "browser": {
+            "status": "not_run",
+            "reason": "--browser none"
+          },
+          "display_case": {
+            "record": "e278",
+            "pages_with_markup": {},
+            "pages_with_text": [
+              "index.html",
+              "lists/kind-note-0.html",
+              "lists/timeline-0.html",
+              "relations/d49567c2c621c6be2ebb6a1034b0487831b09c7919cc442254097bef367fa24c-0.html"
+            ],
+            "static": true,
+            "browser": "not_run"
+          },
+          "journal": {
+            "before": "a5d8f6a0f3942be80fcbb66cf6b16e61af88e53bdc5508f291e9d7e5548cd014",
+            "after": "a5d8f6a0f3942be80fcbb66cf6b16e61af88e53bdc5508f291e9d7e5548cd014",
+            "unchanged": true
+          },
+          "ok": true
+        }
+      },
+      "retrieval_M_warm_p95_max_ms": {
+        "ab/m-rt-0321-1": 441.6,
+        "ab/m-rt-0321-2": 389.3,
+        "ab/m-rt-0320-3": 313.9,
+        "ab/m-rt-0321-3": 379.4,
+        "ab/m-rt-0320-4": 296.1,
+        "ab/m-rt-0321-4": 431.5,
+        "ab/rt-x0320k-0320f": 467.5,
+        "ab/rt-x0321k-0321f": 363.5,
+        "ab/rt-x0321k-0320f": 593.4
+      },
+      "retrieval_note": "ab/rt-x0321k-0320f is the 0.32.1 kit on the 0.32.0 kit's fixture copy; the 0.32.0 kit refuses the 0.32.1 kit's copy (not a synthetic copy that kit writes); 26c28d0's own retrieval_eval measures only a migrated v1, so the 0.32.0 kit ran with 84433ab's tool",
+      "profile": {
+        "what": "cProfile of core.retrieve, 5 warm calls of the long Korean task, each kit on its own fixture copy",
+        "0.32.0": {
+          "function_calls": 10477826,
+          "seconds": 2.294
+        },
+        "0.32.1": {
+          "function_calls": 10477766,
+          "seconds": 2.274
+        }
+      },
+      "size": "the same M fixture: 0.32.0 250,344,693 B, 0.32.1 293,295,099 B (pages 12,266 both); each page carries the Aelix mark's data URI (1,690 B) twice, as the tab icon and in the footer (#204)"
+    },
+    "below_folder_search_169": {
+      "kit": "0.32.1",
+      "depth": 3,
+      "max_dirs": 2000,
+      "seconds": 0.5,
+      "cases": {
+        "small: 3x3x3 dirs, a project at depth 3": {
+          "p50_ms": 18.91,
+          "p95_ms": 19.36,
+          "max_ms": 19.69,
+          "found": 1,
+          "complete": true
+        },
+        "wide: 12x12x12 = 1,884 dirs, a project at depth 3": {
+          "p50_ms": 67.51,
+          "p95_ms": 73.66,
+          "max_ms": 76.54,
+          "found": 1,
+          "complete": true
+        },
+        "over the cap: 15x15x15 = 3,615 dirs": {
+          "p50_ms": 87.64,
+          "p95_ms": 100.45,
+          "max_ms": 110.91,
+          "found": 0,
+          "complete": false
+        },
+        "a real repository root": {
+          "p50_ms": 3.9,
+          "p95_ms": 4.25,
+          "max_ms": 19.41,
+          "found": 0,
+          "complete": true
+        }
+      }
+    },
+    "observation_171": {
+      "machine": {
+        "platform": "macOS-26.6.2-arm64-arm-64bit",
+        "python": "3.12.13",
+        "machine": "arm64",
+        "cpu_count": 18,
+        "disk": "local APFS SSD (tmp)"
+      },
+      "trees": [
+        {
+          "files": 1000,
+          "calls": [
+            {
+              "before_ms": 48.1,
+              "after_ms": 65.6,
+              "added_ms": 113.7,
+              "recorded": "e3",
+              "line_bytes": 2062,
+              "changes_state": "observed",
+              "changes_reason": null,
+              "changes_total": 1,
+              "session_observation": "on",
+              "first_change_hash": "hashed",
+              "notice": "scripts/x.py --title \"…\"`) to record it. Observed as e3: the command, its scripts and the files changed while it ran (inputs and environment were not captured)."
+            },
+            {
+              "before_ms": 47.5,
+              "after_ms": 70.6,
+              "added_ms": 118.1,
+              "recorded": "e4",
+              "line_bytes": 2062,
+              "changes_state": "observed",
+              "changes_reason": null,
+              "changes_total": 1,
+              "session_observation": "on",
+              "first_change_hash": "hashed",
+              "notice": "; run analysis steps with analytics_run. Observed as e4: the command, its scripts and the files changed while it ran (inputs and environment were not captured)."
+            },
+            {
+              "before_ms": 48.0,
+              "after_ms": 70.0,
+              "added_ms": 118.0,
+              "recorded": "e5",
+              "line_bytes": 2062,
+              "changes_state": "observed",
+              "changes_reason": null,
+              "changes_total": 1,
+              "session_observation": "on",
+              "first_change_hash": "hashed",
+              "notice": "; run analysis steps with analytics_run. Observed as e5: the command, its scripts and the files changed while it ran (inputs and environment were not captured)."
+            },
+            {
+              "before_ms": 60.8,
+              "after_ms": 83.6,
+              "added_ms": 144.4,
+              "recorded": "e6",
+              "line_bytes": 2063,
+              "changes_state": "observed",
+              "changes_reason": null,
+              "changes_total": 1,
+              "session_observation": "on",
+              "first_change_hash": "hashed",
+              "notice": "; run analysis steps with analytics_run. Observed as e6: the command, its scripts and the files changed while it ran (inputs and environment were not captured)."
+            }
+          ]
+        },
+        {
+          "files": 10000,
+          "calls": [
+            {
+              "before_ms": 95.4,
+              "after_ms": 125.0,
+              "added_ms": 220.4,
+              "recorded": "e3",
+              "line_bytes": 2063,
+              "changes_state": "observed",
+              "changes_reason": null,
+              "changes_total": 1,
+              "session_observation": "on",
+              "first_change_hash": "hashed",
+              "notice": "scripts/x.py --title \"…\"`) to record it. Observed as e3: the command, its scripts and the files changed while it ran (inputs and environment were not captured)."
+            },
+            {
+              "before_ms": 93.4,
+              "after_ms": 121.8,
+              "added_ms": 215.2,
+              "recorded": "e4",
+              "line_bytes": 2063,
+              "changes_state": "observed",
+              "changes_reason": null,
+              "changes_total": 1,
+              "session_observation": "on",
+              "first_change_hash": "hashed",
+              "notice": "; run analysis steps with analytics_run. Observed as e4: the command, its scripts and the files changed while it ran (inputs and environment were not captured)."
+            },
+            {
+              "before_ms": 88.5,
+              "after_ms": 97.3,
+              "added_ms": 185.7,
+              "recorded": "e5",
+              "line_bytes": 2063,
+              "changes_state": "observed",
+              "changes_reason": null,
+              "changes_total": 1,
+              "session_observation": "on",
+              "first_change_hash": "hashed",
+              "notice": "; run analysis steps with analytics_run. Observed as e5: the command, its scripts and the files changed while it ran (inputs and environment were not captured)."
+            },
+            {
+              "before_ms": 90.1,
+              "after_ms": 106.7,
+              "added_ms": 196.8,
+              "recorded": "e6",
+              "line_bytes": 2063,
+              "changes_state": "observed",
+              "changes_reason": null,
+              "changes_total": 1,
+              "session_observation": "on",
+              "first_change_hash": "hashed",
+              "notice": "; run analysis steps with analytics_run. Observed as e6: the command, its scripts and the files changed while it ran (inputs and environment were not captured)."
+            }
+          ]
+        },
+        {
+          "files": 50000,
+          "calls": [
+            {
+              "before_ms": 126.1,
+              "after_ms": 58.2,
+              "added_ms": 184.3,
+              "recorded": "e3",
+              "line_bytes": 1860,
+              "changes_state": "not_observed",
+              "changes_reason": "too_many_entries",
+              "changes_total": null,
+              "session_observation": "off",
+              "first_change_hash": null,
+              "notice": "ssion (the project has more files than an observation looks at, or looking took too long); Python run outside the kit is still recorded as an observed activity."
+            },
+            {
+              "before_ms": 37.4,
+              "after_ms": 54.7,
+              "added_ms": 92.1,
+              "recorded": "e4",
+              "line_bytes": 1839,
+              "changes_state": "not_observed",
+              "changes_reason": "observation_off",
+              "changes_total": null,
+              "session_observation": "off",
+              "first_change_hash": null,
+              "notice": " run analysis steps with analytics_run. Observed as e4: the command and its scripts; file changes were not observed (change observation is off in this session)."
+            },
+            {
+              "before_ms": 34.1,
+              "after_ms": 53.4,
+              "added_ms": 87.5,
+              "recorded": "e5",
+              "line_bytes": 1839,
+              "changes_state": "not_observed",
+              "changes_reason": "observation_off",
+              "changes_total": null,
+              "session_observation": "off",
+              "first_change_hash": null,
+              "notice": " run analysis steps with analytics_run. Observed as e5: the command and its scripts; file changes were not observed (change observation is off in this session)."
+            },
+            {
+              "before_ms": 48.7,
+              "after_ms": 67.4,
+              "added_ms": 116.2,
+              "recorded": "e6",
+              "line_bytes": 1839,
+              "changes_state": "not_observed",
+              "changes_reason": "observation_off",
+              "changes_total": null,
+              "session_observation": "off",
+              "first_change_hash": null,
+              "notice": " run analysis steps with analytics_run. Observed as e6: the command and its scripts; file changes were not observed (change observation is off in this session)."
+            }
+          ]
+        }
+      ],
+      "single_dir": {
+        "entries": 25000,
+        "calls": [
+          {
+            "before_ms": 56.4,
+            "after_ms": 65.6,
+            "added_ms": 122.0,
+            "recorded": "e3",
+            "line_bytes": 1860,
+            "changes_state": "not_observed",
+            "changes_reason": "too_many_entries",
+            "changes_total": null,
+            "session_observation": "off",
+            "first_change_hash": null,
+            "notice": "ssion (the project has more files than an observation looks at, or looking took too long); Python run outside the kit is still recorded as an observed activity."
+          },
+          {
+            "before_ms": 38.6,
+            "after_ms": 60.2,
+            "added_ms": 98.8,
+            "recorded": "e4",
+            "line_bytes": 1839,
+            "changes_state": "not_observed",
+            "changes_reason": "observation_off",
+            "changes_total": null,
+            "session_observation": "off",
+            "first_change_hash": null,
+            "notice": " run analysis steps with analytics_run. Observed as e4: the command and its scripts; file changes were not observed (change observation is off in this session)."
+          },
+          {
+            "before_ms": 18.1,
+            "after_ms": 19.3,
+            "added_ms": 37.4,
+            "recorded": "e4",
+            "line_bytes": 1839,
+            "changes_state": "not_observed",
+            "changes_reason": "observation_off",
+            "changes_total": null,
+            "session_observation": "off",
+            "first_change_hash": null,
+            "notice": null
+          }
+        ]
+      },
+      "hash": [
+        {
+          "mib": 64,
+          "before_ms": 41.7,
+          "after_ms": 75.3,
+          "added_ms": 117.0,
+          "recorded": "e3",
+          "line_bytes": 1621,
+          "changes_state": "observed",
+          "changes_reason": null,
+          "changes_total": 1,
+          "session_observation": "on",
+          "first_change_hash": "hashed",
+          "notice": "aelix-analytics: files changed while this ran and no run or import recorded them (observed as e3); record data with analytics_import or analytics_run."
+        },
+        {
+          "mib": 200,
+          "before_ms": 44.1,
+          "after_ms": 132.3,
+          "added_ms": 176.4,
+          "recorded": "e4",
+          "line_bytes": 1624,
+          "changes_state": "observed",
+          "changes_reason": null,
+          "changes_total": 1,
+          "session_observation": "on",
+          "first_change_hash": "hashed",
+          "notice": "aelix-analytics: files changed while this ran and no run or import recorded them (observed as e4); record data with analytics_import or analytics_run."
+        },
+        {
+          "mib": 512,
+          "before_ms": 34.0,
+          "after_ms": 39.7,
+          "added_ms": 73.7,
+          "recorded": "e5",
+          "line_bytes": 1568,
+          "changes_state": "observed",
+          "changes_reason": null,
+          "changes_total": 1,
+          "session_observation": "on",
+          "first_change_hash": "over_budget",
+          "notice": "aelix-analytics: files changed while this ran and the kit could not check whether a run or import recorded them (observed as e5)."
+        }
+      ],
+      "lines": {
+        "typical": {
+          "before_ms": 19.3,
+          "after_ms": 35.5,
+          "added_ms": 54.8,
+          "recorded": "e3",
+          "line_bytes": 2073,
+          "changes_state": "observed",
+          "changes_reason": null,
+          "changes_total": 1,
+          "session_observation": "on",
+          "first_change_hash": "hashed",
+          "notice": "scripts/x.py --title \"…\"`) to record it. Observed as e3: the command, its scripts and the files changed while it ran (inputs and environment were not captured)."
+        },
+        "400_changes": {
+          "before_ms": 21.7,
+          "after_ms": 37.9,
+          "added_ms": 59.5,
+          "recorded": "e4",
+          "line_bytes": 13705,
+          "changes_state": "observed",
+          "changes_reason": null,
+          "changes_total": 400,
+          "session_observation": "on",
+          "first_change_hash": "hashed",
+          "notice": "aelix-analytics: files changed while this ran and no run or import recorded them (observed as e4); record data with analytics_import or analytics_run."
+        },
+        "20kb_command": {
+          "before_ms": 21.4,
+          "after_ms": 42.0,
+          "added_ms": 63.3,
+          "recorded": "e5",
+          "line_bytes": 6167,
+          "changes_state": "observed",
+          "changes_reason": null,
+          "changes_total": 0,
+          "session_observation": "on",
+          "first_change_hash": null,
+          "notice": "; run analysis steps with analytics_run. Observed as e5: the command, its scripts and the files changed while it ran (inputs and environment were not captured)."
+        }
+      }
+    }
+  },
+  "q7_migration": {
+    "S": {
+      "files": 228,
+      "bytes": 2896689,
+      "excluded": 5,
+      "not_copied": 0,
+      "warnings": [],
+      "leftover_temp": [],
+      "real_s": 1.28,
+      "max_rss_bytes": 36995072,
+      "source_tree": "unchanged: the sha256 of every file of the source copy equals the fixture's"
+    },
+    "M": {
+      "files": 2036,
+      "bytes": 223093123,
+      "excluded": 5,
+      "not_copied": 0,
+      "warnings": [],
+      "leftover_temp": [],
+      "real_s": 10.94,
+      "max_rss_bytes": 79331328,
+      "source_tree": "unchanged: the sha256 of every file of the source copy equals the fixture's"
+    }
+  },
+  "q16": {
+    "report_storage_eval": {
+      "ok": true,
+      "assertions": {
+        "same_request_existing": true,
+        "v1_hashes_unchanged_after_v2_and_state_updates": true
+      },
+      "source_commit": "84433ab65b589834b40272ea3f2d967283d62dc3"
+    },
+    "report_collection_eval": {
+      "ok": true,
+      "source_commit": "84433ab65b589834b40272ea3f2d967283d62dc3",
+      "assertions": {
+        "partial_counts": true,
+        "failed_member_added_as_new_snapshot": true,
+        "same_request_existing": true,
+        "repeat_render_deterministic": true,
+        "v1_bytes_metadata_membership_unchanged": true
+      }
+    }
+  },
+  "q17a": {
+    "prepare": {
+      "checkout": {
+        "path": "<harness checkout 84433ab>",
+        "commit": "84433ab65b589834b40272ea3f2d967283d62dc3",
+        "dirty": false,
+        "kit_version": "0.32.1"
+      },
+      "wheel": {
+        "file": "aelix_analytics-0.32.1-py3-none-any.whl",
+        "sha256": "878741132f704146ecae77a1ca6bb83d63fefe18a8ec99ce43b5a87dcdbb304e",
+        "bytes": 1359171
+      },
+      "uv": {
+        "copied_from": "/opt/homebrew/Cellar/uv/0.11.19/bin/uv",
+        "version": "uv 0.11.19 (Homebrew 2026-06-03 aarch64-apple-darwin)"
+      },
+      "python": "3.12.13",
+      "analysis_packages": {
+        "contourpy": "1.4.0",
+        "cycler": "0.12.1",
+        "duckdb": "1.5.6",
+        "fonttools": "4.68.0",
+        "kiwisolver": "1.5.1",
+        "markdown-it-py": "4.3.0",
+        "matplotlib": "3.11.2",
+        "mdurl": "0.1.2",
+        "narwhals": "2.29.0",
+        "numpy": "2.5.5",
+        "packaging": "26.3",
+        "pillow": "13.0.0",
+        "plotly": "6.9.0",
+        "polars": "1.44.2",
+        "polars-runtime-32": "1.44.2",
+        "pyarrow": "26.0.1",
+        "pygments": "2.21.0",
+        "pyparsing": "3.3.3",
+        "python-dateutil": "4.0.0",
+        "tzdata": "2026.6"
+      },
+      "data": {
+        "file": "data/orders.csv",
+        "sha256": "d4d76e8f220b8602c22a4c23031dc02a8512c081637da50f9b05f06e64062037",
+        "rows": 856,
+        "seed": 23
+      }
+    },
+    "scripts": "the six of 0.32.0's run, byte for byte (sha256 in the run folder)",
+    "sessions": [
+      {
+        "number": 1,
+        "started_at": "2026-11-21T11:40:08+09:00",
+        "ended_at": "2026-11-21T11:40:10+09:00",
+        "exit_code": 0,
+        "left_running": [],
+        "script": {
+          "file": "<run folder>/q17a/rehearse-a1.zsh",
+          "sha256": "52d0948d1a615c5811fddaf8683e15f8b4d3bf947ab27bdba9fe74e88d64de2f"
+        },
+        "denials": []
+      },
+      {
+        "number": 2,
+        "started_at": "2026-11-21T11:40:13+09:00",
+        "ended_at": "2026-11-21T11:40:50+09:00",
+        "exit_code": 0,
+        "left_running": [],
+        "script": {
+          "file": "<run folder>/q17a/rehearse-a2.zsh",
+          "sha256": "3797e21ae847c57eea01eed0c475f6b5aa65f6e02c6a808e89db2110c247100e"
+        },
+        "denials": []
+      },
+      {
+        "number": 3,
+        "started_at": "2026-11-21T11:40:54+09:00",
+        "ended_at": "2026-11-21T11:41:02+09:00",
+        "exit_code": 0,
+        "left_running": [],
+        "script": {
+          "file": "<run folder>/q17a/rehearse-a3.zsh",
+          "sha256": "e85d475fc5bd44c5dd7457e8a4eea8717be30f26d76267b78bf7c5f6da31233b"
+        },
+        "denials": []
+      },
+      {
+        "number": 4,
+        "started_at": "2026-11-21T11:41:05+09:00",
+        "ended_at": "2026-11-21T11:41:11+09:00",
+        "exit_code": 0,
+        "left_running": [],
+        "script": {
+          "file": "<run folder>/q17a/rehearse-a4.zsh",
+          "sha256": "ac0bac72c0887743a9e27658ec5af00a9a66df8eb27ca27954afd23ca24c12a9"
+        },
+        "denials": []
+      },
+      {
+        "number": 5,
+        "started_at": "2026-11-21T11:41:14+09:00",
+        "ended_at": "2026-11-21T11:41:16+09:00",
+        "exit_code": 0,
+        "left_running": [],
+        "script": {
+          "file": "<run folder>/q17a/rehearse-a5.zsh",
+          "sha256": "96d14074ffb188504bdf142bc260ecd9234bcebf5bc129541d10a85ab08862ba"
+        },
+        "denials": []
+      },
+      {
+        "number": 6,
+        "started_at": "2026-11-21T11:41:19+09:00",
+        "ended_at": "2026-11-21T11:41:20+09:00",
+        "exit_code": 0,
+        "left_running": [],
+        "script": {
+          "file": "<run folder>/q17a/verify-v1.zsh",
+          "sha256": "12083524614711e30ebc1572887070aeb0153755b423eb11f9a67d5d57b9a320"
+        },
+        "denials": []
+      }
+    ],
+    "check": {
+      "model_calls": 0,
+      "attempts": 0,
+      "problems": [],
+      "passed": true
+    },
+    "against_0_32_0": [
+      "the head line workspace: instead of report: (#161) and the render notice that follows it",
+      "pyarrow 26.0.1 and numpy 2.5.5 (0.32.0: 26.0.0 and 2.5.4), as prepare resolved them",
+      "ids, times, paths and durations; nothing else"
+    ]
+  },
+  "not_run": [
+    "files read (Q9): no portable counter in the standard library",
+    "Q9 on Linux and Windows, scale L, a machine without load",
+    "Q17-a step 5 (moving through the Workspace) and a person's usability (the owner's decision), Q17-b (kit 0.25.0's record)"
+  ]
+}

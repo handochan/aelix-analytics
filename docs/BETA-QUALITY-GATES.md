@@ -84,7 +84,8 @@ kit 버전별 [변경 이력](../CHANGELOG.md), 칸마다 증거를 단 [지원 
 Release, [기여 가이드](../CONTRIBUTING.md#릴리스-절차))와 보안 정책의 나머지(보안 수정은 최근 릴리스만, 응답 7일·판단 14일, advisory 공지,
 [보안 정책](../SECURITY.md#지원하는-버전과-처리))는 2026-10-30에 정했다(#24). 설치·제거·업그레이드의 시험은 저장소에 있다(`tests/test_packaging.py`:
 PyPI 자리의 loopback 색인, aelix의 확장 명령, kit 0.25.0 wheel에서의 업그레이드). 출시 후보 0.32.0의 파일로 그 시험을 세 OS에서 돌렸고
-(release 실행 41150700659), 지원표를 그 결과로 다시 채웠다(2026-11-04). 저장소는 공개이고 GitHub의 비공개 취약점 신고를 켰다(2026-10-21, #22). Q1의 판정은 B6의 결과표가 한다.
+(release 실행 41150700659), 지원표를 그 결과로 다시 채웠다(2026-11-04). 첫 게시본이 될 0.32.1의 후보로 다시 돌려(release 실행 44753895153)
+지원표를 다시 채웠다(2026-11-21). 저장소는 공개이고 GitHub의 비공개 취약점 신고를 켰다(2026-10-21, #22). Q1의 판정은 B6의 결과표가 한다.
 
 ### 아키텍처 경계의 검증
 
@@ -397,24 +398,24 @@ PR에는 문제를 재현하는 입력, 변경 후 행동, 바뀐 계약, 비교
 
 | Gate | 결과(pass/fail/not run) | commit·artifact | 환경·모델 | 수행자 | 증거 경로 | 제한·후속 작업 |
 |---|---|---|---|---|---|---|
-| Q1 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), release `verify` 세 OS(41150700659), aelix 0.1.0b2 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md), [지원 범위](SUPPORT.md)(후보로 다시 채움, 2026-11-04) | PyPI에서 이름으로 설치는 게시 뒤(릴리스 절차 6단계) |
-| 모델 게이트([제품 효과 평가 설계](design/PRODUCT-EVALUATION.md) 8절) | 규칙대로는 gpt-6.1-sol fail(R4), Qwen3.8 27B fail(R2). 소유자 판정(2026-11-04): gpt-6.1-sol pass(R4는 두 조건 모두 만점이라 실패로 보지 않음, O9), Qwen3.8 27B의 R2는 알려진 원인으로 수용(O11) | kit 0.32.0(`src/`·`extension/`이 후보 `26c28d0`과 같음), 하네스 `77a170d`, 채점 `5db7477` | aelix 0.1.0b2, gpt-6.1-sol, Qwen3.8 27B(OpenRouter, 서빙 미고정), macOS 26.6.2 arm64 | 에이전트 실행·채점, 소유자가 정답·맥락 오류 확정 | [2026-11-04-issue-24-product-eval](verification/2026-11-04-issue-24-product-eval.md) | 소유자 판정으로 출시 보류 사유가 아니다. R2의 원인(#156 글자 수, #158 줄여 쓴 run ID)은 0.32.1에서 고친다. 지원 하단의 로컬 Qwen은 재지 않음(O10). 그 밖의 개선 후보는 #152–#155 |
-| Q2 | 규칙대로는 gpt-6.1-sol fail(R4: 회수 A·V 모두 만점), Qwen3.8 27B pass(R4 A 1.00 · V 0.89). 소유자 판정(2026-11-04): gpt-6.1-sol의 R4는 천장이라 실패로 보지 않음(O9) | 같음 | 같음 | 같음 | 같음 | 3회 반복, fixture seed 0 하나 |
-| Q3 | 보고(R6: A의 토큰이 V의 1.2배를 넘은 과제 gpt 6개, Qwen 6개) | 같음 | 같음 | 같음 | 같음 | 결정적 회수·응답 bytes는 Q9 행의 기록 |
+| Q1 | pass | 후보 0.32.1 wheel `87874113…`(main `494d1ce`) | CI 세 OS(44738231086), release `verify` 세 OS(44753895153), aelix 0.1.0b2 | 에이전트 | [2026-11-21-issue-24-b6-deterministic](verification/2026-11-21-issue-24-b6-deterministic.md), [지원 범위](SUPPORT.md)(후보로 다시 채움, 2026-11-21) | PyPI에서 이름으로 설치는 게시 뒤(릴리스 절차 6단계) |
+| 모델 게이트([제품 효과 평가 설계](design/PRODUCT-EVALUATION.md) 8절) | gpt-6.1-sol pass, Qwen3.8 27B pass(규칙대로. O9·O11을 쓸 일이 없음) | kit 0.32.1(하네스 clean `84433ab`, `src/`·`extension/`이 후보 `494d1ce`와 같음), 채점 `d5240a7`(#214) | aelix 0.1.0b2, gpt-6.1-sol, Qwen3.8 27B(OpenRouter, 서빙 미고정), macOS 26.6.2 arm64 | 에이전트 실행·채점, 소유자가 정답·맥락 오류 확정 | [2026-11-21-issue-24-product-eval](verification/2026-11-21-issue-24-product-eval.md) | 지원 하단의 로컬 Qwen은 재지 않음(O10). fixture에 남은 하네스 python의 경로를 따라 Qwen run 13개(A 4, V 9)가 작업 루트 밖을 썼고, 그 가운데 V 1개는 하네스의 kit을 실행했다. 그 (과제, 반복)을 두 조건에서 빼도 두 모델 모두 pass. 하네스의 후속은 [#217](https://github.com/handochan/aelix-analytics/issues/217)(fixture의 경로)·[#216](https://github.com/handochan/aelix-analytics/issues/216)(비밀 검사의 표시). 개선 후보 #152–#155는 열림 |
+| Q2 | pass(두 모델. R1 A·V 1.00, 확정한 맥락 오류 A 0, R4 gpt A 1.00 · V 0.91, Qwen A 0.91 · V 0.68) | 같음 | 같음 | 같음 | 같음 | 3회 반복, fixture seed 0 하나 |
+| Q3 | 보고(R6: A의 토큰이 V의 1.2배를 넘은 과제 gpt 4개, Qwen 5개) | 같음 | 같음 | 같음 | 같음 | 결정적 회수·응답 bytes는 Q9 행의 기록 |
 | Q13 | pass(R5, 두 모델) | 같음 | 같음 | 같음 | 같음 | — |
-| Q5 | pass(측정 범위) | kit 0.32.0(`src/`·`extension/`이 후보 `26c28d0`과 같음), 하네스 `77a170d`, 채점 `53cc9f0`. 정책 시험은 후보 CI | aelix 0.1.0b2, gpt-6.1-sol, Qwen3.8 27B(OpenRouter, 서빙 미고정), macOS 26.6.2 arm64. CI 세 OS(41150692492) | 에이전트 | [2026-11-04-issue-24-q5-q11](verification/2026-11-04-issue-24-q5-q11.md) | 상시 조건에서 제안 후보 기록이 생기지 않아 문턱 판정·알림은 실제 세션에서 실행되지 않음(결정적 시험으로만 확인). 제안의 유효성·중복, 등록·보류 예제 미측정. Qwen T12는 반복 1만(소유자), 그 requested는 402로 미실행 |
-| Q11 | pass(측정 범위) | 같음 | aelix 0.1.0b2, gpt-6.1-sol, Qwen3.8 27B(OpenRouter, 서빙 미고정), macOS 26.6.2 arm64 | 에이전트 | [2026-11-04-issue-24-q5-q11](verification/2026-11-04-issue-24-q5-q11.md) | 좁은 표면은 반복 1회, 도구 schema 바이트 미측정. kit의 조회 인자 거절(`bad_query`)은 Qwen 전체 목록 T03에서 10건(9건이 한 run). 원시 읽기는 #153, 하위 모델의 도구 오류는 #154 |
-| Q4 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), macOS 26.6.2 arm64 로컬, 모델 없음(S·M fixture `check`) | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | — |
+| Q5 | 측정 범위에서 기준 하나를 한 칸이 못 채움: Qwen T12 상시(반복 1회)의 필수 사실 2/3 < 무요청 8/9. 소유자 판정(2026-11-21): 편차로 수용. 정책의 결정적 시험은 pass | kit 0.32.1(하네스 clean `84433ab`), 채점 `d5240a7`. 정책 시험은 후보 CI | aelix 0.1.0b2, gpt-6.1-sol, Qwen3.8 27B(OpenRouter, 서빙 미고정), macOS 26.6.2 arm64. CI 세 OS(44738231086) | 에이전트 | [2026-11-21-issue-24-q5-q11](verification/2026-11-21-issue-24-q5-q11.md) | 상시 조건에서 제안 후보 기록이 생기지 않아 문턱 판정·알림은 실제 세션에서 실행되지 않음(결정적 시험으로만 확인). 제안의 유효성·중복, 등록·보류 예제 미측정. Qwen T12는 반복 1만(소유자) |
+| Q11 | pass(측정 범위, 에이전트의 판단) | 같음 | aelix 0.1.0b2, gpt-6.1-sol, Qwen3.8 27B(OpenRouter, 서빙 미고정), macOS 26.6.2 arm64 | 에이전트 | [2026-11-21-issue-24-q5-q11](verification/2026-11-21-issue-24-q5-q11.md) | 좁은 표면은 반복 1회. 도구 선택 정확도(고정한 모호·유사 요청), 새 도구 대안, 로컬 모델은 미측정. 도구 schema는 기본 표면 15,575 B, 그 가운데 확장 몫 9,780 B(dry run의 첫 요청). 원시 읽기는 #153, 하위 모델의 도구 오류는 #154 |
+| Q4 | pass | 후보 0.32.1 wheel `87874113…`(main `494d1ce`) | CI 세 OS(44738231086), macOS 26.6.2 arm64 로컬, 모델 없음(S·M fixture `check`) | 에이전트 | [2026-11-21-issue-24-b6-deterministic](verification/2026-11-21-issue-24-b6-deterministic.md) | — |
 | Q6 | not run(첫 베타 뒤로 미룸, 2026-11-04 소유자) | — | — | — | — | 소유자의 사람 탐색. 출시 보류 사유로 두지 않음(§2) |
-| Q7 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), macOS 26.6.2 arm64 로컬, 모델 없음(S·M `v1` 전환) | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | — |
-| Q8 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492) | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | — |
-| Q9 | pass(측정 범위) | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`), 도구 `056760d`·`80a8510` | macOS 26.6.2 arm64 로컬, 모델 없음, Chromium 156 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | Linux·Windows·L 규모·읽은 파일량 미측정. M에서 run 끝의 전체 빌드 6.3초 |
-| Q10 | 표시 경계 pass, 분석 검사는 판정 없음(T07–T09는 R5로 보고) | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`), 모델 과제는 위 모델 게이트 행과 같음 | CI 세 OS(41150692492), macOS 26.6.2 arm64 로컬, 모델 없음, Chromium 156. 모델 과제는 위 모델 게이트 행과 같음 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md), [2026-11-04-issue-24-product-eval](verification/2026-11-04-issue-24-product-eval.md) | 분석 검사 예제(T07–T09)는 확장 유무 비교의 해 없음(R5)으로만 보고했다(답 성공 A:V, gpt T07 2:0·T08 0:0·T09 3:3, Qwen T07 3:1·T08 3:3·T09 3:2). 설계대로 판정 기준으로 쓰지 않는다([제품 효과 평가 설계](design/PRODUCT-EVALUATION.md)) |
-| Q12 | 결정적 사례 pass, 새 세션 재개(C3) 두 모델의 A·V 회수 9/9 | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`), 모델 과제는 위 모델 게이트 행과 같음 | CI 세 OS(41150692492), 모델 과제는 aelix 0.1.0b2, gpt-6.1-sol, Qwen3.8 27B(OpenRouter, 서빙 미고정), macOS 26.6.2 arm64 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md), [2026-11-04-issue-24-product-eval](verification/2026-11-04-issue-24-product-eval.md) | 정의 변경 하나만 잼. A와 V의 차이는 없음 |
+| Q7 | pass | 후보 0.32.1 wheel `87874113…`(main `494d1ce`) | CI 세 OS(44738231086), macOS 26.6.2 arm64 로컬, 모델 없음(S·M `v1` 전환) | 에이전트 | [2026-11-21-issue-24-b6-deterministic](verification/2026-11-21-issue-24-b6-deterministic.md) | — |
+| Q8 | pass | 후보 0.32.1 wheel `87874113…`(main `494d1ce`) | CI 세 OS(44738231086) | 에이전트 | [2026-11-21-issue-24-b6-deterministic](verification/2026-11-21-issue-24-b6-deterministic.md) | — |
+| Q9 | pass(측정 범위) | 후보 0.32.1 wheel `87874113…`(main `494d1ce`), 도구 `84433ab` | macOS 26.6.2 arm64 로컬(다른 작업의 부하 아래), 모델 없음, Chromium 156 | 에이전트 | [2026-11-21-issue-24-b6-deterministic](verification/2026-11-21-issue-24-b6-deterministic.md) | Linux·Windows·L 규모·읽은 파일량·부하 없는 기기는 미측정. 교차 측정 한 번의 M warm 조회 p95 593 ms(목표 500 ms, 부하 아래). M의 warm 전체 빌드 p50 9.9–13.2초(같은 부하에서 0.32.0 kit 10.0–10.7초). Workspace 전체 크기 +17%(쪽마다 #204의 마크) |
+| Q10 | 표시 경계 pass, 분석 검사는 판정 없음(T07–T09는 R5로 보고) | 후보 0.32.1 wheel `87874113…`(main `494d1ce`), 모델 과제는 위 모델 게이트 행과 같음 | CI 세 OS(44738231086), macOS 26.6.2 arm64 로컬, 모델 없음, Chromium 156. 모델 과제는 위 모델 게이트 행과 같음 | 에이전트 | [2026-11-21-issue-24-b6-deterministic](verification/2026-11-21-issue-24-b6-deterministic.md), [2026-11-21-issue-24-product-eval](verification/2026-11-21-issue-24-product-eval.md) | 분석 검사 예제(T07–T09)는 확장 유무 비교의 해 없음(R5)으로만 보고했다(답 성공 A:V, gpt T07 1:0·T08 0:0·T09 3:3, Qwen T07 3:1·T08 1:1·T09 2:1). 설계대로 판정 기준으로 쓰지 않는다([제품 효과 평가 설계](design/PRODUCT-EVALUATION.md)) |
+| Q12 | 결정적 사례 pass, 새 세션 재개(C3)의 회수 gpt A 9/9 · V 7/9, Qwen A 7/9 · V 5/9 | 후보 0.32.1 wheel `87874113…`(main `494d1ce`), 모델 과제는 위 모델 게이트 행과 같음 | CI 세 OS(44738231086), 모델 과제는 aelix 0.1.0b2, gpt-6.1-sol, Qwen3.8 27B(OpenRouter, 서빙 미고정), macOS 26.6.2 arm64 | 에이전트 | [2026-11-21-issue-24-b6-deterministic](verification/2026-11-21-issue-24-b6-deterministic.md), [2026-11-21-issue-24-product-eval](verification/2026-11-21-issue-24-product-eval.md) | 정의 변경 하나만 잼 |
 | Q14 | not run(첫 베타 뒤로 미룸, 2026-11-04 소유자. 아래 #20·#21 몫은 pass) | — | — | — | — | 소유자의 다른 기기 열람. 출시 보류 사유로 두지 않음(§2) |
-| Q15 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), floor 3.11 세 OS | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | — |
-| Q16 | pass | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`) | CI 세 OS(41150692492), macOS 26.6.2 arm64 로컬, 모델 없음 | 에이전트 | [2026-10-31-issue-24-b6-deterministic](verification/2026-10-31-issue-24-b6-deterministic.md) | 사람의 Reports 탐색은 Q6 |
-| Q17-a 기능 | pass(Workspace 이동 미측정) | 후보 0.32.0 wheel `203f7e10…`(main `26c28d0`). 처음 잰 것은 kit 0.25.0 wheel `660beb63…` | macOS 26.6.2, sandbox, 모델 없음 | 에이전트(2026-10-21 소유자 결정으로 갈음) | [2026-10-31-issue-24-q17a](verification/2026-10-31-issue-24-q17a.md), [2026-10-22-issue-23-q17](verification/2026-10-22-issue-23-q17.md) | 측정 범위의 `not_covered` |
+| Q15 | pass | 후보 0.32.1 wheel `87874113…`(main `494d1ce`) | CI 세 OS(44738231086), floor 3.11 세 OS | 에이전트 | [2026-11-21-issue-24-b6-deterministic](verification/2026-11-21-issue-24-b6-deterministic.md) | — |
+| Q16 | pass | 후보 0.32.1 wheel `87874113…`(main `494d1ce`) | CI 세 OS(44738231086), macOS 26.6.2 arm64 로컬, 모델 없음 | 에이전트 | [2026-11-21-issue-24-b6-deterministic](verification/2026-11-21-issue-24-b6-deterministic.md) | 사람의 Reports 탐색은 Q6 |
+| Q17-a 기능 | pass(Workspace 이동 미측정) | 후보 0.32.1 wheel `87874113…`(main `494d1ce`). 처음 잰 것은 kit 0.25.0 wheel `660beb63…` | macOS 26.6.2, sandbox, 모델 없음 | 에이전트(2026-10-21 소유자 결정으로 갈음) | [2026-11-21-issue-24-b6-deterministic](verification/2026-11-21-issue-24-b6-deterministic.md)의 Q17-a, [2026-10-22-issue-23-q17](verification/2026-10-22-issue-23-q17.md) | 측정 범위의 `not_covered` |
 | Q17-a 사람의 사용성 | not_run | — | — | — | 같음 | 소유자 결정으로 갈음(#39를 좁힘) |
 | Q17-b | pass | kit 0.25.0 wheel `660beb63…`, aelix 0.1.0b2 | gpt-6.1-sol, Qwen3.8 27B(OpenRouter) | 에이전트 세션 + 소유자 검토 | [2026-10-22-issue-23-q17](verification/2026-10-22-issue-23-q17.md) | 세션은 터미널 없이 에이전트가 띄움. OpenRouter 서빙 미고정. 후보로는 다시 재지 않았다(#24의 모델 캠페인은 Q17-b를 재지 않음) |
 | Q14의 #20 몫(받은 사본) | pass(측정 범위). Q14 자체는 not_run | kit 0.28.0 `ad509b2`(시험·CI `5b8114c`) | macOS 26.6.2 로컬(Chromium·Firefox·WebKit), CI 세 OS와 Linux Chromium | 에이전트 | [2026-10-27-issue-20-reader](verification/2026-10-27-issue-20-reader.md) | P1 게시(#21), 다른 기기의 열람(#24), OS 보관 도구, Safari·모바일, M의 Linux·Windows는 not_run |
@@ -422,8 +423,11 @@ PR에는 문제를 재현하는 입력, 변경 후 행동, 바뀐 계약, 비교
 
 필수 게이트 실패·미실행, 설명되지 않은 기록 유실, 잘못된 버전 연결, 실제 문맥 한계로 과제를 진행하지 못하는 문제,
 설치물 누락은 출시 보류 사유다. 알려진 복구·멱등성 한계는 지원 범위를 제한해 공개하되, 그것을 구현 완료로 표시하지 않는다.
-첫 베타(0.32.0)를 앞두고 소유자가 다음을 출시 보류 사유에서 뺐다(2026-11-04, #24): 모델 게이트의 상위 모델 R4 천장과 하위 모델 R2(위 행),
-지원 하단의 로컬 Qwen, Q6·Q14의 미실행. 결과표에는 측정한 그대로 적고 판정을 따로 적는다.
-그래서 0.32.0에는 위 결과표 기준으로 남은 출시 보류 사유가 없다(2026-11-04). Q17-a의 사람 사용성은 이미 소유자 결정으로 갈음했다.
+첫 베타를 앞두고 소유자가 다음을 출시 보류 사유에서 뺐다(2026-11-04, #24): 지원 하단의 로컬 Qwen, Q6·Q14의 미실행.
+그때 0.32.0의 모델 게이트에서 정한 상위 모델 R4의 천장(O9)과 하위 모델 R2의 수용(O11)은, 후보 0.32.1로 다시 잰 결과 쓸 일이 없었다
+(두 모델 모두 규칙대로 통과, 2026-11-21). 0.32.0은 게시하지 않았고, 0.32.1이 첫 게시본이 될 후보다.
+위 결과표에서 Q6·Q14·Q17-a 사람의 사용성(미실행), Q17-b와 Q14의 #20·#21 몫(앞선 기록)을 뺀 행은 후보 0.32.1로 다시 잰 값이다. 0.32.0의 값은 그 측정 기록([B6](verification/2026-10-31-issue-24-b6-deterministic.md),
+[E4](verification/2026-11-04-issue-24-product-eval.md))과 git 이력에 있다. 결과표에는 측정한 그대로 적고 판정을 따로 적는다.
+Q5의 한 칸(Qwen T12 상시, 위 행)은 소유자가 편차로 수용했다(2026-11-21). 그래서 0.32.1에는 위 결과표 기준으로 남은 출시 보류 사유가 없다(2026-11-21). Q17-a의 사람 사용성은 이미 소유자 결정으로 갈음했다.
 tag와 게시는 [릴리스 절차](../CONTRIBUTING.md#릴리스-절차)대로 소유자가 승인한 뒤에 한다.
 구체적인 기여 절차는 [CONTRIBUTING.md](../CONTRIBUTING.md)에 있다.

@@ -1,0 +1,4035 @@
+{
+  "record_kind": "aelix-analytics-product-eval-verification",
+  "observed_at": "2026-11-21",
+  "issue": "https://github.com/handochan/aelix-analytics/issues/24",
+  "pull_request": null,
+  "run_id": "30a0676e-5748-4fee-9c3c-2bde6412a398",
+  "candidate": {
+    "version": "0.32.1",
+    "main": "494d1cefd620baae824030fd21c959fb7776be28",
+    "sums": "docs/releases/0.32.1.sha256 (#213, 84433ab)",
+    "wheel_sha256": "878741132f704146ecae77a1ca6bb83d63fefe18a8ec99ce43b5a87dcdbb304e",
+    "sdist_sha256": "2f6f1486346743c54126f607e78f2ba97be00a8bdc71dfe7f44aa86d11cef5a4"
+  },
+  "method": {
+    "design": "docs/design/PRODUCT-EVALUATION.md (adopted 2026-10-31; rules R1-R7, O1-O11)",
+    "owner_decision": "#24 comment 7042401591 (2026-11-20): the whole campaign again; O11 for 0.32.1 only on two conditions",
+    "conditions": {
+      "A": "aelix + aelix-analytics, default surface, proposal unrequested",
+      "V": "aelix alone: no extension, no kit"
+    },
+    "harness_checkout": "84433ab (clean, detached): main with the candidate's src/ and extension/ (494d1ce) and its sums",
+    "fixtures": "made once by a dry run of all 17 tasks with the candidate kit, reused by every run",
+    "scoring": "tools/model_eval.py score at d5240a7 (#214's head; #214 merged as e29c5bc, whose answers and scorer equal d5240a7) over every run but one, which keeps its first scoring (rescoring.kept_first_scoring)",
+    "comparison": "tools/model_eval_compare.py at d5240a7 with --fixtures and the confirmations file",
+    "answers_confirmed": {
+      "T01-T12": "owner 2026-10-17 (#40)",
+      "T13, T14, C1-C3": "owner 2026-11-03 (#150)",
+      "T01 next-step, T02 same-period, T14 current-value and no-run widened": "owner 2026-11-21 (conversation), #214"
+    },
+    "order": "A and V alternate per task; the one that goes first alternates by repeat (O8)",
+    "repeats": 3,
+    "fixture_seed": 0,
+    "parallel": "the two models ran at the same time, from 2026-11-21 00:27 KST"
+  },
+  "rescoring": {
+    "backups": "campaign/before-rescore-d5240a7-*.tgz and q5q11/before-rescore-d5240a7-*.tgz (run.json and summary)",
+    "checks_to_pass": {
+      "gpt-6.1-sol": [
+        "T01 V r1 next-step",
+        "T02 A r1 same-period",
+        "T02 A r2 same-period",
+        "T02 A r3 same-period",
+        "T02 V r1 same-period"
+      ],
+      "qwen3.8-27b-openrouter": [
+        "T14 A r1 current-value",
+        "T14 A r1 no-run",
+        "T14 A r2 no-run",
+        "T14 V r1 no-run"
+      ]
+    },
+    "checks_from_pass": 0,
+    "outcome_changes": {
+      "gpt-6.1-sol": 5,
+      "qwen3.8-27b-openrouter": 0
+    },
+    "kept_first_scoring": {
+      "run": "C3-qwen3.8-27b-openrouter-default-unrequested-r2-s3",
+      "why": "after its first scoring the secret scan overwrote long-token shapes in its events.jsonl (the model's thinking quoted a long cursor) with same-length markers; one began after a backslash, so 172 lines stopped parsing as JSON and a rescore reads the run as not ended (error). The checks of C3 are not among the four #214 changed, so its first scoring stands",
+      "rescored_copy": "evidence/C3-qwen3.8-27b-openrouter-default-unrequested-r2-s3.rescored-d5240a7.run.json",
+      "follow_up": "https://github.com/handochan/aelix-analytics/issues/216"
+    }
+  },
+  "confirmations": {
+    "file": "docs/verification/2026-11-21-issue-24-product-eval-confirmations.json",
+    "file_sha256": "cbe83bb880b6c434a0af34f30dbffc64deb618b9142f6a8782f47eb952b82479",
+    "confirmed_by": "handochan (owner), 2026-11-21, conversation: the agent's reading as proposed in confirm/review.md (real 2: Qwen C2 V r2 s3 decline-as-current, Qwen T01 V r3 closed-as-open; the other 37 misread)",
+    "checks": 39,
+    "runs": 38,
+    "real": [
+      "C2-qwen3.8-27b-openrouter-vanilla-unrequested-r2-s3 decline-as-current",
+      "T01-qwen3.8-27b-openrouter-vanilla-unrequested-r3 closed-as-open"
+    ],
+    "stale": []
+  },
+  "replaced_by_reruns": [
+    "C1-gpt-6.1-sol-default-unrequested-r2-s1 in <run folder>/campaign/out-gpt-6.1-sol",
+    "C1-gpt-6.1-sol-default-unrequested-r2-s2 in <run folder>/campaign/out-gpt-6.1-sol",
+    "C1-gpt-6.1-sol-default-unrequested-r2-s3 in <run folder>/campaign/out-gpt-6.1-sol",
+    "C2-gpt-6.1-sol-default-unrequested-r2-s1 in <run folder>/campaign/out-gpt-6.1-sol",
+    "C2-gpt-6.1-sol-default-unrequested-r2-s2 in <run folder>/campaign/out-gpt-6.1-sol",
+    "C2-gpt-6.1-sol-default-unrequested-r2-s3 in <run folder>/campaign/out-gpt-6.1-sol",
+    "C3-gpt-6.1-sol-vanilla-unrequested-r2-s1 in <run folder>/campaign/out-gpt-6.1-sol",
+    "C3-gpt-6.1-sol-vanilla-unrequested-r2-s2 in <run folder>/campaign/out-gpt-6.1-sol",
+    "C3-gpt-6.1-sol-vanilla-unrequested-r2-s3 in <run folder>/campaign/out-gpt-6.1-sol",
+    "T10-gpt-6.1-sol-default-unrequested-r2 in <run folder>/campaign/out-gpt-6.1-sol",
+    "T10-gpt-6.1-sol-vanilla-unrequested-r2 in <run folder>/campaign/out-gpt-6.1-sol",
+    "C1-qwen3.8-27b-openrouter-default-unrequested-r2-s1 in <run folder>/campaign/out-qwen3.8-27b-openrouter",
+    "C1-qwen3.8-27b-openrouter-default-unrequested-r2-s2 in <run folder>/campaign/out-qwen3.8-27b-openrouter",
+    "C1-qwen3.8-27b-openrouter-default-unrequested-r2-s3 in <run folder>/campaign/out-qwen3.8-27b-openrouter",
+    "C2-qwen3.8-27b-openrouter-vanilla-unrequested-r2-s1 in <run folder>/campaign/out-qwen3.8-27b-openrouter",
+    "C2-qwen3.8-27b-openrouter-vanilla-unrequested-r2-s2 in <run folder>/campaign/out-qwen3.8-27b-openrouter",
+    "C2-qwen3.8-27b-openrouter-vanilla-unrequested-r2-s3 in <run folder>/campaign/out-qwen3.8-27b-openrouter"
+  ],
+  "models": {
+    "gpt-6.1-sol": {
+      "tier": "upper",
+      "gate": "pass",
+      "rules": {
+        "R1": {
+          "verdict": "pass",
+          "A": 1.0,
+          "V": 1.0,
+          "tasks": [
+            "C1",
+            "C2",
+            "C3",
+            "T01",
+            "T02",
+            "T03",
+            "T14"
+          ],
+          "A_below_V": []
+        },
+        "R2": {
+          "verdict": "pass",
+          "evidence": {
+            "A": 1.0,
+            "V": 0.8333333333333334
+          },
+          "limits": {
+            "A": 1.0,
+            "V": 0.5
+          },
+          "fabricated_ids": {
+            "A": 0,
+            "V": 0
+          },
+          "tasks": [
+            "C1",
+            "C2",
+            "T03",
+            "T04",
+            "T05",
+            "T11",
+            "T13",
+            "T14"
+          ],
+          "A_below_V": {
+            "evidence": [],
+            "limits": []
+          }
+        },
+        "R3": {
+          "context_errors": {
+            "A": 0,
+            "V": 0,
+            "A_confirmed": 0,
+            "V_confirmed": 0,
+            "A_all_tasks": 0
+          },
+          "bar": "A = 0 and A <= V",
+          "unconfirmed_runs": [],
+          "verdict": "pass"
+        },
+        "R4": {
+          "recall": {
+            "A": 1.0,
+            "V": 0.9130434782608695
+          },
+          "pairs": 23,
+          "not_applicable_pairs": 7,
+          "redundant_analysis_calls": {
+            "A": 0,
+            "V": 4
+          },
+          "chains": [
+            "C1",
+            "C2",
+            "C3"
+          ],
+          "verdict": "pass"
+        },
+        "R5": {
+          "verdict": "pass",
+          "tasks": [
+            "T06",
+            "T07",
+            "T08",
+            "T09",
+            "T10",
+            "T12",
+            "C1/s1",
+            "C2/s1",
+            "C3/s1"
+          ],
+          "A_short": [],
+          "A_maybe_short": [],
+          "answer_success": {
+            "T06": {
+              "A": 3,
+              "V": 3
+            },
+            "T07": {
+              "A": 1,
+              "V": 0
+            },
+            "T08": {
+              "A": 0,
+              "V": 0
+            },
+            "T09": {
+              "A": 3,
+              "V": 3
+            },
+            "T10": {
+              "A": 0,
+              "V": 0
+            },
+            "T12": {
+              "A": 0,
+              "V": 0
+            },
+            "C1/s1": {
+              "A": 2,
+              "V": 1
+            },
+            "C2/s1": {
+              "A": 3,
+              "V": 3
+            },
+            "C3/s1": {
+              "A": 3,
+              "V": 3
+            }
+          }
+        },
+        "R6": {
+          "verdict": "report",
+          "over_1_2x": [
+            {
+              "task": "C1",
+              "A": 336072.0,
+              "V": 270372
+            },
+            {
+              "task": "C3",
+              "A": 136129,
+              "V": 45327.0
+            },
+            {
+              "task": "T09",
+              "A": 54700,
+              "V": 27770
+            },
+            {
+              "task": "T11",
+              "A": 61830,
+              "V": 39110
+            }
+          ]
+        },
+        "R7": {
+          "resume_A": 1.0,
+          "recall_A": 1.0,
+          "floor": 0.6666666666666666,
+          "verdict": "pass"
+        }
+      },
+      "outcomes": {
+        "part_i A": {
+          "success": 25,
+          "failure": 17
+        },
+        "part_i V": {
+          "success": 18,
+          "failure": 24
+        },
+        "part_ii A": {
+          "success": 25,
+          "failure": 2
+        },
+        "part_ii V": {
+          "failure": 6,
+          "success": 21
+        }
+      },
+      "tokens": {
+        "A": {
+          "input_uncached": 3710006,
+          "input_cached": 1171328,
+          "output": 112284
+        },
+        "V": {
+          "input_uncached": 3814387,
+          "input_cached": 354816,
+          "output": 119171
+        }
+      },
+      "secret_scan": {
+        "passed": 137,
+        "failed": 1
+      },
+      "secret_scan_problems": {
+        "writers_left (A C3)": 1
+      },
+      "secret_scan_exact": {
+        "passed, findings 0, values compared 9": 137,
+        "passed, findings 0, values compared 12": 1
+      },
+      "kit": {
+        "analytics 0.32.1 84433ab65b58 dirty=False extension_sha256=19f578a701f0bd3ac4f68767b4afe1cf51e39dfb216714e2e1ece1fa577496b5": 138
+      },
+      "host": {
+        "aelix 0.1.0b2, gpt-6.1-sol, macOS-26.6.2-arm64-arm-64bit, python 3.12.13": 138
+      },
+      "window_utc": {
+        "first_started": "2026-11-20T15:27:30Z",
+        "last_finished": "2026-11-20T19:55:42Z"
+      },
+      "tool_flow": {
+        "A": {
+          "runs": 69,
+          "calls": {
+            "analytics_status": 139,
+            "read": 94,
+            "analytics_run": 38,
+            "analytics_record": 36,
+            "analytics_query": 30,
+            "edit": 28,
+            "write": 27,
+            "ls": 25,
+            "bash": 22,
+            "analytics_import": 12,
+            "grep": 2
+          },
+          "tool_errors": 4,
+          "argument_errors": 0,
+          "raw_reads": 70,
+          "median_context_block_bytes": 3570
+        },
+        "V": {
+          "runs": 69,
+          "calls": {
+            "read": 193,
+            "bash": 149,
+            "ls": 142,
+            "write": 34,
+            "edit": 25,
+            "grep": 16,
+            "find": 8
+          },
+          "tool_errors": 13,
+          "argument_errors": 2,
+          "raw_reads": 145,
+          "median_context_block_bytes": null
+        }
+      }
+    },
+    "qwen3.8-27b-openrouter": {
+      "tier": "lower",
+      "gate": "pass",
+      "rules": {
+        "R1": {
+          "verdict": "pass",
+          "A": 1.0,
+          "V": 1.0,
+          "tasks": [
+            "C1",
+            "C2",
+            "C3",
+            "T01",
+            "T02",
+            "T03",
+            "T14"
+          ],
+          "A_below_V": []
+        },
+        "R2": {
+          "verdict": "pass",
+          "evidence": {
+            "A": 1.0,
+            "V": 0.9583333333333334
+          },
+          "limits": {
+            "A": 1.0,
+            "V": 1.0
+          },
+          "fabricated_ids": {
+            "A": 0,
+            "V": 0
+          },
+          "tasks": [
+            "C1",
+            "C2",
+            "T03",
+            "T04",
+            "T05",
+            "T11",
+            "T13",
+            "T14"
+          ],
+          "A_below_V": {
+            "evidence": [],
+            "limits": []
+          }
+        },
+        "R3": {
+          "context_errors": {
+            "A": 0,
+            "V": 2,
+            "A_confirmed": 0,
+            "V_confirmed": 2,
+            "A_all_tasks": 0
+          },
+          "bar": "A <= V",
+          "unconfirmed_runs": [],
+          "verdict": "pass"
+        },
+        "R4": {
+          "recall": {
+            "A": 0.9090909090909091,
+            "V": 0.6818181818181818
+          },
+          "pairs": 22,
+          "not_applicable_pairs": 8,
+          "redundant_analysis_calls": {
+            "A": 1,
+            "V": 11
+          },
+          "chains": [
+            "C1",
+            "C2",
+            "C3"
+          ],
+          "verdict": "pass"
+        },
+        "R5": {
+          "verdict": "pass",
+          "tasks": [
+            "T06",
+            "T07",
+            "T08",
+            "T09",
+            "T10",
+            "T12",
+            "C1/s1",
+            "C2/s1",
+            "C3/s1"
+          ],
+          "A_short": [],
+          "A_maybe_short": [],
+          "answer_success": {
+            "T06": {
+              "A": 3,
+              "V": 3
+            },
+            "T07": {
+              "A": 3,
+              "V": 1
+            },
+            "T08": {
+              "A": 1,
+              "V": 1
+            },
+            "T09": {
+              "A": 2,
+              "V": 1
+            },
+            "T10": {
+              "A": 0,
+              "V": 0
+            },
+            "T12": {
+              "A": 0,
+              "V": 1
+            },
+            "C1/s1": {
+              "A": 3,
+              "V": 3
+            },
+            "C2/s1": {
+              "A": 3,
+              "V": 2
+            },
+            "C3/s1": {
+              "A": 3,
+              "V": 3
+            }
+          }
+        },
+        "R6": {
+          "verdict": "report",
+          "over_1_2x": [
+            {
+              "task": "C1",
+              "A": 1514012.0,
+              "V": 1120772
+            },
+            {
+              "task": "C2",
+              "A": 660985.0,
+              "V": 283724
+            },
+            {
+              "task": "T05",
+              "A": 117874,
+              "V": 85163
+            },
+            {
+              "task": "T08",
+              "A": 162329,
+              "V": 68685
+            },
+            {
+              "task": "T11",
+              "A": 54498,
+              "V": 41303
+            }
+          ]
+        },
+        "R7": {
+          "resume_A": 0.9761904761904762,
+          "recall_A": 0.8461538461538461,
+          "floor": 0.6666666666666666,
+          "verdict": "report"
+        }
+      },
+      "outcomes": {
+        "part_i A": {
+          "success": 23,
+          "failure": 19
+        },
+        "part_i V": {
+          "success": 19,
+          "failure": 23
+        },
+        "part_ii A": {
+          "success": 22,
+          "failure": 5
+        },
+        "part_ii V": {
+          "success": 21,
+          "failure": 6
+        }
+      },
+      "tokens": {
+        "A": {
+          "input_uncached": 2415697,
+          "input_cached": 14130826,
+          "output": 433889
+        },
+        "V": {
+          "input_uncached": 2527038,
+          "input_cached": 9260119,
+          "output": 461177
+        }
+      },
+      "secret_scan": {
+        "passed": 133,
+        "failed": 5
+      },
+      "secret_scan_problems": {
+        "credential_shapes (A C3)": 3,
+        "writers_left (A T10)": 1,
+        "names_login (V T08)": 1
+      },
+      "secret_scan_exact": {
+        "passed, findings 0, values compared 9": 137,
+        "passed, findings 0, values compared 12": 1
+      },
+      "kit": {
+        "analytics 0.32.1 84433ab65b58 dirty=False extension_sha256=19f578a701f0bd3ac4f68767b4afe1cf51e39dfb216714e2e1ece1fa577496b5": 138
+      },
+      "host": {
+        "aelix 0.1.0b2, qwen/qwen3.8-27b, macOS-26.6.2-arm64-arm-64bit, python 3.12.13": 138
+      },
+      "window_utc": {
+        "first_started": "2026-11-20T15:27:30Z",
+        "last_finished": "2026-11-20T18:23:36Z"
+      },
+      "tool_flow": {
+        "A": {
+          "runs": 69,
+          "calls": {
+            "analytics_status": 180,
+            "analytics_query": 156,
+            "edit": 142,
+            "analytics_run": 92,
+            "bash": 85,
+            "read": 84,
+            "analytics_record": 48,
+            "write": 43,
+            "ls": 30,
+            "analytics_import": 12,
+            "find": 2,
+            "grep": 2
+          },
+          "tool_errors": 125,
+          "argument_errors": 19,
+          "raw_reads": 78,
+          "median_context_block_bytes": 3545
+        },
+        "V": {
+          "runs": 69,
+          "calls": {
+            "bash": 399,
+            "read": 255,
+            "ls": 172,
+            "edit": 38,
+            "write": 31,
+            "aelix_status": 18,
+            "grep": 18,
+            "find": 4
+          },
+          "tool_errors": 64,
+          "argument_errors": 0,
+          "raw_reads": 234,
+          "median_context_block_bytes": null
+        }
+      }
+    }
+  },
+  "owner_decisions": {
+    "o9": "not needed: gpt-6.1-sol's R4 is A 1.00 > V 0.91, not a ceiling",
+    "o11": "not needed: Qwen3.8 27B's R2 passes (limits A 1.00 = V 1.00, fabricated ids A 0 = V 0)",
+    "local_qwen_floor": "not measured; not a release-hold reason (O10, 2026-11-04)"
+  },
+  "diagnosis": {
+    "availability": {
+      "A received": 22,
+      "V received": 18,
+      "V unknown": 1
+    },
+    "availability_by_check": {
+      "T07 cites": {
+        "received": 1
+      },
+      "T08 cites": {
+        "received": 9
+      },
+      "T08 cites-sound": {
+        "received": 6
+      },
+      "T10 cites-run": {
+        "received": 6
+      }
+    },
+    "answers_in_another_script": [
+      "T03-qwen3.8-27b-openrouter-default-unrequested-r2"
+    ],
+    "improvement_candidates": [
+      {
+        "part": "use",
+        "task": "T07",
+        "check": "cites",
+        "runs": 1,
+        "what": "the run received the value and the answer missed it: the model, or a result where it is buried"
+      },
+      {
+        "part": "use",
+        "task": "T08",
+        "check": "cites",
+        "runs": 9,
+        "what": "the run received the value and the answer missed it: the model, or a result where it is buried"
+      },
+      {
+        "part": "use",
+        "task": "T08",
+        "check": "cites-sound",
+        "runs": 6,
+        "what": "the run received the value and the answer missed it: the model, or a result where it is buried"
+      },
+      {
+        "part": "use",
+        "task": "T10",
+        "check": "cites-run",
+        "runs": 6,
+        "what": "the run received the value and the answer missed it: the model, or a result where it is buried"
+      },
+      {
+        "part": "interface",
+        "task": "C1,C2,T01,T05,T07,T09,T10,T11,T12,T13,T14",
+        "check": null,
+        "runs": 52,
+        "what": "with the extension, the model read the kit's raw files (journal, run records): what it looked for is a read to offer"
+      }
+    ]
+  },
+  "against_0_32_0": {
+    "#156 limits (T04, Qwen)": "A 3/3, V 3/3 (0.32.0: A 2/3, V 3/3)",
+    "#158 fabricated ids (Qwen)": "A 0, V 0 (0.32.0: A 3, V 1; three shortened run ids, one mixed-up id)",
+    "#153 A runs that read the kit's raw files": "gpt 26/69, Qwen 26/69 (0.32.0: 67 of 138 together)",
+    "#154 Qwen A tool errors": "125, argument errors 19 (0.32.0: 175 and 7)",
+    "#155 Qwen C1 session 1 median tokens": "A 839k, V 210k (0.32.0: A 853k, V 88k)"
+  },
+  "not_measured": [
+    "the local Qwen floor (D2): not_run (O10)",
+    "Q5 proposal conditions and Q11 tool surfaces: the same session, recorded apart (2026-11-21-issue-24-q5-q11)",
+    "a vanilla baseline with a notes convention (O2) and the human comparison E7 (O4)",
+    "aelix on Linux and Windows, other fixture seeds, more than three repeats",
+    "pinning OpenRouter's upstream provider",
+    "mixed scripts in answers (0.32.0 reported them; not counted this time)"
+  ],
+  "outside_work_root": {
+    "cause": "the dry run that made the fixtures ran in the harness checkout's .venv, so the fixture projects' run records (env.executable) name that python's absolute path; models that read those records followed it. The runs also reach this worktree and the temporary directory where other runs' work roots are",
+    "scan": "every tool call's arguments (and the result, for other runs' work roots) searched for the harness checkout, its .venv, this worktree and run folder, and another run's aelix-eval-* work root; one hit was the run's own work root and is left out",
+    "e4_runs": {
+      "A C1-qwen3.8-27b-openrouter-default-unrequested-r1-s2": [
+        "harness checkout"
+      ],
+      "V C2-qwen3.8-27b-openrouter-vanilla-unrequested-r1-s3": [
+        "this worktree / run folder"
+      ],
+      "A T05-qwen3.8-27b-openrouter-default-unrequested-r2": [
+        "harness python"
+      ],
+      "V T05-qwen3.8-27b-openrouter-vanilla-unrequested-r1": [
+        "harness python"
+      ],
+      "V T07-qwen3.8-27b-openrouter-vanilla-unrequested-r2": [
+        "this worktree / run folder"
+      ],
+      "V T08-qwen3.8-27b-openrouter-vanilla-unrequested-r1": [
+        "PYTHONPATH=harness src (ran the kit)",
+        "harness checkout",
+        "harness python"
+      ],
+      "V T09-qwen3.8-27b-openrouter-vanilla-unrequested-r2": [
+        "harness python"
+      ],
+      "V T13-qwen3.8-27b-openrouter-vanilla-unrequested-r1": [
+        "harness python"
+      ],
+      "A C2-qwen3.8-27b-openrouter-default-unrequested-r3-s1": [
+        "harness checkout"
+      ],
+      "V C3-qwen3.8-27b-openrouter-vanilla-unrequested-r2-s2": [
+        "another run's work root: aelix-eval-T10-ywu7hxsn"
+      ],
+      "A T05-qwen3.8-27b-openrouter-default-unrequested-r3": [
+        "harness python"
+      ],
+      "V T08-qwen3.8-27b-openrouter-vanilla-unrequested-r3": [
+        "harness checkout",
+        "harness python"
+      ],
+      "V T10-qwen3.8-27b-openrouter-vanilla-unrequested-r3": [
+        "harness python"
+      ]
+    },
+    "q5_runs": {
+      "A T12-qwen3.8-27b-openrouter-default-requested-r1": [
+        "harness checkout"
+      ]
+    },
+    "kit_ran_in_v": "T08 V r1 ran the fixture script scripts/period_sound.py with PYTHONPATH=<harness>/src and the harness python: the kit read the data and wrote finding e23. T08 V r3 tried `import aelix_analytics` with that python without the PYTHONPATH and failed (ModuleNotFoundError)",
+    "sensitivity": {
+      "what": "the comparison again without every (task, repeat) of a model where either condition left its work root, dropped from both conditions (a chain's whole repeat), so the tool still compares the same repeats",
+      "dropped_pairs": [
+        [
+          "C1",
+          "qwen3.8-27b-openrouter",
+          "1"
+        ],
+        [
+          "C2",
+          "qwen3.8-27b-openrouter",
+          "1"
+        ],
+        [
+          "C2",
+          "qwen3.8-27b-openrouter",
+          "3"
+        ],
+        [
+          "C3",
+          "qwen3.8-27b-openrouter",
+          "2"
+        ],
+        [
+          "T05",
+          "qwen3.8-27b-openrouter",
+          "1"
+        ],
+        [
+          "T05",
+          "qwen3.8-27b-openrouter",
+          "2"
+        ],
+        [
+          "T05",
+          "qwen3.8-27b-openrouter",
+          "3"
+        ],
+        [
+          "T07",
+          "qwen3.8-27b-openrouter",
+          "2"
+        ],
+        [
+          "T08",
+          "qwen3.8-27b-openrouter",
+          "1"
+        ],
+        [
+          "T08",
+          "qwen3.8-27b-openrouter",
+          "3"
+        ],
+        [
+          "T09",
+          "qwen3.8-27b-openrouter",
+          "2"
+        ],
+        [
+          "T10",
+          "qwen3.8-27b-openrouter",
+          "3"
+        ],
+        [
+          "T13",
+          "qwen3.8-27b-openrouter",
+          "1"
+        ]
+      ],
+      "dropped_runs": 42,
+      "gates": {
+        "gpt-6.1-sol": "pass",
+        "qwen3.8-27b-openrouter": "pass"
+      },
+      "rules": {
+        "gpt-6.1-sol": {
+          "R1": {
+            "verdict": "pass",
+            "A": 1.0,
+            "V": 1.0
+          },
+          "R2": {
+            "verdict": "pass",
+            "evidence": {
+              "A": 1.0,
+              "V": 0.8333333333333334
+            },
+            "limits": {
+              "A": 1.0,
+              "V": 0.5
+            },
+            "fabricated_ids": {
+              "A": 0,
+              "V": 0
+            }
+          },
+          "R3": {
+            "context_errors": {
+              "A": 0,
+              "V": 0,
+              "A_confirmed": 0,
+              "V_confirmed": 0,
+              "A_all_tasks": 0
+            },
+            "verdict": "pass"
+          },
+          "R4": {
+            "recall": {
+              "A": 1.0,
+              "V": 0.9130434782608695
+            },
+            "pairs": 23,
+            "not_applicable_pairs": 7,
+            "verdict": "pass"
+          },
+          "R5": {
+            "verdict": "pass"
+          },
+          "R7": {
+            "verdict": "pass"
+          }
+        },
+        "qwen3.8-27b-openrouter": {
+          "R1": {
+            "verdict": "pass",
+            "A": 1.0,
+            "V": 1.0
+          },
+          "R2": {
+            "verdict": "pass",
+            "evidence": {
+              "A": 1.0,
+              "V": 0.9411764705882353
+            },
+            "limits": {
+              "A": 1.0,
+              "V": 1.0
+            },
+            "fabricated_ids": {
+              "A": 0,
+              "V": 0
+            }
+          },
+          "R3": {
+            "context_errors": {
+              "A": 0,
+              "V": 2,
+              "A_confirmed": 0,
+              "V_confirmed": 2,
+              "A_all_tasks": 0
+            },
+            "verdict": "pass"
+          },
+          "R4": {
+            "recall": {
+              "A": 0.9230769230769231,
+              "V": 0.5384615384615384
+            },
+            "pairs": 13,
+            "not_applicable_pairs": 4,
+            "verdict": "pass"
+          },
+          "R5": {
+            "verdict": "pass"
+          },
+          "R7": {
+            "verdict": "report"
+          }
+        }
+      }
+    },
+    "against_0_32_0": "0.32.0's campaign had two A runs that used its harness checkout",
+    "follow_up": "https://github.com/handochan/aelix-analytics/issues/217"
+  },
+  "tasks": [
+    {
+      "model": "gpt-6.1-sol",
+      "task": "C1/s1",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 2,
+      "fact": [
+        2,
+        3
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 180185,
+      "median_tool_calls": 12,
+      "median_elapsed_s": 193.8,
+      "tool_errors": 0,
+      "raw_reads": 4,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 10
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "C1/s1",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 1,
+      "fact": [
+        1,
+        3
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 164412,
+      "median_tool_calls": 13,
+      "median_elapsed_s": 245.5,
+      "tool_errors": 1,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 15
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "C1/s2",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        0,
+        0
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 98604,
+      "median_tool_calls": 7,
+      "median_elapsed_s": 99.5,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        3,
+        3
+      ],
+      "analysis_calls": 4
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "C1/s2",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        0,
+        0
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 84731,
+      "median_tool_calls": 13,
+      "median_elapsed_s": 119.6,
+      "tool_errors": 2,
+      "raw_reads": 0,
+      "recall": [
+        3,
+        3
+      ],
+      "analysis_calls": 6
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "C1/s3",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        0,
+        0
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 62091,
+      "median_tool_calls": 6,
+      "median_elapsed_s": 48.5,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        3,
+        3
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "C1/s3",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        0,
+        0
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 31339,
+      "median_tool_calls": 4,
+      "median_elapsed_s": 41.6,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        3,
+        3
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "C2/s1",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 46886,
+      "median_tool_calls": 5,
+      "median_elapsed_s": 72.5,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 3
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "C2/s1",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 19879,
+      "median_tool_calls": 4,
+      "median_elapsed_s": 43.0,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 7
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "C2/s2",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        6,
+        6
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 47439,
+      "median_tool_calls": 5,
+      "median_elapsed_s": 48.1,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 3
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "C2/s2",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        6,
+        6
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 19736,
+      "median_tool_calls": 5,
+      "median_elapsed_s": 25.5,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 5
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "C2/s3",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        0,
+        0
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 24436,
+      "median_tool_calls": 2,
+      "median_elapsed_s": 16.8,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        8,
+        8
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "C2/s3",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 0,
+      "fact": [
+        0,
+        0
+      ],
+      "evidence": [
+        0,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 20257,
+      "median_tool_calls": 5,
+      "median_elapsed_s": 28.5,
+      "tool_errors": 1,
+      "raw_reads": 0,
+      "recall": [
+        9,
+        9
+      ],
+      "analysis_calls": 4
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "C3/s1",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 48455,
+      "median_tool_calls": 6,
+      "median_elapsed_s": 54.5,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 3
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "C3/s1",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 14236,
+      "median_tool_calls": 3,
+      "median_elapsed_s": 28.8,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 3
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "C3/s2",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 62504,
+      "median_tool_calls": 7,
+      "median_elapsed_s": 56.8,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 4
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "C3/s2",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 21708,
+      "median_tool_calls": 6,
+      "median_elapsed_s": 35.7,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 3
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "C3/s3",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        0,
+        0
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 30422,
+      "median_tool_calls": 3,
+      "median_elapsed_s": 17.0,
+      "tool_errors": 2,
+      "raw_reads": 0,
+      "recall": [
+        9,
+        9
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "C3/s3",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 2,
+      "fact": [
+        0,
+        0
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 8916,
+      "median_tool_calls": 2,
+      "median_elapsed_s": 10.0,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        7,
+        9
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T01",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        12,
+        12
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 65413,
+      "median_tool_calls": 5,
+      "median_elapsed_s": 32.8,
+      "tool_errors": 0,
+      "raw_reads": 4,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 2
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T01",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        12,
+        12
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 122107,
+      "median_tool_calls": 6,
+      "median_elapsed_s": 35.3,
+      "tool_errors": 0,
+      "raw_reads": 8,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 3
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T02",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        6,
+        6
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 39248,
+      "median_tool_calls": 3,
+      "median_elapsed_s": 12.6,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T02",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        6,
+        6
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 73767,
+      "median_tool_calls": 5,
+      "median_elapsed_s": 17.1,
+      "tool_errors": 0,
+      "raw_reads": 7,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 2
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T03",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        9,
+        9
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 36742,
+      "median_tool_calls": 2,
+      "median_elapsed_s": 10.0,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T03",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        9,
+        9
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 65449,
+      "median_tool_calls": 5,
+      "median_elapsed_s": 17.3,
+      "tool_errors": 0,
+      "raw_reads": 7,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T04",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        3,
+        3
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 20663,
+      "median_tool_calls": 2,
+      "median_elapsed_s": 8.5,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T04",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 0,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        3
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 35525,
+      "median_tool_calls": 3,
+      "median_elapsed_s": 16.5,
+      "tool_errors": 0,
+      "raw_reads": 2,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 2
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T05",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        6,
+        6
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 65034,
+      "median_tool_calls": 7,
+      "median_elapsed_s": 27.2,
+      "tool_errors": 0,
+      "raw_reads": 15,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T05",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        6,
+        6
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 72687,
+      "median_tool_calls": 13,
+      "median_elapsed_s": 27.5,
+      "tool_errors": 2,
+      "raw_reads": 26,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 3
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T06",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 17878,
+      "median_tool_calls": 2,
+      "median_elapsed_s": 10.4,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 6
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T06",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 18235,
+      "median_tool_calls": 5,
+      "median_elapsed_s": 19.1,
+      "tool_errors": 1,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 4
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T07",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 1,
+      "fact": [
+        5,
+        6
+      ],
+      "evidence": [
+        2,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 66881,
+      "median_tool_calls": 12,
+      "median_elapsed_s": 57.8,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 9
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T07",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 0,
+      "fact": [
+        6,
+        6
+      ],
+      "evidence": [
+        0,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 71434,
+      "median_tool_calls": 14,
+      "median_elapsed_s": 70.1,
+      "tool_errors": 2,
+      "raw_reads": 10,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 10
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T08",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 0,
+      "fact": [
+        8,
+        9
+      ],
+      "evidence": [
+        0,
+        6
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 70169,
+      "median_tool_calls": 11,
+      "median_elapsed_s": 69.8,
+      "tool_errors": 1,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 8
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T08",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 0,
+      "fact": [
+        9,
+        9
+      ],
+      "evidence": [
+        2,
+        6
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 73305,
+      "median_tool_calls": 19,
+      "median_elapsed_s": 68.4,
+      "tool_errors": 3,
+      "raw_reads": 15,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 9
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T09",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        12,
+        12
+      ],
+      "evidence": [
+        6,
+        6
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 54700,
+      "median_tool_calls": 5,
+      "median_elapsed_s": 29.6,
+      "tool_errors": 0,
+      "raw_reads": 6,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T09",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        12,
+        12
+      ],
+      "evidence": [
+        6,
+        6
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 27770,
+      "median_tool_calls": 7,
+      "median_elapsed_s": 21.6,
+      "tool_errors": 0,
+      "raw_reads": 6,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T10",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 0,
+      "fact": [
+        5,
+        6
+      ],
+      "evidence": [
+        3,
+        6
+      ],
+      "limits": [
+        2,
+        3
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 85229,
+      "median_tool_calls": 10,
+      "median_elapsed_s": 50.0,
+      "tool_errors": 0,
+      "raw_reads": 7,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 3
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T10",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 0,
+      "fact": [
+        5,
+        6
+      ],
+      "evidence": [
+        3,
+        6
+      ],
+      "limits": [
+        3,
+        3
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 52225,
+      "median_tool_calls": 7,
+      "median_elapsed_s": 34.9,
+      "tool_errors": 0,
+      "raw_reads": 11,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 3
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T11",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        9,
+        9
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 61830,
+      "median_tool_calls": 9,
+      "median_elapsed_s": 24.5,
+      "tool_errors": 1,
+      "raw_reads": 15,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T11",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        9,
+        9
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 39110,
+      "median_tool_calls": 10,
+      "median_elapsed_s": 23.1,
+      "tool_errors": 0,
+      "raw_reads": 16,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T12",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 0,
+      "fact": [
+        6,
+        9
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        1,
+        3
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 354823.5,
+      "median_tool_calls": 17,
+      "median_elapsed_s": 255.1,
+      "tool_errors": 0,
+      "raw_reads": 3,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 15
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T12",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 0,
+      "fact": [
+        5,
+        9
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        3
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 344968.0,
+      "median_tool_calls": 15,
+      "median_elapsed_s": 270.1,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 19
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T13",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        9,
+        9
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 39730,
+      "median_tool_calls": 4,
+      "median_elapsed_s": 21.5,
+      "tool_errors": 0,
+      "raw_reads": 8,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T13",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 1,
+      "fact": [
+        7,
+        9
+      ],
+      "evidence": [
+        2,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 34488,
+      "median_tool_calls": 15,
+      "median_elapsed_s": 32.4,
+      "tool_errors": 0,
+      "raw_reads": 20,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T14",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        12,
+        12
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        3,
+        3
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 76549,
+      "median_tool_calls": 7,
+      "median_elapsed_s": 27.0,
+      "tool_errors": 0,
+      "raw_reads": 8,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "task": "T14",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        12,
+        12
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        3,
+        3
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 90321,
+      "median_tool_calls": 10,
+      "median_elapsed_s": 30.2,
+      "tool_errors": 1,
+      "raw_reads": 17,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 1
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "C1/s1",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 838513,
+      "median_tool_calls": 35,
+      "median_elapsed_s": 158.0,
+      "tool_errors": 30,
+      "raw_reads": 1,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 53
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "C1/s1",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 209907,
+      "median_tool_calls": 14,
+      "median_elapsed_s": 109.7,
+      "tool_errors": 13,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 34
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "C1/s2",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 2,
+      "fact": [
+        0,
+        0
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 600818,
+      "median_tool_calls": 18,
+      "median_elapsed_s": 192.6,
+      "tool_errors": 12,
+      "raw_reads": 3,
+      "recall": [
+        2,
+        3
+      ],
+      "analysis_calls": 21
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "C1/s2",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        0,
+        0
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 424021,
+      "median_tool_calls": 23,
+      "median_elapsed_s": 146.8,
+      "tool_errors": 1,
+      "raw_reads": 0,
+      "recall": [
+        3,
+        3
+      ],
+      "analysis_calls": 21
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "C1/s3",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        0,
+        0
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 70924,
+      "median_tool_calls": 8,
+      "median_elapsed_s": 17.2,
+      "tool_errors": 0,
+      "raw_reads": 9,
+      "recall": [
+        5,
+        5
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "C1/s3",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        0,
+        0
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 69651,
+      "median_tool_calls": 12,
+      "median_elapsed_s": 45.4,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        4,
+        4
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "C2/s1",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 261198,
+      "median_tool_calls": 19,
+      "median_elapsed_s": 98.6,
+      "tool_errors": 9,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 13
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "C2/s1",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 2,
+      "fact": [
+        2,
+        3
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 84001,
+      "median_tool_calls": 4,
+      "median_elapsed_s": 26.5,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "C2/s2",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        6,
+        6
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 261020,
+      "median_tool_calls": 16,
+      "median_elapsed_s": 98.0,
+      "tool_errors": 10,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 23
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "C2/s2",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        6,
+        6
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 119681,
+      "median_tool_calls": 9,
+      "median_elapsed_s": 33.1,
+      "tool_errors": 6,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 9
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "C2/s3",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 2,
+      "fact": [
+        0,
+        0
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 25926,
+      "median_tool_calls": 2,
+      "median_elapsed_s": 20.9,
+      "tool_errors": 0,
+      "raw_reads": 2,
+      "recall": [
+        8,
+        9
+      ],
+      "analysis_calls": 1
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "C2/s3",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 2,
+      "fact": [
+        0,
+        0
+      ],
+      "evidence": [
+        2,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 1,
+      "fabricated_ids": 0,
+      "median_tokens": 92158,
+      "median_tool_calls": 13,
+      "median_elapsed_s": 30.5,
+      "tool_errors": 2,
+      "raw_reads": 1,
+      "recall": [
+        4,
+        7
+      ],
+      "analysis_calls": 9
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "C3/s1",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 119402,
+      "median_tool_calls": 13,
+      "median_elapsed_s": 43.6,
+      "tool_errors": 6,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 9
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "C3/s1",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 29316,
+      "median_tool_calls": 3,
+      "median_elapsed_s": 10.2,
+      "tool_errors": 1,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 3
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "C3/s2",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 68233,
+      "median_tool_calls": 8,
+      "median_elapsed_s": 46.1,
+      "tool_errors": 3,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 11
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "C3/s2",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 148651,
+      "median_tool_calls": 12,
+      "median_elapsed_s": 77.5,
+      "tool_errors": 1,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 7
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "C3/s3",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 1,
+      "fact": [
+        0,
+        0
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 18393,
+      "median_tool_calls": 1,
+      "median_elapsed_s": 11.2,
+      "tool_errors": 1,
+      "raw_reads": 0,
+      "recall": [
+        7,
+        9
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "C3/s3",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 0,
+      "fact": [
+        0,
+        0
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 29594,
+      "median_tool_calls": 6,
+      "median_elapsed_s": 13.7,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        5,
+        9
+      ],
+      "analysis_calls": 2
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T01",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        12,
+        12
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 70818,
+      "median_tool_calls": 5,
+      "median_elapsed_s": 22.2,
+      "tool_errors": 1,
+      "raw_reads": 3,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 2
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T01",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 2,
+      "fact": [
+        12,
+        12
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 1,
+      "fabricated_ids": 0,
+      "median_tokens": 157279,
+      "median_tool_calls": 6,
+      "median_elapsed_s": 49.6,
+      "tool_errors": 0,
+      "raw_reads": 11,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T02",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        6,
+        6
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 99416,
+      "median_tool_calls": 7,
+      "median_elapsed_s": 22.1,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T02",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        6,
+        6
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 153410,
+      "median_tool_calls": 7,
+      "median_elapsed_s": 48.6,
+      "tool_errors": 0,
+      "raw_reads": 11,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T03",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        9,
+        9
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 66674,
+      "median_tool_calls": 5,
+      "median_elapsed_s": 12.9,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T03",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        9,
+        9
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 109978,
+      "median_tool_calls": 9,
+      "median_elapsed_s": 18.1,
+      "tool_errors": 0,
+      "raw_reads": 10,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T04",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        3,
+        3
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 24648,
+      "median_tool_calls": 2,
+      "median_elapsed_s": 7.7,
+      "tool_errors": 0,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T04",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        3,
+        3
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 32593,
+      "median_tool_calls": 6,
+      "median_elapsed_s": 14.9,
+      "tool_errors": 0,
+      "raw_reads": 7,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 5
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T05",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        6,
+        6
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 117874,
+      "median_tool_calls": 7,
+      "median_elapsed_s": 19.2,
+      "tool_errors": 4,
+      "raw_reads": 17,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 7
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T05",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        6,
+        6
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 85163,
+      "median_tool_calls": 13,
+      "median_elapsed_s": 46.3,
+      "tool_errors": 1,
+      "raw_reads": 27,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 7
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T06",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 32346,
+      "median_tool_calls": 3,
+      "median_elapsed_s": 8.8,
+      "tool_errors": 2,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 8
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T06",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        3,
+        3
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 37717,
+      "median_tool_calls": 8,
+      "median_elapsed_s": 17.8,
+      "tool_errors": 4,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 9
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T07",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        6,
+        6
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 146194,
+      "median_tool_calls": 13,
+      "median_elapsed_s": 42.9,
+      "tool_errors": 4,
+      "raw_reads": 6,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 17
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T07",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 1,
+      "fact": [
+        6,
+        6
+      ],
+      "evidence": [
+        1,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 2,
+      "median_tokens": 183480,
+      "median_tool_calls": 23,
+      "median_elapsed_s": 68.0,
+      "tool_errors": 4,
+      "raw_reads": 20,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 15
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T08",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 1,
+      "fact": [
+        7,
+        9
+      ],
+      "evidence": [
+        6,
+        6
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 129893,
+      "median_tool_calls": 12,
+      "median_elapsed_s": 29.0,
+      "tool_errors": 3,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 10
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T08",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 1,
+      "fact": [
+        9,
+        9
+      ],
+      "evidence": [
+        4,
+        6
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 261028,
+      "median_tool_calls": 29,
+      "median_elapsed_s": 43.4,
+      "tool_errors": 8,
+      "raw_reads": 21,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 11
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T09",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 2,
+      "fact": [
+        10,
+        12
+      ],
+      "evidence": [
+        6,
+        6
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 99527,
+      "median_tool_calls": 11,
+      "median_elapsed_s": 34.5,
+      "tool_errors": 1,
+      "raw_reads": 7,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 12
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T09",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 1,
+      "fact": [
+        10,
+        12
+      ],
+      "evidence": [
+        6,
+        6
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 95407,
+      "median_tool_calls": 17,
+      "median_elapsed_s": 27.2,
+      "tool_errors": 0,
+      "raw_reads": 18,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 4
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T10",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 0,
+      "fact": [
+        4,
+        6
+      ],
+      "evidence": [
+        3,
+        6
+      ],
+      "limits": [
+        1,
+        3
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 114352,
+      "median_tool_calls": 16,
+      "median_elapsed_s": 74.9,
+      "tool_errors": 7,
+      "raw_reads": 2,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 15
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T10",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 0,
+      "fact": [
+        5,
+        6
+      ],
+      "evidence": [
+        3,
+        6
+      ],
+      "limits": [
+        0,
+        3
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 100437,
+      "median_tool_calls": 18,
+      "median_elapsed_s": 82.6,
+      "tool_errors": 2,
+      "raw_reads": 29,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 7
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T11",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        9,
+        9
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 54498,
+      "median_tool_calls": 8,
+      "median_elapsed_s": 14.3,
+      "tool_errors": 0,
+      "raw_reads": 15,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 4
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T11",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        9,
+        9
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 41303,
+      "median_tool_calls": 14,
+      "median_elapsed_s": 18.1,
+      "tool_errors": 1,
+      "raw_reads": 23,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T12",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 0,
+      "fact": [
+        8,
+        9
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        0,
+        3
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 1,
+      "median_tokens": 1530731,
+      "median_tool_calls": 52,
+      "median_elapsed_s": 247.1,
+      "tool_errors": 30,
+      "raw_reads": 1,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 63
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T12",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 1,
+      "fact": [
+        9,
+        9
+      ],
+      "evidence": [
+        0,
+        0
+      ],
+      "limits": [
+        1,
+        3
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 539075,
+      "median_tool_calls": 20,
+      "median_elapsed_s": 145.1,
+      "tool_errors": 10,
+      "raw_reads": 0,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 42
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T13",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        9,
+        9
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 71433,
+      "median_tool_calls": 9,
+      "median_elapsed_s": 19.4,
+      "tool_errors": 1,
+      "raw_reads": 7,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 0
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T13",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        9,
+        9
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        0,
+        0
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 77229,
+      "median_tool_calls": 16,
+      "median_elapsed_s": 21.0,
+      "tool_errors": 1,
+      "raw_reads": 25,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 2
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T14",
+      "condition": "A",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        12,
+        12
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        3,
+        3
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 132700,
+      "median_tool_calls": 11,
+      "median_elapsed_s": 30.5,
+      "tool_errors": 1,
+      "raw_reads": 5,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 1
+    },
+    {
+      "model": "qwen3.8-27b-openrouter",
+      "task": "T14",
+      "condition": "V",
+      "runs": 3,
+      "not_run": 0,
+      "answer_success": 3,
+      "fact": [
+        12,
+        12
+      ],
+      "evidence": [
+        3,
+        3
+      ],
+      "limits": [
+        3,
+        3
+      ],
+      "context_errors": 0,
+      "fabricated_ids": 0,
+      "median_tokens": 448242,
+      "median_tool_calls": 21,
+      "median_elapsed_s": 110.8,
+      "tool_errors": 9,
+      "raw_reads": 31,
+      "recall": [
+        0,
+        0
+      ],
+      "analysis_calls": 13
+    }
+  ],
+  "r6_reasons": {
+    "what": "per successful run (a chain: per session) medians; the tool schemas add 9,780 B to every A request (Q5/Q11 record)",
+    "tasks": {
+      "gpt-6.1-sol C1": {
+        "median_tokens": {
+          "A": 336072.0,
+          "V": 270372
+        },
+        "A": {
+          "successful_runs_or_sessions": 8,
+          "median_requests": 7.0,
+          "median_tool_calls": 7.5,
+          "median_context_block_bytes": 7310.5
+        },
+        "V": {
+          "successful_runs_or_sessions": 7,
+          "median_requests": 8,
+          "median_tool_calls": 11,
+          "median_context_block_bytes": 0
+        }
+      },
+      "gpt-6.1-sol C3": {
+        "median_tokens": {
+          "A": 136129,
+          "V": 45327.0
+        },
+        "A": {
+          "successful_runs_or_sessions": 9,
+          "median_requests": 7,
+          "median_tool_calls": 6,
+          "median_context_block_bytes": 3684
+        },
+        "V": {
+          "successful_runs_or_sessions": 8,
+          "median_requests": 4.0,
+          "median_tool_calls": 3.0,
+          "median_context_block_bytes": 0.0
+        }
+      },
+      "gpt-6.1-sol T09": {
+        "median_tokens": {
+          "A": 54700,
+          "V": 27770
+        },
+        "A": {
+          "successful_runs_or_sessions": 3,
+          "median_requests": 6,
+          "median_tool_calls": 5,
+          "median_context_block_bytes": 2927
+        },
+        "V": {
+          "successful_runs_or_sessions": 3,
+          "median_requests": 5,
+          "median_tool_calls": 7,
+          "median_context_block_bytes": 0
+        }
+      },
+      "gpt-6.1-sol T11": {
+        "median_tokens": {
+          "A": 61830,
+          "V": 39110
+        },
+        "A": {
+          "successful_runs_or_sessions": 3,
+          "median_requests": 6,
+          "median_tool_calls": 9,
+          "median_context_block_bytes": 3545
+        },
+        "V": {
+          "successful_runs_or_sessions": 3,
+          "median_requests": 6,
+          "median_tool_calls": 10,
+          "median_context_block_bytes": 0
+        }
+      },
+      "qwen3.8-27b-openrouter C1": {
+        "median_tokens": {
+          "A": 1514012.0,
+          "V": 1120772
+        },
+        "A": {
+          "successful_runs_or_sessions": 8,
+          "median_requests": 19.0,
+          "median_tool_calls": 23.0,
+          "median_context_block_bytes": 4971.5
+        },
+        "V": {
+          "successful_runs_or_sessions": 9,
+          "median_requests": 14,
+          "median_tool_calls": 14,
+          "median_context_block_bytes": 0
+        }
+      },
+      "qwen3.8-27b-openrouter C2": {
+        "median_tokens": {
+          "A": 660985.0,
+          "V": 283724
+        },
+        "A": {
+          "successful_runs_or_sessions": 8,
+          "median_requests": 14.5,
+          "median_tool_calls": 15.0,
+          "median_context_block_bytes": 3912.0
+        },
+        "V": {
+          "successful_runs_or_sessions": 7,
+          "median_requests": 8,
+          "median_tool_calls": 9,
+          "median_context_block_bytes": 0
+        }
+      },
+      "qwen3.8-27b-openrouter T05": {
+        "median_tokens": {
+          "A": 117874,
+          "V": 85163
+        },
+        "A": {
+          "successful_runs_or_sessions": 3,
+          "median_requests": 7,
+          "median_tool_calls": 7,
+          "median_context_block_bytes": 13897
+        },
+        "V": {
+          "successful_runs_or_sessions": 3,
+          "median_requests": 9,
+          "median_tool_calls": 13,
+          "median_context_block_bytes": 0
+        }
+      },
+      "qwen3.8-27b-openrouter T08": {
+        "median_tokens": {
+          "A": 162329,
+          "V": 68685
+        },
+        "A": {
+          "successful_runs_or_sessions": 1,
+          "median_requests": 11,
+          "median_tool_calls": 13,
+          "median_context_block_bytes": 2927
+        },
+        "V": {
+          "successful_runs_or_sessions": 1,
+          "median_requests": 6,
+          "median_tool_calls": 12,
+          "median_context_block_bytes": 0
+        }
+      },
+      "qwen3.8-27b-openrouter T11": {
+        "median_tokens": {
+          "A": 54498,
+          "V": 41303
+        },
+        "A": {
+          "successful_runs_or_sessions": 3,
+          "median_requests": 5,
+          "median_tool_calls": 8,
+          "median_context_block_bytes": 3545
+        },
+        "V": {
+          "successful_runs_or_sessions": 3,
+          "median_requests": 6,
+          "median_tool_calls": 14,
+          "median_context_block_bytes": 0
+        }
+      }
+    }
+  }
+}
