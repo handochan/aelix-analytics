@@ -1,0 +1,102 @@
+{
+  "record_kind": "aelix-analytics-published-install-verification",
+  "observed_at": "2026-11-22",
+  "issue": "https://github.com/handochan/aelix-analytics/issues/24",
+  "pull_request": null,
+  "release": {
+    "tag": "v0.32.1",
+    "commit": "c99e5a4ffffa3265a2b38c9436ce17afd9675185",
+    "tagged_at": "2026-11-21T17:32Z",
+    "run": "https://github.com/handochan/aelix-analytics/actions/runs/44930597708",
+    "jobs": {
+      "build": "success",
+      "verify ubuntu-24.04": "success",
+      "verify macos-26": "success",
+      "verify windows-2025": "success",
+      "publish PyPI": "success (pypi environment approved by the owner)",
+      "publish GitHub Release": "success"
+    },
+    "pypi_upload_utc": [
+      "2026-11-21T17:37:57.912998Z",
+      "2026-11-21T17:37:59.810405Z"
+    ],
+    "release_published_utc": "2026-11-21T17:38:22Z"
+  },
+  "files": {
+    "aelix_analytics-0.32.1-py3-none-any.whl": {
+      "sha256": "878741132f704146ecae77a1ca6bb83d63fefe18a8ec99ce43b5a87dcdbb304e",
+      "bytes": 1359171
+    },
+    "aelix_analytics-0.32.1.tar.gz": {
+      "sha256": "2f6f1486346743c54126f607e78f2ba97be00a8bdc71dfe7f44aa86d11cef5a4",
+      "bytes": 682470
+    },
+    "agree": [
+      "docs/releases/0.32.1.sha256",
+      "PyPI JSON API (https://pypi.org/pypi/aelix-analytics/0.32.1/json)",
+      "GitHub Release asset digests",
+      "the run's tools/release_check.py pypi"
+    ]
+  },
+  "environment": {
+    "os": "macOS 26.6.2 arm64 (development machine)",
+    "uv": "0.11.19",
+    "index": "uv's default (PyPI)",
+    "isolation": "a new HOME, UV_TOOL_DIR, UV_TOOL_BIN_DIR, XDG_CONFIG_HOME, XDG_DATA_HOME, AELIX_CODING_AGENT_DIR and AELIX_ANALYTICS_TRUST_FILE in a temporary directory; UV_NO_CONFIG=1"
+  },
+  "routes": [
+    {
+      "command": "uv tool install --python 3.12 aelix-analytics",
+      "exit": 0,
+      "installed": "0.32.1",
+      "then": {
+        "analytics demo <dir>": {
+          "exit": 0,
+          "runs": 4,
+          "rerun_verdict": "match"
+        },
+        "uv tool uninstall aelix-analytics": {
+          "exit": 0
+        }
+      }
+    },
+    {
+      "command": "uv tool install --python 3.12 aelix==0.1.0b2 --with aelix-analytics --with-executables-from aelix-analytics",
+      "exit": 0,
+      "then": {
+        "aelix extension verify": {
+          "exit": 0,
+          "result": "BOUND aelix-analytics [aelix-analytics 0.32.1] (manifest: plugin 'aelix-analytics'); all 1 endpoint(s) BOUND"
+        },
+        "uv tool uninstall aelix": {
+          "exit": 0
+        }
+      }
+    },
+    {
+      "command": "uv tool install --python 3.12 aelix==0.1.0b2; aelix extension install aelix-analytics==0.32.1 --yes",
+      "exit": 0,
+      "installed": "0.32.1 from the index (no direct_url.json)",
+      "then": {
+        "aelix extension verify": {
+          "exit": 0,
+          "result": "all 1 endpoint(s) BOUND"
+        },
+        "aelix extension remove aelix-analytics --yes": {
+          "exit": 0,
+          "left": "no aelix-analytics distribution"
+        }
+      }
+    }
+  ],
+  "marketplace_gate": {
+    "pull_request": "https://github.com/handochan/aelix-marketplace/pull/12",
+    "aelix_src": "aelix-ai 0436193",
+    "source": "aelix-analytics==0.32.1",
+    "result": "BOUND"
+  },
+  "not_run": [
+    "installing by name from PyPI on Linux and Windows (the same routes against a loopback index on three OS are REL-0.32.1)",
+    "uv tool upgrade from an earlier published version: there is none"
+  ]
+}
