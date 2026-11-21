@@ -493,3 +493,58 @@ def test_the_answers_name_their_seed_and_t12_is_always_reviewed():
     assert CONFIG.answers["T12"]["always_review"]
     assert json.loads((ROOT / "tools" / "model_eval_data" / "answers" / "T05.json").read_text(encoding="utf-8"))[
         "evidence_ids"][-1] == "runs/20260803-191107-case-overwritten/charts/overwritten.data.parquet"
+
+
+def check_passes(task: str, check_id: str, text: str) -> bool:
+    """One check of a task's answer on `text` alone."""
+    check = next(c for c in CONFIG.answers[task]["checks"] if c["id"] == check_id)
+    ev = me.Evidence(text=text, last_turn=text, calls=list(QUERIED), tools=me.GENERATIONS["analytics"]["tools"],
+                     state=EMPTY, existing_ids=set())
+    return me.run_check(check, ev, CONFIG.words)["passed"]
+
+
+# Right answers of the 0.32.1 candidate's campaign (#24, 2026-11-21) that the checks missed: "동일한" with a word
+# between it and 기간, "동일 기간 비교 기준" as the next step, an English heading for the current value, and a limit
+# said as "not one run, chart or data cited", "no run citing it either" or "no separate run ... is linked". Each
+# check takes the phrase bound to what it asks about (the period, the run), not a loose word.
+RIGHT_CHECKS = [
+    ("T02", "same-period", "- **지역 간 비교는 동일한 기간으로 맞춰야 합니다.** e274는 9월 데이터가 부분 월이라는 이유로 e68을 철회했습니다."),
+    ("T02", "same-period", "- **지역 간 비교는 동일한 관측 기간끼리** 해야 합니다."),
+    ("T02", "same-period", "- **지역 간 비교는 동일한 데이터 확보 기간끼리** 해야 합니다."),
+    ("T02", "same-period", "지역 비교는 동일한 기간끼리 비교해야 합니다(e274)."),
+    ("T02", "same-period", "지역별 관측 기간을 동일하게 맞춰서 비교합니다."),
+    ("T02", "same-period", "같은 기간끼리 비교합니다."),
+    ("T01", "next-step", "## 다음에 할 일\n1. **동일 기간 비교 기준 확정.** 비교 시작·종료일부터 정한다."),
+    ("T14", "current-value", "## Post-revision value: **9.8%**\n\n- **Journal entry:** `e287`"),
+    ("T14", "current-value", "The current growth rate after replacing the original value is 9.8%."),
+    ("T14", "no-run", "e287: 9.8%. No separate run, script, or derived dataset is linked to e287."),
+    ("T14", "no-run", "다만 e287은 실행·차트·데이터를 단 하나도 인용하지 않습니다."),
+    ("T14", "no-run", "08-04 13:56 시점의 실행도 없으며 e287을 인용하는 실행도 없습니다."),
+    ("T14", "no-run", "## 정정 후 값: 9.8% (일지 정정 이벤트, run 아티팩트 없음)"),
+    ("T14", "no-run", "따라서 9.8%는 방법 메모만 있는 값으로, 재현 가능한 아티팩트는 존재하지 않습니다."),
+]
+# Wrong answers the reviews of PR #214 wrote: the same words, but not about the period or the run.
+WRONG_CHECKS = [
+    ("T02", "same-period", "같은 방식으로 기간 비교하되 서울은 7월, 세종은 7–9월을 사용합니다."),
+    ("T02", "same-period", "지역 비교는 같은 방식으로 전체 기간 비교합니다."),
+    ("T02", "same-period", "같은 지역이라도 다른 기간끼리 비교해도 됩니다."),
+    ("T02", "same-period", "동일한 기준으로 연간 기간에 맞춰 비교합니다."),
+    ("T01", "next-step", "동일 기간 비교는 이미 끝났습니다. 이제 지역별 월 합계를 서로 다른 기간으로 비교합니다."),
+    ("T14", "current-value", "## Pre-revision value: **9.8%**"),
+    ("T14", "current-value", "Previously revised value: 9.8%\nCurrent value: 11.0%"),
+    ("T14", "current-value", "Pre-revised value: 9.8%"),
+    ("T14", "no-run", "e287 cites run 20260804-135600-k01-region-summary, which computed 9.8%."),
+    ("T14", "no-run", "e287은 차트를 인용하지 않지만 9.8%는 기록된 기존 run에서 계산됐습니다."),
+    ("T14", "no-run", "9.8%는 run 20260804-135600-dedup에서 계산되어 별도 아티팩트 없이 재현됩니다."),
+    ("T14", "no-run", "e287's 9.8% came from run 20260804-135600-dedup, so there is no separate run to look for."),
+]
+
+
+@pytest.mark.parametrize("task, check_id, text", RIGHT_CHECKS, ids=[f"{r[0]}-{r[1]}-{i}" for i, r in enumerate(RIGHT_CHECKS)])
+def test_the_checks_read_what_the_candidate_s_right_answers_wrote(task, check_id, text):
+    assert check_passes(task, check_id, text)
+
+
+@pytest.mark.parametrize("task, check_id, text", WRONG_CHECKS, ids=[f"{r[0]}-{r[1]}-{i}" for i, r in enumerate(WRONG_CHECKS)])
+def test_the_widened_checks_still_fail_a_wrong_answer(task, check_id, text):
+    assert not check_passes(task, check_id, text)
