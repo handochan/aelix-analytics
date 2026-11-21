@@ -9,7 +9,7 @@
     "q5": "T07, T08, T12 on the default surface, proposal requested and always_on, 3 repeats, order swapped by repeat; Qwen T12 repeat 1 only (owner, 0.32.0's decision kept)",
     "q11": "T03, T05, T06, T11 on the coding and analytics_read surfaces, 1 repeat",
     "bytes": "dry runs (the fake model server reads aelix's first request body) at 84433ab: T03 per surface, T07 per proposal mode, T06 vanilla",
-    "scoring": "tools/model_eval.py score at d5240a7; no check of these runs changed"
+    "scoring": "tools/model_eval.py score at d5240a7 (#214's head, merged as e29c5bc); no check of these runs changed"
   },
   "runs": {
     "gpt-6.1-sol": {
@@ -2018,6 +2018,7 @@
   },
   "verdicts": {
     "Q5": "within what was measured, one criterion is not met in one cell, left to the owner: required facts not fewer than unrequested fails for Qwen T12 always_on (one repeat, 2/3 against 8/9; the missed check timepoints is also missed by unrequested r3, and always_on changes the first request by 8 bytes of the system prompt). The rest holds: no proposal turn without a request; the keyword check fired on two E4 runs whose words are about reusing derived data, not a proposal; every request answered (a keyword check), its tokens counted apart; always_on set in every run with no candidate or notice record and no model call for suggestions, so the threshold and notice path did not run in a live session. Apart from the gate: the policy's deterministic tests pass on three OS (178 each). Not measured: proposals' validity and duplicates, the registration and deferral examples (BETA section 2)",
+    "Q5_owner_decision": "2026-11-21, the owner in the conversation: the Qwen T12 always_on cell is accepted as variance (the agent's option a)",
     "Q11": "the agent's judgment over the measured surfaces: the narrower surfaces finished nothing the host's whole list (14 tools) did not; the harness's argument errors are 0 on every surface of the four tasks; the kit's bad_query refusals 0; one repeat on the narrower surfaces cannot tell a surface's share. Not measured: tool-selection accuracy over fixed ambiguous or look-alike requests, a new-tool alternative, a local model"
   },
   "q5_run_outside_work_root": {

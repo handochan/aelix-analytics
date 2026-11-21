@@ -20,7 +20,7 @@
     },
     "harness_checkout": "84433ab (clean, detached): main with the candidate's src/ and extension/ (494d1ce) and its sums",
     "fixtures": "made once by a dry run of all 17 tasks with the candidate kit, reused by every run",
-    "scoring": "tools/model_eval.py score at d5240a7 (#214's head) over every run but one, which keeps its first scoring (rescoring.kept_first_scoring)",
+    "scoring": "tools/model_eval.py score at d5240a7 (#214's head; #214 merged as e29c5bc, whose answers and scorer equal d5240a7) over every run but one, which keeps its first scoring (rescoring.kept_first_scoring)",
     "comparison": "tools/model_eval_compare.py at d5240a7 with --fixtures and the confirmations file",
     "answers_confirmed": {
       "T01-T12": "owner 2026-10-17 (#40)",
@@ -57,7 +57,8 @@
     "kept_first_scoring": {
       "run": "C3-qwen3.8-27b-openrouter-default-unrequested-r2-s3",
       "why": "after its first scoring the secret scan overwrote long-token shapes in its events.jsonl (the model's thinking quoted a long cursor) with same-length markers; one began after a backslash, so 172 lines stopped parsing as JSON and a rescore reads the run as not ended (error). The checks of C3 are not among the four #214 changed, so its first scoring stands",
-      "rescored_copy": "evidence/C3-qwen3.8-27b-openrouter-default-unrequested-r2-s3.rescored-d5240a7.run.json"
+      "rescored_copy": "evidence/C3-qwen3.8-27b-openrouter-default-unrequested-r2-s3.rescored-d5240a7.run.json",
+      "follow_up": "https://github.com/handochan/aelix-analytics/issues/216"
     }
   },
   "confirmations": {
@@ -915,7 +916,8 @@
         }
       }
     },
-    "against_0_32_0": "0.32.0's campaign had two A runs that used its harness checkout"
+    "against_0_32_0": "0.32.0's campaign had two A runs that used its harness checkout",
+    "follow_up": "https://github.com/handochan/aelix-analytics/issues/217"
   },
   "tasks": [
     {

@@ -91,14 +91,14 @@ R4의 "해당 없음"은 앞 세션이 그 값을 내지 못한 회수 검사다
     - `writers_left` 1건(T10 A).
     - `names_login` 1건(T08 V 반복 3). 그 run의 bash 명령이 하네스 `.venv`에서 `__editable__.aelix*.pth`를 찾았고, 그 이름의 `.aelix`가
       로그인 위치를 부르는 호출로 걸렸다(아래 "작업 루트 밖"). 로그인의 값과 같은 글은 없다.
-- **채점**: [#214](https://github.com/handochan/aelix-analytics/pull/214)의 head `d5240a7`에서 모든 run을 다시 채점했다(아래 한 run은 첫 채점을 둠).
+- **채점**: [#214](https://github.com/handochan/aelix-analytics/pull/214)의 head `d5240a7`에서 모든 run을 다시 채점했다(아래 한 run은 첫 채점을 둠). #214는 그 head로 병합됐고(`e29c5bc`), main의 정답 파일과 채점기는 `d5240a7`과 같다.
   - #214는 맞는 답을 놓친 네 검사를 넓혔다(T01 `next-step`, T02 `same-period`, T14 `current-value`·`no-run`, 소유자 승인 2026-11-21).
   - 다시 채점해 통과로 바뀐 검사는 9개다. gpt 5개(T01 V 1, T02 A 3 · V 1)이고 그 run 5개는 모두 성공으로 바뀌었다. Qwen 4개(T14 A 3 · V 1)는
     run의 결과를 바꾸지 않았다(중대 오판 검사가 남음. 아래 확정에서 검사의 오판으로 확정). 통과에서 떨어진 검사는 0이다.
   - 다시 채점 전의 기록은 run 디렉터리에 보관했다.
 - **첫 채점을 둔 run 1개**: Qwen C3 A 반복 2 세션 3이다. 비밀 검사가 첫 채점 뒤에 그 `events.jsonl`의 긴 토큰을 같은 길이의 표시로 덮어썼다.
   그 가운데 하나가 역슬래시 바로 뒤에서 시작해 172줄이 JSON으로 읽히지 않게 됐다. 다시 채점하면 하네스가 그 run을 끝나지 않은 것(`error`)으로 읽는다.
-  C3의 검사는 #214가 바꾼 넷에 들지 않으므로 첫 채점을 그대로 두었다. 다시 채점한 사본은 run 디렉터리의 evidence에 있다. 다른 run에는 이런 일이 없었다
+  C3의 검사는 #214가 바꾼 넷에 들지 않으므로 첫 채점을 그대로 두었다([#216](https://github.com/handochan/aelix-analytics/issues/216)). 다시 채점한 사본은 run 디렉터리의 evidence에 있다. 다른 run에는 이런 일이 없었다
   (다시 채점 전후에 읽지 못한 줄의 수가 바뀐 run은 이것 하나다).
 - **맥락 오류**: 중대 오판 검사가 걸린 39건(38 run)을 사람이 확정했다(소유자 2026-11-21, 에이전트의 제안대로). 실제 2건은 둘 다 V다(위 R3).
   나머지 37건은 옛 값을 부정하거나, 출처로 설명하거나, 맞는 값과 견준 문장이다. 확정 파일은 [confirmations](2026-11-21-issue-24-product-eval-confirmations.json)이고
@@ -125,7 +125,7 @@ run의 도구 호출이 작업 루트 밖을 쓴 일이 있었다. Qwen만이고
   (과제, 반복) 13개를 두 조건 모두에서 빼고(체인은 그 반복 전체, run 디렉터리 42개) 비교 도구를 다시 돌렸다.
   두 모델 모두 그대로 pass다. Qwen은 R1 A·V 1.00, R2 근거 A 1.00 · V 0.94, 한계 A·V 1.00, 없는 ID 0 · 0, 맥락 오류 A 0 · V 2,
   R4 A 0.92 · V 0.54(짝 13, 뺀 짝 4)다.
-- 0.32.0의 캠페인에서는 A run 2개만 하네스 checkout을 썼다.
+- 0.32.0의 캠페인에서는 A run 2개만 하네스 checkout을 썼다. 후속은 [#217](https://github.com/handochan/aelix-analytics/issues/217).
 
 ## 진단과 개선 후보
 
@@ -139,8 +139,8 @@ run의 도구 호출이 작업 루트 밖을 쓴 일이 있었다. Qwen만이고
 | 새 프로젝트의 비용(하위 모델) | Qwen C1 세션 1의 토큰 중앙값 A 839k · V 210k, 분석 실행 53 · 34 | A 853k · V 88k, 73 · 39 | [#155](https://github.com/handochan/aelix-analytics/issues/155) |
 | 받은 값을 답에 쓰기 | 두 모델의 A run에서 run이 받은 근거 ID를 답이 쓰지 않음: T07 1, T08 9(`cites`)·6(`cites-sound`), T10 6 | T08 3, T10 6 | 보류(0.32.0 처분) |
 | 근거가 남는가 | gpt V는 C2 세션 3에서 근거 0/3, A 3/3. Qwen은 V 2/3, A 3/3 | gpt 0/3 · Qwen 1/3(V) | 보고(확장의 강점) |
-| 하네스의 격리 | 위 "작업 루트 밖"(fixture의 실행 파일 경로) | A 2 run | 후속 제안(하네스, 배포본 밖) |
-| 하네스의 다시 채점 | 비밀 검사의 표시가 JSON의 escape를 깨면 다시 채점이 그 run을 `error`로 읽음(위) | 보지 못함 | 후속 제안(하네스, 배포본 밖) |
+| 하네스의 격리 | 위 "작업 루트 밖"(fixture의 실행 파일 경로) | A 2 run | [#217](https://github.com/handochan/aelix-analytics/issues/217)(하네스, 배포본 밖) |
+| 하네스의 다시 채점 | 비밀 검사의 표시가 JSON의 escape를 깨면 다시 채점이 그 run을 `error`로 읽음(위) | 보지 못함 | [#216](https://github.com/handochan/aelix-analytics/issues/216)(하네스, 배포본 밖) |
 
 ## 측정하지 않은 것
 
