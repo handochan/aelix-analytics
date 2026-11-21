@@ -1,0 +1,2023 @@
+{
+  "record_kind": "aelix-analytics-q5-q11-verification",
+  "observed_at": "2026-11-21",
+  "issue": "https://github.com/handochan/aelix-analytics/issues/24",
+  "pull_request": null,
+  "run_id": "30a0676e-5748-4fee-9c3c-2bde6412a398",
+  "method": {
+    "harness_checkout": "84433ab (clean, detached), the same as E4: E4's A runs are the unrequested/default baseline",
+    "q5": "T07, T08, T12 on the default surface, proposal requested and always_on, 3 repeats, order swapped by repeat; Qwen T12 repeat 1 only (owner, 0.32.0's decision kept)",
+    "q11": "T03, T05, T06, T11 on the coding and analytics_read surfaces, 1 repeat",
+    "bytes": "dry runs (the fake model server reads aelix's first request body) at 84433ab: T03 per surface, T07 per proposal mode, T06 vanilla",
+    "scoring": "tools/model_eval.py score at d5240a7; no check of these runs changed"
+  },
+  "runs": {
+    "gpt-6.1-sol": {
+      "runs": 26,
+      "outcomes": {
+        "success": 14,
+        "failure": 12
+      },
+      "secret_scan": {
+        "passed": 26
+      },
+      "secret_scan_exact": {
+        "passed": 26
+      },
+      "window_utc": {
+        "first_started": "2026-11-20T18:59:03Z",
+        "last_finished": "2026-11-20T19:44:33Z"
+      },
+      "kit": {
+        "0.32.1 84433ab65b58 extension_sha256=19f578a701f0bd3ac4f68767b4afe1cf51e39dfb216714e2e1ece1fa577496b5": 26
+      }
+    },
+    "qwen3.8-27b-openrouter": {
+      "runs": 22,
+      "outcomes": {
+        "success": 13,
+        "failure": 9
+      },
+      "secret_scan": {
+        "passed": 22
+      },
+      "secret_scan_exact": {
+        "passed": 22
+      },
+      "window_utc": {
+        "first_started": "2026-11-20T18:23:39Z",
+        "last_finished": "2026-11-20T18:57:53Z"
+      },
+      "kit": {
+        "0.32.1 84433ab65b58 extension_sha256=19f578a701f0bd3ac4f68767b4afe1cf51e39dfb216714e2e1ece1fa577496b5": 22
+      }
+    }
+  },
+  "q5": {
+    "gpt-6.1-sol": {
+      "T03 analytics_read/unrequested": {
+        "runs": 1,
+        "success": 1,
+        "fact": [
+          3,
+          3
+        ],
+        "median_tokens": 32008,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 2,
+        "tool_errors": 0,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success"
+        ]
+      },
+      "T03 coding/unrequested": {
+        "runs": 1,
+        "success": 1,
+        "fact": [
+          3,
+          3
+        ],
+        "median_tokens": 35328,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 2,
+        "tool_errors": 0,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success"
+        ]
+      },
+      "T03 default/unrequested": {
+        "runs": 3,
+        "success": 3,
+        "fact": [
+          9,
+          9
+        ],
+        "median_tokens": 36742,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 2,
+        "tool_errors": 0,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success",
+          "success",
+          "success"
+        ]
+      },
+      "T05 analytics_read/unrequested": {
+        "runs": 1,
+        "success": 1,
+        "fact": [
+          2,
+          2
+        ],
+        "median_tokens": 72670,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 10,
+        "tool_errors": 1,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success"
+        ]
+      },
+      "T05 coding/unrequested": {
+        "runs": 1,
+        "success": 0,
+        "fact": [
+          2,
+          2
+        ],
+        "median_tokens": 100071,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 8,
+        "tool_errors": 1,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {
+          "T05-gpt-6.1-sol-coding-unrequested-r1": [
+            "unchanged-claim"
+          ]
+        },
+        "outcomes": [
+          "failure"
+        ]
+      },
+      "T05 default/unrequested": {
+        "runs": 3,
+        "success": 3,
+        "fact": [
+          6,
+          6
+        ],
+        "median_tokens": 65034,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 7,
+        "tool_errors": 0,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success",
+          "success",
+          "success"
+        ]
+      },
+      "T06 analytics_read/unrequested": {
+        "runs": 1,
+        "success": 1,
+        "fact": [
+          1,
+          1
+        ],
+        "median_tokens": 13117,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 2,
+        "tool_errors": 0,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success"
+        ]
+      },
+      "T06 coding/unrequested": {
+        "runs": 1,
+        "success": 1,
+        "fact": [
+          1,
+          1
+        ],
+        "median_tokens": 16432,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 2,
+        "tool_errors": 0,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success"
+        ]
+      },
+      "T06 default/unrequested": {
+        "runs": 3,
+        "success": 3,
+        "fact": [
+          3,
+          3
+        ],
+        "median_tokens": 17878,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 2,
+        "tool_errors": 0,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success",
+          "success",
+          "success"
+        ]
+      },
+      "T07 default/always_on": {
+        "runs": 3,
+        "success": 3,
+        "fact": [
+          7,
+          9
+        ],
+        "median_tokens": 94850,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": {
+          "asset_candidate": 0,
+          "asset_notification": 0,
+          "reuse_proposal": 0,
+          "reuse_notification": 0
+        },
+        "mode_set": 3,
+        "median_tool_calls": 11,
+        "tool_errors": 3,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success",
+          "success",
+          "success"
+        ]
+      },
+      "T07 default/requested": {
+        "runs": 3,
+        "success": 3,
+        "fact": [
+          9,
+          9
+        ],
+        "median_tokens": 98489,
+        "proposal_answered": 3,
+        "median_proposal_turn_tokens": 12511,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 11,
+        "tool_errors": 1,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success",
+          "success",
+          "success"
+        ]
+      },
+      "T07 default/unrequested": {
+        "runs": 3,
+        "success": 1,
+        "fact": [
+          5,
+          9
+        ],
+        "median_tokens": 66881,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 12,
+        "tool_errors": 0,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "failure",
+          "failure",
+          "success"
+        ]
+      },
+      "T08 default/always_on": {
+        "runs": 3,
+        "success": 0,
+        "fact": [
+          8,
+          9
+        ],
+        "median_tokens": 80140,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": {
+          "asset_candidate": 0,
+          "asset_notification": 0,
+          "reuse_proposal": 0,
+          "reuse_notification": 0
+        },
+        "mode_set": 3,
+        "median_tool_calls": 12,
+        "tool_errors": 0,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "failure",
+          "failure",
+          "failure"
+        ]
+      },
+      "T08 default/requested": {
+        "runs": 3,
+        "success": 0,
+        "fact": [
+          8,
+          9
+        ],
+        "median_tokens": 102343,
+        "proposal_answered": 3,
+        "median_proposal_turn_tokens": 12574,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 11,
+        "tool_errors": 1,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {
+          "T08-gpt-6.1-sol-default-requested-r1": [
+            "decline-as-current"
+          ],
+          "T08-gpt-6.1-sol-default-requested-r3": [
+            "decline-as-current"
+          ]
+        },
+        "outcomes": [
+          "failure",
+          "failure",
+          "failure"
+        ]
+      },
+      "T08 default/unrequested": {
+        "runs": 3,
+        "success": 0,
+        "fact": [
+          8,
+          9
+        ],
+        "median_tokens": 70169,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 11,
+        "tool_errors": 1,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "failure",
+          "failure",
+          "failure"
+        ]
+      },
+      "T11 analytics_read/unrequested": {
+        "runs": 1,
+        "success": 1,
+        "fact": [
+          3,
+          3
+        ],
+        "median_tokens": 45299,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 5,
+        "tool_errors": 0,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success"
+        ]
+      },
+      "T11 coding/unrequested": {
+        "runs": 1,
+        "success": 1,
+        "fact": [
+          3,
+          3
+        ],
+        "median_tokens": 51081,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 6,
+        "tool_errors": 0,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success"
+        ]
+      },
+      "T11 default/unrequested": {
+        "runs": 3,
+        "success": 3,
+        "fact": [
+          9,
+          9
+        ],
+        "median_tokens": 61830,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 9,
+        "tool_errors": 1,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success",
+          "success",
+          "success"
+        ]
+      },
+      "T12 default/always_on": {
+        "runs": 3,
+        "success": 0,
+        "fact": [
+          6,
+          9
+        ],
+        "median_tokens": 434133,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": {
+          "asset_candidate": 0,
+          "asset_notification": 0,
+          "reuse_proposal": 0,
+          "reuse_notification": 0
+        },
+        "mode_set": 3,
+        "median_tool_calls": 21,
+        "tool_errors": 1,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "failure",
+          "failure",
+          "failure"
+        ]
+      },
+      "T12 default/requested": {
+        "runs": 3,
+        "success": 1,
+        "fact": [
+          8,
+          9
+        ],
+        "median_tokens": 594164,
+        "proposal_answered": 3,
+        "median_proposal_turn_tokens": 137899,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 26,
+        "tool_errors": 1,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "failure",
+          "failure",
+          "success"
+        ]
+      },
+      "T12 default/unrequested": {
+        "runs": 3,
+        "success": 0,
+        "fact": [
+          6,
+          9
+        ],
+        "median_tokens": 327548,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 17,
+        "tool_errors": 0,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "failure",
+          "failure",
+          "failure"
+        ]
+      }
+    },
+    "qwen3.8-27b-openrouter": {
+      "T03 analytics_read/unrequested": {
+        "runs": 1,
+        "success": 1,
+        "fact": [
+          3,
+          3
+        ],
+        "median_tokens": 59016,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 7,
+        "tool_errors": 0,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success"
+        ]
+      },
+      "T03 coding/unrequested": {
+        "runs": 1,
+        "success": 1,
+        "fact": [
+          3,
+          3
+        ],
+        "median_tokens": 63764,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 5,
+        "tool_errors": 0,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success"
+        ]
+      },
+      "T03 default/unrequested": {
+        "runs": 3,
+        "success": 3,
+        "fact": [
+          9,
+          9
+        ],
+        "median_tokens": 66674,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 5,
+        "tool_errors": 0,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success",
+          "success",
+          "success"
+        ]
+      },
+      "T05 analytics_read/unrequested": {
+        "runs": 1,
+        "success": 1,
+        "fact": [
+          2,
+          2
+        ],
+        "median_tokens": 80487,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 8,
+        "tool_errors": 1,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success"
+        ]
+      },
+      "T05 coding/unrequested": {
+        "runs": 1,
+        "success": 0,
+        "fact": [
+          2,
+          2
+        ],
+        "median_tokens": 110604,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 8,
+        "tool_errors": 2,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {
+          "T05-qwen3.8-27b-openrouter-coding-unrequested-r1": [
+            "lost-claim"
+          ]
+        },
+        "outcomes": [
+          "failure"
+        ]
+      },
+      "T05 default/unrequested": {
+        "runs": 3,
+        "success": 1,
+        "fact": [
+          6,
+          6
+        ],
+        "median_tokens": 117874,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 7,
+        "tool_errors": 4,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {
+          "T05-qwen3.8-27b-openrouter-default-unrequested-r2": [
+            "lost-claim"
+          ],
+          "T05-qwen3.8-27b-openrouter-default-unrequested-r3": [
+            "unchanged-claim"
+          ]
+        },
+        "outcomes": [
+          "failure",
+          "failure",
+          "success"
+        ]
+      },
+      "T06 analytics_read/unrequested": {
+        "runs": 1,
+        "success": 1,
+        "fact": [
+          1,
+          1
+        ],
+        "median_tokens": 28047,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 3,
+        "tool_errors": 0,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success"
+        ]
+      },
+      "T06 coding/unrequested": {
+        "runs": 1,
+        "success": 1,
+        "fact": [
+          1,
+          1
+        ],
+        "median_tokens": 27865,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 3,
+        "tool_errors": 1,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success"
+        ]
+      },
+      "T06 default/unrequested": {
+        "runs": 3,
+        "success": 3,
+        "fact": [
+          3,
+          3
+        ],
+        "median_tokens": 32346,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 3,
+        "tool_errors": 2,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success",
+          "success",
+          "success"
+        ]
+      },
+      "T07 default/always_on": {
+        "runs": 3,
+        "success": 3,
+        "fact": [
+          6,
+          9
+        ],
+        "median_tokens": 100651,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": {
+          "asset_candidate": 0,
+          "asset_notification": 0,
+          "reuse_proposal": 0,
+          "reuse_notification": 0
+        },
+        "mode_set": 3,
+        "median_tool_calls": 11,
+        "tool_errors": 1,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success",
+          "success",
+          "success"
+        ]
+      },
+      "T07 default/requested": {
+        "runs": 3,
+        "success": 1,
+        "fact": [
+          6,
+          9
+        ],
+        "median_tokens": 165922,
+        "proposal_answered": 3,
+        "median_proposal_turn_tokens": 19120,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 14,
+        "tool_errors": 13,
+        "argument_errors": 3,
+        "raw_reads": 0,
+        "critical": {
+          "T07-qwen3.8-27b-openrouter-default-requested-r1": [
+            "wrong-rate"
+          ],
+          "T07-qwen3.8-27b-openrouter-default-requested-r3": [
+            "wrong-rate"
+          ]
+        },
+        "outcomes": [
+          "failure",
+          "failure",
+          "success"
+        ]
+      },
+      "T07 default/unrequested": {
+        "runs": 3,
+        "success": 3,
+        "fact": [
+          6,
+          9
+        ],
+        "median_tokens": 146194,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 13,
+        "tool_errors": 4,
+        "argument_errors": 1,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success",
+          "success",
+          "success"
+        ]
+      },
+      "T08 default/always_on": {
+        "runs": 3,
+        "success": 2,
+        "fact": [
+          9,
+          9
+        ],
+        "median_tokens": 98481,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": {
+          "asset_candidate": 0,
+          "asset_notification": 0,
+          "reuse_proposal": 0,
+          "reuse_notification": 0
+        },
+        "mode_set": 3,
+        "median_tool_calls": 9,
+        "tool_errors": 3,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {
+          "T08-qwen3.8-27b-openrouter-default-always_on-r1": [
+            "decline-as-current"
+          ]
+        },
+        "outcomes": [
+          "failure",
+          "success",
+          "success"
+        ]
+      },
+      "T08 default/requested": {
+        "runs": 3,
+        "success": 1,
+        "fact": [
+          9,
+          9
+        ],
+        "median_tokens": 159797,
+        "proposal_answered": 3,
+        "median_proposal_turn_tokens": 33533,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 13,
+        "tool_errors": 8,
+        "argument_errors": 2,
+        "raw_reads": 0,
+        "critical": {
+          "T08-qwen3.8-27b-openrouter-default-requested-r1": [
+            "decline-as-current"
+          ],
+          "T08-qwen3.8-27b-openrouter-default-requested-r2": [
+            "decline-as-current"
+          ]
+        },
+        "outcomes": [
+          "failure",
+          "failure",
+          "success"
+        ]
+      },
+      "T08 default/unrequested": {
+        "runs": 3,
+        "success": 1,
+        "fact": [
+          7,
+          9
+        ],
+        "median_tokens": 129893,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 12,
+        "tool_errors": 3,
+        "argument_errors": 1,
+        "raw_reads": 0,
+        "critical": {
+          "T08-qwen3.8-27b-openrouter-default-unrequested-r2": [
+            "decline-as-current"
+          ]
+        },
+        "outcomes": [
+          "failure",
+          "failure",
+          "success"
+        ]
+      },
+      "T11 analytics_read/unrequested": {
+        "runs": 1,
+        "success": 0,
+        "fact": [
+          2,
+          3
+        ],
+        "median_tokens": 105352,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 11,
+        "tool_errors": 5,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "failure"
+        ]
+      },
+      "T11 coding/unrequested": {
+        "runs": 1,
+        "success": 1,
+        "fact": [
+          3,
+          3
+        ],
+        "median_tokens": 56988,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 6,
+        "tool_errors": 0,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success"
+        ]
+      },
+      "T11 default/unrequested": {
+        "runs": 3,
+        "success": 3,
+        "fact": [
+          9,
+          9
+        ],
+        "median_tokens": 54498,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 8,
+        "tool_errors": 0,
+        "argument_errors": 0,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "success",
+          "success",
+          "success"
+        ]
+      },
+      "T12 default/always_on": {
+        "runs": 1,
+        "success": 0,
+        "fact": [
+          2,
+          3
+        ],
+        "median_tokens": 1763130,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": {
+          "asset_candidate": 0,
+          "asset_notification": 0,
+          "reuse_proposal": 0,
+          "reuse_notification": 0
+        },
+        "mode_set": 1,
+        "median_tool_calls": 47,
+        "tool_errors": 13,
+        "argument_errors": 4,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "failure"
+        ]
+      },
+      "T12 default/requested": {
+        "runs": 1,
+        "success": 0,
+        "fact": [
+          3,
+          3
+        ],
+        "median_tokens": 7375307,
+        "proposal_answered": 1,
+        "median_proposal_turn_tokens": 1296486,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 100,
+        "tool_errors": 20,
+        "argument_errors": 1,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "failure"
+        ]
+      },
+      "T12 default/unrequested": {
+        "runs": 3,
+        "success": 0,
+        "fact": [
+          8,
+          9
+        ],
+        "median_tokens": 1530731,
+        "proposal_answered": null,
+        "median_proposal_turn_tokens": null,
+        "proposal_mentioned": 0,
+        "events": null,
+        "mode_set": null,
+        "median_tool_calls": 52,
+        "tool_errors": 30,
+        "argument_errors": 4,
+        "raw_reads": 0,
+        "critical": {},
+        "outcomes": [
+          "failure",
+          "failure",
+          "failure"
+        ]
+      }
+    }
+  },
+  "q11": {
+    "gpt-6.1-sol": {
+      "T03 analytics_read": {
+        "model": "gpt-6.1-sol",
+        "task": "T03",
+        "condition": "analytics_read/unrequested",
+        "runs": 1,
+        "not_run": 0,
+        "answer_success": 1,
+        "fact": [
+          3,
+          3
+        ],
+        "evidence": [
+          1,
+          1
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 32008,
+        "median_tool_calls": 2,
+        "median_elapsed_s": 8.8,
+        "tool_errors": 0,
+        "raw_reads": 0,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 0
+      },
+      "T03 coding": {
+        "model": "gpt-6.1-sol",
+        "task": "T03",
+        "condition": "coding/unrequested",
+        "runs": 1,
+        "not_run": 0,
+        "answer_success": 1,
+        "fact": [
+          3,
+          3
+        ],
+        "evidence": [
+          1,
+          1
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 35328,
+        "median_tool_calls": 2,
+        "median_elapsed_s": 8.6,
+        "tool_errors": 0,
+        "raw_reads": 0,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 0
+      },
+      "T03 default": {
+        "model": "gpt-6.1-sol",
+        "task": "T03",
+        "condition": "A",
+        "runs": 3,
+        "not_run": 0,
+        "answer_success": 3,
+        "fact": [
+          9,
+          9
+        ],
+        "evidence": [
+          3,
+          3
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 36742,
+        "median_tool_calls": 2,
+        "median_elapsed_s": 10.0,
+        "tool_errors": 0,
+        "raw_reads": 0,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 0
+      },
+      "T05 analytics_read": {
+        "model": "gpt-6.1-sol",
+        "task": "T05",
+        "condition": "analytics_read/unrequested",
+        "runs": 1,
+        "not_run": 0,
+        "answer_success": 1,
+        "fact": [
+          2,
+          2
+        ],
+        "evidence": [
+          1,
+          1
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 72670,
+        "median_tool_calls": 10,
+        "median_elapsed_s": 27.7,
+        "tool_errors": 1,
+        "raw_reads": 4,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 2
+      },
+      "T05 coding": {
+        "model": "gpt-6.1-sol",
+        "task": "T05",
+        "condition": "coding/unrequested",
+        "runs": 1,
+        "not_run": 0,
+        "answer_success": 0,
+        "fact": [
+          2,
+          2
+        ],
+        "evidence": [
+          1,
+          1
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 1,
+        "fabricated_ids": 0,
+        "median_tokens": 100071,
+        "median_tool_calls": 8,
+        "median_elapsed_s": 44.5,
+        "tool_errors": 1,
+        "raw_reads": 4,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 1
+      },
+      "T05 default": {
+        "model": "gpt-6.1-sol",
+        "task": "T05",
+        "condition": "A",
+        "runs": 3,
+        "not_run": 0,
+        "answer_success": 3,
+        "fact": [
+          6,
+          6
+        ],
+        "evidence": [
+          3,
+          3
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 65034,
+        "median_tool_calls": 7,
+        "median_elapsed_s": 27.2,
+        "tool_errors": 0,
+        "raw_reads": 15,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 0
+      },
+      "T06 analytics_read": {
+        "model": "gpt-6.1-sol",
+        "task": "T06",
+        "condition": "analytics_read/unrequested",
+        "runs": 1,
+        "not_run": 0,
+        "answer_success": 1,
+        "fact": [
+          1,
+          1
+        ],
+        "evidence": [
+          0,
+          0
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 13117,
+        "median_tool_calls": 2,
+        "median_elapsed_s": 7.2,
+        "tool_errors": 0,
+        "raw_reads": 0,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 2
+      },
+      "T06 coding": {
+        "model": "gpt-6.1-sol",
+        "task": "T06",
+        "condition": "coding/unrequested",
+        "runs": 1,
+        "not_run": 0,
+        "answer_success": 1,
+        "fact": [
+          1,
+          1
+        ],
+        "evidence": [
+          0,
+          0
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 16432,
+        "median_tool_calls": 2,
+        "median_elapsed_s": 9.2,
+        "tool_errors": 0,
+        "raw_reads": 0,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 2
+      },
+      "T06 default": {
+        "model": "gpt-6.1-sol",
+        "task": "T06",
+        "condition": "A",
+        "runs": 3,
+        "not_run": 0,
+        "answer_success": 3,
+        "fact": [
+          3,
+          3
+        ],
+        "evidence": [
+          0,
+          0
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 17878,
+        "median_tool_calls": 2,
+        "median_elapsed_s": 10.4,
+        "tool_errors": 0,
+        "raw_reads": 0,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 6
+      },
+      "T11 analytics_read": {
+        "model": "gpt-6.1-sol",
+        "task": "T11",
+        "condition": "analytics_read/unrequested",
+        "runs": 1,
+        "not_run": 0,
+        "answer_success": 1,
+        "fact": [
+          3,
+          3
+        ],
+        "evidence": [
+          1,
+          1
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 45299,
+        "median_tool_calls": 5,
+        "median_elapsed_s": 17.6,
+        "tool_errors": 0,
+        "raw_reads": 2,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 0
+      },
+      "T11 coding": {
+        "model": "gpt-6.1-sol",
+        "task": "T11",
+        "condition": "coding/unrequested",
+        "runs": 1,
+        "not_run": 0,
+        "answer_success": 1,
+        "fact": [
+          3,
+          3
+        ],
+        "evidence": [
+          1,
+          1
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 51081,
+        "median_tool_calls": 6,
+        "median_elapsed_s": 20.6,
+        "tool_errors": 0,
+        "raw_reads": 4,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 0
+      },
+      "T11 default": {
+        "model": "gpt-6.1-sol",
+        "task": "T11",
+        "condition": "A",
+        "runs": 3,
+        "not_run": 0,
+        "answer_success": 3,
+        "fact": [
+          9,
+          9
+        ],
+        "evidence": [
+          3,
+          3
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 61830,
+        "median_tool_calls": 9,
+        "median_elapsed_s": 24.5,
+        "tool_errors": 1,
+        "raw_reads": 15,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 0
+      }
+    },
+    "qwen3.8-27b-openrouter": {
+      "T03 analytics_read": {
+        "model": "qwen3.8-27b-openrouter",
+        "task": "T03",
+        "condition": "analytics_read/unrequested",
+        "runs": 1,
+        "not_run": 0,
+        "answer_success": 1,
+        "fact": [
+          3,
+          3
+        ],
+        "evidence": [
+          1,
+          1
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 59016,
+        "median_tool_calls": 7,
+        "median_elapsed_s": 14.2,
+        "tool_errors": 0,
+        "raw_reads": 0,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 0
+      },
+      "T03 coding": {
+        "model": "qwen3.8-27b-openrouter",
+        "task": "T03",
+        "condition": "coding/unrequested",
+        "runs": 1,
+        "not_run": 0,
+        "answer_success": 1,
+        "fact": [
+          3,
+          3
+        ],
+        "evidence": [
+          1,
+          1
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 63764,
+        "median_tool_calls": 5,
+        "median_elapsed_s": 10.3,
+        "tool_errors": 0,
+        "raw_reads": 0,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 0
+      },
+      "T03 default": {
+        "model": "qwen3.8-27b-openrouter",
+        "task": "T03",
+        "condition": "A",
+        "runs": 3,
+        "not_run": 0,
+        "answer_success": 3,
+        "fact": [
+          9,
+          9
+        ],
+        "evidence": [
+          3,
+          3
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 66674,
+        "median_tool_calls": 5,
+        "median_elapsed_s": 12.9,
+        "tool_errors": 0,
+        "raw_reads": 0,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 0
+      },
+      "T05 analytics_read": {
+        "model": "qwen3.8-27b-openrouter",
+        "task": "T05",
+        "condition": "analytics_read/unrequested",
+        "runs": 1,
+        "not_run": 0,
+        "answer_success": 1,
+        "fact": [
+          2,
+          2
+        ],
+        "evidence": [
+          1,
+          1
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 80487,
+        "median_tool_calls": 8,
+        "median_elapsed_s": 22.1,
+        "tool_errors": 1,
+        "raw_reads": 2,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 3
+      },
+      "T05 coding": {
+        "model": "qwen3.8-27b-openrouter",
+        "task": "T05",
+        "condition": "coding/unrequested",
+        "runs": 1,
+        "not_run": 0,
+        "answer_success": 0,
+        "fact": [
+          2,
+          2
+        ],
+        "evidence": [
+          1,
+          1
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 1,
+        "fabricated_ids": 0,
+        "median_tokens": 110604,
+        "median_tool_calls": 8,
+        "median_elapsed_s": 41.2,
+        "tool_errors": 2,
+        "raw_reads": 5,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 3
+      },
+      "T05 default": {
+        "model": "qwen3.8-27b-openrouter",
+        "task": "T05",
+        "condition": "A",
+        "runs": 3,
+        "not_run": 0,
+        "answer_success": 3,
+        "fact": [
+          6,
+          6
+        ],
+        "evidence": [
+          3,
+          3
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 117874,
+        "median_tool_calls": 7,
+        "median_elapsed_s": 19.2,
+        "tool_errors": 4,
+        "raw_reads": 17,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 7
+      },
+      "T06 analytics_read": {
+        "model": "qwen3.8-27b-openrouter",
+        "task": "T06",
+        "condition": "analytics_read/unrequested",
+        "runs": 1,
+        "not_run": 0,
+        "answer_success": 1,
+        "fact": [
+          1,
+          1
+        ],
+        "evidence": [
+          0,
+          0
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 28047,
+        "median_tool_calls": 3,
+        "median_elapsed_s": 5.9,
+        "tool_errors": 0,
+        "raw_reads": 0,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 2
+      },
+      "T06 coding": {
+        "model": "qwen3.8-27b-openrouter",
+        "task": "T06",
+        "condition": "coding/unrequested",
+        "runs": 1,
+        "not_run": 0,
+        "answer_success": 1,
+        "fact": [
+          1,
+          1
+        ],
+        "evidence": [
+          0,
+          0
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 27865,
+        "median_tool_calls": 3,
+        "median_elapsed_s": 9.1,
+        "tool_errors": 1,
+        "raw_reads": 0,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 3
+      },
+      "T06 default": {
+        "model": "qwen3.8-27b-openrouter",
+        "task": "T06",
+        "condition": "A",
+        "runs": 3,
+        "not_run": 0,
+        "answer_success": 3,
+        "fact": [
+          3,
+          3
+        ],
+        "evidence": [
+          0,
+          0
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 32346,
+        "median_tool_calls": 3,
+        "median_elapsed_s": 8.8,
+        "tool_errors": 2,
+        "raw_reads": 0,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 8
+      },
+      "T11 analytics_read": {
+        "model": "qwen3.8-27b-openrouter",
+        "task": "T11",
+        "condition": "analytics_read/unrequested",
+        "runs": 1,
+        "not_run": 0,
+        "answer_success": 0,
+        "fact": [
+          2,
+          3
+        ],
+        "evidence": [
+          1,
+          1
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 105352,
+        "median_tool_calls": 11,
+        "median_elapsed_s": 25.7,
+        "tool_errors": 5,
+        "raw_reads": 5,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 0
+      },
+      "T11 coding": {
+        "model": "qwen3.8-27b-openrouter",
+        "task": "T11",
+        "condition": "coding/unrequested",
+        "runs": 1,
+        "not_run": 0,
+        "answer_success": 1,
+        "fact": [
+          3,
+          3
+        ],
+        "evidence": [
+          1,
+          1
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 56988,
+        "median_tool_calls": 6,
+        "median_elapsed_s": 37.4,
+        "tool_errors": 0,
+        "raw_reads": 4,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 1
+      },
+      "T11 default": {
+        "model": "qwen3.8-27b-openrouter",
+        "task": "T11",
+        "condition": "A",
+        "runs": 3,
+        "not_run": 0,
+        "answer_success": 3,
+        "fact": [
+          9,
+          9
+        ],
+        "evidence": [
+          3,
+          3
+        ],
+        "limits": [
+          0,
+          0
+        ],
+        "context_errors": 0,
+        "fabricated_ids": 0,
+        "median_tokens": 54498,
+        "median_tool_calls": 8,
+        "median_elapsed_s": 14.3,
+        "tool_errors": 0,
+        "raw_reads": 15,
+        "recall": [
+          0,
+          0
+        ],
+        "analysis_calls": 4
+      }
+    }
+  },
+  "request_bytes": {
+    "T07-dry-run-default-always_on-r1": {
+      "surface": "default",
+      "proposal": "always_on",
+      "kit": true,
+      "tools": 14,
+      "tool_schema_bytes": 15575,
+      "system_prompt_bytes": 11581,
+      "request_bytes": 27141
+    },
+    "T03-dry-run-analytics_read-unrequested-r1": {
+      "surface": "analytics_read",
+      "proposal": "unrequested",
+      "kit": true,
+      "tools": 7,
+      "tool_schema_bytes": 10488,
+      "system_prompt_bytes": 19651,
+      "request_bytes": 30318
+    },
+    "T03-dry-run-coding-unrequested-r1": {
+      "surface": "coding",
+      "proposal": "unrequested",
+      "kit": true,
+      "tools": 10,
+      "tool_schema_bytes": 12871,
+      "system_prompt_bytes": 22336,
+      "request_bytes": 35318
+    },
+    "T07-dry-run-default-requested-r1": {
+      "surface": "default",
+      "proposal": "requested",
+      "kit": true,
+      "tools": 14,
+      "tool_schema_bytes": 15575,
+      "system_prompt_bytes": 11581,
+      "request_bytes": 27141
+    },
+    "T03-dry-run-default-unrequested-r1": {
+      "surface": "default",
+      "proposal": "unrequested",
+      "kit": true,
+      "tools": 14,
+      "tool_schema_bytes": 15575,
+      "system_prompt_bytes": 22543,
+      "request_bytes": 38120
+    },
+    "T07-dry-run-default-unrequested-r1": {
+      "surface": "default",
+      "proposal": "unrequested",
+      "kit": true,
+      "tools": 14,
+      "tool_schema_bytes": 15575,
+      "system_prompt_bytes": 11573,
+      "request_bytes": 27133
+    },
+    "T06-dry-run-vanilla-unrequested-r1": {
+      "surface": "vanilla",
+      "proposal": "unrequested",
+      "kit": false,
+      "tools": 8,
+      "tool_schema_bytes": 5795,
+      "system_prompt_bytes": 6618,
+      "request_bytes": 12580
+    }
+  },
+  "not_confirmed": {
+    "gpt-6.1-sol": {
+      "T05 coding/unrequested": {
+        "T05-gpt-6.1-sol-coding-unrequested-r1": [
+          "unchanged-claim"
+        ]
+      },
+      "T08 default/requested": {
+        "T08-gpt-6.1-sol-default-requested-r1": [
+          "decline-as-current"
+        ],
+        "T08-gpt-6.1-sol-default-requested-r3": [
+          "decline-as-current"
+        ]
+      }
+    },
+    "qwen3.8-27b-openrouter": {
+      "T05 coding/unrequested": {
+        "T05-qwen3.8-27b-openrouter-coding-unrequested-r1": [
+          "lost-claim"
+        ]
+      },
+      "T07 default/requested": {
+        "T07-qwen3.8-27b-openrouter-default-requested-r1": [
+          "wrong-rate"
+        ],
+        "T07-qwen3.8-27b-openrouter-default-requested-r3": [
+          "wrong-rate"
+        ]
+      },
+      "T08 default/always_on": {
+        "T08-qwen3.8-27b-openrouter-default-always_on-r1": [
+          "decline-as-current"
+        ]
+      },
+      "T08 default/requested": {
+        "T08-qwen3.8-27b-openrouter-default-requested-r1": [
+          "decline-as-current"
+        ],
+        "T08-qwen3.8-27b-openrouter-default-requested-r2": [
+          "decline-as-current"
+        ]
+      }
+    }
+  },
+  "proposal_keyword_hits_in_e4": {
+    "runs": [
+      "C1-qwen3.8-27b-openrouter-default-unrequested-r2-s1 (A)",
+      "T12-qwen3.8-27b-openrouter-vanilla-unrequested-r3 (V)"
+    ],
+    "reading": "both say derived data or a figure is reused next time ('재사용'); neither proposes registering an asset"
+  },
+  "deterministic": {
+    "what": "the suggestion policy's tests (the same seven files as 0.32.0's record) in the candidate's CI",
+    "ci_run": "https://github.com/handochan/aelix-analytics/actions/runs/44738231086",
+    "commit": "494d1ce",
+    "passed_per_os": {
+      "tests/test_asset_contract.py": 52,
+      "tests/test_asset_history.py": 25,
+      "tests/test_asset_host.py": 14,
+      "tests/test_asset_publication.py": 43,
+      "tests/test_asset_suggestions.py": 24,
+      "tests/test_asset_workspace.py": 2,
+      "tests/test_assets.py": 18
+    },
+    "os": [
+      "ubuntu-24.04",
+      "windows-2025",
+      "macos-26"
+    ],
+    "source": "the CI run's JUnit reports (suite.xml)"
+  },
+  "verdicts": {
+    "Q5": "pass within what was measured: no proposal turn without a request; the keyword check fired on two E4 runs whose words are about reusing derived data, not a proposal; every request answered (a keyword check), its tokens counted apart; always_on set in every run with no candidate or notice record and no model call for suggestions, so the threshold and notice path did not run in a live session; required facts not fewer than unrequested but Qwen T12 always_on's one run (2/3: timepoints, missed by unrequested r3 too); the policy's deterministic tests pass on three OS (178 each)",
+    "Q11": "pass in the agent's judgment: the narrower surfaces finished nothing the host's whole list (14 tools) did not; the harness's argument errors are 0 on every surface of the four tasks; the kit's bad_query refusals 0; one repeat on the narrower surfaces cannot tell a surface's share"
+  }
+}
