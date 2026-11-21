@@ -2017,7 +2017,67 @@
     "source": "the CI run's JUnit reports (suite.xml)"
   },
   "verdicts": {
-    "Q5": "pass within what was measured: no proposal turn without a request; the keyword check fired on two E4 runs whose words are about reusing derived data, not a proposal; every request answered (a keyword check), its tokens counted apart; always_on set in every run with no candidate or notice record and no model call for suggestions, so the threshold and notice path did not run in a live session; required facts not fewer than unrequested but Qwen T12 always_on's one run (2/3: timepoints, missed by unrequested r3 too); the policy's deterministic tests pass on three OS (178 each)",
-    "Q11": "pass in the agent's judgment: the narrower surfaces finished nothing the host's whole list (14 tools) did not; the harness's argument errors are 0 on every surface of the four tasks; the kit's bad_query refusals 0; one repeat on the narrower surfaces cannot tell a surface's share"
+    "Q5": "within what was measured, one criterion is not met in one cell, left to the owner: required facts not fewer than unrequested fails for Qwen T12 always_on (one repeat, 2/3 against 8/9; the missed check timepoints is also missed by unrequested r3, and always_on changes the first request by 8 bytes of the system prompt). The rest holds: no proposal turn without a request; the keyword check fired on two E4 runs whose words are about reusing derived data, not a proposal; every request answered (a keyword check), its tokens counted apart; always_on set in every run with no candidate or notice record and no model call for suggestions, so the threshold and notice path did not run in a live session. Apart from the gate: the policy's deterministic tests pass on three OS (178 each). Not measured: proposals' validity and duplicates, the registration and deferral examples (BETA section 2)",
+    "Q11": "the agent's judgment over the measured surfaces: the narrower surfaces finished nothing the host's whole list (14 tools) did not; the harness's argument errors are 0 on every surface of the four tasks; the kit's bad_query refusals 0; one repeat on the narrower surfaces cannot tell a surface's share. Not measured: tool-selection accuracy over fixed ambiguous or look-alike requests, a new-tool alternative, a local model"
+  },
+  "q5_run_outside_work_root": {
+    "A T12-qwen3.8-27b-openrouter-default-requested-r1": [
+      {
+        "call": 19,
+        "tool": "bash",
+        "kinds": [
+          "harness checkout"
+        ],
+        "error": false
+      },
+      {
+        "call": 20,
+        "tool": "bash",
+        "kinds": [
+          "harness checkout"
+        ],
+        "error": false
+      },
+      {
+        "call": 21,
+        "tool": "bash",
+        "kinds": [
+          "harness checkout"
+        ],
+        "error": false
+      },
+      {
+        "call": 36,
+        "tool": "bash",
+        "kinds": [
+          "harness checkout"
+        ],
+        "error": false
+      },
+      {
+        "call": 91,
+        "tool": "bash",
+        "kinds": [
+          "harness checkout"
+        ],
+        "error": false
+      },
+      {
+        "call": 92,
+        "tool": "bash",
+        "kinds": [
+          "harness checkout"
+        ],
+        "error": false
+      },
+      {
+        "call": 93,
+        "tool": "bash",
+        "kinds": [
+          "harness checkout"
+        ],
+        "error": false
+      }
+    ]
   }
 }

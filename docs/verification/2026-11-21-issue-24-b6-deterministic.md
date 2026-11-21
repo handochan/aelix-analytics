@@ -24,9 +24,9 @@ fixture와 그 사본, Workspace, Q17-a의 환경과 원시 측정 디렉터리�
 3. **측정 도구.** 도구는 clean detached `84433ab`에서 돌렸다. `494d1ce`와는 `docs/releases/0.32.1.sha256`만 다르다. fixture도 거기서 만들었다(manifest의 `kit_commit`).
 4. **로컬 전체 시험.** `84433ab`에서 후보 파일을 `AELIX_ANALYTICS_TEST_DIST`로 주고 돌렸다(아래).
 
-기기: macOS 26.6.2 arm64(18코어, 64 GB), 로컬 SSD, CPython 3.12.13, SQLite 3.53.1, Chromium 156.0.8078.4(Playwright 1.64.0).
-**이번 측정 동안 기기에 다른 작업의 부하가 있었다**(load average 약 10–17, 편집기 확장과 다른 Python 프로세스). 그래서 Q9의 시간은 0.32.0보다
-길게 나왔다. 같은 부하에서 0.32.0 kit과 번갈아 잰 비교를 함께 적는다(아래 Q9).
+기기: macOS 26.6.2 arm64(18코어, 64 GiB), 로컬 SSD, CPython 3.12.13, SQLite 3.53.1, Chromium 156.0.8078.4(Playwright 1.64.0).
+**이번 측정 동안 기기에 다른 작업의 부하가 있었다**(load average 약 10–17, 편집기 확장과 다른 Python 프로세스). Q9의 시간은 0.32.0의 기록보다
+길게 나왔고, 부하가 그 차이를 설명할 수 있다. 같은 부하에서 0.32.0 kit과 번갈아 잰 비교를 함께 적는다(아래 Q9). 이 비교도 부하의 효과를 따로 가르지는 않는다.
 
 | 무엇 | 기준 | 결과 |
 |---|---|---|
@@ -41,7 +41,7 @@ fixture와 그 사본, Workspace, Q17-a의 환경과 원시 측정 디렉터리�
 | Q4 근거 정체성 | pass | 위 2의 `test_relations`, `test_record_contract`, `test_run_views`, `test_workspace_relations`. S·M fixture의 사례 판정을 두 형식에서 `check`로 다시 계산: 4개 모두 `problems` 0 | — |
 | Q7 기록 호환성 | pass | 위 2의 `test_marker_gate`, `test_migration`, `test_migration_reader`, `test_migrate_command`, `test_writer`, `test_new_format`, `test_journal_append`. S·M `v1` 사본의 명시적 전환(아래), 원본 트리 해시 불변 | — |
 | Q8 실패의 가시성 | pass | 위 2의 `test_kit`, `test_writer`, `test_platform`, `test_reports`, `test_input_caps`, `test_metrics`, `test_result_line`, `test_observed`(관찰의 제한 시간·상한에서 꺼짐을 알림, #171) | — |
-| Q9 규모와 비용 | pass(측정 범위) | 아래 Q9. M의 warm 제한 조회 p95 최대 445 ms(목표 500 ms). 빌드된 첫 화면을 여는 load p95 54 ms(목표 2초). 인덱스 손상 뒤 재구축과 원본 응답. 조회 중 변경의 갱신 상태는 위 2의 `test_retrieval`·`test_relations`·`test_workspace_relations` | 부하가 있는 macOS 한 기기. 읽은 파일량, L·Linux·Windows는 미측정. M에서 run 끝의 전체 빌드 9.9–13.2초(p50, 부하 아래) |
+| Q9 규모와 비용 | pass(측정 범위) | 아래 Q9. M의 warm 제한 조회 p95 최대 445 ms(목표 500 ms). 빌드된 첫 화면을 여는 load p95 54 ms(목표 2초). 인덱스 손상 뒤 재구축과 원본 응답. 조회 중 변경의 갱신 상태는 위 2의 `test_retrieval`·`test_relations`·`test_workspace_relations` | 부하가 있는 macOS 한 기기. warm 제한 조회가 한 번 593 ms(아래). 읽은 파일량, L·Linux·Windows는 미측정. M의 warm 전체 빌드(`workspace.build`, run 끝과 기록 뒤에 하는 빌드) p50 9.9–13.2초(부하 아래) |
 | Q10 분석·표시 경계 | 표시 경계 pass. 분석 검사는 판정 없음(T07–T09는 모델 기록의 R5) | 표시: S·M의 `display_safety` 사례(마크업·경로·템플릿처럼 보이는 문장)를 HTML 파서와 Chromium으로 따로 판정했다. 문장 전체가 글자로 든 페이지 S 4, M 3이고, 그 일부로 만들어진 요소·`javascript:` 링크·주석은 0이다. 새 표시 표면(관찰의 가린 명령·경로·스크립트 사본 #171, 긴 글 자르기 #184, 새 탭 #168)은 위 2의 `test_relation_screens`, `test_observed_screens`, `test_workspace_*`. 분석 검사 예제: `q10` fixture 두 형식의 `check` 통과 | 공유 범위는 #20·#21의 기록 |
 | Q12 지표와 분석 방향 | 결정적 사례 pass | 위 2의 `test_metrics`, `test_checkpoints` | 새 세션의 재개는 [모델 기록](2026-11-21-issue-24-product-eval.md)의 C3 |
 | Q15 장기 확장 구조 | pass | 위 2의 `test_layers`(역방향 import), `test_contracts`, `test_asset_contract`, `test_extension`·`test_asset_host`. stdlib만의 CPython 3.11(위 main CI의 `floor` 세 OS: 위반 0, Windows는 선언된 한계 1), aelix 통합(3.11·3.12) | — |
@@ -72,10 +72,10 @@ fixture는 `tools/eval_fixtures.py scale --seed 0`의 S(30 runs, 300 events, 5 d
 - **같은 부하에서 0.32.0 kit과 번갈아 잼**(같은 하네스 도구, 0.32.0 kit은 clean `26c28d0`).
   - M warm 빌드 p50: 0.32.1 13.2초·9.9초, 0.32.0 10.7초·10.0초다. 변경 없음 확인 p95는 0.32.1 168·154 ms, 0.32.0 136·143 ms다.
   - S warm 빌드 p50: 0.32.1 479·433 ms, 0.32.0 479·493 ms다.
-  - 차이는 부하의 흔들림 안이다. 0.32.0 기록(M warm 6.3초)과의 차이는 기기 부하로 본다. 이 kit 때문이라는 근거는 찾지 못했다.
+  - 두 kit의 차이는 이 부하의 흔들림보다 작다. 0.32.0 기록(M warm 6.3초)과의 차이는 기기 부하로 설명될 수 있고, 이 kit 때문이라는 근거는 찾지 못했다.
 - **크기가 늘었다.** 같은 M fixture에서 0.32.0 kit은 250.3 MB, 0.32.1 kit은 293.3 MB(+17%)를 쓴다. S는 13.4 → 15.2 MB다. 페이지 수는 같다.
   쪽마다 Aelix 마크의 data URI(약 1.7 KB)가 두 번(탭 아이콘과 바닥글) 들어가서다([#204](https://github.com/handochan/aelix-analytics/issues/204)).
-  첫 화면은 450 → 463 KB(+12 KB)다. 첫 화면과 기본 응답이 기록량에 비례해 커지지 않는다는 Q9의 기준은 그대로다. 전체 Workspace는 기록에 비례해 커진다.
+  첫 화면은 449,819 → 462,619 B(약 +13 KB)다. 첫 화면과 기본 응답이 기록량에 비례해 커지지 않는다는 Q9의 기준은 그대로다. 전체 Workspace는 기록에 비례해 커진다.
 
 **제한 조회**(`tools/retrieval_eval.py`, warm 10회, 첫 쪽 8개). `v1`은 명시적으로 전환한 사본, `v2`는 사본 그대로다.
 
@@ -91,15 +91,18 @@ fixture는 `tools/eval_fixtures.py scale --seed 0`의 S(30 runs, 300 events, 5 d
 - **같은 부하에서 0.32.0 kit과 번갈아 잼(M `v2`)**: warm p95 최대가 0.32.1 363–442 ms(다섯 번), 0.32.0 296–468 ms(세 번)다.
   두 kit이 저마다 쓴 fixture에서 쟀다(0.32.0 kit은 0.32.1이 쓴 사본을 그 kit이 쓴 것이 아니라며 받지 않는다).
   - 같은 질의(긴 한국어)를 두 kit에서 cProfile로 재면 함수 호출 수(약 1,048만)와 CPU 시간(5회 2.29초 · 2.27초)이 같다.
-  - 그래서 조회의 차이도 부하의 흔들림으로 본다. 0.32.0 기록은 M warm p95 286.5 ms였다.
-  - cold는 이번에 목표의 범위(500 ms)를 넘기도 했다(636 ms). 목표는 warm에 두었다.
+  - 그래서 조회의 차이도 부하의 흔들림으로 설명될 수 있다. 0.32.0 기록은 M warm p95 286.5 ms였다.
+  - **목표(warm p95 500 ms)를 넘은 측정이 한 번 있다**: 0.32.1 kit을 0.32.0 kit이 쓴 fixture 사본에 돌린 교차 측정에서 593.4 ms(긴 한국어 과제)다.
+    같은 순서에서 0.32.0 kit이 자기 fixture에서 잰 값도 467.5 ms로 평소(296–314 ms)보다 높았다. 0.32.1 kit이 자기 fixture에서 잰 다섯 번은 모두 442 ms 이하다.
+    부하가 없는 기기에서 다시 재지 않았으므로, 이 한 번을 부하 탓으로 확정하지는 않는다.
+  - cold는 이번에 500 ms를 넘기도 했다(636 ms). 목표는 warm에 두었다.
 
 **새 비용**(모델 없음, aelix 0.1.0b2의 확장 hook을 그대로 부름).
 
 | | 결과 | 비교 |
 |---|---|---|
 | #169 프로젝트 찾기(작업 폴더 아래, 깊이 3, 디렉터리 2,000개 상한) | 3×3×3 p95 19 ms. 12×12×12(1,884개) p95 74 ms. 상한을 넘는 15×15×15(3,615개)는 p95 100 ms에 멈추고 `complete: false`. 실제 저장소 루트 p95 4 ms | — |
-| #171 bash 한 번의 관찰(앞과 뒤를 더한 지연) | 파일 1,000개 p50 118 ms, 10,000개 p50 206 ms(최대 220), 50,000개는 상한으로 꺼짐(`not_observed`·`too_many_entries`, 그 뒤 `observation_off`). 64 MiB·200 MiB 파일의 해시 117·176 ms | [#171 기록](2026-11-10-issue-171-observed-activity.md): 1만 개 약 125 ms(부하 없음) |
+| #171 bash 한 번의 관찰(앞과 뒤를 더한 지연) | 파일 1,000개 p50 118 ms, 10,000개 p50 206 ms(최대 220), 50,000개는 상한으로 꺼짐(`not_observed`·`too_many_entries`, 그 뒤 `observation_off`). 바뀐 파일 하나가 64 MiB·200 MiB일 때(해시함) 117·176 ms | [#171 기록](2026-11-10-issue-171-observed-activity.md): 1만 개 약 125 ms |
 
 ## Q7: 명시적 전환
 
